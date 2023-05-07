@@ -1,0 +1,31 @@
+name:                locest
+version:             0.0.1.0
+synopsis:            Spatiotemporal interpolation and search
+homepage:            https://github.com/nevrome/locest
+category:            Archaeoinformatics
+author:              Clemens Schmid
+maintainer:          clemens@nevrome.de
+license:             MIT
+license-file:        LICENSE
+build-type:          Simple
+cabal-version:       >=1.10
+extra-source-files:  README.md,
+                     CHANGELOG.md
+
+source-repository head
+    type:               git
+    location:           https://github.com/nevrome/locest.git
+
+executable locest
+    main-is:
+      Main-locest.hs
+    hs-source-dirs:
+      src-executables
+    build-depends:
+        base
+      , optparse-applicative >= 0.16 && < 0.18
+      , filepath
+    default-language:
+      Haskell2010
+    ghc-options: 
+      -threaded -with-rtsopts=-N
