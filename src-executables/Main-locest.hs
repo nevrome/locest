@@ -2,6 +2,8 @@
 
 --import           Paths_locest                     (version)
 
+import LocEst.CLI.Search (SearchOptions (..), runSearch)
+
 import           Control.Exception                  (catch, Exception)
 import           Data.Version                       (showVersion, makeVersion, Version)
 import qualified Options.Applicative                as OP
@@ -10,11 +12,6 @@ import           System.IO                          (hPutStrLn, stderr)
 
 version :: Version
 version = makeVersion [0,0,0]
-
--- data types
-data LOCESToptions = LOCESToptions Bool
-
-data Options = CmdLOCEST LOCESToptions
 
 -- | Different exceptions for locest
 data LOCESTException =
@@ -30,26 +27,30 @@ renderLOCESTException (TestException2 s) =
 
 instance Exception LOCESTException
 
+-- data types
+data Options = Options { _subcommand :: Subcommand }
+
+data Subcommand = CmdSearch SearchOptions
+
 -- CLI interface configuration
 main :: IO ()
 main = do
     hPutStrLn stderr $ "locest v" ++ showVersion version
-    -- prepare input parsing
-    cmdOpts <- OP.customExecParser p optParserInfo
-    catch (runCmd cmdOpts) handler
+    hPutStrLn stderr ""
+    (Options subcommand) <- OP.customExecParser (OP.prefs OP.showHelpOnEmpty) optParserInfo
+    catch (runCmd subcommand) handler
     where
-        p = OP.prefs OP.showHelpOnEmpty
         handler :: LOCESTException -> IO ()
         handler e = do
             hPutStrLn stderr $ renderLOCESTException e
             exitFailure
 
-runCmd :: Options -> IO ()
+runCmd :: Subcommand -> IO ()
 runCmd o = case o of
-    CmdLOCEST opts -> runLOCEST opts
+    CmdSearch opts -> runSearch opts
 
 optParserInfo :: OP.ParserInfo Options
-optParserInfo = OP.info (OP.helper <*> versionOption <*> optParser) (
+optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (
     OP.briefDesc <>
     OP.progDesc "..."
     )
@@ -57,22 +58,34 @@ optParserInfo = OP.info (OP.helper <*> versionOption <*> optParser) (
 versionOption :: OP.Parser (a -> a)
 versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.help "Show version")
 
-optParser :: OP.Parser Options
-optParser = CmdLOCEST <$> locestOptParser
+subcommandParser :: OP.Parser Subcommand
+subcommandParser = OP.subparser (OP.command "search" searchOptInfo)
+    where
+        searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
+            (OP.progDesc "Search...")
 
-locestOptParser :: OP.Parser LOCESToptions
-locestOptParser = LOCESToptions <$> optParseQuiet
+searchOptParser :: OP.Parser SearchOptions
+searchOptParser = SearchOptions <$> parseInObservationFile
+                                <*> parseInSearchPosFile
+                                <*> parseOutFile
 
-optParseQuiet :: OP.Parser Bool
-optParseQuiet = OP.switch (
-    OP.long "quiet" <> 
-    OP.short 'q' <>
-    OP.help "Suppress the printing of ..."
-    )
+---
 
+parseInObservationFile :: OP.Parser FilePath
+parseInObservationFile = OP.strOption (OP.long "obsFile" <>
+    OP.help "...")
 
------
+parseInSearchPosFile :: OP.Parser FilePath
+parseInSearchPosFile = OP.strOption (OP.long "searchPosFile" <>
+    OP.help "...")
 
-runLOCEST :: LOCESToptions -> IO ()
-runLOCEST _ = putStrLn "huhu"
+parseOutFile :: OP.Parser FilePath
+parseOutFile = OP.strOption (OP.long "outFile" <>
+    OP.help "...")
 
+--optParseQuiet :: OP.Parser Bool
+--optParseQuiet = OP.switch (
+--    OP.long "quiet" <> 
+--    OP.short 'q' <>
+--    OP.help "Suppress the printing of ..."
+--    )
