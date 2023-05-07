@@ -3,3 +3,4 @@ resolver: lts-20.20
 packages:
 - .
 extra-deps:
+  - 'cassava-conduit-0.6.2'

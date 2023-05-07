@@ -1,8 +1,31 @@
 -- {-# LANGUAGE StrictData #-}
+{-# LANGUAGE OverloadedStrings   #-}
 
 module LocEst.Types where
 
 import qualified Data.Csv                             as Csv
+import qualified Data.ByteString.Char8                as Bchs
+import qualified Data.HashMap.Strict                  as HM
+import           Control.Applicative                  (empty)
+
+data SpatTempObsTsvRow = SpatTempObsTsvRow {
+      _stotID :: String
+    , _stotX  :: Double
+    , _stotY  :: Double
+    , _stotSimpleAge :: Int
+    , _stotPC1 :: Double
+} deriving Show
+
+instance Csv.FromNamedRecord SpatTempObsTsvRow where
+    parseNamedRecord m = SpatTempObsTsvRow
+        <$> filterLookup m "id"
+        <*> filterLookup m "x"
+        <*> filterLookup m "y"
+        <*> filterLookup m "age"
+        <*> filterLookup m "pc1"
+
+filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
+filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 
 -- | A datatype for observations in space and time
 data SpatTempObs = SpatTempObs {
