@@ -16,39 +16,21 @@ import GHC.Generics (Generic)
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
 filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 
--- | A datatype for raw tsv SpatTempObs input
-data SpatTempObsTsvRow = SpatTempObsTsvRow {
-      _stotID :: String
-    , _stotX  :: Double
-    , _stotY  :: Double
-    , _stotSimpleAge :: YearBCAD
-    , _stotPC1 :: Double
-} deriving Show
-
-instance Csv.FromNamedRecord SpatTempObsTsvRow where
-    parseNamedRecord m = SpatTempObsTsvRow
-        <$> filterLookup m "id"
-        <*> filterLookup m "x"
-        <*> filterLookup m "y"
-        <*> filterLookup m "age"
-        <*> filterLookup m "pc1"
-
-spatTempObsFromTsvRow :: SpatTempObsTsvRow -> SpatTempObs
-spatTempObsFromTsvRow (SpatTempObsTsvRow _ x y age pc1) =
-    SpatTempObs {
-          _spatTempPos = SpatTempPos {
-              _spatialPos = SpatPosCartesian $ CartesianPos x y
-            , _temporalPos = SimpleYearBCAD age
-        }
-        , _pc1 = pc1
-    }
-
 -- | A datatype for observations in space and time
 data SpatTempObs = SpatTempObs {
       _spatTempPos :: SpatTempPos
     , _pc1         :: Double -- TODO: add a data structure to store
                              -- more variables, maybe a Map
 } deriving Show
+
+instance Csv.FromNamedRecord SpatTempObs where
+    parseNamedRecord m = do
+        spatTempPos <- Csv.parseNamedRecord m
+        pc1 <- filterLookup m "pc1"
+        pure $ SpatTempObs {
+              _spatTempPos = spatTempPos
+            , _pc1         = pc1
+            }
 
 -- | A datatype for spatio-temporal positions
 data SpatTempPos = SpatTempPos {
@@ -61,9 +43,9 @@ instance Csv.FromNamedRecord SpatTempPos where
         spatPos <- SpatPosCartesian <$> (CartesianPos <$> filterLookup m "x" <*> filterLookup m "y")
         tempPos <- SimpleYearBCAD <$> filterLookup m "age"
         pure $ SpatTempPos {
-            _spatialPos = spatPos
-          , _temporalPos = tempPos
-        }
+              _spatialPos = spatPos
+            , _temporalPos = tempPos
+            }
 
 instance Csv.ToRecord SpatTempPos where
     toRecord (SpatTempPos spatPos tempPos) = Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]

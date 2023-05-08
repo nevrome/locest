@@ -26,7 +26,6 @@ readSpatTempObs path =
     Con.runConduitRes $
            Con.sourceFile path
         .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
-        .| ConL.map spatTempObsFromTsvRow
         .| ConL.consume
 
 pipeSpatTempPosConduit :: FilePath -> FilePath -> IO ()
