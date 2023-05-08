@@ -1,6 +1,7 @@
 -- {-# LANGUAGE StrictData #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ApplicativeDo #-}
 
 module LocEst.Types where
 
@@ -35,7 +36,10 @@ instance Csv.FromNamedRecord SpatTempObsTsvRow where
 spatTempObsFromTsvRow :: SpatTempObsTsvRow -> SpatTempObs
 spatTempObsFromTsvRow (SpatTempObsTsvRow i x y age pc1) =
     SpatTempObs {
-          _spatTempPos = spatTempPosFromTsvRow $ SpatTempPosTsvRow i x y age
+          _spatTempPos = SpatTempPos {
+              _spatialPos = SpatPosCartesian $ CartesianPos x y
+            , _temporalPos = SimpleYearBCAD age
+        }
         , _pc1 = pc1
     }
 
@@ -46,52 +50,31 @@ data SpatTempObs = SpatTempObs {
                              -- more variables, maybe a Map
 } deriving Show
 
--- | A datatype for raw tsv SpatTempPos input
-data SpatTempPosTsvRow = SpatTempPosTsvRow {
-      _stptID :: String
-    , _stptX  :: Double
-    , _stptY  :: Double
-    , _stptSimpleAge :: YearBCAD
-} deriving (Show, Generic)
-
-instance Csv.FromNamedRecord SpatTempPosTsvRow where
-    parseNamedRecord m = SpatTempPosTsvRow
-        <$> filterLookup m "id"
-        <*> filterLookup m "x"
-        <*> filterLookup m "y"
-        <*> filterLookup m "age"
-
---instance Csv.ToNamedRecord SpatTempPosTsvRow where
---    toNamedRecord m = Csv.namedRecord [
---          "id"  Csv..= _stptID m
---        , "x"   Csv..= _stptX m
---        , "y"   Csv..= _stptY m
---        , "age" Csv..= _stptSimpleAge m
---        ]
-
-instance Csv.ToRecord SpatTempPosTsvRow
-
-spatTempPosFromTsvRow :: SpatTempPosTsvRow -> SpatTempPos
-spatTempPosFromTsvRow (SpatTempPosTsvRow _ x y age) =
-    SpatTempPos {
-        _spatialPos = SpatPosCartesian $ CartesianPos x y
-      , _temporalPos = SimpleYearBCAD age
-    }
-
-spatTempPosToTsvRow :: SpatTempPos -> SpatTempPosTsvRow
-spatTempPosToTsvRow (SpatTempPos (SpatPosCartesian (CartesianPos x y)) (SimpleYearBCAD age)) =
-    SpatTempPosTsvRow "test" x y age
-
 -- | A datatype for spatio-temporal positions
 data SpatTempPos = SpatTempPos {
       _spatialPos  :: SpatPos
     , _temporalPos :: TempPos
-} deriving Show
+} deriving (Show, Generic)
+
+instance Csv.FromNamedRecord SpatTempPos where
+    parseNamedRecord m = do
+        spatPos <- SpatPosCartesian <$> (CartesianPos <$> filterLookup m "x" <*> filterLookup m "y")
+        tempPos <- SimpleYearBCAD <$> filterLookup m "age"
+        pure $ SpatTempPos {
+            _spatialPos = spatPos
+          , _temporalPos = tempPos
+        }
+
+instance Csv.ToRecord SpatTempPos where
+    toRecord (SpatTempPos spatPos tempPos) = Csv.toRecord spatPos
 
 -- | A datatype for temporal positions
 data TempPos =
     SimpleYearBCAD YearBCAD -- TODO: add more complex models
-    deriving Show
+    deriving (Show, Generic)
+
+instance Csv.ToField TempPos where
+    toField (SimpleYearBCAD x) = Csv.toField x
 
 type YearBP = Word
 type YearBCAD = Int
@@ -99,15 +82,25 @@ type YearRange = Word
 
 -- | A datatype for spatial positions
 data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
-    deriving (Show)
+    deriving (Show, Generic)
+
+instance Csv.ToRecord SpatPos where
+    toRecord (SpatPosCartesian x) = Csv.toRecord x
+    toRecord (SpatPosLongLat x)   = Csv.toRecord x
 
 -- | A datatype for projected coordinates
 data CartesianPos = CartesianPos Double Double
     deriving (Show)
 
+instance Csv.ToRecord CartesianPos where
+    toRecord (CartesianPos x y) = Csv.record [Csv.toField x, Csv.toField y]
+
 -- | A datatype for Long-Lat coordinates
 data LongLatPos = LongLatPos Longitude Latitude
     deriving (Show)
+
+instance Csv.ToRecord LongLatPos where
+    toRecord (LongLatPos long lat) = Csv.record [Csv.toField long, Csv.toField lat]
 
 -- | A datatype for Longitudes
 newtype Longitude = Longitude Double
