@@ -8,11 +8,19 @@ import qualified Data.ByteString.Char8                as Bchs
 import qualified Data.HashMap.Strict                  as HM
 import           Control.Applicative                  (empty)
 
+
+-- helper functions
+filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
+filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
+
+
+
+-- | A datatype for raw tsv SpatTempObs input
 data SpatTempObsTsvRow = SpatTempObsTsvRow {
       _stotID :: String
     , _stotX  :: Double
     , _stotY  :: Double
-    , _stotSimpleAge :: Int
+    , _stotSimpleAge :: YearBCAD
     , _stotPC1 :: Double
 } deriving Show
 
@@ -24,25 +32,23 @@ instance Csv.FromNamedRecord SpatTempObsTsvRow where
         <*> filterLookup m "age"
         <*> filterLookup m "pc1"
 
-filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
-filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
-
 -- | A datatype for observations in space and time
 data SpatTempObs = SpatTempObs {
       _spatTempPos :: SpatTempPos
     , _pc1         :: Double -- TODO: add a data structure to store
                              -- more variables, maybe a Map
-}
+} deriving Show
 
 -- | A datatype for spatio-temporal positions
 data SpatTempPos = SpatTempPos {
       _spatialPos  :: SpatPos
     , _temporalPos :: TempPos
-}
+} deriving Show
 
 -- | A datatype for temporal positions
 data TempPos =
     SimpleYearBCAD YearBCAD -- TODO: add more complex models
+    deriving Show
 
 type YearBP = Word
 type YearBCAD = Int
@@ -56,19 +62,9 @@ data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
 data CartesianPos = CartesianPos Double Double
     deriving (Show)
 
-makeCartesianPos :: MonadFail m => Double -> Double -> m CartesianPos
-makeCartesianPos x y = do
-    return $ CartesianPos x y
-
 -- | A datatype for Long-Lat coordinates
 data LongLatPos = LongLatPos Longitude Latitude
     deriving (Show)
-
-makeLongLatPos :: MonadFail m => Double -> Double -> m LongLatPos
-makeLongLatPos long lat = do
-    longitude <- makeLongitude long
-    latitude <- makeLatitude lat
-    return $ LongLatPos longitude latitude
 
 -- | A datatype for Longitudes
 newtype Longitude = Longitude Double

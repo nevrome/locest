@@ -23,13 +23,24 @@ runSearch (
     ) = do
     putStrLn $ inObsFile ++ "; " ++ inSearchPosFile ++ "; " ++ outFile
 
-    (hu :: [SpatTempObsTsvRow]) <- Con.runConduitRes $
+    (hu :: [SpatTempObs]) <- Con.runConduitRes $
         Con.sourceFile inObsFile
         .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
+        .| ConL.map spatTempObsFromTsvRow
         .| ConL.consume
     
     print hu
 
+
+spatTempObsFromTsvRow :: SpatTempObsTsvRow -> SpatTempObs
+spatTempObsFromTsvRow (SpatTempObsTsvRow _ x y age pc1) =
+    SpatTempObs {
+          _spatTempPos = SpatTempPos {
+              _spatialPos = SpatPosCartesian $ CartesianPos x y
+            , _temporalPos = SimpleYearBCAD age
+          }
+        , _pc1 = pc1
+    }
 
 
 decodingOptions :: Csv.DecodeOptions
