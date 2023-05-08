@@ -16,11 +16,20 @@ import GHC.Generics (Generic)
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
 filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 
+-- | A datatype for result points in space and time
+data SpatTempProb = SpatTempProb {
+      _stprspatTempPos :: SpatTempPos
+    , _stprprobability :: Double
+} deriving Show
+
+instance Csv.ToRecord SpatTempProb where
+    toRecord (SpatTempProb spatTempPos prob) = Csv.toRecord spatTempPos <> Csv.record [Csv.toField prob]
+
 -- | A datatype for observations in space and time
 data SpatTempObs = SpatTempObs {
-      _spatTempPos :: SpatTempPos
-    , _pc1         :: Double -- TODO: add a data structure to store
-                             -- more variables, maybe a Map
+      _stpospatTempPos :: SpatTempPos
+    , _stpopc1         :: Double -- TODO: add a data structure to store
+                                 -- more variables, maybe a Map
 } deriving Show
 
 instance Csv.FromNamedRecord SpatTempObs where
@@ -28,8 +37,8 @@ instance Csv.FromNamedRecord SpatTempObs where
         spatTempPos <- Csv.parseNamedRecord m
         pc1 <- filterLookup m "pc1"
         pure $ SpatTempObs {
-              _spatTempPos = spatTempPos
-            , _pc1         = pc1
+              _stpospatTempPos = spatTempPos
+            , _stpopc1         = pc1
             }
 
 -- | A datatype for spatio-temporal positions

@@ -33,6 +33,14 @@ pipeSpatTempPosConduit inPath outPath =
     Con.runConduitRes $
            Con.sourceFile inPath
         .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
-        .| ConL.map (id :: SpatTempPos -> SpatTempPos)
+        .| ConL.map myFunc
         .| ConCsv.toCsv encodingOptions
         .| Con.sinkFile outPath
+
+
+myFunc :: SpatTempPos -> SpatTempProb
+myFunc spatTempPos =
+    SpatTempProb {
+          _stprspatTempPos = spatTempPos
+        , _stprprobability = 1
+    }
