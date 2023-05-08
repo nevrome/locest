@@ -19,7 +19,7 @@ runSearch (
 
     hu <- readSpatTempObs inObsFile
 
-    print hu
+    print $ hu !! 1
 
-    pipeSpatTempPosConduit inObsFile outFile
+    pipeSpatTempPosConduit inSearchPosFile outFile
 

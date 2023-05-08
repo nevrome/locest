@@ -4,3 +4,4 @@ docs/_build/
 .Rproj.user
 .Rhistory
 dist-newstyle/
+*.tsv
