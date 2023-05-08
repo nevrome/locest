@@ -18,7 +18,7 @@ source-repository head
 
 library
     exposed-modules:
-      LocEst.CLI.Search, LocEst.Types, LocEst.Parsers
+      LocEst.CLI.Search, LocEst.Types, LocEst.Parsers, LocEst.Distance
     hs-source-dirs:
       src
     build-depends:

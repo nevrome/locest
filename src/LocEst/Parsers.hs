@@ -28,19 +28,11 @@ readSpatTempObs path =
         .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
         .| ConL.consume
 
-pipeSpatTempPosConduit :: FilePath -> FilePath -> IO ()
-pipeSpatTempPosConduit inPath outPath =
+pipeSpatTempPosConduit :: FilePath -> FilePath -> (SpatTempPos -> SpatTempProb) -> IO ()
+pipeSpatTempPosConduit inPath outPath f =
     Con.runConduitRes $
            Con.sourceFile inPath
         .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
-        .| ConL.map myFunc
+        .| ConL.map f
         .| ConCsv.toCsv encodingOptions
         .| Con.sinkFile outPath
-
-
-myFunc :: SpatTempPos -> SpatTempProb
-myFunc spatTempPos =
-    SpatTempProb {
-          _stprspatTempPos = spatTempPos
-        , _stprprobability = 1
-    }

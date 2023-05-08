@@ -2,8 +2,10 @@
 
 module LocEst.CLI.Search where
 
---import LocEst.Types
+import LocEst.Types
 import LocEst.Parsers
+import LocEst.Distance
+import Data.List (foldl')
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
@@ -15,11 +17,19 @@ runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions inObsFile inSearchPosFile outFile
     ) = do
-    putStrLn $ inObsFile ++ "; " ++ inSearchPosFile ++ "; " ++ outFile
+    
+    allObservations <- readSpatTempObs inObsFile
+    pipeSpatTempPosConduit inSearchPosFile outFile (myFunc allObservations)
 
-    hu <- readSpatTempObs inObsFile
 
-    print $ hu !! 1
+myFunc :: [SpatTempObs] -> SpatTempPos -> SpatTempProb
+myFunc allSpatTempObs spatTempPos =
+    let allSpatialDistances = map (spatialDistSpatTempPos (spatTempPos) . _stpoSpatTempPos) allSpatTempObs
+    in SpatTempProb {
+              _stprspatTempPos = spatTempPos
+            , _stprprobability = avg allSpatialDistances
+       }
 
-    pipeSpatTempPosConduit inSearchPosFile outFile
-
+avg :: [Double] -> Double
+avg xs = let sum_ = foldl' (+) 0 xs
+         in sum_ / fromIntegral (length xs)

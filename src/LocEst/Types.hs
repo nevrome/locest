@@ -27,7 +27,7 @@ instance Csv.ToRecord SpatTempProb where
 
 -- | A datatype for observations in space and time
 data SpatTempObs = SpatTempObs {
-      _stpospatTempPos :: SpatTempPos
+      _stpoSpatTempPos :: SpatTempPos
     , _stpopc1         :: Double -- TODO: add a data structure to store
                                  -- more variables, maybe a Map
 } deriving Show
@@ -37,7 +37,7 @@ instance Csv.FromNamedRecord SpatTempObs where
         spatTempPos <- Csv.parseNamedRecord m
         pc1 <- filterLookup m "pc1"
         pure $ SpatTempObs {
-              _stpospatTempPos = spatTempPos
+              _stpoSpatTempPos = spatTempPos
             , _stpopc1         = pc1
             }
 
