@@ -34,7 +34,7 @@ instance Csv.FromNamedRecord SpatTempObsTsvRow where
         <*> filterLookup m "pc1"
 
 spatTempObsFromTsvRow :: SpatTempObsTsvRow -> SpatTempObs
-spatTempObsFromTsvRow (SpatTempObsTsvRow i x y age pc1) =
+spatTempObsFromTsvRow (SpatTempObsTsvRow _ x y age pc1) =
     SpatTempObs {
           _spatTempPos = SpatTempPos {
               _spatialPos = SpatPosCartesian $ CartesianPos x y
@@ -66,7 +66,7 @@ instance Csv.FromNamedRecord SpatTempPos where
         }
 
 instance Csv.ToRecord SpatTempPos where
-    toRecord (SpatTempPos spatPos tempPos) = Csv.toRecord spatPos
+    toRecord (SpatTempPos spatPos tempPos) = Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]
 
 -- | A datatype for temporal positions
 data TempPos =

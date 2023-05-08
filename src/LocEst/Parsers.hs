@@ -34,9 +34,6 @@ pipeSpatTempPosConduit inPath outPath =
     Con.runConduitRes $
            Con.sourceFile inPath
         .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
-        .| ConL.map hu
+        .| ConL.map (id :: SpatTempPos -> SpatTempPos)
         .| ConCsv.toCsv encodingOptions
         .| Con.sinkFile outPath
-
-hu :: SpatTempPos -> SpatTempPos
-hu = id
