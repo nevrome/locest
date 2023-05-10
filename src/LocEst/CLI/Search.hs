@@ -24,10 +24,11 @@ runSearch (
 
 myFunc :: [SpatTempObs] -> SpatTempPos -> SpatTempProb
 myFunc allSpatTempObs spatTempPos =
-    let allSpatialDistances = map (spatialDistSpatTempPos (spatTempPos) . _stpoSpatTempPos) allSpatTempObs
+    let allSpatDists = map (spatialDistSpatTempPos (spatTempPos) . _stpoSpatTempPos) allSpatTempObs
+        --allTempDists = map (temporalDistSpatTempPos (spatTempPos) . _stpoSpatTempPos) allSpatTempObs
     in SpatTempProb {
               _stprspatTempPos = spatTempPos
-            , _stprprobability = avg allSpatialDistances
+            , _stprprobability = avg allSpatDists
        }
 
 avg :: [Double] -> Double
