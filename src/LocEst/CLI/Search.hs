@@ -25,7 +25,7 @@ runSearch (
 
 myFunc :: [SpatTempObs] -> SpatTempPos -> SpatTempProb
 myFunc allSpatTempObs spatTempPosRaw =
-    let spatTempPos = spatTempPosRaw {_temporalPos = SimpleYearBCAD (-5200) }
+    let spatTempPos = spatTempPosRaw {_temporalPos = SimpleYearBCAD (-6000) }
         allSpatDists   = map (spatialDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
         allSpatDistsKM = map (/ 1000) allSpatDists
         allTempDists   = map (temporalDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
@@ -34,7 +34,8 @@ myFunc allSpatTempObs spatTempPosRaw =
         allDensities   = map (\(mean,sd) -> dnorm mean sd 0.0461299) (zip allPCMeans allPCSDs)
         meanDens       = 
             -- avg allDensities -- too smooth, low densities pull the mean down
-            maximum allDensities -- too aggressive
+            maximum allDensities -- too aggressive?
+
 
     in --error $ show $ zip5 allSpatDistsKM allTempDists allPCMeans allPCSDs allDensities
        SpatTempProb { _stprspatTempPos = spatTempPos, _stprprobability = meanDens }
