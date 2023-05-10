@@ -5,7 +5,8 @@ module LocEst.CLI.Search where
 import LocEst.Types
 import LocEst.Parsers
 import LocEst.Distance
-import Data.List (foldl')
+import LocEst.Math
+import Data.List (zip5)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
@@ -23,14 +24,17 @@ runSearch (
 
 
 myFunc :: [SpatTempObs] -> SpatTempPos -> SpatTempProb
-myFunc allSpatTempObs spatTempPos =
-    let allSpatDists = map (spatialDistSpatTempPos (spatTempPos) . _stpoSpatTempPos) allSpatTempObs
-        --allTempDists = map (temporalDistSpatTempPos (spatTempPos) . _stpoSpatTempPos) allSpatTempObs
-    in SpatTempProb {
-              _stprspatTempPos = spatTempPos
-            , _stprprobability = avg allSpatDists
-       }
+myFunc allSpatTempObs spatTempPosRaw =
+    let spatTempPos = spatTempPosRaw {_temporalPos = SimpleYearBCAD (-5200) }
+        allSpatDists   = map (spatialDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
+        allSpatDistsKM = map (/ 1000) allSpatDists
+        allTempDists   = map (temporalDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
+        allPCMeans     = map _stpopc1 allSpatTempObs
+        allPCSDs       = map (\(s,t) -> 0.0001 * s + 0.0001 * t) (zip allSpatDistsKM allTempDists)
+        allDensities   = map (\(mean,sd) -> dnorm mean sd 0.0461299) (zip allPCMeans allPCSDs)
+        meanDens       = 
+            -- avg allDensities -- too smooth, low densities pull the mean down
+            maximum allDensities -- too aggressive
 
-avg :: [Double] -> Double
-avg xs = let sum_ = foldl' (+) 0 xs
-         in sum_ / fromIntegral (length xs)
+    in --error $ show $ zip5 allSpatDistsKM allTempDists allPCMeans allPCSDs allDensities
+       SpatTempProb { _stprspatTempPos = spatTempPos, _stprprobability = meanDens }

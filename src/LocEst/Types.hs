@@ -19,7 +19,7 @@ filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 -- | A datatype for distances in space and time
 data SpatTempDist = SpatTempDist {
       _spatDist :: Double
-    , _tempDist :: Int
+    , _tempDist :: Double
 }
 
 -- | A datatype for result points in space and time

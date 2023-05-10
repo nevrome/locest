@@ -6,13 +6,12 @@ spatTempDistSpatTempPos :: SpatTempPos -> SpatTempPos -> SpatTempDist
 spatTempDistSpatTempPos p1 p2 =
     SpatTempDist (spatialDistSpatTempPos p1 p2) (temporalDistSpatTempPos p1 p2)
 
-temporalDistSpatTempPos :: SpatTempPos -> SpatTempPos -> Int
+temporalDistSpatTempPos :: SpatTempPos -> SpatTempPos -> Double
 temporalDistSpatTempPos (SpatTempPos _ tempP1) (SpatTempPos _ tempP2) =
     temporalDistTempPos tempP1 tempP2
 
-temporalDistTempPos :: TempPos -> TempPos -> Int
-temporalDistTempPos (SimpleYearBCAD t1) (SimpleYearBCAD t2) =
-    abs (t1 - t2)
+temporalDistTempPos :: TempPos -> TempPos -> Double
+temporalDistTempPos (SimpleYearBCAD t1) (SimpleYearBCAD t2) = fromIntegral $ abs (t1 - t2)
 
 spatialDistSpatTempPos :: SpatTempPos -> SpatTempPos -> Double
 spatialDistSpatTempPos (SpatTempPos spatP1 _) (SpatTempPos spatP2 _) =
@@ -25,7 +24,7 @@ spatialDistSpatPos _ _ = error "Can not be calculated"
 
 spatialDistCartesianPos :: CartesianPos -> CartesianPos -> Double
 spatialDistCartesianPos (CartesianPos x1 y1) (CartesianPos x2 y2) =
-    sqrt $ (abs (x1 - x2)^(2 :: Int) + abs (y1 - y2)^(2 :: Int))
+    sqrt (((x1 - x2)^(2 :: Int)) + ((y1 - y2)^(2 :: Int)))
 
 -- Haversine distance
 spatialDistLongLatPos :: LongLatPos -> LongLatPos -> Double
