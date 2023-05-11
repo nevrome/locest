@@ -4,14 +4,14 @@ import LocEst.Types
 
 import qualified Data.Csv                             as Csv
 import qualified Data.Csv.Conduit                     as ConCsv
-import Data.Conduit                         ((.|))
+import Data.Conduit                         ((.|), ConduitT)
 import qualified Data.Conduit                         as Con
 import qualified Data.Conduit.Combinators             as Con
 import           Data.Char                            (ord)
 import qualified Data.Conduit.List as ConL
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Vector as V
-import Conduit (MonadIO, Conduit, liftIO)
+import Conduit (MonadIO, liftIO)
 import Data.IORef (newIORef, readIORef, modifyIORef)
 
 -- helper functions
@@ -44,7 +44,7 @@ pipeSpatTempPosConduit inPath outPath f =
         .| ConCsv.toCsv encodingOptions
         .| Con.sinkFile outPath
 
-progress :: (MonadIO m) => Conduit i m i 
+progress :: (MonadIO m) => ConduitT i i m ()
 progress = do
     counterRef <- liftIO $ newIORef (0 :: Int)
     ConL.mapM_ $ \val -> do
@@ -54,7 +54,7 @@ progress = do
     where
         logProgress :: Int -> IO ()
         logProgress c
-            |  c `rem` 1000 == 0 = putStrLn $ "Grid points done: " ++ padLeft 7 (show c)
+            |  c `rem` 1000 == 0 = putStrLn $ "Grid points: " ++ padLeft 7 (show c)
             -- |  c == 100          = putStrLn $ "Probing successful. Continuing now..."
             | otherwise = return ()
 
