@@ -32,7 +32,6 @@ library
       , conduit-algorithms
       , deepseq
       , vector
-      , integration
     default-language:
       Haskell2010
 

@@ -34,7 +34,7 @@ myFunc allSpatTempObs spatTempPosRaw =
         allDensities   = map (\(mean,sd) -> dnorm mean sd 0.0461299) (zip allPCMeans allPCSDs)
         minPC1         = minimum allPCMeans
         maxPC1         = maximum allPCMeans
-        allIntegrals   = map (\(mean,sd) -> integrateFaster (dnorm mean sd) minPC1 maxPC1) (zip allPCMeans allPCSDs)
+        allIntegrals   = map (\(mean,sd) -> integrate 100 (dnorm mean sd) minPC1 maxPC1) (zip allPCMeans allPCSDs)
         meanDens       = 
             -- avg allDensities -- too smooth, low densities pull the mean down
             -- maximum allDensities -- too aggressive?

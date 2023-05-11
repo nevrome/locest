@@ -1,10 +1,6 @@
 module LocEst.Math where
 
 import Data.List (foldl')
-import Numeric.Integration.TanhSinh (result, absolute, simpson)
-
-integrateFaster :: (Double -> Double) -> Double -> Double -> Double
-integrateFaster f start stop = result $ absolute 1e-6 $ simpson f start stop
 
 -- https://stackoverflow.com/questions/32978290/haskell-numerical-integration-via-trapezoidal-rule-results-in-wrong-sign
 integrate :: Double -> (Double -> Double) -> Double -> Double -> Double
