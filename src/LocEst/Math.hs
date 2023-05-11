@@ -11,6 +11,11 @@ dnorm mu sigma x =
         sigma2 = sigma * sigma
     in a*b
 
+weightedAvg :: [Double] -> [Double] -> Double
+weightedAvg weights values =
+    let sumWeights = sum weights
+        sumWeightedVals = foldl' (\o (w,v) -> o + w * v) 0 $ zip weights values
+    in sumWeightedVals / sumWeights
+
 avg :: [Double] -> Double
-avg xs = let sum_ = foldl' (+) 0 xs
-         in sum_ / fromIntegral (length xs)
+avg xs = sum xs / fromIntegral (length xs)
