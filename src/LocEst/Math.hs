@@ -1,18 +1,19 @@
 module LocEst.Math where
 
 import Data.List (foldl')
+import Numeric.Integration.TanhSinh (result, absolute, simpson)
+
+integrateFaster :: (Double -> Double) -> Double -> Double -> Double
+integrateFaster f start stop = result $ absolute 1e-6 $ simpson f start stop
 
 -- https://stackoverflow.com/questions/32978290/haskell-numerical-integration-via-trapezoidal-rule-results-in-wrong-sign
-integrate :: (Double -> Double) -> Double -> Double -> Double
-integrate f a b =
-    h / 2 * (f a + f b + 2 * partial_sum)
+integrate :: Double -> (Double -> Double) -> Double -> Double -> Double
+integrate steps f start stop =
+    h / 2 * (f start + f stop + 2 * partial_sum)
     where
-        h = (b - a) / 100
-        most_parts  = map f (pointsWithOffset (100-1) h a)
-        partial_sum = sum most_parts
-
-pointsWithOffset :: Double -> Double -> Double -> [Double]
-pointsWithOffset x1 x2 offset = map (+offset) (points x1 x2)
+        h = (stop - start) / steps
+        myPoints = points (steps-1) h
+        partial_sum = foldl' (\o x -> o + f (x + start)) 0 myPoints
 
 points  :: Double -> Double -> [Double]
 points x1 x2
