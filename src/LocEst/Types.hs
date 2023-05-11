@@ -10,7 +10,7 @@ import qualified Data.ByteString.Char8                as Bchs
 import qualified Data.HashMap.Strict                  as HM
 import           Control.Applicative                  (empty)
 import GHC.Generics (Generic)
-
+import Control.DeepSeq
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -26,8 +26,9 @@ data SpatTempDist = SpatTempDist {
 data SpatTempProb = SpatTempProb {
       _stprspatTempPos :: SpatTempPos
     , _stprprobability :: Double
-} deriving Show
+} deriving (Show, Generic)
 
+instance NFData SpatTempProb
 instance Csv.ToRecord SpatTempProb where
     toRecord (SpatTempProb spatTempPos prob) = Csv.toRecord spatTempPos <> Csv.record [Csv.toField prob]
 
@@ -53,6 +54,7 @@ data SpatTempPos = SpatTempPos {
     , _temporalPos :: TempPos
 } deriving (Show, Generic)
 
+instance NFData SpatTempPos
 instance Csv.FromNamedRecord SpatTempPos where
     parseNamedRecord m = do
         spatPos <- SpatPosCartesian <$> (CartesianPos <$> filterLookup m "x" <*> filterLookup m "y")
@@ -61,7 +63,6 @@ instance Csv.FromNamedRecord SpatTempPos where
               _spatialPos = spatPos
             , _temporalPos = tempPos
             }
-
 instance Csv.ToRecord SpatTempPos where
     toRecord (SpatTempPos spatPos tempPos) = Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]
 
@@ -70,6 +71,7 @@ data TempPos =
     SimpleYearBCAD YearBCAD -- TODO: add more complex models
     deriving (Show, Generic)
 
+instance NFData TempPos
 instance Csv.ToField TempPos where
     toField (SimpleYearBCAD x) = Csv.toField x
 
@@ -81,33 +83,37 @@ type YearRange = Word
 data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
     deriving (Show, Generic)
 
+instance NFData SpatPos
 instance Csv.ToRecord SpatPos where
     toRecord (SpatPosCartesian x) = Csv.toRecord x
     toRecord (SpatPosLongLat x)   = Csv.toRecord x
 
 -- | A datatype for projected coordinates
 data CartesianPos = CartesianPos Double Double
-    deriving (Show)
+    deriving (Show, Generic)
 
+instance NFData CartesianPos
 instance Csv.ToRecord CartesianPos where
     toRecord (CartesianPos x y) = Csv.record [Csv.toField x, Csv.toField y]
 
 -- | A datatype for Long-Lat coordinates
 data LongLatPos = LongLatPos Longitude Latitude
-    deriving (Show)
+    deriving (Show, Generic)
 
+instance NFData LongLatPos
 instance Csv.ToRecord LongLatPos where
     toRecord (LongLatPos long lat) = Csv.record [Csv.toField long, Csv.toField lat]
 
 -- | A datatype for Longitudes
 newtype Longitude = Longitude Double
-    deriving (Show)
+    deriving (Show, Generic)
 
 makeLongitude :: MonadFail m => Double -> m Longitude
 makeLongitude x
     | x >= -180 && x <= 180 = pure (Longitude x)
     | otherwise             = fail $ "Longitude " ++ show x ++ " not between -180 and 180"
 
+instance NFData Longitude
 instance Csv.ToField Longitude where
     toField (Longitude x) = Csv.toField x
 instance Csv.FromField Longitude where
@@ -115,14 +121,14 @@ instance Csv.FromField Longitude where
 
 -- | A datatype for Latitudes
 newtype Latitude = Latitude Double
-    deriving (Show)
+    deriving (Show, Generic)
 
 makeLatitude :: MonadFail m => Double -> m Latitude
 makeLatitude x
     | x >= -90 && x <= 90 = pure (Latitude x)
     | otherwise           = fail $ "Latitude " ++ show x ++ " not between -90 and 90"
 
-
+instance NFData Latitude
 instance Csv.ToField Latitude where
     toField (Latitude x) = Csv.toField x
 instance Csv.FromField Latitude where

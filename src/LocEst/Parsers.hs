@@ -9,6 +9,8 @@ import qualified Data.Conduit                         as Con
 import qualified Data.Conduit.Combinators             as Con
 import           Data.Char                            (ord)
 import qualified Data.Conduit.List as ConL
+import qualified Data.Conduit.Algorithms.Async as ConAA
+import qualified Data.Vector as V
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -33,6 +35,8 @@ pipeSpatTempPosConduit inPath outPath f =
     Con.runConduitRes $
            Con.sourceFile inPath
         .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
-        .| ConL.map f
+        -- .| ConL.map f
+        .| ConAA.asyncMapC 5 f
+        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map f) .| ConL.concat
         .| ConCsv.toCsv encodingOptions
         .| Con.sinkFile outPath
