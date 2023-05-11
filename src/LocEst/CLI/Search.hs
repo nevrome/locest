@@ -25,7 +25,7 @@ runSearch (
 
 myFunc :: [SpatTempObs] -> SpatTempPos -> SpatTempProb
 myFunc allSpatTempObs spatTempPosRaw =
-    let spatTempPos = spatTempPosRaw {_temporalPos = SimpleYearBCAD (-6500) }
+    let spatTempPos = spatTempPosRaw {_temporalPos = SimpleYearBCAD (-5200) }
         allSpatDists   = map (spatialDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
         allSpatDistsKM = map (/ 1000) allSpatDists
         allTempDists   = map (temporalDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs

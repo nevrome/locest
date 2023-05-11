@@ -13,6 +13,7 @@ import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Vector as V
 import Conduit (MonadIO, liftIO)
 import Data.IORef (newIORef, readIORef, modifyIORef)
+import System.IO (stderr, hPutStrLn)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -47,14 +48,15 @@ pipeSpatTempPosConduit inPath outPath f =
 progress :: (MonadIO m) => ConduitT i i m ()
 progress = do
     counterRef <- liftIO $ newIORef (0 :: Int)
-    ConL.mapM_ $ \val -> do
+    ConL.mapM $ \val -> do
         n <- liftIO $ readIORef counterRef
         liftIO $ logProgress n
         liftIO $ modifyIORef counterRef (+1)
+        return val
     where
         logProgress :: Int -> IO ()
         logProgress c
-            |  c `rem` 1000 == 0 = putStrLn $ "Grid points: " ++ padLeft 7 (show c)
+            |  c `rem` 1000 == 0 = hPutStrLn stderr $ "Grid points: " ++ padLeft 7 (show c)
             -- |  c == 100          = putStrLn $ "Probing successful. Continuing now..."
             | otherwise = return ()
 

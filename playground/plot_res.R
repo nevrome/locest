@@ -3,7 +3,6 @@ setwd("agora/locest/playground/")
 library(magrittr)
 library(ggplot2)
 
-system("stack install")
 system("locest search --obsFile test2Obs.tsv --searchPosFile test2Grid.tsv --outFile troot.tsv")
 
 hu <- readr::read_tsv("troot.tsv",col_names = c("x", "y", "t", "prob"))
