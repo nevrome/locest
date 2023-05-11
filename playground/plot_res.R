@@ -22,3 +22,4 @@ tibble::tibble(x = x, y = dnorm(x,0.0461299,sd)) %>%
   ggplot() + geom_line(aes(x, y)) +
   coord_cartesian(xlim = c(-0.1, 0.1), ylim = c(0,10))
 
+integrate(dnorm, mean=0, sd=1, lower= -Inf, upper= Inf, abs.tol = 0)$value
