@@ -1,7 +1,7 @@
 library(magrittr)
 
-load("../mobest.analysis.2022/data/genotype_data/janno_final.RData")
-load("../mobest.analysis.2022/data/spatial/extended_area.RData")
+load("../../mobest.analysis.2022/data/genotype_data/janno_final.RData")
+load("../../mobest.analysis.2022/data/spatial/extended_area.RData")
 
 hu <- mobest::create_prediction_grid(
   extended_area,

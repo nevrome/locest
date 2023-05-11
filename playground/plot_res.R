@@ -3,11 +3,14 @@ setwd("agora/locest/playground/")
 library(magrittr)
 library(ggplot2)
 
+system("stack install")
+system("locest search --obsFile playground/test2Obs.tsv --searchPosFile playground/test2Grid.tsv --outFile troot.tsv")
+
 hu <- readr::read_tsv("../troot.tsv",col_names = c("x", "y", "t", "prob"))
 
 hu %>%
   ggplot() +
-  geom_raster(aes(x, y, fill = log(prob))) +
+  geom_raster(aes(x, y, fill = prob)) +
   scale_fill_viridis_c()
 
 
