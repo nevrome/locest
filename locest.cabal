@@ -18,7 +18,8 @@ source-repository head
 
 library
     exposed-modules:
-      LocEst.CLI.Search, LocEst.Types, LocEst.Parsers, LocEst.Distance, LocEst.Math
+      LocEst.CLI.Search, LocEst.Types, LocEst.Parsers, LocEst.Distance, LocEst.Math,
+      LocEst.CLI.Interface
     hs-source-dirs:
       src
     build-depends:
@@ -32,6 +33,7 @@ library
       , conduit-algorithms
       , deepseq
       , vector
+      , optparse-applicative
     default-language:
       Haskell2010
 

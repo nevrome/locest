@@ -2,6 +2,8 @@ module LocEst.Math where
 
 import Data.List (foldl')
 
+--integrateFaster :: [Double] -> (Double -> Double) -> Double -> Double -> Double
+
 -- https://stackoverflow.com/questions/32978290/haskell-numerical-integration-via-trapezoidal-rule-results-in-wrong-sign
 integrate :: Double -> (Double -> Double) -> Double -> Double -> Double
 integrate steps f start stop =

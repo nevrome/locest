@@ -2,6 +2,7 @@
 
 --import           Paths_locest                     (version)
 
+import LocEst.CLI.Interface
 import LocEst.CLI.Search (SearchOptions (..), runSearch)
 
 import           Control.Exception                  (catch, Exception)
@@ -66,26 +67,5 @@ subcommandParser = OP.subparser (OP.command "search" searchOptInfo)
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$> parseInObservationFile
-                                <*> parseInSearchPosFile
+                                <*> parseInSpatGridFile
                                 <*> parseOutFile
-
----
-
-parseInObservationFile :: OP.Parser FilePath
-parseInObservationFile = OP.strOption (OP.long "obsFile" <>
-    OP.help "...")
-
-parseInSearchPosFile :: OP.Parser FilePath
-parseInSearchPosFile = OP.strOption (OP.long "searchPosFile" <>
-    OP.help "...")
-
-parseOutFile :: OP.Parser FilePath
-parseOutFile = OP.strOption (OP.long "outFile" <>
-    OP.help "...")
-
---optParseQuiet :: OP.Parser Bool
---optParseQuiet = OP.switch (
---    OP.long "quiet" <> 
---    OP.short 'q' <>
---    OP.help "Suppress the printing of ..."
---    )
