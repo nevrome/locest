@@ -35,6 +35,7 @@ library
       , vector
       , optparse-applicative
       , parsec
+      , mtl
     default-language:
       Haskell2010
 

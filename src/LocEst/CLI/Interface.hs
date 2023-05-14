@@ -3,7 +3,6 @@ module LocEst.CLI.Interface where
 import qualified Options.Applicative            as OP
 import qualified Text.Parsec                    as P
 import qualified Text.Parsec.String             as P
-import qualified Text.Parsec.Token              as PT
 
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (

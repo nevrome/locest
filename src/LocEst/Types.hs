@@ -57,7 +57,7 @@ data SpatTempPos = SpatTempPos {
 instance NFData SpatTempPos
 instance Csv.FromNamedRecord SpatTempPos where
     parseNamedRecord m = do
-        spatPos <- SpatPosCartesian <$> (CartesianPos <$> filterLookup m "x" <*> filterLookup m "y")
+        spatPos <- Csv.parseNamedRecord m
         tempPos <- SimpleYearBCAD <$> filterLookup m "age"
         pure $ SpatTempPos {
               _spatialPos = spatPos
@@ -84,6 +84,9 @@ data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
     deriving (Show, Generic)
 
 instance NFData SpatPos
+instance Csv.FromNamedRecord SpatPos where
+    parseNamedRecord m = do
+        SpatPosCartesian <$> (CartesianPos <$> filterLookup m "x" <*> filterLookup m "y")
 instance Csv.ToRecord SpatPos where
     toRecord (SpatPosCartesian x) = Csv.toRecord x
     toRecord (SpatPosLongLat x)   = Csv.toRecord x

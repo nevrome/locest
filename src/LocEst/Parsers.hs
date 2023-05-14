@@ -1,19 +1,20 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module LocEst.Parsers where
 
 import LocEst.Types
 
 import qualified Data.Csv                             as Csv
 import qualified Data.Csv.Conduit                     as ConCsv
-import Data.Conduit                         ((.|), ConduitT)
+import Data.Conduit                         ((.|), ConduitT, Void)
 import qualified Data.Conduit                         as Con
 import qualified Data.Conduit.Combinators             as Con
 import           Data.Char                            (ord)
 import qualified Data.Conduit.List as ConL
-import qualified Data.Conduit.Algorithms.Async as ConAA
-import qualified Data.Vector as V
-import Conduit (MonadIO, liftIO)
+import Conduit (MonadIO, liftIO, MonadResource)
 import Data.IORef (newIORef, readIORef, modifyIORef)
 import System.IO (stderr, hPutStrLn)
+import Control.Monad.Error.Class
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -29,21 +30,24 @@ encodingOptions = Csv.defaultEncodeOptions {
 readSpatTempObs :: FilePath -> IO [SpatTempObs]
 readSpatTempObs path =
     Con.runConduitRes $
-           Con.sourceFile path
-        .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
+           sourceCSV path
         .| ConL.consume
 
-pipeSpatTempPosConduit :: FilePath -> FilePath -> (SpatTempPos -> SpatTempProb) -> IO ()
-pipeSpatTempPosConduit inPath outPath f =
+readSpatPos :: FilePath -> IO [SpatPos]
+readSpatPos path =
     Con.runConduitRes $
-           Con.sourceFile inPath
-        .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
-        -- .| ConL.map f
-        .| ConAA.asyncMapC 5 f
-        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map f) .| ConL.concat
-        .| progress
-        .| ConCsv.toCsv encodingOptions
-        .| Con.sinkFile outPath
+           sourceCSV path
+        .| ConL.consume
+
+sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) => FilePath -> ConduitT () a m ()
+sourceCSV path =
+       Con.sourceFile path
+    .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
+
+sinkCSV :: (MonadResource m, Csv.ToRecord a) => FilePath -> ConduitT a Void m ()
+sinkCSV path =
+       ConCsv.toCsv encodingOptions
+    .| Con.sinkFile path
 
 progress :: (MonadIO m) => ConduitT i i m ()
 progress = do

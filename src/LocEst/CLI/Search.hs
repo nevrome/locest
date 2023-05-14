@@ -6,7 +6,10 @@ import LocEst.Types
 import LocEst.Parsers
 import LocEst.Distance
 import LocEst.Math
-import Data.List (zip5)
+
+import qualified Data.Conduit                         as Con
+import qualified Data.Conduit.Algorithms.Async as ConAA
+import Data.Conduit ((.|))
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
@@ -23,8 +26,15 @@ runSearch (
     print inTempGrid
 
     allObservations <- readSpatTempObs inObsFile
-    pipeSpatTempPosConduit inSpatGridFile outFile (myFunc allObservations)
+    -- pipeSpatTempPosConduit inSpatGridFile outFile (myFunc allObservations)
 
+    Con.runConduitRes $
+           sourceCSV inSpatGridFile
+        -- .| ConL.map f -- sequential
+        .| ConAA.asyncMapC 5 (myFunc allObservations) -- normal parallel
+        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map f) .| ConL.concat -- chunked parallel
+        .| progress
+        .| sinkCSV outFile
 
 myFunc :: [SpatTempObs] -> SpatTempPos -> SpatTempProb
 myFunc allSpatTempObs spatTempPosRaw =
@@ -35,14 +45,13 @@ myFunc allSpatTempObs spatTempPosRaw =
         allPCMeans     = map _stpopc1 allSpatTempObs
         allPCSDs       = map (\(s,t) -> 0.0001 * s + 0.0001 * t) (zip allSpatDistsKM allTempDists)
         allDensities   = map (\(mean,sd) -> dnorm mean sd 0.0461299) (zip allPCMeans allPCSDs)
-        minPC1         = minimum allPCMeans
-        maxPC1         = maximum allPCMeans
-        allIntegrals   = map (\(mean,sd) -> integrate 100 (dnorm mean sd) minPC1 maxPC1) (zip allPCMeans allPCSDs)
+        --minPC1         = minimum allPCMeans
+        --maxPC1         = maximum allPCMeans
+        --allIntegrals   = map (\(mean,sd) -> integrate 100 (dnorm mean sd) minPC1 maxPC1) (zip allPCMeans allPCSDs)
         meanDens       = 
             -- avg allDensities -- too smooth, low densities pull the mean down
             maximum allDensities -- too aggressive?
             --weightedAvg allIntegrals allDensities
-
 
 
     in --error $ show $ zip5 allSpatDistsKM allTempDists allPCMeans allPCSDs allDensities
