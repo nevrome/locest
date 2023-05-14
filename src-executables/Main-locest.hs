@@ -2,14 +2,14 @@
 
 --import           Paths_locest                     (version)
 
-import LocEst.CLI.Interface
-import LocEst.CLI.Search (SearchOptions (..), runSearch)
+import           LocEst.CLI.Interface
+import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
 
-import           Control.Exception                  (catch, Exception)
-import           Data.Version                       (showVersion, makeVersion, Version)
-import qualified Options.Applicative                as OP
-import           System.Exit                        (exitFailure)
-import           System.IO                          (hPutStrLn, stderr)
+import           Control.Exception    (Exception, catch)
+import           Data.Version         (Version, makeVersion, showVersion)
+import qualified Options.Applicative  as OP
+import           System.Exit          (exitFailure)
+import           System.IO            (hPutStrLn, stderr)
 
 version :: Version
 version = makeVersion [0,0,0]
@@ -20,8 +20,8 @@ data LOCESTException =
     | TestException2 String -- ^ An exception to ...
     deriving (Show)
 
-renderLOCESTException :: LOCESTException -> String 
-renderLOCESTException (TestException s) = 
+renderLOCESTException :: LOCESTException -> String
+renderLOCESTException (TestException s) =
     "<!> Error: " ++ s
 renderLOCESTException (TestException2 s) =
     "<!> Error: " ++ s

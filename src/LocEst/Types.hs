@@ -1,16 +1,16 @@
 -- {-# LANGUAGE StrictData #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE ApplicativeDo     #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module LocEst.Types where
 
-import qualified Data.Csv                             as Csv
-import qualified Data.ByteString.Char8                as Bchs
-import qualified Data.HashMap.Strict                  as HM
-import           Control.Applicative                  (empty)
-import GHC.Generics (Generic)
-import Control.DeepSeq
+import           Control.Applicative   (empty)
+import           Control.DeepSeq
+import qualified Data.ByteString.Char8 as Bchs
+import qualified Data.Csv              as Csv
+import qualified Data.HashMap.Strict   as HM
+import           GHC.Generics          (Generic)
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a

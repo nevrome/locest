@@ -1,8 +1,8 @@
 module LocEst.CLI.Interface where
 
-import qualified Options.Applicative            as OP
-import qualified Text.Parsec                    as P
-import qualified Text.Parsec.String             as P
+import qualified Options.Applicative as OP
+import qualified Text.Parsec         as P
+import qualified Text.Parsec.String  as P
 
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (
@@ -32,7 +32,7 @@ readTempGridString :: String -> Either String [Int]
 readTempGridString s =
     case P.runParser parseTempGridString () "" s of
         Left err -> Left $ show err
-        Right x -> Right x
+        Right x  -> Right x
 
 parseTempGridString :: P.Parser [Int]
 parseTempGridString = do
@@ -67,7 +67,7 @@ optParseOutFile = OP.strOption (
 
 --optParseQuiet :: OP.Parser Bool
 --optParseQuiet = OP.switch (
---    OP.long "quiet" <> 
+--    OP.long "quiet" <>
 --    OP.short 'q' <>
 --    OP.help "Suppress the printing of ..."
 --    )

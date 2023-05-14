@@ -1,6 +1,6 @@
 module LocEst.Math where
 
-import Data.List (foldl')
+import           Data.List (foldl')
 
 --integrateFaster :: [Double] -> (Double -> Double) -> Double -> Double -> Double
 
@@ -18,8 +18,8 @@ points x1 x2
     | x1 <= 0 = []
     | otherwise = (x1*x2) : points (x1-1) x2
 
-dnorm :: Double -> Double -> Double -> Double 
-dnorm mu sigma x = 
+dnorm :: Double -> Double -> Double -> Double
+dnorm mu sigma x =
     let a = recip (sqrt (2 * pi * sigma2))
         b = exp (-c2 / (2 * sigma2))
         c = x - mu

@@ -1,15 +1,15 @@
-{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module LocEst.CLI.Search where
 
-import LocEst.Types
-import LocEst.Parsers
-import LocEst.Distance
-import LocEst.Math
+import           LocEst.Distance
+import           LocEst.Math
+import           LocEst.Parsers
+import           LocEst.Types
 
-import qualified Data.Conduit                         as Con
+import           Data.Conduit                  ((.|))
+import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
-import Data.Conduit ((.|))
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
@@ -22,7 +22,7 @@ runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions inObsFile inSpatGridFile inTempGrid outFile
     ) = do
-    
+
     print inTempGrid
 
     allObservations <- readSpatTempObs inObsFile
@@ -48,7 +48,7 @@ myFunc allSpatTempObs spatTempPosRaw =
         --minPC1         = minimum allPCMeans
         --maxPC1         = maximum allPCMeans
         --allIntegrals   = map (\(mean,sd) -> integrate 100 (dnorm mean sd) minPC1 maxPC1) (zip allPCMeans allPCSDs)
-        meanDens       = 
+        meanDens       =
             -- avg allDensities -- too smooth, low densities pull the mean down
             maximum allDensities -- too aggressive?
             --weightedAvg allIntegrals allDensities

@@ -2,19 +2,19 @@
 
 module LocEst.Parsers where
 
-import LocEst.Types
+import           LocEst.Types
 
-import qualified Data.Csv                             as Csv
-import qualified Data.Csv.Conduit                     as ConCsv
-import Data.Conduit                         ((.|), ConduitT, Void)
-import qualified Data.Conduit                         as Con
-import qualified Data.Conduit.Combinators             as Con
-import           Data.Char                            (ord)
-import qualified Data.Conduit.List as ConL
-import Conduit (MonadIO, liftIO, MonadResource)
-import Data.IORef (newIORef, readIORef, modifyIORef)
-import System.IO (stderr, hPutStrLn)
-import Control.Monad.Error.Class
+import           Conduit                   (MonadIO, MonadResource, liftIO)
+import           Control.Monad.Error.Class
+import           Data.Char                 (ord)
+import           Data.Conduit              (ConduitT, Void, (.|))
+import qualified Data.Conduit              as Con
+import qualified Data.Conduit.Combinators  as Con
+import qualified Data.Conduit.List         as ConL
+import qualified Data.Csv                  as Csv
+import qualified Data.Csv.Conduit          as ConCsv
+import           Data.IORef                (modifyIORef, newIORef, readIORef)
+import           System.IO                 (hPutStrLn, stderr)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
