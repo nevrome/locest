@@ -10,17 +10,20 @@ import Data.List (zip5)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
-    , _searchInSearchPosFile   :: FilePath
+    , _searchInSpatGridFile    :: FilePath
+    , _searchInTempGrid        :: [Int]
     , _searchOutFile           :: FilePath
     }
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
-    SearchOptions inObsFile inSearchPosFile outFile
+    SearchOptions inObsFile inSpatGridFile inTempGrid outFile
     ) = do
     
+    print inTempGrid
+
     allObservations <- readSpatTempObs inObsFile
-    pipeSpatTempPosConduit inSearchPosFile outFile (myFunc allObservations)
+    pipeSpatTempPosConduit inSpatGridFile outFile (myFunc allObservations)
 
 
 myFunc :: [SpatTempObs] -> SpatTempPos -> SpatTempProb
@@ -37,8 +40,8 @@ myFunc allSpatTempObs spatTempPosRaw =
         allIntegrals   = map (\(mean,sd) -> integrate 100 (dnorm mean sd) minPC1 maxPC1) (zip allPCMeans allPCSDs)
         meanDens       = 
             -- avg allDensities -- too smooth, low densities pull the mean down
-            -- maximum allDensities -- too aggressive?
-            weightedAvg allIntegrals allDensities
+            maximum allDensities -- too aggressive?
+            --weightedAvg allIntegrals allDensities
 
 
 

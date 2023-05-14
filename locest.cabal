@@ -34,6 +34,7 @@ library
       , deepseq
       , vector
       , optparse-applicative
+      , parsec
     default-language:
       Haskell2010
 
