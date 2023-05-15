@@ -18,8 +18,8 @@ source-repository head
 
 library
     exposed-modules:
-      LocEst.CLI.Search, LocEst.Types, LocEst.Parsers, LocEst.Distance, LocEst.Math,
-      LocEst.CLI.Interface
+      LocEst.CLI.Search, LocEst.Types, LocEst.Parsers, LocEst.Distance, LocEst.Math.Basics,
+      LocEst.CLI.Interface, LocEst.Math.MultivariateNormal
     hs-source-dirs:
       src
     build-depends:
@@ -36,6 +36,7 @@ library
       , optparse-applicative
       , parsec
       , mtl
+      , hmatrix
     default-language:
       Haskell2010
 

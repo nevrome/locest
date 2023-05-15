@@ -3,7 +3,7 @@
 module LocEst.CLI.Search where
 
 import           LocEst.Distance
-import           LocEst.Math
+import           LocEst.Math.Basics
 import           LocEst.Parsers
 import           LocEst.Types
 
@@ -33,9 +33,9 @@ runSearch (
            sourceCSV inSpatGridFile
         -- multiply spatial input grid by temporal grid
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
-        -- .| ConL.map f -- sequential
+        -- .| ConL.map myFunc -- sequential
         .| ConAA.asyncMapC 5 (myFunc allObservations) -- normal parallel
-        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map f) .| ConL.concat -- chunked parallel
+        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map myFunc) .| ConL.concat -- chunked parallel
         .| progress
         .| sinkCSV outFile
 
