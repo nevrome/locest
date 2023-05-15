@@ -3,16 +3,16 @@
 module LocEst.CLI.Search where
 
 import           LocEst.Distance
-import           LocEst.Math.Basics
+--import           LocEst.Math.Basics
 import           LocEst.Parsers
 import           LocEst.Types
 
-import           Data.Conduit                  ((.|))
-import qualified Data.Conduit                  as Con
-import qualified Data.Conduit.Algorithms.Async as ConAA
-import qualified Data.Conduit.List             as ConL
-import qualified Data.HashMap.Strict as HM
-import LocEst.Math.MultivariateNormal (dnormMulti)
+import           Data.Conduit                   ((.|))
+import qualified Data.Conduit                   as Con
+import qualified Data.Conduit.Algorithms.Async  as ConAA
+import qualified Data.Conduit.List              as ConL
+import qualified Data.HashMap.Strict            as HM
+import           LocEst.Math.MultivariateNormal (dnormMulti)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath

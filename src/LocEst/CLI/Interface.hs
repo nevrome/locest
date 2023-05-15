@@ -1,11 +1,11 @@
 module LocEst.CLI.Interface where
 
-import LocEst.Types
+import           LocEst.Types
 
+import qualified Data.HashMap.Strict as HM
 import qualified Options.Applicative as OP
 import qualified Text.Parsec         as P
 import qualified Text.Parsec.String  as P
-import qualified Data.HashMap.Strict as HM
 
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (

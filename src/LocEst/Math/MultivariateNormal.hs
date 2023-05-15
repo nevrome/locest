@@ -1,13 +1,13 @@
-{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module LocEst.Math.MultivariateNormal (
     dnormMulti
     ) where
 
+import           Data.Maybe                    (fromJust)
+import           Foreign.Storable              (Storable)
+import qualified Numeric.LinearAlgebra.Data    as HD
 import qualified Numeric.LinearAlgebra.HMatrix as H
-import qualified Numeric.LinearAlgebra.Data as HD
-import           Foreign.Storable ( Storable )
-import           Data.Maybe ( fromJust )
 
 -- mu: mean on each pc
 -- sigma: sd on each pc

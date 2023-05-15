@@ -10,9 +10,9 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
+import           Data.List             (sortBy)
+import           Data.Ord              (comparing)
 import           GHC.Generics          (Generic)
-import Data.Ord (comparing)
-import Data.List (sortBy)
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -60,11 +60,11 @@ instance Csv.FromNamedRecord DepVarsMap where
 depVarsExtractOrdered :: [String] -> DepVarsMap -> [Double]
 depVarsExtractOrdered order (DepVarsMap hm) =
     let depVarsList = HM.toList hm
-    in sortAlong order depVarsList
+    in sortAlong depVarsList
     where
-        sortAlong :: Eq k => [k] -> [(k, v)] -> [v]
-        sortAlong order l =
-            let annotatedOrder = zip order [0..]
+        sortAlong :: [(String, v)] -> [v]
+        sortAlong l =
+            let annotatedOrder = zip order ([0..] :: [Integer])
                 annotatedData  = map (\(k, v) -> (lookup k annotatedOrder, v)) l
                 sortedData     = sortBy (comparing fst) annotatedData
             in map snd sortedData

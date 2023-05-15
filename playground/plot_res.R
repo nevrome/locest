@@ -3,7 +3,7 @@ setwd("agora/locest/playground/")
 library(magrittr)
 library(ggplot2)
 
-system('locest search -i test2Obs.tsv -g test2SpatGrid.tsv -t -6500 -d "varC1:0.0461299,varC2:0.00014293" -o troot.tsv')
+system('locest search -i test2Obs.tsv -g test2SpatGrid.tsv -t -7000 -d "varC1:0.0461299,varC2:0.00014293" -o troot.tsv')
 
 hu <- readr::read_tsv("troot.tsv",col_names = c("x", "y", "t", "prob"))
 
