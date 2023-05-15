@@ -24,7 +24,7 @@ optParseTempGridString :: OP.Parser [Int]
 optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
        OP.long    "tempGrid"
     <> OP.short   't'
-    <> OP.metavar "START:STOP:BY"
+    <> OP.metavar "YEAR|YEAR1,YEAR2,...|START:STOP:BY"
     <> OP.help    "..."
     )
 

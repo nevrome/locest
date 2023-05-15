@@ -10,6 +10,7 @@ import           LocEst.Types
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
+import qualified Data.Conduit.List             as ConL
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
@@ -30,6 +31,8 @@ runSearch (
 
     Con.runConduitRes $
            sourceCSV inSpatGridFile
+        -- multiply spatial input grid by temporal grid
+        .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
         -- .| ConL.map f -- sequential
         .| ConAA.asyncMapC 5 (myFunc allObservations) -- normal parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map f) .| ConL.concat -- chunked parallel
@@ -37,9 +40,8 @@ runSearch (
         .| sinkCSV outFile
 
 myFunc :: [SpatTempObs] -> SpatTempPos -> SpatTempProb
-myFunc allSpatTempObs spatTempPosRaw =
-    let spatTempPos = spatTempPosRaw {_temporalPos = SimpleYearBCAD (-5500) }
-        allSpatDists   = map (spatialDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
+myFunc allSpatTempObs spatTempPos =
+    let allSpatDists   = map (spatialDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
         allSpatDistsKM = map (/ 1000) allSpatDists
         allTempDists   = map (temporalDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
         allPCMeans     = map _stpopc1 allSpatTempObs
@@ -56,3 +58,8 @@ myFunc allSpatTempObs spatTempPosRaw =
 
     in --error $ show $ zip5 allSpatDistsKM allTempDists allPCMeans allPCSDs allDensities
        SpatTempProb { _stprspatTempPos = spatTempPos, _stprprobability = meanDens }
+
+multiplySpatPosByTempGrid :: [Int] -> SpatPos -> [SpatTempPos]
+multiplySpatPosByTempGrid tempGrid spatPos =
+    map (\y -> SpatTempPos { _spatialPos = spatPos, _temporalPos = SimpleYearBCAD y}) tempGrid
+
