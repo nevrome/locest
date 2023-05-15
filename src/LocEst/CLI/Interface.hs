@@ -1,8 +1,11 @@
 module LocEst.CLI.Interface where
 
+import LocEst.Types
+
 import qualified Options.Applicative as OP
 import qualified Text.Parsec         as P
 import qualified Text.Parsec.String  as P
+import qualified Data.HashMap.Strict as HM
 
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (
@@ -56,6 +59,36 @@ parseTempGridString = do
         parsePositiveInteger = do
             i <- read <$> P.many1 P.digit
             return i
+
+optParseSearchDepVars :: OP.Parser DepVarsMap
+optParseSearchDepVars = OP.option (OP.eitherReader readSearchDepVars) (
+       OP.long    "depVars"
+    <> OP.short   'd'
+    <> OP.metavar "varX:DOUBLE,varY:DOUBLE,..."
+    <> OP.help    "..."
+    )
+
+readSearchDepVars :: String -> Either String DepVarsMap
+readSearchDepVars s =
+    case P.runParser parseSearchDepVars () "" s of
+        Left err -> Left $ show err
+        Right x  -> Right x
+
+parseSearchDepVars :: P.Parser DepVarsMap
+parseSearchDepVars = do
+    resList <- P.sepBy parseDepVarCoord (P.char ',' <* P.spaces) <* P.eof
+    return $ DepVarsMap $ HM.fromList resList
+    where
+        parseDepVarCoord = do
+            identifier <- P.string "var" <> P.many1 P.alphaNum
+            _ <- P.char ':'
+            number <- parseDouble
+            return (identifier, number)
+        parseDouble = do
+            num <- parseNumber
+            optionalMore <- P.option "" $ (:) <$> P.char '.' <*> parseNumber
+            return $ read $ num ++ optionalMore
+        parseNumber = P.many1 P.digit
 
 optParseOutFile :: OP.Parser FilePath
 optParseOutFile = OP.strOption (

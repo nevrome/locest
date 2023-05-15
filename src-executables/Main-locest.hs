@@ -69,4 +69,5 @@ searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$> optParseInObservationFile
                                 <*> optParseInSpatGridFile
                                 <*> optParseTempGridString
+                                <*> optParseSearchDepVars
                                 <*> optParseOutFile

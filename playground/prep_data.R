@@ -20,6 +20,12 @@ janno_final %>%
     id = Poseidon_ID,
     x, y,
     age = Date_BC_AD_Median_Derived,
-    pc1 = C1_mds_u
+    varC1 = C1_mds_u,
+    varC2 = C2_mds_u
   )  %>%
   readr::write_tsv(file = "~/agora/locest/playground/test2Obs.tsv")
+
+janno_final %>%
+  dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
+  dplyr::select(Poseidon_ID, C1_mds_u, C2_mds_u) %>%
+  as.matrix

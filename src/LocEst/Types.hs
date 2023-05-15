@@ -37,7 +37,7 @@ instance Csv.ToRecord SpatTempProb where
 -- | A datatype for observations in space and time
 data SpatTempObs = SpatTempObs {
       _stpoSpatTempPos :: SpatTempPos
-    , _stpoDepVars     :: DebVarsMap
+    , _stpoDepVars     :: DepVarsMap
 } deriving Show
 
 instance Csv.FromNamedRecord SpatTempObs where
@@ -50,17 +50,17 @@ instance Csv.FromNamedRecord SpatTempObs where
             }
 
 -- | A datatype for dependent vars
-newtype DebVarsMap = DebVarsMap (HM.HashMap String Double)
+newtype DepVarsMap = DepVarsMap { getHM :: HM.HashMap String Double }
     deriving Show
 
-instance Csv.FromNamedRecord DebVarsMap where
+instance Csv.FromNamedRecord DepVarsMap where
     parseNamedRecord m = do
-        pure $ DebVarsMap $ HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
+        pure $ DepVarsMap $ HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
 
-debVarsExtractOrdered :: [String] -> DebVarsMap -> [Double]
-debVarsExtractOrdered order (DebVarsMap hm) =
-    let debVarsList = HM.toList hm
-    in sortAlong order debVarsList
+depVarsExtractOrdered :: [String] -> DepVarsMap -> [Double]
+depVarsExtractOrdered order (DepVarsMap hm) =
+    let depVarsList = HM.toList hm
+    in sortAlong order depVarsList
     where
         sortAlong :: Eq k => [k] -> [(k, v)] -> [v]
         sortAlong order l =
