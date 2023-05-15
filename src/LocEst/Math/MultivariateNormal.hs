@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 
 module LocEst.Math.MultivariateNormal (
-    normalPDFList
+    dnormMulti
     ) where
 
 import qualified Numeric.LinearAlgebra.HMatrix as H
@@ -12,8 +12,8 @@ import           Data.Maybe ( fromJust )
 -- mu: mean on each pc
 -- sigma: sd on each pc
 -- x: coordinates for point-of-interest on each pc
-normalPDFList :: [Double] -> [Double] -> [Double] -> Double
-normalPDFList mu sigma x = normalPDF (makeMu mu) (makeSigma sigma) (makeX x)
+dnormMulti :: [Double] -> [Double] -> [Double] -> Double
+dnormMulti mu sigma x = normalPDF (makeMu mu) (makeSigma sigma) (makeX x)
 
 makeX :: [Double] -> H.Vector Double
 makeX = HD.fromList

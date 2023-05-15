@@ -11,6 +11,8 @@ import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           GHC.Generics          (Generic)
+import Data.Ord (comparing)
+import Data.List (sortBy)
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -35,18 +37,37 @@ instance Csv.ToRecord SpatTempProb where
 -- | A datatype for observations in space and time
 data SpatTempObs = SpatTempObs {
       _stpoSpatTempPos :: SpatTempPos
-    , _stpopc1         :: Double -- TODO: add a data structure to store
-                                 -- more variables, maybe a Map
+    , _stpoDepVars     :: DebVarsMap
 } deriving Show
 
 instance Csv.FromNamedRecord SpatTempObs where
     parseNamedRecord m = do
         spatTempPos <- Csv.parseNamedRecord m
-        pc1 <- filterLookup m "pc1"
+        depVars <- Csv.parseNamedRecord m
         pure $ SpatTempObs {
               _stpoSpatTempPos = spatTempPos
-            , _stpopc1         = pc1
+            , _stpoDepVars     = depVars
             }
+
+-- | A datatype for dependent vars
+newtype DebVarsMap = DebVarsMap (HM.HashMap String Double)
+    deriving Show
+
+instance Csv.FromNamedRecord DebVarsMap where
+    parseNamedRecord m = do
+        pure $ DebVarsMap $ HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
+
+debVarsExtractOrdered :: [String] -> DebVarsMap -> [Double]
+debVarsExtractOrdered order (DebVarsMap hm) =
+    let debVarsList = HM.toList hm
+    in sortAlong order debVarsList
+    where
+        sortAlong :: Eq k => [k] -> [(k, v)] -> [v]
+        sortAlong order l =
+            let annotatedOrder = zip order [0..]
+                annotatedData  = map (\(k, v) -> (lookup k annotatedOrder, v)) l
+                sortedData     = sortBy (comparing fst) annotatedData
+            in map snd sortedData
 
 -- | A datatype for spatio-temporal positions
 data SpatTempPos = SpatTempPos {
