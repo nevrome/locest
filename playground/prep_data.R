@@ -10,8 +10,7 @@ hu <- mobest::create_prediction_grid(
 
 hu %>%
   dplyr::select(
-    id, x, y,
-    age = z
+    id, x, y
   ) %>%
   readr::write_tsv(file = "~/agora/locest/playground/test2Grid.tsv")
 
@@ -29,3 +28,4 @@ janno_final %>%
   dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
   dplyr::select(Poseidon_ID, C1_mds_u, C2_mds_u) %>%
   as.matrix
+

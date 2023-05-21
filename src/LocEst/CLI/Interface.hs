@@ -7,6 +7,52 @@ import qualified Options.Applicative as OP
 import qualified Text.Parsec         as P
 import qualified Text.Parsec.String  as P
 
+-- general parsers
+
+parseDoubleSequence = do
+    start <- parseDouble
+    _ <- P.oneOf ":"
+    stop <- parseDouble
+    _ <- P.oneOf ":"
+    by <- parsePositiveFloatNumber
+    return [start,(start+by)..stop]
+
+parseDouble = do
+    P.try parseNegativeFloatNumber P.<|> parsePositiveFloatNumber
+
+parseNegativeFloatNumber = do
+    _ <- P.oneOf "-"
+    i <- parsePositiveFloatNumber
+    return (-i)
+
+parsePositiveFloatNumber = do
+    num <- parseNumber
+    optionalMore <- P.option "" $ (:) <$> P.char '.' <*> parseNumber
+    return $ read $ num ++ optionalMore
+
+parseIntegerSequence = do
+    start <- parseInteger
+    _ <- P.oneOf ":"
+    stop <- parseInteger
+    _ <- P.oneOf ":"
+    by <- parsePositiveInteger
+    return [start,(start+by)..stop]
+
+parseInteger = do
+    P.try parseNegativeInteger P.<|> parsePositiveInteger
+
+parseNegativeInteger = do
+    _ <- P.oneOf "-"
+    i <- parsePositiveInteger
+    return (-i)
+
+parsePositiveInteger = do
+    read <$> parseNumber
+
+parseNumber = P.many1 P.digit
+
+-- optparse definitions
+
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (
        OP.long    "obsFile"
@@ -39,26 +85,10 @@ readTempGridString s =
 
 parseTempGridString :: P.Parser [Int]
 parseTempGridString = do
-    P.try parseSeq P.<|> parseYearList
+    P.try parseIntegerSequence P.<|> parseYearList
     where
         parseYearList = do
             P.sepBy parseInteger (P.char ',' <* P.spaces) <* P.eof
-        parseSeq = do
-            start <- parseInteger
-            _ <- P.oneOf ":"
-            stop <- parseInteger
-            _ <- P.oneOf ":"
-            by <- parsePositiveInteger
-            return [start,(start+by)..stop]
-        parseInteger = do
-            P.try parseNegativeInteger P.<|> parsePositiveInteger
-        parseNegativeInteger = do
-            _ <- P.oneOf "-"
-            i <- parsePositiveInteger
-            return (-i)
-        parsePositiveInteger = do
-            i <- read <$> P.many1 P.digit
-            return i
 
 optParseSearchDepVars :: OP.Parser DepVarsMap
 optParseSearchDepVars = OP.option (OP.eitherReader readSearchDepVars) (
@@ -84,11 +114,6 @@ parseSearchDepVars = do
             _ <- P.char ':'
             number <- parseDouble
             return (identifier, number)
-        parseDouble = do
-            num <- parseNumber
-            optionalMore <- P.option "" $ (:) <$> P.char '.' <*> parseNumber
-            return $ read $ num ++ optionalMore
-        parseNumber = P.many1 P.digit
 
 optParseOutFile :: OP.Parser FilePath
 optParseOutFile = OP.strOption (
