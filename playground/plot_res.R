@@ -1,7 +1,7 @@
 library(magrittr)
 library(ggplot2)
 
-system('locest search -i test2Obs.tsv -g test2Grid.tsv -t -7000 -d "varC1:0.0461299,varC2:0.00014293" -o test2Search.tsv')
+system('locest search -i test2Obs.tsv -g test2Grid.tsv -t -7000 -d "varC1=0.0461299+varC2=0.00014293" -o test2Search.tsv')
 
 hu <- readr::read_tsv("test2Search.tsv",col_names = c("x", "y", "t", "C1", "C2", "prob"))
 
@@ -11,9 +11,15 @@ hu %>%
   scale_fill_viridis_c() +
   coord_fixed()
 
-system('locest interpolate -i test2Obs.tsv -g test2Grid.tsv -t -7000 -d "varC1:0.0461299,varC2:0.00014293" -o test2Interpolate.tsv')
+system('locest interpolate -i test2Obs.tsv -g test2GridOnePoint.tsv -t -5200 -d "varC1=-0.0885337:0.0570383:0.01+varC2=-0.0669435:0.1100580:0.01" -o test2Interpolate.tsv')
 
 hu <- readr::read_tsv("test2Interpolate.tsv",col_names = c("x", "y", "t", "C1", "C2", "prob"))
+
+hu %>%
+  ggplot() +
+  geom_raster(aes(C1, C2, fill = prob)) +
+  scale_fill_viridis_c() +
+  coord_fixed()
 
 
 s <- 200

@@ -15,7 +15,7 @@ data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
     , _searchInSpatGridFile    :: FilePath
     , _searchInTempGrid        :: [Int]
-    , _searchSearchDepVars     :: DepVarsPos
+    , _searchSearchDepVars     :: [DepVarsPos]
     , _searchOutFile           :: FilePath
     }
 
@@ -29,7 +29,7 @@ runSearch (
         -- multiply spatial input grid by temporal grid
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
         -- .| ConL.map coreSearch -- sequential
-        .| ConAA.asyncMapC 5 (coreSearch allObservations searchDepVars) -- normal parallel
+        .| ConAA.asyncMapC 5 (coreSearch allObservations (head searchDepVars)) -- normal parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat -- chunked parallel
         .| progress
         .| sinkCSV outFile

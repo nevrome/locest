@@ -79,7 +79,7 @@ interpolateOptParser = InterpolateOptions <$>
                             optParseInObservationFile
                         <*> optParseInSpatGridFile
                         <*> optParseTempGridString
-                        <*> optParseSearchDepVars
+                        <*> optParseSearchDepVarsPos
                         <*> optParseOutFile
 
 searchOptParser :: OP.Parser SearchOptions
@@ -87,5 +87,5 @@ searchOptParser = SearchOptions <$>
                             optParseInObservationFile
                         <*> optParseInSpatGridFile
                         <*> optParseTempGridString
-                        <*> optParseSearchDepVars
+                        <*> optParseSearchDepVarsPos
                         <*> optParseOutFile

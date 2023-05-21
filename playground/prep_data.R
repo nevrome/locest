@@ -29,3 +29,16 @@ janno_final %>%
   dplyr::select(Poseidon_ID, C1_mds_u, C2_mds_u) %>%
   as.matrix
 
+janno_final %>%
+  dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
+  dplyr::select(
+    id = Poseidon_ID,
+    x, y
+  )  %>%
+  readr::write_tsv(file = "~/agora/locest/playground/test2GridOnePoint.tsv")
+
+range(janno_final$C1_mds_u)
+range(janno_final$C2_mds_u)
+seq(min(janno_final$C1_mds_u), max(janno_final$C1_mds_u), 0.01)
+seq(min(janno_final$C2_mds_u), max(janno_final$C2_mds_u), 0.01)
+

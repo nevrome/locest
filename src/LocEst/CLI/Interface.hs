@@ -90,30 +90,47 @@ parseTempGridString = do
         parseYearList = do
             P.sepBy parseInteger (P.char ',' <* P.spaces) <* P.eof
 
-optParseSearchDepVars :: OP.Parser DepVarsPos
-optParseSearchDepVars = OP.option (OP.eitherReader readSearchDepVars) (
+optParseSearchDepVarsPos :: OP.Parser [DepVarsPos]
+optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
        OP.long    "depVars"
     <> OP.short   'd'
-    <> OP.metavar "varX:DOUBLE,varY:DOUBLE,..."
+    <> OP.metavar "varX=DOUBLE,varY=DOUBLE,..."
     <> OP.help    "..."
     )
 
-readSearchDepVars :: String -> Either String DepVarsPos
-readSearchDepVars s =
-    case P.runParser parseSearchDepVars () "" s of
+readSearchDepVarsPos :: String -> Either String [DepVarsPos]
+readSearchDepVarsPos s =
+    case P.runParser parseSearchDepVarsPos () "" s of
         Left err -> Left $ show err
         Right x  -> Right x
 
-parseSearchDepVars :: P.Parser DepVarsPos
-parseSearchDepVars = do
-    resList <- P.sepBy parseDepVarCoord (P.char ',' <* P.spaces) <* P.eof
-    return $ DepVarsPos $ HM.fromList resList
+parseSearchDepVarsPos :: P.Parser [DepVarsPos]
+parseSearchDepVarsPos =
+        P.try parseSearchDepVarsPosGrid P.<|> parseSearchDepVarsPosSimpleList
     where
-        parseDepVarCoord = do
-            identifier <- P.string "var" <> P.many1 P.alphaNum
-            _ <- P.char ':'
-            number <- parseDouble
-            return (identifier, number)
+    parseSearchDepVarsPosGrid :: P.Parser [DepVarsPos]
+    parseSearchDepVarsPosGrid = do
+        listOfSequencesPerVar <- P.sepBy parseSearchDepVarsPosGridOneSequence (P.char '+' <* P.spaces) <* P.eof
+        let combinations = sequenceA listOfSequencesPerVar
+        return $ map (DepVarsPos . HM.fromList) combinations
+    parseSearchDepVarsPosGridOneSequence :: P.Parser [(String, Double)]
+    parseSearchDepVarsPosGridOneSequence = do
+        identifier <- P.string "var" <> P.many1 P.alphaNum
+        _ <- P.char '='
+        doubleSequence <- parseDoubleSequence
+        return $ map (\x -> (identifier, x)) doubleSequence
+    parseSearchDepVarsPosSimpleList :: P.Parser [DepVarsPos]
+    parseSearchDepVarsPosSimpleList = do
+        P.sepBy parseSearchDepVarsPosSimpleListOne (P.char ',' <* P.spaces) <* P.eof
+    parseSearchDepVarsPosSimpleListOne :: P.Parser DepVarsPos
+    parseSearchDepVarsPosSimpleListOne = do
+        resList <- P.sepBy parseDepVarCoord (P.char '+' <* P.spaces) <* P.eof
+        return $ DepVarsPos $ HM.fromList resList
+    parseDepVarCoord = do
+        identifier <- P.string "var" <> P.many1 P.alphaNum
+        _ <- P.char '='
+        number <- parseDouble
+        return (identifier, number)
 
 optParseOutFile :: OP.Parser FilePath
 optParseOutFile = OP.strOption (
