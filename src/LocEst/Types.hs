@@ -87,6 +87,10 @@ instance Csv.FromNamedRecord SpatTempPos where
 instance Csv.ToRecord SpatTempPos where
     toRecord (SpatTempPos spatPos tempPos) = Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]
 
+multiplySpatPosByTempGrid :: [Int] -> SpatPos -> [SpatTempPos]
+multiplySpatPosByTempGrid tempGrid spatPos =
+    map (\y -> SpatTempPos { _spatialPos = spatPos, _temporalPos = SimpleYearBCAD y}) tempGrid
+
 -- | A datatype for temporal positions
 data TempPos =
     SimpleYearBCAD YearBCAD -- TODO: add more complex models
