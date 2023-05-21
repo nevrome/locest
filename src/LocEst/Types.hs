@@ -29,7 +29,7 @@ data SpatTempDist = SpatTempDist {
 data SpatTempProb = SpatTempProb {
       _stprspatTempPos :: SpatTempPos
     , _stprDepVarsPos  :: DepVarsPos
-    , _stprprobability :: Double -- must be more complex to express various things
+    , _stprprobability :: Double -- must be more complex to express various things, this is where different densities for different input points can go
 } deriving (Show, Generic)
 
 instance NFData SpatTempProb

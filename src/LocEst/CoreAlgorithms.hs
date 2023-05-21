@@ -6,14 +6,17 @@ import           LocEst.Math.MultivariateNormal (dnormMulti)
 
 import qualified Data.HashMap.Strict            as HM
 
-coreSearch = myFunc
+coreSearch = propAtDepVarsPos
 
-coreInterpolate = myFunc
+coreInterpolate = propAtMultiDepVarsPos
 
-myFunc :: DepVarsPos -> [SpatTempObs] -> SpatTempPos -> SpatTempProb
-myFunc searchDepVarMap allSpatTempObs spatTempPos =
-    let depVarOrder    = HM.keys $ getHM searchDepVarMap
-        searchDepVars  = depVarsExtractOrdered depVarOrder searchDepVarMap
+propAtMultiDepVarsPos :: [SpatTempObs] -> [DepVarsPos] -> SpatTempPos -> [SpatTempProb]
+propAtMultiDepVarsPos allSpatTempObs searchDepVarPos spatTempPos = map (\sDVP -> propAtDepVarsPos allSpatTempObs sDVP spatTempPos) searchDepVarPos
+
+propAtDepVarsPos :: [SpatTempObs] -> DepVarsPos -> SpatTempPos -> SpatTempProb
+propAtDepVarsPos allSpatTempObs searchDepVarPos spatTempPos =
+    let depVarOrder    = HM.keys $ getHM searchDepVarPos
+        searchDepVars  = depVarsExtractOrdered depVarOrder searchDepVarPos
         allSpatDists   = map (spatialDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
         allSpatDistsKM = map (/ 1000) allSpatDists
         allTempDists   = map (temporalDistSpatTempPos spatTempPos . _stpoSpatTempPos) allSpatTempObs
@@ -28,4 +31,4 @@ myFunc searchDepVarMap allSpatTempObs spatTempPos =
             maximum allDensities -- too aggressive?
             --weightedAvg allIntegrals allDensities
     in --error $ show $ zip5 allSpatDistsKM allTempDists allPCMeans allPCSDs allDensities
-        SpatTempProb { _stprspatTempPos = spatTempPos, _stprDepVarsPos = searchDepVarMap, _stprprobability = meanDens }
+        SpatTempProb { _stprspatTempPos = spatTempPos, _stprDepVarsPos = searchDepVarPos, _stprprobability = meanDens }

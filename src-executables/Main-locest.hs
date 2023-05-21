@@ -10,7 +10,7 @@ import           Data.Version         (Version, makeVersion, showVersion)
 import qualified Options.Applicative  as OP
 import           System.Exit          (exitFailure)
 import           System.IO            (hPutStrLn, stderr)
-import LocEst.CLI.Interpolate (InterpolateOptions (..))
+import LocEst.CLI.Interpolate (InterpolateOptions (..), runInterpolate)
 
 version :: Version
 version = makeVersion [0,0,0]
@@ -52,6 +52,7 @@ main = do
 runCmd :: Subcommand -> IO ()
 runCmd o = case o of
     CmdSearch opts -> runSearch opts
+    CmdInterpolate opts -> runInterpolate opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (

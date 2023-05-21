@@ -29,7 +29,7 @@ runSearch (
         -- multiply spatial input grid by temporal grid
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
         -- .| ConL.map coreSearch -- sequential
-        .| ConAA.asyncMapC 5 (coreSearch searchDepVars allObservations) -- normal parallel
+        .| ConAA.asyncMapC 5 (coreSearch allObservations searchDepVars) -- normal parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat -- chunked parallel
         .| progress
         .| sinkCSV outFile

@@ -1,9 +1,9 @@
 library(magrittr)
 library(ggplot2)
 
-system('locest search -i test2Obs.tsv -g test2Grid.tsv -t -7000 -d "varC1:0.0461299,varC2:0.00014293" -o troot.tsv')
+system('locest search -i test2Obs.tsv -g test2Grid.tsv -t -7000 -d "varC1:0.0461299,varC2:0.00014293" -o test2Search.tsv')
 
-hu <- readr::read_tsv("troot.tsv",col_names = c("x", "y", "t", "C1", "C2", "prob"))
+hu <- readr::read_tsv("test2Search.tsv",col_names = c("x", "y", "t", "C1", "C2", "prob"))
 
 hu %>%
   ggplot() +
@@ -11,6 +11,9 @@ hu %>%
   scale_fill_viridis_c() +
   coord_fixed()
 
+system('locest interpolate -i test2Obs.tsv -g test2Grid.tsv -t -7000 -d "varC1:0.0461299,varC2:0.00014293" -o test2Interpolate.tsv')
+
+hu <- readr::read_tsv("test2Interpolate.tsv",col_names = c("x", "y", "t", "C1", "C2", "prob"))
 
 
 s <- 200
