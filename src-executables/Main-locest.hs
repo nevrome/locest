@@ -10,6 +10,7 @@ import           Data.Version         (Version, makeVersion, showVersion)
 import qualified Options.Applicative  as OP
 import           System.Exit          (exitFailure)
 import           System.IO            (hPutStrLn, stderr)
+import LocEst.CLI.Interpolate (InterpolateOptions (..))
 
 version :: Version
 version = makeVersion [0,0,0]
@@ -31,7 +32,9 @@ instance Exception LOCESTException
 -- data types
 data Options = Options { _subcommand :: Subcommand }
 
-data Subcommand = CmdSearch SearchOptions
+data Subcommand =
+      CmdSearch SearchOptions
+    | CmdInterpolate InterpolateOptions
 
 -- CLI interface configuration
 main :: IO ()
@@ -60,14 +63,28 @@ versionOption :: OP.Parser (a -> a)
 versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.help "Show version")
 
 subcommandParser :: OP.Parser Subcommand
-subcommandParser = OP.subparser (OP.command "search" searchOptInfo)
+subcommandParser = OP.subparser (
+       OP.command "interpolate" interpolateOptInfo
+    <> OP.command "search" searchOptInfo
+    )
     where
+        interpolateOptInfo = OP.info (OP.helper <*> (CmdInterpolate <$> interpolateOptParser))
+            (OP.progDesc "Interpolate...")
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
             (OP.progDesc "Search...")
 
+interpolateOptParser :: OP.Parser InterpolateOptions
+interpolateOptParser = InterpolateOptions <$>
+                            optParseInObservationFile
+                        <*> optParseInSpatGridFile
+                        <*> optParseTempGridString
+                        <*> optParseSearchDepVars
+                        <*> optParseOutFile
+
 searchOptParser :: OP.Parser SearchOptions
-searchOptParser = SearchOptions <$> optParseInObservationFile
-                                <*> optParseInSpatGridFile
-                                <*> optParseTempGridString
-                                <*> optParseSearchDepVars
-                                <*> optParseOutFile
+searchOptParser = SearchOptions <$>
+                            optParseInObservationFile
+                        <*> optParseInSpatGridFile
+                        <*> optParseTempGridString
+                        <*> optParseSearchDepVars
+                        <*> optParseOutFile
