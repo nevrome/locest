@@ -28,6 +28,6 @@ runInterpolate (
            sourceCSV inSpatGridFile
         -- multiply spatial input grid by temporal grid
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
-        .| ConAA.asyncMapC 5 (myFunc searchDepVars allObservations) -- normal parallel
+        .| ConAA.asyncMapC 5 (coreInterpolate searchDepVars allObservations) -- normal parallel
         .| progress
         .| sinkCSV outFile

@@ -6,6 +6,10 @@ import           LocEst.Math.MultivariateNormal (dnormMulti)
 
 import qualified Data.HashMap.Strict            as HM
 
+coreSearch = myFunc
+
+coreInterpolate = myFunc
+
 myFunc :: DepVarsMap -> [SpatTempObs] -> SpatTempPos -> SpatTempProb
 myFunc searchDepVarMap allSpatTempObs spatTempPos =
     let depVarOrder    = HM.keys $ getHM searchDepVarMap
