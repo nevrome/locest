@@ -90,7 +90,7 @@ parseTempGridString = do
         parseYearList = do
             P.sepBy parseInteger (P.char ',' <* P.spaces) <* P.eof
 
-optParseSearchDepVars :: OP.Parser DepVarsMap
+optParseSearchDepVars :: OP.Parser DepVarsPos
 optParseSearchDepVars = OP.option (OP.eitherReader readSearchDepVars) (
        OP.long    "depVars"
     <> OP.short   'd'
@@ -98,16 +98,16 @@ optParseSearchDepVars = OP.option (OP.eitherReader readSearchDepVars) (
     <> OP.help    "..."
     )
 
-readSearchDepVars :: String -> Either String DepVarsMap
+readSearchDepVars :: String -> Either String DepVarsPos
 readSearchDepVars s =
     case P.runParser parseSearchDepVars () "" s of
         Left err -> Left $ show err
         Right x  -> Right x
 
-parseSearchDepVars :: P.Parser DepVarsMap
+parseSearchDepVars :: P.Parser DepVarsPos
 parseSearchDepVars = do
     resList <- P.sepBy parseDepVarCoord (P.char ',' <* P.spaces) <* P.eof
-    return $ DepVarsMap $ HM.fromList resList
+    return $ DepVarsPos $ HM.fromList resList
     where
         parseDepVarCoord = do
             identifier <- P.string "var" <> P.many1 P.alphaNum

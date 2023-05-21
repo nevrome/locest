@@ -15,7 +15,7 @@ data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
     , _searchInSpatGridFile    :: FilePath
     , _searchInTempGrid        :: [Int]
-    , _searchSearchDepVars     :: DepVarsMap
+    , _searchSearchDepVars     :: DepVarsPos
     , _searchOutFile           :: FilePath
     }
 

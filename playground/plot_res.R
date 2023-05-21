@@ -3,7 +3,7 @@ library(ggplot2)
 
 system('locest search -i test2Obs.tsv -g test2Grid.tsv -t -7000 -d "varC1:0.0461299,varC2:0.00014293" -o troot.tsv')
 
-hu <- readr::read_tsv("troot.tsv",col_names = c("x", "y", "t", "prob"))
+hu <- readr::read_tsv("troot.tsv",col_names = c("x", "y", "t", "C1", "C2", "prob"))
 
 hu %>%
   ggplot() +

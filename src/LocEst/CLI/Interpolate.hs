@@ -15,7 +15,7 @@ data InterpolateOptions = InterpolateOptions
     { _interpolateInObservationFile :: FilePath
     , _interpolateInSpatGridFile    :: FilePath
     , _interpolateInTempGrid        :: [Int]
-    , _interpolateSearchDepVars     :: DepVarsMap
+    , _interpolateSearchDepVars     :: DepVarsPos
     , _interpolateOutFile           :: FilePath
     }
 

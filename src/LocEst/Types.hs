@@ -13,6 +13,7 @@ import qualified Data.HashMap.Strict   as HM
 import           Data.List             (sortBy)
 import           Data.Ord              (comparing)
 import           GHC.Generics          (Generic)
+import qualified Data.Vector as V
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -24,20 +25,21 @@ data SpatTempDist = SpatTempDist {
     , _tempDist :: Double
 }
 
--- | A datatype for result points in space and time
+-- | A datatype for search result points in space and time
 data SpatTempProb = SpatTempProb {
       _stprspatTempPos :: SpatTempPos
-    , _stprprobability :: Double
+    , _stprDepVarsPos  :: DepVarsPos
+    , _stprprobability :: Double -- must be more complex to express various things
 } deriving (Show, Generic)
 
 instance NFData SpatTempProb
 instance Csv.ToRecord SpatTempProb where
-    toRecord (SpatTempProb spatTempPos prob) = Csv.toRecord spatTempPos <> Csv.record [Csv.toField prob]
+    toRecord (SpatTempProb spatTempPos depVarsPos prob) = Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos <> Csv.record [Csv.toField prob]
 
 -- | A datatype for observations in space and time
 data SpatTempObs = SpatTempObs {
       _stpoSpatTempPos :: SpatTempPos
-    , _stpoDepVars     :: DepVarsMap
+    , _stpoDepVars     :: DepVarsPos
 } deriving Show
 
 instance Csv.FromNamedRecord SpatTempObs where
@@ -50,15 +52,18 @@ instance Csv.FromNamedRecord SpatTempObs where
             }
 
 -- | A datatype for dependent vars
-newtype DepVarsMap = DepVarsMap { getHM :: HM.HashMap String Double }
-    deriving Show
+newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }
+    deriving (Show, Generic)
 
-instance Csv.FromNamedRecord DepVarsMap where
+instance NFData DepVarsPos
+instance Csv.FromNamedRecord DepVarsPos where
     parseNamedRecord m = do
-        pure $ DepVarsMap $ HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
+        pure $ DepVarsPos $ HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
+instance Csv.ToRecord DepVarsPos where
+    toRecord m = V.map (Bchs.pack . show) $ V.fromList $ HM.elems $ getHM m
 
-depVarsExtractOrdered :: [String] -> DepVarsMap -> [Double]
-depVarsExtractOrdered order (DepVarsMap hm) =
+depVarsExtractOrdered :: [String] -> DepVarsPos -> [Double]
+depVarsExtractOrdered order (DepVarsPos hm) =
     let depVarsList = HM.toList hm
     in sortAlong depVarsList
     where

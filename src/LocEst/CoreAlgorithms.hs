@@ -10,7 +10,7 @@ coreSearch = myFunc
 
 coreInterpolate = myFunc
 
-myFunc :: DepVarsMap -> [SpatTempObs] -> SpatTempPos -> SpatTempProb
+myFunc :: DepVarsPos -> [SpatTempObs] -> SpatTempPos -> SpatTempProb
 myFunc searchDepVarMap allSpatTempObs spatTempPos =
     let depVarOrder    = HM.keys $ getHM searchDepVarMap
         searchDepVars  = depVarsExtractOrdered depVarOrder searchDepVarMap
@@ -28,4 +28,4 @@ myFunc searchDepVarMap allSpatTempObs spatTempPos =
             maximum allDensities -- too aggressive?
             --weightedAvg allIntegrals allDensities
     in --error $ show $ zip5 allSpatDistsKM allTempDists allPCMeans allPCSDs allDensities
-        SpatTempProb { _stprspatTempPos = spatTempPos, _stprprobability = meanDens }
+        SpatTempProb { _stprspatTempPos = spatTempPos, _stprDepVarsPos = searchDepVarMap, _stprprobability = meanDens }
