@@ -6,18 +6,15 @@ import           LocEst.Math.MultivariateNormal (dnormMulti)
 
 import qualified Data.HashMap.Strict            as HM
 
-coreSearch = propAtMultiDepVarsPos
+coreSearch = propAtSpatTempDepVarsPos
 
-propAtMultiDepVarsPos :: [String] -> [SpatTempObs] -> [DepVarsPos] -> SpatTempPos -> [SpatTempProb]
-propAtMultiDepVarsPos depVarsOrdered allSpatTempObs searchDepVarPos gridSpatTempPos = map (\sDVP -> propAtDepVarsPos depVarsOrdered allSpatTempObs sDVP gridSpatTempPos) searchDepVarPos
-
-propAtDepVarsPos :: [String] -> [SpatTempObs] -> DepVarsPos -> SpatTempPos -> SpatTempProb
-propAtDepVarsPos depVarsOrdered allSpatTempObs searchDepVarPos gridSpatTempPos =
+propAtSpatTempDepVarsPos :: [String] -> [SpatTempDepVarsPos] -> SpatTempDepVarsPos -> SpatTempProb
+propAtSpatTempDepVarsPos depVarsOrdered inSpatTempDepVarsPos (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos) =
     let searchDepVars  = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-        spatDists   = map (spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) allSpatTempObs
+        spatDists   = map (spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
         spatDistsKM = map (/ 1000) spatDists
-        tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) allSpatTempObs
-        depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) allSpatTempObs
+        tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
+        depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) inSpatTempDepVarsPos
         depVarSDs   = map (replicate (length searchDepVars)) $ map (\(s,t) -> 0.0001 * s + 0.0001 * t) (zip spatDistsKM tempDists)
         densities   = map (\(mean,sd) -> dnormMulti mean sd searchDepVars) (zip depVarMeans depVarSDs)
         --minPC1         = minimum allPCMeans

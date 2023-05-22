@@ -15,6 +15,7 @@ import qualified Data.HashMap.Strict            as HM
 import Data.List (sort)
 import qualified Control.Monad as OP
 import Control.Exception (throw)
+import System.IO (hPutStrLn, stderr)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
@@ -28,7 +29,7 @@ runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions inObsFile inSpatGridFile inTempGrid searchDepVarPos outFile
     ) = do
-    allObservations <- readSpatTempObs inObsFile
+    allObservations <- readSpatTempDepVarsPos inObsFile
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map _stpoDepVarsPos allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
     -- validate input
@@ -36,16 +37,24 @@ runSearch (
         throw $ NormalException "dep vars within -d not equal"
     OP.when (depVarsOrdered /= head depVarsFromSearch) $ do
         throw $ NormalException "dep vars in -i and -d not equal"
+    -- info
+    hPutStrLn stderr $ "Required iterations: " ++
+        "X" ++ " spatial positions" ++
+        " * " ++
+        show (length inTempGrid) ++ " time slices" ++
+        " * " ++
+        show (length searchDepVarPos) ++ " dependent variable positions"
     -- run analysis pipeline
     Con.runConduitRes $
            sourceCSV inSpatGridFile
         -- multiply spatial input grid by temporal grid
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
+        -- multiply spatpos input grid by dependent vars positions
+        .| ConL.concatMap (multiplySpatPosByDepVarsPos searchDepVarPos)
         -- .| ConL.map coreSearch -- sequential
-        .| ConAA.asyncMapC 5 (coreSearch depVarsOrdered allObservations searchDepVarPos) -- normal parallel
+        .| ConAA.asyncMapC 5 (coreSearch depVarsOrdered allObservations) -- normal parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat -- chunked parallel
         .| progress
-        .| ConL.concat
         .| sinkCSV outFile
 
 allEqual :: Eq a => [a] -> Bool

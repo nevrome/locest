@@ -27,8 +27,8 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
-readSpatTempObs :: FilePath -> IO [SpatTempObs]
-readSpatTempObs path =
+readSpatTempDepVarsPos :: FilePath -> IO [SpatTempDepVarsPos]
+readSpatTempDepVarsPos path =
     Con.runConduitRes $
            sourceCSV path
         .| ConL.consume
@@ -60,7 +60,7 @@ progress = do
     where
         logProgress :: Int -> IO ()
         logProgress c
-            |  c `rem` 1000 == 0 = hPutStrLn stderr $ "Grid points: " ++ padLeft 7 (show c)
+            |  c `rem` 1000 == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 7 (show c)
             -- |  c == 100          = putStrLn $ "Probing successful. Continuing now..."
             | otherwise = return ()
 

@@ -36,20 +36,24 @@ instance NFData SpatTempProb
 instance Csv.ToRecord SpatTempProb where
     toRecord (SpatTempProb spatTempPos depVarsPos prob) = Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos <> Csv.record [Csv.toField prob]
 
--- | A datatype for observations in space and time
-data SpatTempObs = SpatTempObs {
+-- | A datatype for observations in space and time also with coordinates in dependent var space
+data SpatTempDepVarsPos = SpatTempDepVarsPos {
       _stpoSpatTempPos :: SpatTempPos
     , _stpoDepVarsPos  :: DepVarsPos
 } deriving Show
 
-instance Csv.FromNamedRecord SpatTempObs where
+instance Csv.FromNamedRecord SpatTempDepVarsPos where
     parseNamedRecord m = do
         spatTempPos <- Csv.parseNamedRecord m
         depVarsPos <- Csv.parseNamedRecord m
-        pure $ SpatTempObs {
+        pure $ SpatTempDepVarsPos {
               _stpoSpatTempPos = spatTempPos
             , _stpoDepVarsPos  = depVarsPos
             }
+
+multiplySpatPosByDepVarsPos :: [DepVarsPos] -> SpatTempPos -> [SpatTempDepVarsPos]
+multiplySpatPosByDepVarsPos depVarsPos spatTempPos =
+    map (\p -> SpatTempDepVarsPos { _stpoSpatTempPos = spatTempPos, _stpoDepVarsPos = p}) depVarsPos
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }
