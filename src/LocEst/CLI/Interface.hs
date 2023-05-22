@@ -94,7 +94,7 @@ optParseSearchDepVarsPos :: OP.Parser [DepVarsPos]
 optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
        OP.long    "depVars"
     <> OP.short   'd'
-    <> OP.metavar "varX=DOUBLE,varY=DOUBLE,..."
+    <> OP.metavar "varX=DOUBLE+varY=DOUBLE,..."
     <> OP.help    "..."
     )
 
@@ -108,6 +108,7 @@ parseSearchDepVarsPos :: P.Parser [DepVarsPos]
 parseSearchDepVarsPos =
         P.try parseSearchDepVarsPosGrid P.<|> parseSearchDepVarsPosSimpleList
     where
+
     parseSearchDepVarsPosGrid :: P.Parser [DepVarsPos]
     parseSearchDepVarsPosGrid = do
         listOfSequencesPerVar <- P.sepBy parseSearchDepVarsPosGridOneSequence (P.char '+' <* P.spaces) <* P.eof
@@ -119,6 +120,7 @@ parseSearchDepVarsPos =
         _ <- P.char '='
         doubleSequence <- parseDoubleSequence
         return $ map (\x -> (identifier, x)) doubleSequence
+
     parseSearchDepVarsPosSimpleList :: P.Parser [DepVarsPos]
     parseSearchDepVarsPosSimpleList = do
         P.sepBy parseSearchDepVarsPosSimpleListOne (P.char ',' <* P.spaces) <* P.eof

@@ -4,8 +4,9 @@
 
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
+import LocEst.Utils
 
-import           Control.Exception    (Exception, catch)
+import           Control.Exception    (catch)
 import           Data.Version         (Version, makeVersion, showVersion)
 import qualified Options.Applicative  as OP
 import           System.Exit          (exitFailure)
@@ -13,20 +14,6 @@ import           System.IO            (hPutStrLn, stderr)
 
 version :: Version
 version = makeVersion [0,0,0]
-
--- | Different exceptions for locest
-data LOCESTException =
-      TestException String -- ^ An exception to ...
-    | TestException2 String -- ^ An exception to ...
-    deriving (Show)
-
-renderLOCESTException :: LOCESTException -> String
-renderLOCESTException (TestException s) =
-    "<!> Error: " ++ s
-renderLOCESTException (TestException2 s) =
-    "<!> Error: " ++ s
-
-instance Exception LOCESTException
 
 -- data types
 data Options = Options { _subcommand :: Subcommand }

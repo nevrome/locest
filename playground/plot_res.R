@@ -21,6 +21,7 @@ hu %>%
   scale_fill_viridis_c() +
   coord_fixed()
 
+system('locest search -i test2Obs.tsv -g test2GridOnePoint.tsv -t -5200 -d "varC1=0.0461299+varC2=0.00014293,varC2=0.0461299+varC3=0.00014293" -o test2Interpolate.tsv')
 
 s <- 200
 t <- 200

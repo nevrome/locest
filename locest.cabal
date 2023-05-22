@@ -19,7 +19,8 @@ source-repository head
 library
     exposed-modules:
       LocEst.CLI.Search, LocEst.Types, LocEst.Parsers, LocEst.Distance, LocEst.Math.Basics,
-      LocEst.CLI.Interface, LocEst.Math.MultivariateNormal, LocEst.CoreAlgorithms
+      LocEst.CLI.Interface, LocEst.Math.MultivariateNormal, LocEst.CoreAlgorithms,
+      LocEst.Utils
     hs-source-dirs:
       src
     build-depends:
