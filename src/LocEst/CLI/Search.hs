@@ -28,16 +28,21 @@ runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions inObsFile inSpatGridFile inTempGrid searchDepVarPos outFile
     ) = do
-    let depVars = map (sort . HM.keys . getHM) searchDepVarPos
-    OP.when (not $ allEqual depVars) $ do
-        throw $ NormalException "dep vars in input -d not equal"
     allObservations <- readSpatTempObs inObsFile
+    let depVarsOrdered = sort . HM.keys . getHM $ head $ map _stpoDepVarsPos allObservations
+    let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
+    -- validate input
+    OP.when (not $ allEqual depVarsFromSearch) $ do
+        throw $ NormalException "dep vars within -d not equal"
+    OP.when (depVarsOrdered /= head depVarsFromSearch) $ do
+        throw $ NormalException "dep vars in -i and -d not equal"
+    -- run analysis pipeline
     Con.runConduitRes $
            sourceCSV inSpatGridFile
         -- multiply spatial input grid by temporal grid
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
         -- .| ConL.map coreSearch -- sequential
-        .| ConAA.asyncMapC 5 (coreSearch allObservations searchDepVarPos) -- normal parallel
+        .| ConAA.asyncMapC 5 (coreSearch depVarsOrdered allObservations searchDepVarPos) -- normal parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat -- chunked parallel
         .| progress
         .| ConL.concat

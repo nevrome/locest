@@ -39,16 +39,16 @@ instance Csv.ToRecord SpatTempProb where
 -- | A datatype for observations in space and time
 data SpatTempObs = SpatTempObs {
       _stpoSpatTempPos :: SpatTempPos
-    , _stpoDepVars     :: DepVarsPos
+    , _stpoDepVarsPos  :: DepVarsPos
 } deriving Show
 
 instance Csv.FromNamedRecord SpatTempObs where
     parseNamedRecord m = do
         spatTempPos <- Csv.parseNamedRecord m
-        depVars <- Csv.parseNamedRecord m
+        depVarsPos <- Csv.parseNamedRecord m
         pure $ SpatTempObs {
               _stpoSpatTempPos = spatTempPos
-            , _stpoDepVars     = depVars
+            , _stpoDepVarsPos  = depVarsPos
             }
 
 -- | A datatype for dependent vars
@@ -58,21 +58,17 @@ newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }
 instance NFData DepVarsPos
 instance Csv.FromNamedRecord DepVarsPos where
     parseNamedRecord m = do
-        pure $ DepVarsPos $ HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
+        let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
+        let extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ extractedVarsBS
+        pure $ DepVarsPos extractedVarsStringDouble
 instance Csv.ToRecord DepVarsPos where
-    toRecord m = V.map (Bchs.pack . show) $ V.fromList $ HM.elems $ getHM m
+    toRecord (DepVarsPos hm) =
+        let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
+        in V.map (Bchs.pack . show) $ V.fromList orderedValues
 
 depVarsExtractOrdered :: [String] -> DepVarsPos -> [Double]
-depVarsExtractOrdered order (DepVarsPos hm) =
-    let depVarsList = HM.toList hm
-    in sortAlong depVarsList
-    where
-        sortAlong :: [(String, v)] -> [v]
-        sortAlong l =
-            let annotatedOrder = zip order ([0..] :: [Integer])
-                annotatedData  = map (\(k, v) -> (lookup k annotatedOrder, v)) l
-                sortedData     = sortBy (comparing fst) annotatedData
-            in map snd sortedData
+depVarsExtractOrdered orderedKeys (DepVarsPos hm) =
+    map (hm HM.!) orderedKeys
 
 -- | A datatype for spatio-temporal positions
 data SpatTempPos = SpatTempPos {

@@ -112,6 +112,7 @@ parseSearchDepVarsPos =
     parseSearchDepVarsPosGrid :: P.Parser [DepVarsPos]
     parseSearchDepVarsPosGrid = do
         listOfSequencesPerVar <- P.sepBy parseSearchDepVarsPosGridOneSequence (P.char '+' <* P.spaces) <* P.eof
+        -- create all permutations
         let combinations = sequenceA listOfSequencesPerVar
         return $ map (DepVarsPos . HM.fromList) combinations
     parseSearchDepVarsPosGridOneSequence :: P.Parser [(String, Double)]
@@ -126,7 +127,7 @@ parseSearchDepVarsPos =
         P.sepBy parseSearchDepVarsPosSimpleListOne (P.char ',' <* P.spaces) <* P.eof
     parseSearchDepVarsPosSimpleListOne :: P.Parser DepVarsPos
     parseSearchDepVarsPosSimpleListOne = do
-        resList <- P.sepBy parseDepVarCoord (P.char '+' <* P.spaces) <* P.eof
+        resList <- P.sepBy parseDepVarCoord (P.char '+' <* P.spaces)
         return $ DepVarsPos $ HM.fromList resList
     parseDepVarCoord = do
         identifier <- P.string "var" <> P.many1 P.alphaNum
