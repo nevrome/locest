@@ -6,9 +6,7 @@ import           LocEst.Math.MultivariateNormal (dnormMulti)
 
 import qualified Data.HashMap.Strict            as HM
 
-coreSearch = propAtDepVarsPos
-
-coreInterpolate = propAtMultiDepVarsPos
+coreSearch = propAtMultiDepVarsPos
 
 propAtMultiDepVarsPos :: [SpatTempObs] -> [DepVarsPos] -> SpatTempPos -> [SpatTempProb]
 propAtMultiDepVarsPos allSpatTempObs searchDepVarPos spatTempPos = map (\sDVP -> propAtDepVarsPos allSpatTempObs sDVP spatTempPos) searchDepVarPos

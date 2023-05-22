@@ -10,7 +10,6 @@ import           Data.Version         (Version, makeVersion, showVersion)
 import qualified Options.Applicative  as OP
 import           System.Exit          (exitFailure)
 import           System.IO            (hPutStrLn, stderr)
-import LocEst.CLI.Interpolate (InterpolateOptions (..), runInterpolate)
 
 version :: Version
 version = makeVersion [0,0,0]
@@ -34,7 +33,6 @@ data Options = Options { _subcommand :: Subcommand }
 
 data Subcommand =
       CmdSearch SearchOptions
-    | CmdInterpolate InterpolateOptions
 
 -- CLI interface configuration
 main :: IO ()
@@ -52,7 +50,6 @@ main = do
 runCmd :: Subcommand -> IO ()
 runCmd o = case o of
     CmdSearch opts -> runSearch opts
-    CmdInterpolate opts -> runInterpolate opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (
@@ -65,22 +62,12 @@ versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.hel
 
 subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
-       OP.command "interpolate" interpolateOptInfo
-    <> OP.command "search" searchOptInfo
+           OP.command "search" searchOptInfo
+        -- <>
     )
     where
-        interpolateOptInfo = OP.info (OP.helper <*> (CmdInterpolate <$> interpolateOptParser))
-            (OP.progDesc "Interpolate...")
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
             (OP.progDesc "Search...")
-
-interpolateOptParser :: OP.Parser InterpolateOptions
-interpolateOptParser = InterpolateOptions <$>
-                            optParseInObservationFile
-                        <*> optParseInSpatGridFile
-                        <*> optParseTempGridString
-                        <*> optParseSearchDepVarsPos
-                        <*> optParseOutFile
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$>
