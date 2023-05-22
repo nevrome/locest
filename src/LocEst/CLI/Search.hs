@@ -30,6 +30,7 @@ runSearch (
     SearchOptions inObsFile inSpatGridFile inTempGrid searchDepVarPos outFile
     ) = do
     allObservations <- readSpatTempDepVarsPos inObsFile
+    inSpatGrid <- readSpatPos inSpatGridFile
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map _stpoDepVarsPos allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
     -- validate input
@@ -39,14 +40,14 @@ runSearch (
         throw $ NormalException "dep vars in -i and -d not equal"
     -- info
     hPutStrLn stderr $ "Required iterations: " ++
-        "X" ++ " spatial positions" ++
+        show (length inSpatGrid) ++ " spatial positions" ++
         " * " ++
         show (length inTempGrid) ++ " time slices" ++
         " * " ++
         show (length searchDepVarPos) ++ " dependent variable positions"
     -- run analysis pipeline
     Con.runConduitRes $
-           sourceCSV inSpatGridFile
+           ConL.sourceList inSpatGrid
         -- multiply spatial input grid by temporal grid
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
         -- multiply spatpos input grid by dependent vars positions

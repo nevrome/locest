@@ -12,13 +12,14 @@ hu %>%
   coord_fixed()
 
 # 5242, so the exact year for Stuttgart, does not work. Probably because of an infinite density
-system('locest search -i test2Obs.tsv -g test2GridOnePoint.tsv -t -5241 -d "varC1=-0.0885337:0.0570383:0.01+varC2=-0.0669435:0.1100580:0.01" -o test2Interpolate.tsv')
+system('locest search -i test2Obs.tsv -g test2GridOnePoint.tsv -t "-5750, -5500,-5250, -5000, -4750" -d "varC1=-0.0885337:0.0570383:0.01+varC2=-0.0669435:0.1100580:0.01" -o test2Interpolate.tsv')
 
 hu <- readr::read_tsv("test2Interpolate.tsv",col_names = c("x", "y", "t", "C1", "C2", "prob"))
 
 hu %>%
   ggplot() +
-  geom_raster(aes(C1, C2, fill = prob)) +
+  facet_wrap(~t) +
+  geom_raster(aes(C1, C2, fill = log10(prob))) +
   scale_fill_viridis_c() +
   coord_fixed()
 
