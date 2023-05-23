@@ -10,33 +10,49 @@ coreSearch = propAtSpatTempDepVarsPos
 
 propAtSpatTempDepVarsPos :: [String] -> [SpatTempDepVarsPos] -> SpatTempDepVarsPos -> SpatTempProb
 propAtSpatTempDepVarsPos depVarsOrdered inSpatTempDepVarsPos (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos) =
-    let searchDepVars  = depVarsExtractOrdered depVarsOrdered searchDepVarPos
+    let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
         spatDists   = map (spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
         spatDistsKM = map (/ 1000) spatDists
         tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) inSpatTempDepVarsPos
-        depVarSDs   = map (replicate (length searchDepVars)) $ zipWith (calculateSD (LinearSum 0.0001 0.0001)) spatDistsKM tempDists
-        densities   = map (\(mean,sd) -> dnormMulti mean sd searchDepVars) (zip depVarMeans depVarSDs)
-        --minPC1         = minimum allPCMeans
-        --maxPC1         = maximum allPCMeans
-        --allIntegrals   = map (\(mean,sd) -> integrate 100 (dnorm mean sd) minPC1 maxPC1) (zip allPCMeans allPCSDs)
-        meanDens       =
+        depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> calcSD myDecay depVar sdist tdist) depVarsOrdered) spatDistsKM tempDists
+        densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
+        meanDens    =
             -- avg allDensities -- too smooth, low densities pull the mean down
             maximum densities -- too aggressive?
             --weightedAvg allIntegrals allDensities
     in --error $ show $ zip5 allSpatDistsKM allTempDists allPCMeans allPCSDs allDensities
         SpatTempProb { _stprspatTempPos = gridSpatTempPos, _stprDepVarsPos = searchDepVarPos, _stprprobability = meanDens }
 
-data SignalDecayAlgorithm =
+myDecay = DecayDefinition [
+      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
+    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
+    ]
+
+newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
+
+data DecayOneDepVar = DecayOneDepVar {
+      _stddvDepVarName    :: DepVarName
+    , _stddvSpatTempDecay :: DecayAlgorithm
+    }
+
+type DepVarName = String
+
+data DecayAlgorithm =
       LinearSum Double Double
     | LogSum Double Double
     -- | ...
 
-calculateSD :: SignalDecayAlgorithm -> Double -> Double -> Double
-calculateSD (LinearSum spatDecay tempDecay) spatDist tempDist =
-    growth2LinearSum spatDecay tempDecay spatDist tempDist
-calculateSD (LogSum spatDecay tempDecay) spatDist tempDist =
-    growth2LogSum spatDecay tempDecay spatDist tempDist
+calcSD :: DecayDefinition -> DepVarName -> Double -> Double -> Double
+calcSD (DecayDefinition depVarList) depVarName spatDist tempDist =
+    let relevantDecay = filter (\(DecayOneDepVar var _) -> var == depVarName) depVarList
+    in run relevantDecay
+    where
+        run [DecayOneDepVar _ x] = calc x spatDist tempDist
+        run _ = error "this should never happen"
+        calc :: DecayAlgorithm -> Double -> Double -> Double
+        calc (LinearSum spatDecay tempDecay) = growth2LinearSum spatDecay tempDecay
+        calc (LogSum spatDecay tempDecay)    = growth2LogSum spatDecay tempDecay
 
 growth2LinearSum :: Double -> Double -> Double -> Double -> Double
 growth2LinearSum spatDecay tempDecay spatDist tempDist = 
