@@ -15,7 +15,7 @@ propAtSpatTempDepVarsPos depVarsOrdered inSpatTempDepVarsPos (SpatTempDepVarsPos
         spatDistsKM = map (/ 1000) spatDists
         tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) inSpatTempDepVarsPos
-        depVarSDs   = map (replicate (length searchDepVars)) $ map (\(s,t) -> 0.0001 * s + 0.0001 * t) (zip spatDistsKM tempDists)
+        depVarSDs   = map (replicate (length searchDepVars)) $ zipWith (calculateSD (LinearSum 0.0001 0.0001)) spatDistsKM tempDists
         densities   = map (\(mean,sd) -> dnormMulti mean sd searchDepVars) (zip depVarMeans depVarSDs)
         --minPC1         = minimum allPCMeans
         --maxPC1         = maximum allPCMeans
@@ -26,3 +26,28 @@ propAtSpatTempDepVarsPos depVarsOrdered inSpatTempDepVarsPos (SpatTempDepVarsPos
             --weightedAvg allIntegrals allDensities
     in --error $ show $ zip5 allSpatDistsKM allTempDists allPCMeans allPCSDs allDensities
         SpatTempProb { _stprspatTempPos = gridSpatTempPos, _stprDepVarsPos = searchDepVarPos, _stprprobability = meanDens }
+
+data SignalDecayAlgorithm =
+      LinearSum Double Double
+    | LogSum Double Double
+    -- | ...
+
+calculateSD :: SignalDecayAlgorithm -> Double -> Double -> Double
+calculateSD (LinearSum spatDecay tempDecay) spatDist tempDist =
+    growth2LinearSum spatDecay tempDecay spatDist tempDist
+calculateSD (LogSum spatDecay tempDecay) spatDist tempDist =
+    growth2LogSum spatDecay tempDecay spatDist tempDist
+
+growth2LinearSum :: Double -> Double -> Double -> Double -> Double
+growth2LinearSum spatDecay tempDecay spatDist tempDist = 
+    growthLinear spatDecay spatDist + growthLinear tempDecay tempDist
+
+growthLinear :: Double -> Double -> Double
+growthLinear factor x = factor * x
+
+growth2LogSum :: Double -> Double -> Double -> Double -> Double
+growth2LogSum spatDecay tempDecay spatDist tempDist = 
+    growthLog spatDecay spatDist + growthLog tempDecay tempDist
+
+growthLog :: Double -> Double -> Double
+growthLog factor x = factor * log x
