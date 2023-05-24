@@ -28,7 +28,11 @@ data SpatTempDist = SpatTempDist {
 -- | A datatype for search result points in space and time
 data SpatTempProb = SpatTempProb {
       _stprSpatTempDepVarsPos :: SpatTempDepVarsPos
-    , _stprprobability :: Double -- must be more complex to express various things, this is where different densities for different input points can go
+    , _stprprobability :: Double
+    -- to model the different densities per input point
+    -- (which will certainly be necessary for debugging)
+    -- SpatTempProb must somehow include also the source Observation
+    -- Perhabs this could be implemented as a Maybe String for the Obs name?
 } deriving (Show, Generic)
 
 instance NFData SpatTempProb
