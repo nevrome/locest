@@ -62,6 +62,11 @@ allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
 
+-- Idea: DensitySummaryAlgorithm and DecayDefinition should be list input arguments (with sequence option for numerics)
+--       These lists can then be multiplied into the analysis loop, just as for tempGrid and the DepVarsPos
+--       Crossvalidation specification involves then an alternative (!) to --spatGridFile
+--       This specification probably has to include test:training split ratio and iterations
+
 mySummary = Maximum
 
 myDecay = DecayDefinition [
