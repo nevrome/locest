@@ -22,8 +22,10 @@ propAtSpatTempDepVarsPos depVarsOrdered inSpatTempDepVarsPos (SpatTempDepVarsPos
             Maximum -> maximum densities
             Mean    -> avg densities
     in SpatTempProb {
-          _stprspatTempPos = gridSpatTempPos
-        , _stprDepVarsPos = searchDepVarPos
+          _stprSpatTempDepVarsPos = SpatTempDepVarsPos {
+              _stpoSpatTempPos = gridSpatTempPos
+            , _stpoDepVarsPos  = searchDepVarPos
+            } 
         , _stprprobability = meanDens
         }
 

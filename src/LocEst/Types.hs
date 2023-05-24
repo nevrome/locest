@@ -27,21 +27,21 @@ data SpatTempDist = SpatTempDist {
 
 -- | A datatype for search result points in space and time
 data SpatTempProb = SpatTempProb {
-      _stprspatTempPos :: SpatTempPos
-    , _stprDepVarsPos  :: DepVarsPos
+      _stprSpatTempDepVarsPos :: SpatTempDepVarsPos
     , _stprprobability :: Double -- must be more complex to express various things, this is where different densities for different input points can go
 } deriving (Show, Generic)
 
 instance NFData SpatTempProb
 instance Csv.ToRecord SpatTempProb where
-    toRecord (SpatTempProb spatTempPos depVarsPos prob) = Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos <> Csv.record [Csv.toField prob]
+    toRecord (SpatTempProb spatTempDepVarsPos prob) = Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
 
 -- | A datatype for observations in space and time also with coordinates in dependent var space
 data SpatTempDepVarsPos = SpatTempDepVarsPos {
       _stpoSpatTempPos :: SpatTempPos
     , _stpoDepVarsPos  :: DepVarsPos
-} deriving Show
+} deriving (Show, Generic)
 
+instance NFData SpatTempDepVarsPos
 instance Csv.FromNamedRecord SpatTempDepVarsPos where
     parseNamedRecord m = do
         spatTempPos <- Csv.parseNamedRecord m
@@ -50,6 +50,8 @@ instance Csv.FromNamedRecord SpatTempDepVarsPos where
               _stpoSpatTempPos = spatTempPos
             , _stpoDepVarsPos  = depVarsPos
             }
+instance Csv.ToRecord SpatTempDepVarsPos where
+    toRecord (SpatTempDepVarsPos spatTempPos depVarsPos) = Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
 
 multiplySpatPosByDepVarsPos :: [DepVarsPos] -> SpatTempPos -> [SpatTempDepVarsPos]
 multiplySpatPosByDepVarsPos depVarsPos spatTempPos =
