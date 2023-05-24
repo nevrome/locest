@@ -10,7 +10,7 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (sortBy)
+import           Data.List             (sort, sortBy)
 import           Data.Ord              (comparing)
 import           GHC.Generics          (Generic)
 import qualified Data.Vector as V
@@ -36,8 +36,12 @@ data SpatTempProb = SpatTempProb {
 } deriving (Show, Generic)
 
 instance NFData SpatTempProb
+instance Csv.DefaultOrdered SpatTempProb where
+    headerOrder (SpatTempProb spatTempDepVarsPos prob) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.header ["probability"]
 instance Csv.ToRecord SpatTempProb where
-    toRecord (SpatTempProb spatTempDepVarsPos prob) = Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
+    toRecord (SpatTempProb spatTempDepVarsPos prob) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
 
 -- | A datatype for observations in space and time also with coordinates in dependent var space
 data SpatTempDepVarsPos = SpatTempDepVarsPos {
@@ -54,8 +58,12 @@ instance Csv.FromNamedRecord SpatTempDepVarsPos where
               _stpoSpatTempPos = spatTempPos
             , _stpoDepVarsPos  = depVarsPos
             }
+instance Csv.DefaultOrdered SpatTempDepVarsPos where
+    headerOrder (SpatTempDepVarsPos spatTempPos depVarsPos) =
+        Csv.headerOrder spatTempPos <> Csv.headerOrder depVarsPos
 instance Csv.ToRecord SpatTempDepVarsPos where
-    toRecord (SpatTempDepVarsPos spatTempPos depVarsPos) = Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
+    toRecord (SpatTempDepVarsPos spatTempPos depVarsPos) =
+        Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
 
 multiplySpatPosByDepVarsPos :: [DepVarsPos] -> SpatTempPos -> [SpatTempDepVarsPos]
 multiplySpatPosByDepVarsPos depVarsPos spatTempPos =
@@ -71,6 +79,9 @@ instance Csv.FromNamedRecord DepVarsPos where
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
         let extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ extractedVarsBS
         pure $ DepVarsPos extractedVarsStringDouble
+instance Csv.DefaultOrdered DepVarsPos where
+    headerOrder (DepVarsPos hm) =
+        V.map Bchs.pack $ V.fromList $ sort $ map fst $ HM.toList hm
 instance Csv.ToRecord DepVarsPos where
     toRecord (DepVarsPos hm) =
         let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
@@ -95,8 +106,12 @@ instance Csv.FromNamedRecord SpatTempPos where
               _spatialPos = spatPos
             , _temporalPos = tempPos
             }
+instance Csv.DefaultOrdered SpatTempPos where
+    headerOrder (SpatTempPos spatPos tempPos) =
+        Csv.headerOrder spatPos <> Csv.headerOrder tempPos
 instance Csv.ToRecord SpatTempPos where
-    toRecord (SpatTempPos spatPos tempPos) = Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]
+    toRecord (SpatTempPos spatPos tempPos) =
+        Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]
 
 multiplySpatPosByTempGrid :: [Int] -> SpatPos -> [SpatTempPos]
 multiplySpatPosByTempGrid tempGrid spatPos =
@@ -108,6 +123,8 @@ data TempPos =
     deriving (Show, Generic)
 
 instance NFData TempPos
+instance Csv.DefaultOrdered TempPos where
+    headerOrder (SimpleYearBCAD x) = Csv.header ["age"]
 instance Csv.ToField TempPos where
     toField (SimpleYearBCAD x) = Csv.toField x
 
@@ -123,6 +140,9 @@ instance NFData SpatPos
 instance Csv.FromNamedRecord SpatPos where
     parseNamedRecord m = do
         SpatPosCartesian <$> (CartesianPos <$> filterLookup m "x" <*> filterLookup m "y")
+instance Csv.DefaultOrdered SpatPos where
+    headerOrder (SpatPosCartesian x) = Csv.headerOrder x
+    headerOrder (SpatPosLongLat x)   = Csv.headerOrder x
 instance Csv.ToRecord SpatPos where
     toRecord (SpatPosCartesian x) = Csv.toRecord x
     toRecord (SpatPosLongLat x)   = Csv.toRecord x
@@ -132,6 +152,8 @@ data CartesianPos = CartesianPos Double Double
     deriving (Show, Generic)
 
 instance NFData CartesianPos
+instance Csv.DefaultOrdered CartesianPos where
+    headerOrder _ = Csv.header ["x", "y"]
 instance Csv.ToRecord CartesianPos where
     toRecord (CartesianPos x y) = Csv.record [Csv.toField x, Csv.toField y]
 
@@ -140,6 +162,8 @@ data LongLatPos = LongLatPos Longitude Latitude
     deriving (Show, Generic)
 
 instance NFData LongLatPos
+instance Csv.DefaultOrdered LongLatPos where
+    headerOrder _ = Csv.header ["longitude", "latitude"]
 instance Csv.ToRecord LongLatPos where
     toRecord (LongLatPos long lat) = Csv.record [Csv.toField long, Csv.toField lat]
 

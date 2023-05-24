@@ -56,7 +56,7 @@ runSearch (
         .| ConAA.asyncMapC 5 (coreSearch myDecay mySummary depVarsOrdered allObservations) -- normal parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat -- chunked parallel
         .| progress
-        .| sinkCSV outFile
+        .| sinkNamedCSV outFile
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True

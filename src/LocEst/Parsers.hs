@@ -15,6 +15,10 @@ import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Conduit          as ConCsv
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
 import           System.IO                 (hPutStrLn, stderr)
+import Control.Monad (when)
+import qualified Data.ByteString as Bchs
+import qualified Data.Csv.Builder as CsvB
+import qualified Data.ByteString.Builder as BB
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -43,6 +47,23 @@ sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) => F
 sourceCSV path =
        Con.sourceFile path
     .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
+
+sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => FilePath -> ConduitT a Void m ()
+sinkNamedCSV path =
+       writeHeaderCSV path
+    .| ConCsv.toCsv encodingOptions
+    .| Con.sinkFile path
+
+writeHeaderCSV :: (MonadIO m, Csv.DefaultOrdered i) => FilePath -> ConduitT i i m ()
+writeHeaderCSV path = do
+    flagRef <- liftIO $ newIORef True
+    ConL.mapM $ \val -> do
+        flag <- liftIO $ readIORef flagRef
+        when flag $ do
+            liftIO $ putStr "1"
+            liftIO $ BB.writeFile path $ CsvB.encodeHeader $ Csv.headerOrder val
+            liftIO $ modifyIORef flagRef not
+        return val
 
 sinkCSV :: (MonadResource m, Csv.ToRecord a) => FilePath -> ConduitT a Void m ()
 sinkCSV path =
