@@ -3,6 +3,7 @@ module LocEst.CoreAlgorithms where
 import           LocEst.Distance
 import           LocEst.Types
 import           LocEst.Math.MultivariateNormal (dnormMulti)
+import           LocEst.Math.Basics
 
 import qualified Data.HashMap.Strict            as HM
 
@@ -17,12 +18,21 @@ propAtSpatTempDepVarsPos depVarsOrdered inSpatTempDepVarsPos (SpatTempDepVarsPos
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) inSpatTempDepVarsPos
         depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> calcSD myDecay depVar sdist tdist) depVarsOrdered) spatDistsKM tempDists
         densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
-        meanDens    =
-            -- avg allDensities -- too smooth, low densities pull the mean down
-            maximum densities -- too aggressive?
-            --weightedAvg allIntegrals allDensities
-    in --error $ show $ zip5 allSpatDistsKM allTempDists allPCMeans allPCSDs allDensities
-        SpatTempProb { _stprspatTempPos = gridSpatTempPos, _stprDepVarsPos = searchDepVarPos, _stprprobability = meanDens }
+        meanDens    = case mySummary of
+            Maximum -> maximum densities
+            Mean    -> avg densities
+    in SpatTempProb {
+          _stprspatTempPos = gridSpatTempPos
+        , _stprDepVarsPos = searchDepVarPos
+        , _stprprobability = meanDens
+        }
+
+mySummary = Maximum
+
+data DensitySummaryAlgorithm =
+      Maximum
+    | Mean
+    -- | ...
 
 myDecay = DecayDefinition [
       DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
