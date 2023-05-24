@@ -9,18 +9,31 @@ import qualified Data.HashMap.Strict            as HM
 
 coreSearch = propAtSpatTempDepVarsPos
 
-propAtSpatTempDepVarsPos :: [String] -> [SpatTempDepVarsPos] -> SpatTempDepVarsPos -> SpatTempProb
-propAtSpatTempDepVarsPos depVarsOrdered inSpatTempDepVarsPos (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos) =
+propAtSpatTempDepVarsPos ::
+       DecayDefinition
+    -> DensitySummaryAlgorithm
+    -> [String]
+    -> [SpatTempDepVarsPos]
+    -> SpatTempDepVarsPos
+    -> SpatTempProb
+propAtSpatTempDepVarsPos
+    decayDefinition
+    densitySummaryAlgorithm
+    depVarsOrdered
+    inSpatTempDepVarsPos
+    (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos) =
+
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
         spatDists   = map (spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
         spatDistsKM = map (/ 1000) spatDists
         tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) inSpatTempDepVarsPos
-        depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> calcSD myDecay depVar sdist tdist) depVarsOrdered) spatDistsKM tempDists
+        depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> calcSD decayDefinition depVar sdist tdist) depVarsOrdered) spatDistsKM tempDists
         densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
-        meanDens    = case mySummary of
+        meanDens    = case densitySummaryAlgorithm of
             Maximum -> maximum densities
             Mean    -> avg densities
+
     in SpatTempProb {
           _stprSpatTempDepVarsPos = SpatTempDepVarsPos {
               _stpoSpatTempPos = gridSpatTempPos
@@ -29,17 +42,10 @@ propAtSpatTempDepVarsPos depVarsOrdered inSpatTempDepVarsPos (SpatTempDepVarsPos
         , _stprprobability = meanDens
         }
 
-mySummary = Maximum
-
 data DensitySummaryAlgorithm =
       Maximum
     | Mean
     -- | ...
-
-myDecay = DecayDefinition [
-      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
-    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
-    ]
 
 newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
 

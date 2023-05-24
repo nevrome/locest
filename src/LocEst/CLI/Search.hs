@@ -53,7 +53,7 @@ runSearch (
         -- multiply spatpos input grid by dependent vars positions
         .| ConL.concatMap (multiplySpatPosByDepVarsPos searchDepVarPos)
         -- .| ConL.map coreSearch -- sequential
-        .| ConAA.asyncMapC 5 (coreSearch depVarsOrdered allObservations) -- normal parallel
+        .| ConAA.asyncMapC 5 (coreSearch myDecay mySummary depVarsOrdered allObservations) -- normal parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat -- chunked parallel
         .| progress
         .| sinkCSV outFile
@@ -61,3 +61,10 @@ runSearch (
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
+
+mySummary = Maximum
+
+myDecay = DecayDefinition [
+      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
+    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
+    ]
