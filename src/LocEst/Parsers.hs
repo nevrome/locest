@@ -58,14 +58,14 @@ sinkNamedCSV path =
     where
         writeHeaderCSV :: (MonadIO m, Csv.DefaultOrdered i) => Handle -> ConduitT i i m ()
         writeHeaderCSV handle = do
-            -- loop, where we only do something on the first entry
-            -- is there no better way?
             flagRef <- liftIO $ newIORef True
             ConL.mapM $ \val -> do
+                -- run the action only for the first element
                 flag <- liftIO $ readIORef flagRef
                 when flag $ do
                     liftIO $ BB.hPutBuilder handle $ CsvB.encodeHeaderWith encodingOptions $ Csv.headerOrder val
                     liftIO $ modifyIORef flagRef not
+                -- continue processing the rest of the stream
                 return val
 
 sinkCSV :: (MonadResource m, Csv.ToRecord a) => FilePath -> ConduitT a Void m ()
