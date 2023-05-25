@@ -9,14 +9,15 @@ import           Control.Monad.Error.Class
 import           Data.Char                 (ord)
 import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
-import qualified Data.Conduit.Combinators  as Con
+import qualified Data.Conduit.Combinators  as ConC
 import qualified Data.Conduit.List         as ConL
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Conduit          as ConCsv
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
-import           System.IO                 (hPutStrLn, stderr)
+import           System.IO                 (hPutStrLn, stderr, Handle, openFile, hClose, IOMode (..))
 import Control.Monad (when)
-import qualified Data.ByteString as Bchs
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv.Builder as CsvB
 import qualified Data.ByteString.Builder as BB
 
@@ -45,30 +46,32 @@ readSpatPos path =
 
 sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) => FilePath -> ConduitT () a m ()
 sourceCSV path =
-       Con.sourceFile path
+       ConC.sourceFile path
     .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
 
 sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => FilePath -> ConduitT a Void m ()
 sinkNamedCSV path =
-       writeHeaderCSV path
-    .| ConCsv.toCsv encodingOptions
-    .| Con.sinkFile path
-
-writeHeaderCSV :: (MonadIO m, Csv.DefaultOrdered i) => FilePath -> ConduitT i i m ()
-writeHeaderCSV path = do
-    flagRef <- liftIO $ newIORef True
-    ConL.mapM $ \val -> do
-        flag <- liftIO $ readIORef flagRef
-        when flag $ do
-            liftIO $ putStr "1"
-            liftIO $ BB.writeFile path $ CsvB.encodeHeader $ Csv.headerOrder val
-            liftIO $ modifyIORef flagRef not
-        return val
+    Con.bracketP (openFile path WriteMode) hClose $ \handle ->
+           writeHeaderCSV handle
+        .| ConCsv.toCsv encodingOptions
+        .| ConL.mapM_ (liftIO . Bchs.hPutStr handle)
+    where
+        writeHeaderCSV :: (MonadIO m, Csv.DefaultOrdered i) => Handle -> ConduitT i i m ()
+        writeHeaderCSV handle = do
+            -- loop, where we only do something on the first entry
+            -- is there no better way?
+            flagRef <- liftIO $ newIORef True
+            ConL.mapM $ \val -> do
+                flag <- liftIO $ readIORef flagRef
+                when flag $ do
+                    liftIO $ BB.hPutBuilder handle $ CsvB.encodeHeaderWith encodingOptions $ Csv.headerOrder val
+                    liftIO $ modifyIORef flagRef not
+                return val
 
 sinkCSV :: (MonadResource m, Csv.ToRecord a) => FilePath -> ConduitT a Void m ()
 sinkCSV path =
        ConCsv.toCsv encodingOptions
-    .| Con.sinkFile path
+    .| ConC.sinkFile path
 
 progress :: (MonadIO m) => ConduitT i i m ()
 progress = do

@@ -5,23 +5,23 @@ system('locest search -i testObs.tsv -g testObs.tsv -t -400 -d "varC1=150+varC2=
 
 system('locest search -i test2Obs.tsv -g test2Grid.tsv -t -7000 -d "varC1=0.0461299+varC2=0.00014293" -o test2Search.tsv')
 
-hu <- readr::read_tsv("test2Search.tsv",col_names = c("x", "y", "t", "C1", "C2", "prob"))
+hu <- readr::read_tsv("test2Search.tsv")
 
 hu %>%
   ggplot() +
-  geom_raster(aes(x, y, fill = prob)) +
+  geom_raster(aes(x, y, fill = probability)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
 # 5242, so the exact year for Stuttgart, does not work. Probably because of an infinite density
 system('locest search -i test2Obs.tsv -g test2GridOnePoint.tsv -t "-5750, -5500,-5250, -5000, -4750" -d "varC1=-0.0885337:0.0570383:0.01+varC2=-0.0669435:0.1100580:0.01" -o test2Interpolate.tsv')
 
-hu <- readr::read_tsv("test2Interpolate.tsv",col_names = c("x", "y", "t", "C1", "C2", "prob"))
+hu <- readr::read_tsv("test2Interpolate.tsv")
 
 hu %>%
   ggplot() +
-  facet_wrap(~t) +
-  geom_raster(aes(C1, C2, fill = log10(prob))) +
+  facet_wrap(~age) +
+  geom_raster(aes(varC1, varC2, fill = log10(probability))) +
   scale_fill_viridis_c() +
   coord_fixed()
 
