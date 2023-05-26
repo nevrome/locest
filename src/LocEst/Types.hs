@@ -65,10 +65,6 @@ instance Csv.ToRecord SpatTempDepVarsPos where
     toRecord (SpatTempDepVarsPos spatTempPos depVarsPos) =
         Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
 
-multiplySpatPosByDepVarsPos :: [DepVarsPos] -> SpatTempPos -> [SpatTempDepVarsPos]
-multiplySpatPosByDepVarsPos depVarsPos spatTempPos =
-    map (\p -> SpatTempDepVarsPos { _stpoSpatTempPos = spatTempPos, _stpoDepVarsPos = p}) depVarsPos
-
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }
     deriving (Show, Generic)
@@ -112,10 +108,6 @@ instance Csv.DefaultOrdered SpatTempPos where
 instance Csv.ToRecord SpatTempPos where
     toRecord (SpatTempPos spatPos tempPos) =
         Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]
-
-multiplySpatPosByTempGrid :: [Int] -> SpatPos -> [SpatTempPos]
-multiplySpatPosByTempGrid tempGrid spatPos =
-    map (\y -> SpatTempPos { _spatialPos = spatPos, _temporalPos = SimpleYearBCAD y}) tempGrid
 
 -- | A datatype for temporal positions
 data TempPos =

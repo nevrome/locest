@@ -40,11 +40,15 @@ runSearch (
         throw $ NormalException "dep vars in -i and -d not equal"
     -- info
     hPutStrLn stderr $ "Required iterations: " ++
-        show (length inSpatGrid) ++ " spatial positions" ++
-        " * " ++
-        show (length inTempGrid) ++ " time slices" ++
-        " * " ++
+        show (length inSpatGrid) ++ " spatial positions"
+        ++ " * " ++
+        show (length inTempGrid) ++ " time slices"
+        ++ " * " ++
         show (length searchDepVarPos) ++ " dependent variable positions"
+        ++ " * " ++
+        show (length myDecays) ++ " decay definitions"
+        ++ " * " ++
+        show (length myDecays) ++ " summary algorithms"
     -- run analysis pipeline
     Con.runConduitRes $
            ConL.sourceList inSpatGrid
@@ -52,8 +56,10 @@ runSearch (
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
         -- multiply spatpos input grid by dependent vars positions
         .| ConL.concatMap (multiplySpatPosByDepVarsPos searchDepVarPos)
+        -- multiply multidimensional positions by algorithms
+        .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myDecays mySummaries)
         -- .| ConL.map coreSearch -- sequential
-        .| ConAA.asyncMapC 5 (coreSearch myDecay mySummary depVarsOrdered allObservations) -- normal parallel
+        .| ConAA.asyncMapC 5 (coreSearch depVarsOrdered allObservations) -- normal parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat -- chunked parallel
         .| progress
         .| sinkNamedCSV outFile
@@ -67,9 +73,35 @@ allEqual (x:xs) = all (== x) xs
 --       Crossvalidation specification involves then an alternative (!) to --spatGridFile
 --       This specification probably has to include test:training split ratio and iterations
 
+mySummaries = [mySummary]
+
+myDecays = [myDecay]
+
 mySummary = Maximum
 
 myDecay = DecayDefinition [
       DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
     , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
     ]
+
+multiplySpatPosByTempGrid :: [Int] -> SpatPos -> [SpatTempPos]
+multiplySpatPosByTempGrid tempGrid spatPos =
+    map (\y -> SpatTempPos { _spatialPos = spatPos, _temporalPos = SimpleYearBCAD y}) tempGrid
+
+multiplySpatPosByDepVarsPos :: [DepVarsPos] -> SpatTempPos -> [SpatTempDepVarsPos]
+multiplySpatPosByDepVarsPos depVarsPos spatTempPos =
+    map (\p -> SpatTempDepVarsPos { _stpoSpatTempPos = spatTempPos, _stpoDepVarsPos = p}) depVarsPos
+
+multiplySpatTempDepVarsPosByAlgorithms ::
+       [DecayDefinition]
+    -> [DensitySummaryAlgorithm]
+    -> SpatTempDepVarsPos
+    -> [(SpatTempDepVarsPos, DecayDefinition, DensitySummaryAlgorithm)]
+multiplySpatTempDepVarsPosByAlgorithms 
+    decayDefinitions
+    densitySummaryAlgorithms
+    spatTempDepVarsPos =
+    [ (spatTempDepVarsPos,x,y) | x <- decayDefinitions, y <- densitySummaryAlgorithms ] 
+
+
+

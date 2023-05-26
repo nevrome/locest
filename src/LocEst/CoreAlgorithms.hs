@@ -10,18 +10,14 @@ import qualified Data.HashMap.Strict            as HM
 coreSearch = propAtSpatTempDepVarsPos
 
 propAtSpatTempDepVarsPos ::
-       DecayDefinition
-    -> DensitySummaryAlgorithm
-    -> [String]
+       [String]
     -> [SpatTempDepVarsPos]
-    -> SpatTempDepVarsPos
+    -> (SpatTempDepVarsPos, DecayDefinition, DensitySummaryAlgorithm)
     -> SpatTempProb
 propAtSpatTempDepVarsPos
-    decayDefinition
-    densitySummaryAlgorithm
     depVarsOrdered
     inSpatTempDepVarsPos
-    (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos) =
+    (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos, decayDefinition, densitySummaryAlgorithm) =
 
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
         spatDists   = map (spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
