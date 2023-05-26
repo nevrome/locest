@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module LocEst.Types where
+module LocEst.TypesPositions where
 
 import           Control.Applicative   (empty)
 import           Control.DeepSeq

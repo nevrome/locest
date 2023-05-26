@@ -2,7 +2,7 @@
 
 module LocEst.Parsers where
 
-import           LocEst.Types
+import           LocEst.TypesPositions
 
 import           Conduit                   (MonadIO, MonadResource, liftIO)
 import           Control.Monad.Error.Class

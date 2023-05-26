@@ -1,7 +1,7 @@
 module LocEst.CoreAlgorithms where
 
 import           LocEst.Distance
-import           LocEst.Types
+import           LocEst.TypesPositions
 import           LocEst.Math.MultivariateNormal (dnormMulti)
 import           LocEst.Math.Basics
 

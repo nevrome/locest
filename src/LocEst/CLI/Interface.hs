@@ -1,6 +1,6 @@
 module LocEst.CLI.Interface where
 
-import           LocEst.Types
+import           LocEst.TypesPositions
 
 import qualified Data.HashMap.Strict as HM
 import qualified Options.Applicative as OP
