@@ -16,6 +16,7 @@ import Data.List (sort)
 import qualified Control.Monad as OP
 import Control.Exception (throw)
 import System.IO (hPutStrLn, stderr)
+import GHC.Conc (getNumCapabilities)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile :: FilePath
@@ -24,6 +25,15 @@ data SearchOptions = SearchOptions
     , _searchSearchDepVars     :: [DepVarsPos]
     , _searchOutFile           :: FilePath
     }
+
+-- algorithm options - must be transformed to a proper input when it has stabilized
+mySummaries = [mySummary]
+myDecays = [myDecay]
+mySummary = Maximum
+myDecay = DecayDefinition [
+      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
+    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
+    ]
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
@@ -39,6 +49,8 @@ runSearch (
     OP.when (depVarsOrdered /= head depVarsFromSearch) $ do
         throw $ NormalException "dep vars in -i and -d not equal"
     -- info
+    maxNumberOfThreads <- getNumCapabilities
+    hPutStrLn stderr $ "Detected max number of threads: " ++ show maxNumberOfThreads
     hPutStrLn stderr $ "Required iterations: " ++
         show (length inSpatGrid) ++ " spatial positions"
         ++ " * " ++
@@ -51,6 +63,7 @@ runSearch (
         show (length myDecays) ++ " summary algorithms"
     -- run analysis pipeline
     Con.runConduitRes $
+        -- begin to stream spatial prediction grid positions
            ConL.sourceList inSpatGrid
         -- multiply spatial input grid by temporal grid
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
@@ -58,9 +71,13 @@ runSearch (
         .| ConL.concatMap (multiplySpatPosByDepVarsPos searchDepVarPos)
         -- multiply multidimensional positions by algorithms
         .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myDecays mySummaries)
-        -- .| ConL.map coreSearch -- sequential
-        .| ConAA.asyncMapC 5 (coreSearch depVarsOrdered allObservations) -- normal parallel
-        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat -- chunked parallel
+        -- main search algorithm
+        -- 1. sequential
+        -- .| ConL.map coreSearch
+        -- 2. normal parallel
+        .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations)
+        -- 3. chunked parallel
+        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
         .| progress
         .| sinkNamedCSV outFile
 
@@ -72,17 +89,6 @@ allEqual (x:xs) = all (== x) xs
 --       These lists can then be multiplied into the analysis loop, just as for tempGrid and the DepVarsPos
 --       Crossvalidation specification involves then an alternative (!) to --spatGridFile
 --       This specification probably has to include test:training split ratio and iterations
-
-mySummaries = [mySummary]
-
-myDecays = [myDecay]
-
-mySummary = Maximum
-
-myDecay = DecayDefinition [
-      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
-    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
-    ]
 
 multiplySpatPosByTempGrid :: [Int] -> SpatPos -> [SpatTempPos]
 multiplySpatPosByTempGrid tempGrid spatPos =
