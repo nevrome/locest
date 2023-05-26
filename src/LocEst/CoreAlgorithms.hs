@@ -44,8 +44,8 @@ mySummaries = [mySummary]
 myDecays = [myDecay]
 mySummary = DistanceWeightedMean
 myDecay = DecayDefinition [
-      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
-    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
+      DecayOneDepVar "varC1" (LinearSum 0.00001 0.00001)
+    , DecayOneDepVar "varC2" (LinearSum 0.00001 0.00001)
     ]
 
 data DensitySummaryAlgorithm =

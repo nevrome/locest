@@ -5,7 +5,7 @@ load("../../mobest.analysis.2022/data/spatial/extended_area.RData")
 
 hu <- mobest::create_prediction_grid(
   extended_area,
-  spatial_cell_size = 50000
+  spatial_cell_size = 80000
 ) %>% mobest::geopos_to_spatpos(-7000)
 
 hu %>%
