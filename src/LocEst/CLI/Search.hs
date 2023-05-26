@@ -26,15 +26,6 @@ data SearchOptions = SearchOptions
     , _searchOutFile           :: FilePath
     }
 
--- algorithm options - must be transformed to a proper input when it has stabilized
-mySummaries = [mySummary]
-myDecays = [myDecay]
-mySummary = Maximum
-myDecay = DecayDefinition [
-      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
-    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
-    ]
-
 runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions inObsFile inSpatGridFile inTempGrid searchDepVarPos outFile

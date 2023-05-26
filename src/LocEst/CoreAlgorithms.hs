@@ -29,6 +29,7 @@ propAtSpatTempDepVarsPos
         meanDens    = case densitySummaryAlgorithm of
             Maximum -> maximum densities
             Mean    -> avg densities
+            DistanceWeightedMean -> weightedAvg (map (1/) spatDists) densities
 
     in SpatTempProb {
           _stprSpatTempDepVarsPos = SpatTempDepVarsPos {
@@ -38,9 +39,19 @@ propAtSpatTempDepVarsPos
         , _stprprobability = meanDens
         }
 
+-- algorithm options - must be transformed to a proper input when it has stabilized
+mySummaries = [mySummary]
+myDecays = [myDecay]
+mySummary = DistanceWeightedMean
+myDecay = DecayDefinition [
+      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
+    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
+    ]
+
 data DensitySummaryAlgorithm =
       Maximum
     | Mean
+    | DistanceWeightedMean
     -- | ...
 
 newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
