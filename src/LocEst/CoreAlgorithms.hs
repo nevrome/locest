@@ -24,7 +24,7 @@ propAtSpatTempDepVarsPos
         spatDistsKM = map (/ 1000) spatDists
         tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) inSpatTempDepVarsPos
-        depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> calcSD decayDefinition depVar sdist tdist) depVarsOrdered) spatDistsKM tempDists
+        depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) spatDistsKM tempDists
         densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
         meanDens    = case densitySummaryAlgorithm of
             Maximum -> maximum densities
@@ -44,8 +44,8 @@ mySummaries = [mySummary]
 myDecays = [myDecay]
 mySummary = DistanceWeightedMean
 myDecay = DecayDefinition [
-      DecayOneDepVar "varC1" (LinearSum 0.00001 0.00001)
-    , DecayOneDepVar "varC2" (LinearSum 0.00001 0.00001)
+      DecayOneDepVar "varC1" (LinearSum 0.00001 0.0001)
+    , DecayOneDepVar "varC2" (LinearSum 0.00001 0.0001)
     ]
 
 data DensitySummaryAlgorithm =
