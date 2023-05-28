@@ -20,16 +20,25 @@ propAtSpatTempDepVarsPos
     (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos, decayDefinition, densitySummaryAlgorithm) =
 
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-        spatDists   = map (spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
+        
+        spatDists   = map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos $ x) inSpatTempDepVarsPos
         spatDistsKM = map (/ 1000) spatDists
         tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
-        depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) inSpatTempDepVarsPos
-        depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) spatDistsKM tempDists
+
+        -- makes it a lot faster, but has bad side effects
+        filteredByDists = filter (\(ds,dt,x) -> ds <= 2000 && dt <= 2000) $ zip3 spatDistsKM tempDists inSpatTempDepVarsPos
+        filteredInSpatTempDepVarsPos = map (\(_,_,x) -> x) filteredByDists
+        filteredSpatDists = map (\(x,_,_) -> x) filteredByDists
+        filteredTempDists = map (\(_,x,_) -> x) filteredByDists
+
+
+        depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) filteredInSpatTempDepVarsPos
+        depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) filteredSpatDists filteredTempDists
         densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
         meanDens    = case densitySummaryAlgorithm of
             Maximum -> maximum densities
             Mean    -> avg densities
-            DistanceWeightedMean -> weightedAvg (map (1/) spatDists) densities
+            DistanceWeightedMean -> weightedAvg (map (\(ds,dt) -> 1 / (sqrt ((ds ** 2) + (dt ** 2)))) (zip filteredSpatDists filteredTempDists)) densities
 
     in SpatTempProb {
           _stprSpatTempDepVarsPos = SpatTempDepVarsPos {
@@ -44,8 +53,8 @@ mySummaries = [mySummary]
 myDecays = [myDecay]
 mySummary = DistanceWeightedMean
 myDecay = DecayDefinition [
-      DecayOneDepVar "varC1" (LinearSum 0.00001 0.0001)
-    , DecayOneDepVar "varC2" (LinearSum 0.00001 0.0001)
+      DecayOneDepVar "varC1" (LinearSum 0.00001 0.00001)
+    , DecayOneDepVar "varC2" (LinearSum 0.00001 0.00001)
     ]
 
 data DensitySummaryAlgorithm =
