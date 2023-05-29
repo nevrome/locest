@@ -14,7 +14,7 @@ import qualified Data.Conduit.Algorithms.Async  as ConAA
 import qualified Data.Conduit.List              as ConL
 import qualified Data.HashMap.Strict            as HM
 import qualified Data.Conduit.Combinators as ConC
-import Data.List (sort)
+import Data.List (sort, sortBy)
 import qualified Control.Monad as OP
 import Control.Exception (throw)
 import System.IO (hPutStrLn, stderr)
@@ -47,12 +47,17 @@ runCrossvalidate (
     hPutStrLn stderr $ "Detected max number of threads: " ++ show maxNumberOfThreads
 
     -- run crossvalidation pipeline
-    Con.runConduitRes $
+    perPointRes <- Con.runConduitRes $
         -- begin to stream iterations
            ConL.sourceList testTrainingIterations
         -- run per-iteration conduit until no iterations left
         .| Con.awaitForever (oneIterationConduit maxNumberOfThreads depVarsOrdered)
         .| progress
+        .| ConL.consume
+
+    -- summary
+    Con.runConduitRes $
+           ConL.sourceList (sortBy sortFunc perPointRes)
         .| ConL.groupBy groupFunc
         .| ConL.map summarizeFunc
         .| ConL.sinkNamedCSV outFile
@@ -62,9 +67,15 @@ runCrossvalidate (
         oneIterationConduit maxNumThreads varsOrdered (testData,trainingData) = do
             ConL.sourceList testData
                 -- multiply multidimensional positions by algorithms
-                .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myDecays mySummaries)
+                .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myTwoDecays mySummaries)
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (coreSearch varsOrdered trainingData)
+
+myTwoDecays = [myDecay, myOtherDecay]
+myOtherDecay = DecayDefinition [
+      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
+    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
+    ]
 
 summarizeFunc :: [SpatTempProb] -> CrossvalOutput
 summarizeFunc xs =
@@ -77,7 +88,12 @@ summarizeFunc xs =
 groupFunc :: SpatTempProb -> SpatTempProb -> Bool
 groupFunc (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefA sumAlgA) _)
           (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefB sumAlgB) _) =
-    (decayDefA == decayDefA) && (sumAlgA == sumAlgB)
+    (decayDefA == decayDefB) && (sumAlgA == sumAlgB)
+
+sortFunc :: SpatTempProb -> SpatTempProb -> Ordering
+sortFunc (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefA sumAlgA) _)
+         (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefB sumAlgB) _) =
+    mconcat [compare decayDefA decayDefB, compare sumAlgA sumAlgB]
 
 splitTestTraining :: Double -> [a] -> IO ([a], [a])
 splitTestTraining testFraction observations = do

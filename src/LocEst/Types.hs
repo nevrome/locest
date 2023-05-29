@@ -74,12 +74,12 @@ data DensitySummaryAlgorithm =
       Maximum
     | Mean
     | DistanceWeightedMean
-    deriving (Show, Eq, Generic)
+    deriving (Show, Eq, Ord, Generic)
 
 instance NFData DensitySummaryAlgorithm
 
 newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
-    deriving (Show, Eq, Generic)
+    deriving (Show, Eq, Ord, Generic)
 
 instance NFData DecayDefinition
 
@@ -87,7 +87,7 @@ data DecayOneDepVar = DecayOneDepVar {
       _stddvDepVarName    :: DepVarName
     , _stddvSpatTempDecay :: DecayAlgorithm
     }
-    deriving (Show, Eq, Generic)
+    deriving (Show, Eq, Ord, Generic)
 
 instance NFData DecayOneDepVar
 
@@ -96,7 +96,7 @@ type DepVarName = String
 data DecayAlgorithm =
       LinearSum Double Double
     | LogSum Double Double
-    deriving (Show, Eq, Generic)
+    deriving (Show, Eq, Ord, Generic)
 
 instance NFData DecayAlgorithm
 
