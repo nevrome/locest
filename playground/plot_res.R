@@ -27,3 +27,7 @@ hu %>%
   geom_raster(aes(varC1, varC2, fill = log10(probability))) +
   scale_fill_viridis_c() +
   coord_fixed()
+
+
+# crossvalidation position test
+system('time locest crossvalidate -i test2Obs.tsv --testFraction 0.1 --iterations 5 -o test2Crossvalidate.tsv')
