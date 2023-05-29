@@ -26,6 +26,12 @@ parseNegativeFloatNumber = do
     i <- parsePositiveFloatNumber
     return (-i)
 
+parseFraction = do
+    num <- parsePositiveFloatNumber
+    if num > 1
+    then fail "must be between zero an one"
+    else return num
+
 parsePositiveFloatNumber = do
     num <- parseNumber
     optionalMore <- P.option "" $ (:) <$> P.char '.' <*> parseNumber
@@ -76,7 +82,29 @@ optParseConcretePositionSettings =
 
 optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
 optParseCrossvalidationSettings =
-    undefined
+    CrossvalidationSettings
+        <$> optParseTestTrainingFraction
+        <*> optParseCrossvalIterations
+
+optParseTestTrainingFraction :: OP.Parser Double
+optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
+       OP.long    "testFraction"
+    <> OP.metavar "..."
+    <> OP.help    "..."
+    )
+
+optParseCrossvalIterations :: OP.Parser Int
+optParseCrossvalIterations = OP.option OP.auto (
+       OP.long    "iterations"
+    <> OP.metavar "..."
+    <> OP.help    "..."
+    )
+
+readFraction :: String -> Either String Double
+readFraction s =
+    case P.runParser parseFraction () "" s of
+        Left err -> Left $ show err
+        Right x  -> Right x
 
 optParseInSpatGridFile :: OP.Parser FilePath
 optParseInSpatGridFile = OP.strOption (
