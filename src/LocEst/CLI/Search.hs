@@ -19,21 +19,35 @@ import System.IO (hPutStrLn, stderr)
 import GHC.Conc (getNumCapabilities)
 
 data SearchOptions = SearchOptions
-    { _searchInObservationFile :: FilePath
-    , _searchInSpatGridFile    :: FilePath
-    , _searchInTempGrid        :: [Int]
-    , _searchSearchDepVars     :: [DepVarsPos]
-    , _searchOutFile           :: FilePath
+    { _searchInObservationFile      :: FilePath
+    , _searchSearchPositionSettings :: SearchPositionSettings
+    , _searchOutFile                :: FilePath
     }
+
+data SearchPositionSettings =
+      SearchConcretePositions ConcretePositionSettings
+    | SearchCrossvalidate     CrossvalidationSettings
+
+data ConcretePositionSettings = ConcretePositionSettings {
+      _concPosInSpatGridFile :: FilePath
+    , _concPosInTempGrid     :: [Int]
+    , _concPosDepVarsPosGrid :: [DepVarsPos]
+}
+
+data CrossvalidationSettings = CrossvalidationSettings {
+      _crossvalTestFraction  :: Double
+    , _crossvalIterations    :: Int
+}
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
-    SearchOptions inObsFile inSpatGridFile inTempGrid searchDepVarPos outFile
+    SearchOptions inObsFile (SearchConcretePositions (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos)) outFile
     ) = do
     allObservations <- readSpatTempDepVarsPos inObsFile
     inSpatGrid <- readSpatPos inSpatGridFile
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map _stpoDepVarsPos allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
+    
     -- validate input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"

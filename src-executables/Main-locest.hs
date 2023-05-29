@@ -59,7 +59,5 @@ subcommandParser = OP.subparser (
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$>
                             optParseInObservationFile
-                        <*> optParseInSpatGridFile
-                        <*> optParseTempGridString
-                        <*> optParseSearchDepVarsPos
+                        <*> optParseSearchPositionSettings
                         <*> optParseOutFile
