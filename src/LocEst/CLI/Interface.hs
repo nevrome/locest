@@ -2,6 +2,7 @@ module LocEst.CLI.Interface where
 
 import           LocEst.TypesPositions
 import           LocEst.CLI.Search
+import           LocEst.CLI.Crossvalidate
 
 import qualified Data.HashMap.Strict as HM
 import qualified Options.Applicative as OP
@@ -67,11 +68,6 @@ optParseInObservationFile = OP.strOption (
     <> OP.metavar "FILE"
     <> OP.help    "..."
     )
-
-optParseSearchPositionSettings :: OP.Parser SearchPositionSettings
-optParseSearchPositionSettings =
-           SearchConcretePositions <$> optParseConcretePositionSettings
-    OP.<|> SearchCrossvalidate     <$> optParseCrossvalidationSettings
 
 optParseConcretePositionSettings :: OP.Parser ConcretePositionSettings
 optParseConcretePositionSettings =

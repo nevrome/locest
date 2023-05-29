@@ -20,13 +20,9 @@ import GHC.Conc (getNumCapabilities)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
-    , _searchSearchPositionSettings :: SearchPositionSettings
+    , _searchSearchPositionSettings :: ConcretePositionSettings
     , _searchOutFile                :: FilePath
     }
-
-data SearchPositionSettings =
-      SearchConcretePositions ConcretePositionSettings
-    | SearchCrossvalidate     CrossvalidationSettings
 
 data ConcretePositionSettings = ConcretePositionSettings {
       _concPosInSpatGridFile :: FilePath
@@ -34,14 +30,9 @@ data ConcretePositionSettings = ConcretePositionSettings {
     , _concPosDepVarsPosGrid :: [DepVarsPos]
 }
 
-data CrossvalidationSettings = CrossvalidationSettings {
-      _crossvalTestFraction  :: Double
-    , _crossvalIterations    :: Int
-}
-
 runSearch :: SearchOptions -> IO ()
 runSearch (
-    SearchOptions inObsFile (SearchConcretePositions (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos)) outFile
+    SearchOptions inObsFile (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos) outFile
     ) = do
     allObservations <- readSpatTempDepVarsPos inObsFile
     inSpatGrid <- readSpatPos inSpatGridFile

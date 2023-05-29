@@ -5,6 +5,7 @@
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
 import LocEst.Utils
+import LocEst.CLI.Crossvalidate (CrossvalidateOptions (..), runCrossvalidate)
 
 import           Control.Exception    (catch)
 import           Data.Version         (Version, makeVersion, showVersion)
@@ -20,6 +21,7 @@ data Options = Options { _subcommand :: Subcommand }
 
 data Subcommand =
       CmdSearch SearchOptions
+    | CmdCrossvalidate CrossvalidateOptions
 
 -- CLI interface configuration
 main :: IO ()
@@ -37,6 +39,7 @@ main = do
 runCmd :: Subcommand -> IO ()
 runCmd o = case o of
     CmdSearch opts -> runSearch opts
+    CmdCrossvalidate opts -> runCrossvalidate opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (
@@ -50,14 +53,22 @@ versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.hel
 subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
            OP.command "search" searchOptInfo
-        -- <>
+        <> OP.command "crossvalidate" crossvalidateOptInfo
     )
     where
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
             (OP.progDesc "Search...")
+        crossvalidateOptInfo = OP.info (OP.helper <*> (CmdCrossvalidate <$> crossvalidateOptParser))
+            (OP.progDesc "Crossvalidate...")
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$>
                             optParseInObservationFile
-                        <*> optParseSearchPositionSettings
+                        <*> optParseConcretePositionSettings
+                        <*> optParseOutFile
+
+crossvalidateOptParser :: OP.Parser CrossvalidateOptions
+crossvalidateOptParser = CrossvalidateOptions <$>
+                            optParseInObservationFile
+                        <*> optParseCrossvalidationSettings
                         <*> optParseOutFile
