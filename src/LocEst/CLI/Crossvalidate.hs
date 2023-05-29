@@ -21,6 +21,7 @@ import System.IO (hPutStrLn, stderr)
 import GHC.Conc (getNumCapabilities)
 import System.Random (randomRIO)
 import           Conduit                   (MonadIO, MonadResource, ConduitT, ResourceT)
+import qualified LocEst.Parsers as ConL
 
 data CrossvalidateOptions = CrossvalidateOptions
     { _crossvalidateInObservationFile :: FilePath
@@ -46,16 +47,15 @@ runCrossvalidate (
     hPutStrLn stderr $ "Detected max number of threads: " ++ show maxNumberOfThreads
 
     -- run crossvalidation pipeline
-    myList <- Con.runConduitRes $
+    Con.runConduitRes $
         -- begin to stream iterations
            ConL.sourceList testTrainingIterations
         -- run per-iteration conduit until no iterations left
         .| Con.awaitForever (oneIterationConduit maxNumberOfThreads depVarsOrdered)
         .| progress
-        -- .| ConL.groupBy groupFunc
-        .| ConL.consume
-
-    putStrLn "done"
+        .| ConL.groupBy groupFunc
+        .| ConL.map summarizeFunc
+        .| ConL.sinkNamedCSV outFile
 
     where
         oneIterationConduit :: Int -> [String] -> ([SpatTempDepVarsPos],[SpatTempDepVarsPos]) -> ConduitT ([SpatTempDepVarsPos],[SpatTempDepVarsPos]) SpatTempProb (ResourceT IO) ()
@@ -66,8 +66,18 @@ runCrossvalidate (
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (coreSearch varsOrdered trainingData)
 
---groupFunc :: SpatTempProb -> SpatTempProb -> Bool
---groupFunc (SpatTempProb () _)
+summarizeFunc :: [SpatTempProb] -> CrossvalOutput
+summarizeFunc xs =
+    let oneProb = _stprSpatTempDepVarsPosWithAlgos $ head xs
+        decayDef = _powialgDecayDef oneProb
+        sumAlg = _powialgDensSumAlgo oneProb
+        sumProbs = sum $ map _stprprobability xs
+    in CrossvalOutput decayDef sumAlg sumProbs
+
+groupFunc :: SpatTempProb -> SpatTempProb -> Bool
+groupFunc (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefA sumAlgA) _)
+          (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefB sumAlgB) _) =
+    (decayDefA == decayDefA) && (sumAlgA == sumAlgB)
 
 splitTestTraining :: Double -> [a] -> IO ([a], [a])
 splitTestTraining testFraction observations = do

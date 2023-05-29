@@ -19,15 +19,25 @@ import qualified Data.Vector as V
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
 filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 
--- | A datatype for distances in space and time
-data SpatTempDist = SpatTempDist {
-      _spatDist :: Double
-    , _tempDist :: Double
-}
+-- | A datatype for crossvalidation output
+data CrossvalOutput = CrossvalOutput {
+      _crossoutDecayDef :: DecayDefinition
+    , _crossoutSumAlgo  :: DensitySummaryAlgorithm
+    , _crossoutProbSum  :: Double
+} deriving (Show, Generic)
+
+instance NFData CrossvalOutput
+-- these instances are a quick hack - should actually be defined down to the algo types:
+instance Csv.DefaultOrdered CrossvalOutput where
+    headerOrder (CrossvalOutput decayDef sumAlg sumProb) =
+        Csv.header ["decayDef"] <> Csv.header ["sumAlg"] <> Csv.header ["probability"]
+instance Csv.ToRecord CrossvalOutput where
+    toRecord (CrossvalOutput decayDef sumAlg sumProb) =
+        Csv.record [Csv.toField (show decayDef)] <> Csv.record [Csv.toField (show sumAlg)] <> Csv.record [Csv.toField sumProb]
 
 -- | A datatype for search result points in space and time
 data SpatTempProb = SpatTempProb {
-      _stprSpatTempDepVarsPos :: SpatTempDepVarsPosWithAlgorithms
+      _stprSpatTempDepVarsPosWithAlgos :: SpatTempDepVarsPosWithAlgorithms
     , _stprprobability :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
@@ -64,12 +74,12 @@ data DensitySummaryAlgorithm =
       Maximum
     | Mean
     | DistanceWeightedMean
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 instance NFData DensitySummaryAlgorithm
 
 newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 instance NFData DecayDefinition
 
@@ -77,7 +87,7 @@ data DecayOneDepVar = DecayOneDepVar {
       _stddvDepVarName    :: DepVarName
     , _stddvSpatTempDecay :: DecayAlgorithm
     }
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 instance NFData DecayOneDepVar
 
@@ -86,7 +96,7 @@ type DepVarName = String
 data DecayAlgorithm =
       LinearSum Double Double
     | LogSum Double Double
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 instance NFData DecayAlgorithm
 
@@ -133,6 +143,12 @@ instance Csv.ToRecord DepVarsPos where
 depVarsExtractOrdered :: [String] -> DepVarsPos -> [Double]
 depVarsExtractOrdered orderedKeys (DepVarsPos hm) =
     map (hm HM.!) orderedKeys
+
+-- | A datatype for distances in space and time
+data SpatTempDist = SpatTempDist {
+      _spatDist :: Double
+    , _tempDist :: Double
+}
 
 -- | A datatype for spatio-temporal positions
 data SpatTempPos = SpatTempPos {
