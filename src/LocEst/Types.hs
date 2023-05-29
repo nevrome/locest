@@ -27,7 +27,7 @@ data SpatTempDist = SpatTempDist {
 
 -- | A datatype for search result points in space and time
 data SpatTempProb = SpatTempProb {
-      _stprSpatTempDepVarsPos :: SpatTempDepVarsPos
+      _stprSpatTempDepVarsPos :: SpatTempDepVarsPosWithAlgorithms
     , _stprprobability :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
@@ -50,16 +50,28 @@ data SpatTempDepVarsPosWithAlgorithms = SpatTempDepVarsPosWithAlgorithms {
     , _powialgDensSumAlgo :: DensitySummaryAlgorithm
 } deriving (Show, Generic)
 
--- Data types for core algorithm specification
-newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
-    deriving (Show, Generic)
+instance NFData SpatTempDepVarsPosWithAlgorithms
+-- these instances are a quick hack - should actually be defined down to the algo types:
+instance Csv.DefaultOrdered SpatTempDepVarsPosWithAlgorithms where
+    headerOrder (SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos decayDef sumAlg) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.header ["decayDef"] <> Csv.header ["sumAlg"]
+instance Csv.ToRecord SpatTempDepVarsPosWithAlgorithms where
+    toRecord (SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos decayDef sumAlg) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField (show decayDef)] <> Csv.record [Csv.toField (show sumAlg)]
 
+-- Data types for core algorithm specification
 data DensitySummaryAlgorithm =
       Maximum
     | Mean
     | DistanceWeightedMean
-    -- | ...
     deriving (Show, Generic)
+
+instance NFData DensitySummaryAlgorithm
+
+newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
+    deriving (Show, Generic)
+
+instance NFData DecayDefinition
 
 data DecayOneDepVar = DecayOneDepVar {
       _stddvDepVarName    :: DepVarName
@@ -67,12 +79,16 @@ data DecayOneDepVar = DecayOneDepVar {
     }
     deriving (Show, Generic)
 
+instance NFData DecayOneDepVar
+
 type DepVarName = String
 
 data DecayAlgorithm =
       LinearSum Double Double
     | LogSum Double Double
     deriving (Show, Generic)
+
+instance NFData DecayAlgorithm
 
 -- | A datatype for observations in space and time also with coordinates in dependent var space
 data SpatTempDepVarsPos = SpatTempDepVarsPos {

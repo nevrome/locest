@@ -41,10 +41,14 @@ propAtSpatTempDepVarsPos
             DistanceWeightedMean -> weightedAvg (map (\(ds,dt) -> 1 / (sqrt ((ds ** 2) + (dt ** 2)))) (zip filteredSpatDists filteredTempDists)) densities
 
     in SpatTempProb {
-          _stprSpatTempDepVarsPos = SpatTempDepVarsPos {
-              _stpoSpatTempPos = gridSpatTempPos
-            , _stpoDepVarsPos  = searchDepVarPos
-            } 
+          _stprSpatTempDepVarsPos = SpatTempDepVarsPosWithAlgorithms {
+                _powialgPosition = SpatTempDepVarsPos {
+                  _stpoSpatTempPos = gridSpatTempPos
+                , _stpoDepVarsPos  = searchDepVarPos
+                },
+                _powialgDecayDef = decayDefinition,
+                _powialgDensSumAlgo = densitySummaryAlgorithm
+            }
         , _stprprobability = meanDens
         }
 
