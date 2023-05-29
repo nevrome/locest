@@ -1,6 +1,6 @@
 module LocEst.Distance where
 
-import           LocEst.TypesPositions
+import           LocEst.Types
 
 spatTempDistSpatTempPos :: SpatTempPos -> SpatTempPos -> SpatTempDist
 spatTempDistSpatTempPos p1 p2 =

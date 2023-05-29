@@ -1,6 +1,6 @@
 module LocEst.CLI.Interface where
 
-import           LocEst.TypesPositions
+import           LocEst.Types
 import           LocEst.CLI.Search
 import           LocEst.CLI.Crossvalidate
 

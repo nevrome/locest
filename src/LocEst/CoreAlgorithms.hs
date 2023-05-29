@@ -1,7 +1,7 @@
 module LocEst.CoreAlgorithms where
 
 import           LocEst.Distance
-import           LocEst.TypesPositions
+import           LocEst.Types
 import           LocEst.Math.MultivariateNormal (dnormMulti)
 import           LocEst.Math.Basics
 
@@ -12,12 +12,12 @@ coreSearch = propAtSpatTempDepVarsPos
 propAtSpatTempDepVarsPos ::
        [String]
     -> [SpatTempDepVarsPos]
-    -> (SpatTempDepVarsPos, DecayDefinition, DensitySummaryAlgorithm)
+    -> SpatTempDepVarsPosWithAlgorithms
     -> SpatTempProb
 propAtSpatTempDepVarsPos
     depVarsOrdered
     inSpatTempDepVarsPos
-    (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos, decayDefinition, densitySummaryAlgorithm) =
+    (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos) decayDefinition densitySummaryAlgorithm) =
 
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
         
@@ -56,26 +56,6 @@ myDecay = DecayDefinition [
       DecayOneDepVar "varC1" (LinearSum 0.00001 0.00001)
     , DecayOneDepVar "varC2" (LinearSum 0.00001 0.00001)
     ]
-
-data DensitySummaryAlgorithm =
-      Maximum
-    | Mean
-    | DistanceWeightedMean
-    -- | ...
-
-newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
-
-data DecayOneDepVar = DecayOneDepVar {
-      _stddvDepVarName    :: DepVarName
-    , _stddvSpatTempDecay :: DecayAlgorithm
-    }
-
-type DepVarName = String
-
-data DecayAlgorithm =
-      LinearSum Double Double
-    | LogSum Double Double
-    -- | ...
 
 calcSD :: DecayDefinition -> DepVarName -> Double -> Double -> Double
 calcSD (DecayDefinition depVarList) depVarName spatDist tempDist =

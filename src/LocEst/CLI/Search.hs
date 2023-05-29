@@ -3,7 +3,7 @@
 module LocEst.CLI.Search where
 
 import           LocEst.Parsers
-import           LocEst.TypesPositions
+import           LocEst.Types
 import           LocEst.CoreAlgorithms
 import LocEst.Utils
 
@@ -98,12 +98,12 @@ multiplySpatTempDepVarsPosByAlgorithms ::
        [DecayDefinition]
     -> [DensitySummaryAlgorithm]
     -> SpatTempDepVarsPos
-    -> [(SpatTempDepVarsPos, DecayDefinition, DensitySummaryAlgorithm)]
+    -> [SpatTempDepVarsPosWithAlgorithms]
 multiplySpatTempDepVarsPosByAlgorithms 
     decayDefinitions
     densitySummaryAlgorithms
     spatTempDepVarsPos =
-    [ (spatTempDepVarsPos,x,y) | x <- decayDefinitions, y <- densitySummaryAlgorithms ] 
+    [ SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos x y | x <- decayDefinitions, y <- densitySummaryAlgorithms ] 
 
 
 

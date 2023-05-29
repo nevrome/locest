@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module LocEst.TypesPositions where
+module LocEst.Types where
 
 import           Control.Applicative   (empty)
 import           Control.DeepSeq
@@ -42,6 +42,37 @@ instance Csv.DefaultOrdered SpatTempProb where
 instance Csv.ToRecord SpatTempProb where
     toRecord (SpatTempProb spatTempDepVarsPos prob) =
         Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
+
+-- | A datatype that then also includes algorithms for a given point
+data SpatTempDepVarsPosWithAlgorithms = SpatTempDepVarsPosWithAlgorithms {
+      _powialgPosition    :: SpatTempDepVarsPos
+    , _powialgDecayDef    :: DecayDefinition
+    , _powialgDensSumAlgo :: DensitySummaryAlgorithm
+} deriving (Show, Generic)
+
+-- Data types for core algorithm specification
+newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
+    deriving (Show, Generic)
+
+data DensitySummaryAlgorithm =
+      Maximum
+    | Mean
+    | DistanceWeightedMean
+    -- | ...
+    deriving (Show, Generic)
+
+data DecayOneDepVar = DecayOneDepVar {
+      _stddvDepVarName    :: DepVarName
+    , _stddvSpatTempDecay :: DecayAlgorithm
+    }
+    deriving (Show, Generic)
+
+type DepVarName = String
+
+data DecayAlgorithm =
+      LinearSum Double Double
+    | LogSum Double Double
+    deriving (Show, Generic)
 
 -- | A datatype for observations in space and time also with coordinates in dependent var space
 data SpatTempDepVarsPos = SpatTempDepVarsPos {

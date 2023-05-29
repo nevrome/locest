@@ -3,7 +3,7 @@
 module LocEst.CLI.Crossvalidate where
 
 import           LocEst.Parsers
-import           LocEst.TypesPositions
+import           LocEst.Types
 import           LocEst.CoreAlgorithms
 import LocEst.Utils
 import LocEst.CLI.Search (multiplySpatTempDepVarsPosByAlgorithms)
@@ -45,14 +45,17 @@ runCrossvalidate (
     maxNumberOfThreads <- getNumCapabilities
     hPutStrLn stderr $ "Detected max number of threads: " ++ show maxNumberOfThreads
 
-    -- run analysis pipeline
-    Con.runConduitRes $
+    -- run crossvalidation pipeline
+    myList <- Con.runConduitRes $
         -- begin to stream iterations
            ConL.sourceList testTrainingIterations
         -- run per-iteration conduit until no iterations left
         .| Con.awaitForever (oneIterationConduit maxNumberOfThreads depVarsOrdered)
         .| progress
-        .| sinkNamedCSV outFile
+        -- .| ConL.groupBy groupFunc
+        .| ConL.consume
+
+    putStrLn "done"
 
     where
         oneIterationConduit :: Int -> [String] -> ([SpatTempDepVarsPos],[SpatTempDepVarsPos]) -> ConduitT ([SpatTempDepVarsPos],[SpatTempDepVarsPos]) SpatTempProb (ResourceT IO) ()
@@ -62,6 +65,9 @@ runCrossvalidate (
                 .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myDecays mySummaries)
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (coreSearch varsOrdered trainingData)
+
+--groupFunc :: SpatTempProb -> SpatTempProb -> Bool
+--groupFunc (SpatTempProb () _)
 
 splitTestTraining :: Double -> [a] -> IO ([a], [a])
 splitTestTraining testFraction observations = do
