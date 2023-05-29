@@ -35,10 +35,11 @@ propAtSpatTempDepVarsPos
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) filteredInSpatTempDepVarsPos
         depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) filteredSpatDists filteredTempDists
         densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
+        
         meanDens    = case densitySummaryAlgorithm of
             Maximum -> maximum densities
             Mean    -> avg densities
-            DistanceWeightedMean -> weightedAvg (map (\(ds,dt) -> 1 / (sqrt ((ds ** 2) + (dt ** 2)))) (zip filteredSpatDists filteredTempDists)) densities
+            DistanceWeightedMean -> weightedAvg (zipWith calcWeight filteredSpatDists filteredTempDists) densities
 
     in SpatTempProb {
           _stprSpatTempDepVarsPosWithAlgos = SpatTempDepVarsPosWithAlgorithms {
@@ -51,6 +52,14 @@ propAtSpatTempDepVarsPos
             }
         , _stprprobability = meanDens
         }
+
+calcWeight :: Double -> Double -> Double
+calcWeight ds dt =
+    -- we can not divide by 0, so distances below 1 are set to 1
+    -- not very clever, needs a more general solution
+    let dsSafe = max ds 1
+        dtSafe = max dt 1
+    in 1 / sqrt ((dsSafe ** 2) + (dtSafe ** 2))
 
 -- algorithm options - must be transformed to a proper input when it has stabilized
 mySummaries = [mySummary]

@@ -31,3 +31,6 @@ hu %>%
 
 # crossvalidation position test
 system('time locest crossvalidate -i test2Obs.tsv --testFraction 0.1 --iterations 5 -o test2Crossvalidate.tsv')
+
+# system('locest search -i test2Obs.tsv -g debugGrid.tsv -t "-4000" -d "varC1=0.0410592+varC2=-0.0223009" -o debugInterpolate.tsv')
+
