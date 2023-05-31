@@ -24,7 +24,7 @@ hu <- readr::read_tsv("test2Interpolate.tsv")
 hu %>%
   ggplot() +
   facet_wrap(~age) +
-  geom_raster(aes(varC1, varC2, fill = log10(probability))) +
+  geom_raster(aes(varC1, varC2, fill = probability)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
