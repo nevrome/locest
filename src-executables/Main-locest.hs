@@ -12,6 +12,7 @@ import           Data.Version         (Version, makeVersion, showVersion)
 import qualified Options.Applicative  as OP
 import           System.Exit          (exitFailure)
 import           System.IO            (hPutStrLn, stderr)
+import System.Environment (getArgs)
 
 version :: Version
 version = makeVersion [0,0,0]
@@ -28,9 +29,25 @@ main :: IO ()
 main = do
     hPutStrLn stderr $ "locest v" ++ showVersion version
     hPutStrLn stderr ""
-    (Options subcommand) <- OP.customExecParser (OP.prefs OP.showHelpOnEmpty) optParserInfo
+    -- read command line arguments from cmd and file
+    rawCmdArgs <- getArgs
+    hPutStrLn stderr $ show rawCmdArgs
+    mergedCmdArgs <- case getConfigFilePath rawCmdArgs of
+        Nothing -> do
+            return rawCmdArgs
+        Just configFilePath -> do
+            parseConfigFile configFilePath
+    -- parse arguments
+    (Options subcommand) <- OP.handleParseResult $
+                                OP.execParserPure (OP.prefs OP.showHelpOnEmpty) optParserInfo mergedCmdArgs
+    -- run subcommand
     catch (runCmd subcommand) handler
     where
+        getConfigFilePath :: [String] -> Maybe FilePath
+        getConfigFilePath [] = Nothing
+        getConfigFilePath ("--configFile" : path : _) = Just path
+        getConfigFilePath (_ : xs) = getConfigFilePath xs
+
         handler :: LOCESTException -> IO ()
         handler e = do
             hPutStrLn stderr $ renderLOCESTException e

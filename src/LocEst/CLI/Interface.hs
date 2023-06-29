@@ -9,6 +9,16 @@ import qualified Options.Applicative as OP
 import qualified Text.Parsec         as P
 import qualified Text.Parsec.String  as P
 
+-- config file that uses the optparse interface
+
+parseConfigFile :: FilePath -> IO [String]
+parseConfigFile configFile = do
+  contents <- readFile configFile
+  return $ configFileToCLIInput contents
+  where
+    configFileToCLIInput :: String -> [String]
+    configFileToCLIInput = words
+
 -- general parsers
 
 parseDoubleSequence = do

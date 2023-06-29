@@ -7,6 +7,8 @@ system('locest search -i testObs.tsv -g testObs.tsv -t -400 -d "varC1=150+varC2=
 # normal search test
 system('time locest search -i test2Obs.tsv -g test2Grid.tsv -t "-7000,-6000,-5000" -d "varC1=0.0461299+varC2=0.00014293" -o test2Search.tsv')
 
+system('time locest --configFile "normalSearchTestConfig.txt"')
+
 hu <- readr::read_tsv("test2Search.tsv")
 
 hu %>%
