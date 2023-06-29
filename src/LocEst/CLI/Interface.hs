@@ -7,10 +7,12 @@ import           LocEst.CLI.Crossvalidate
 import qualified Data.HashMap.Strict as HM
 import qualified Options.Applicative as OP
 import qualified Text.Parsec         as P
+import qualified Text.Parsec.Error  as P
 import qualified Text.Parsec.String  as P
 import Data.Char (isSpace)
 import Data.Function ((&))
 import System.IO (hPutStrLn, stderr)
+import Text.Parsec.Error (errorMessages)
 
 -- config file that uses the optparse interface
 
@@ -128,7 +130,7 @@ optParseCrossvalIterations = OP.option OP.auto (
 readFraction :: String -> Either String Double
 readFraction s =
     case P.runParser parseFraction () "" s of
-        Left err -> Left $ show err
+        Left err -> Left $ showParsecErr err
         Right x  -> Right x
 
 optParseInSpatGridFile :: OP.Parser FilePath
@@ -150,7 +152,7 @@ optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
 readTempGridString :: String -> Either String [Int]
 readTempGridString s =
     case P.runParser parseTempGridString () "" s of
-        Left err -> Left $ show err
+        Left err -> Left $ showParsecErr err
         Right x  -> Right x
 
 parseTempGridString :: P.Parser [Int]
@@ -171,7 +173,7 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
 readSearchDepVarsPos :: String -> Either String [DepVarsPos]
 readSearchDepVarsPos s =
     case P.runParser parseSearchDepVarsPos () "" s of
-        Left err -> Left $ show err
+        Left err -> Left $ showParsecErr err
         Right x  -> Right x
 
 parseSearchDepVarsPos :: P.Parser [DepVarsPos]
@@ -223,3 +225,12 @@ optParseOutFile = OP.strOption (
 --    OP.short 'q' <>
 --    OP.help "Suppress the printing of ..."
 --    )
+
+-- helper functions
+
+showParsecErr :: P.ParseError -> String
+showParsecErr err =
+    P.showErrorMessages
+        "or" "unknown parse error"
+        "expecting" "unexpected" "end of input"
+        (P.errorMessages err)
