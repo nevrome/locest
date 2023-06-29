@@ -8,19 +8,33 @@ import qualified Data.HashMap.Strict as HM
 import qualified Options.Applicative as OP
 import qualified Text.Parsec         as P
 import qualified Text.Parsec.String  as P
+import Data.Char (isSpace)
+import Data.Function ((&))
+import System.IO (hPutStrLn, stderr)
 
 -- config file that uses the optparse interface
 
 parseConfigFile :: FilePath -> IO [String]
 parseConfigFile configFile = do
   contents <- readFile configFile
-  return $ configFileToCLIInput contents
+  let optparseInput = configFileToCLIInput contents
+  hPutStrLn stderr $ show optparseInput
+  return optparseInput
   where
     configFileToCLIInput :: String -> [String]
     configFileToCLIInput conf =
-        map replaceColon $ concatMap (words . removeComments) $ lines conf
+        lines conf &
+        map removeComments &
+        concatMap splitOnFirstSpace &
+        filter (not . null) &
+        map replaceColon
     removeComments :: String -> String
     removeComments = takeWhile (/= '#')
+    splitOnFirstSpace :: String -> [String]
+    splitOnFirstSpace s = case break isSpace s of (a,b) -> [trimWS a, trimWS b]
+    trimWS :: String -> String
+    trimWS = let f = reverse . dropWhile isSpace
+           in f . f
     replaceColon :: String -> String
     replaceColon s
       | last s == ':' && length s == 2 = '-' : init s
@@ -48,7 +62,7 @@ parseNegativeFloatNumber = do
 parseFraction = do
     num <- parsePositiveFloatNumber
     if num > 1
-    then fail "must be between zero an one"
+    then fail "must be between zero and one"
     else return num
 
 parsePositiveFloatNumber = do
@@ -186,7 +200,7 @@ parseSearchDepVarsPos =
         P.sepBy parseSearchDepVarsPosSimpleListOne (P.char ',' <* P.spaces) <* P.eof
     parseSearchDepVarsPosSimpleListOne :: P.Parser DepVarsPos
     parseSearchDepVarsPosSimpleListOne = do
-        resList <- P.sepBy parseDepVarCoord (P.char '+' <* P.spaces)
+        resList <- P.sepBy parseDepVarCoord (P.spaces *> P.char '+' <* P.spaces)
         return $ DepVarsPos $ HM.fromList resList
     parseDepVarCoord = do
         identifier <- P.string "var" <> P.many1 P.alphaNum

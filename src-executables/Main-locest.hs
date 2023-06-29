@@ -39,6 +39,7 @@ main = do
         Just configFilePath -> do
             let cmdArgs = removeConfigFileArg rawCmdArgs
             configFileArgs <- parseConfigFile configFilePath
+            hPutStrLn stderr $ show $ cmdArgs ++ configFileArgs
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
     (Options subcommand) <-
