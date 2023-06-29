@@ -9,6 +9,8 @@ system('time locest search -i test2Obs.tsv -g test2Grid.tsv -t "-7000,-6000,-500
 
 system('time locest --configFile "normalSearchTestConfig.txt"')
 
+system('time locest search --configFile "shortSearchTestConfig.txt" --outFile test2Search.tsv')
+
 hu <- readr::read_tsv("test2Search.tsv")
 
 hu %>%

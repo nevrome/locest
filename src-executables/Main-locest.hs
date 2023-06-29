@@ -13,6 +13,7 @@ import qualified Options.Applicative  as OP
 import           System.Exit          (exitFailure)
 import           System.IO            (hPutStrLn, stderr)
 import System.Environment (getArgs)
+import Data.List (isInfixOf)
 
 version :: Version
 version = makeVersion [0,0,0]
@@ -31,12 +32,14 @@ main = do
     hPutStrLn stderr ""
     -- read command line arguments from cmd and file
     rawCmdArgs <- getArgs
-    hPutStrLn stderr $ show rawCmdArgs
     mergedCmdArgs <- case getConfigFilePath rawCmdArgs of
         Nothing -> do
-            return rawCmdArgs
+            let cmdArgs = removeConfigFile rawCmdArgs
+            return cmdArgs
         Just configFilePath -> do
-            parseConfigFile configFilePath
+            let cmdArgs = removeConfigFile rawCmdArgs
+            configFileArgs <- parseConfigFile configFilePath
+            return $ cmdArgs ++ configFileArgs
     -- parse arguments
     (Options subcommand) <- OP.handleParseResult $
                                 OP.execParserPure (OP.prefs OP.showHelpOnEmpty) optParserInfo mergedCmdArgs
@@ -45,8 +48,18 @@ main = do
     where
         getConfigFilePath :: [String] -> Maybe FilePath
         getConfigFilePath [] = Nothing
-        getConfigFilePath ("--configFile" : path : _) = Just path
-        getConfigFilePath (_ : xs) = getConfigFilePath xs
+        getConfigFilePath ("--configFile":path:_) = Just path
+        getConfigFilePath (_:xs) = getConfigFilePath xs
+
+        removeConfigFile :: [String] -> [String]
+        removeConfigFile [] = []
+        removeConfigFile (x:xs)
+          | "configFile" `isInfixOf` x = dropNextElement xs
+          | otherwise                  = x : removeConfigFile xs
+          where
+            dropNextElement [] = []
+            dropNextElement [x] = []
+            dropNextElement (_:ys) = removeConfigFile ys
 
         handler :: LOCESTException -> IO ()
         handler e = do
