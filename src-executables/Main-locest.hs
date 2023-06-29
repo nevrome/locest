@@ -30,7 +30,7 @@ main :: IO ()
 main = do
     hPutStrLn stderr $ "locest v" ++ showVersion version
     hPutStrLn stderr ""
-    -- read command line arguments from cmd and file
+    -- read command line arguments from cmd and potentially a config file
     rawCmdArgs <- getArgs
     mergedCmdArgs <- case getConfigFilePath rawCmdArgs of
         Nothing -> do
@@ -39,7 +39,7 @@ main = do
         Just configFilePath -> do
             let cmdArgs = removeConfigFileArg rawCmdArgs
             configFileArgs <- parseConfigFile configFilePath
-            hPutStrLn stderr $ show $ cmdArgs ++ configFileArgs
+            --hPutStrLn stderr $ show $ cmdArgs ++ configFileArgs
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
     (Options subcommand) <-
@@ -48,7 +48,7 @@ main = do
     -- run requested subcommand
     catch (runCmd subcommand) handler
     where
-        -- handling the special config file argument
+        -- handling the special --configFile argument
         getConfigFilePath :: [String] -> Maybe FilePath
         getConfigFilePath [] = Nothing
         getConfigFilePath ("--configFile" : path : _) = Just path

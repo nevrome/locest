@@ -1,5 +1,5 @@
 obsFile:      test2Obs.tsv
 spatGridFile: test2Grid.tsv
-tempGrid:     -7000,-6000,-5000
-depVars:      varC1=0.0461299+varC2=0.00014293
+tempGrid:     -7000, -6000, -5000
+depVars:      varC1 = 0.0461299 + varC2 = 0.00014293
 outFile:      test2Search.tsv

@@ -16,30 +16,27 @@ import System.IO (hPutStrLn, stderr)
 
 parseConfigFile :: FilePath -> IO [String]
 parseConfigFile configFile = do
-  contents <- readFile configFile
-  let optparseInput = configFileToCLIInput contents
-  hPutStrLn stderr $ show optparseInput
-  return optparseInput
-  where
+    contents <- readFile configFile
+    let optparseInput = configFileToCLIInput contents
+    --hPutStrLn stderr $ show optparseInput
+    return optparseInput
+    where
     configFileToCLIInput :: String -> [String]
     configFileToCLIInput conf =
         lines conf &
         map removeComments &
-        concatMap splitOnFirstSpace &
         filter (not . null) &
-        map replaceColon
+        concatMap splitOnFirstColon
     removeComments :: String -> String
     removeComments = takeWhile (/= '#')
-    splitOnFirstSpace :: String -> [String]
-    splitOnFirstSpace s = case break isSpace s of (a,b) -> [trimWS a, trimWS b]
-    trimWS :: String -> String
-    trimWS = let f = reverse . dropWhile isSpace
-           in f . f
-    replaceColon :: String -> String
-    replaceColon s
-      | last s == ':' && length s == 2 = '-' : init s
-      | last s == ':'                  = "--" ++ init s
-      | otherwise                      = s
+    splitOnFirstColon :: String -> [String]
+    splitOnFirstColon s = case break (==':') s of (a,b) -> [dash (trim a), trim (tail b)]
+    trim :: String -> String
+    trim = let f = reverse . dropWhile isSpace in f . f
+    dash :: String -> String
+    dash s
+      | length s == 1 = '-'  :  s
+      | otherwise     = "--" ++ s
 
 -- general parsers
 
@@ -191,7 +188,9 @@ parseSearchDepVarsPos =
     parseSearchDepVarsPosGridOneSequence :: P.Parser [(String, Double)]
     parseSearchDepVarsPosGridOneSequence = do
         identifier <- P.string "var" <> P.many1 P.alphaNum
+        P.spaces
         _ <- P.char '='
+        P.spaces
         doubleSequence <- parseDoubleSequence
         return $ map (\x -> (identifier, x)) doubleSequence
 
@@ -204,7 +203,9 @@ parseSearchDepVarsPos =
         return $ DepVarsPos $ HM.fromList resList
     parseDepVarCoord = do
         identifier <- P.string "var" <> P.many1 P.alphaNum
+        P.spaces
         _ <- P.char '='
+        P.spaces
         number <- parseDouble
         return (identifier, number)
 
