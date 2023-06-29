@@ -39,7 +39,6 @@ library
       , mtl
       , hmatrix
       , random
-      , yaml
     default-language:
       Haskell2010
 

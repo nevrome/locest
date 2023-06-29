@@ -17,7 +17,15 @@ parseConfigFile configFile = do
   return $ configFileToCLIInput contents
   where
     configFileToCLIInput :: String -> [String]
-    configFileToCLIInput = words
+    configFileToCLIInput conf =
+        map replaceColon $ concatMap (words . removeComments) $ lines conf
+    removeComments :: String -> String
+    removeComments = takeWhile (/= '#')
+    replaceColon :: String -> String
+    replaceColon s
+      | last s == ':' && length s == 2 = '-' : init s
+      | last s == ':'                  = "--" ++ init s
+      | otherwise                      = s
 
 -- general parsers
 

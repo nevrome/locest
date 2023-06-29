@@ -34,33 +34,34 @@ main = do
     rawCmdArgs <- getArgs
     mergedCmdArgs <- case getConfigFilePath rawCmdArgs of
         Nothing -> do
-            let cmdArgs = removeConfigFile rawCmdArgs
+            let cmdArgs = removeConfigFileArg rawCmdArgs
             return cmdArgs
         Just configFilePath -> do
-            let cmdArgs = removeConfigFile rawCmdArgs
+            let cmdArgs = removeConfigFileArg rawCmdArgs
             configFileArgs <- parseConfigFile configFilePath
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
-    (Options subcommand) <- OP.handleParseResult $
-                                OP.execParserPure (OP.prefs OP.showHelpOnEmpty) optParserInfo mergedCmdArgs
-    -- run subcommand
+    (Options subcommand) <-
+        OP.handleParseResult $
+            OP.execParserPure (OP.prefs OP.showHelpOnEmpty) optParserInfo mergedCmdArgs
+    -- run requested subcommand
     catch (runCmd subcommand) handler
     where
+        -- handling the special config file argument
         getConfigFilePath :: [String] -> Maybe FilePath
         getConfigFilePath [] = Nothing
-        getConfigFilePath ("--configFile":path:_) = Just path
-        getConfigFilePath (_:xs) = getConfigFilePath xs
-
-        removeConfigFile :: [String] -> [String]
-        removeConfigFile [] = []
-        removeConfigFile (x:xs)
-          | "configFile" `isInfixOf` x = dropNextElement xs
-          | otherwise                  = x : removeConfigFile xs
+        getConfigFilePath ("--configFile" : path : _) = Just path
+        getConfigFilePath (_ : xs) = getConfigFilePath xs
+        removeConfigFileArg :: [String] -> [String]
+        removeConfigFileArg [] = []
+        removeConfigFileArg (x : xs)
+          | "--configFile" `isInfixOf` x = dropNextElement xs
+          | otherwise                  = x : removeConfigFileArg xs
           where
             dropNextElement [] = []
             dropNextElement [x] = []
-            dropNextElement (_:ys) = removeConfigFile ys
-
+            dropNextElement (_ : ys) = removeConfigFileArg ys
+        -- exception handler
         handler :: LOCESTException -> IO ()
         handler e = do
             hPutStrLn stderr $ renderLOCESTException e

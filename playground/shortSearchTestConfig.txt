@@ -1,3 +1,5 @@
---obsFile test2Obs.tsv
---spatGridFile test2Grid.tsv --tempGrid -7000,-6000,-5000
---depVars varC1=0.0461299+varC2=0.00014293
+# this is a comment
+obsFile:       test2Obs.tsv
+--spatGridFile test2Grid.tsv # this works as well
+tempGrid:      -7000,-6000,-5000
+d:             varC1=0.0461299+varC2=0.00014293
