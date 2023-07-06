@@ -36,7 +36,6 @@ runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions inObsFile (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos inSpatDistFile) outFile
     ) = do
-    hPutStrLn stderr "huhu"
     allObservations <- readObservations inObsFile
     inSpatGrid <- readSpatPos inSpatGridFile
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations

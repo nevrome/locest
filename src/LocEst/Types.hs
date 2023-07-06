@@ -20,6 +20,9 @@ import Data.ByteString (StrictByteString)
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
 filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 
+filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
+filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
+
 -- a typeclass for things with ids
 class Identifiable a where
     getID :: a -> String
@@ -254,34 +257,36 @@ instance Identifiable SpatPos where
     getID = getID
 
 -- | A datatype for projected coordinates
-data CartesianPos = CartesianPos String Double Double
+data CartesianPos = CartesianPos (Maybe String) Double Double -- the optional id could be moved to the top, maybe with a new type SpatPosNamed
     deriving (Show, Generic)
 
 instance NFData CartesianPos
 instance Csv.FromNamedRecord CartesianPos where
     parseNamedRecord m =
-        CartesianPos <$> filterLookup m "spatID" <*> filterLookup m "x" <*> filterLookup m "y"
+        CartesianPos <$> filterLookupOptional m "spatID" <*> filterLookup m "x" <*> filterLookup m "y"
 instance Csv.DefaultOrdered CartesianPos where
     headerOrder _ = Csv.header ["spatID", "x", "y"]
 instance Csv.ToRecord CartesianPos where
     toRecord (CartesianPos s x y) = Csv.record [Csv.toField s, Csv.toField x, Csv.toField y]
 instance Identifiable CartesianPos where
-    getID (CartesianPos identifier _ _) = identifier
+    getID (CartesianPos Nothing _ _) = "unnamed"
+    getID (CartesianPos (Just identifier) _ _) = identifier
 
 -- | A datatype for Long-Lat coordinates
-data LongLatPos = LongLatPos String Longitude Latitude
+data LongLatPos = LongLatPos (Maybe String) Longitude Latitude
     deriving (Show, Generic)
 
 instance NFData LongLatPos
 instance Csv.FromNamedRecord LongLatPos where
     parseNamedRecord m =
-        LongLatPos <$> filterLookup m "spatID" <*> filterLookup m "longitude" <*> filterLookup m "latitude"
+        LongLatPos <$> filterLookupOptional m "spatID" <*> filterLookup m "longitude" <*> filterLookup m "latitude"
 instance Csv.DefaultOrdered LongLatPos where
     headerOrder _ = Csv.header ["spatID", "longitude", "latitude"]
 instance Csv.ToRecord LongLatPos where
     toRecord (LongLatPos s long lat) = Csv.record [Csv.toField s, Csv.toField long, Csv.toField lat]
 instance Identifiable LongLatPos where
-    getID (LongLatPos identifier _ _) = identifier
+    getID (LongLatPos Nothing _ _) = "unnamed"
+    getID (LongLatPos (Just identifier) _ _) = identifier
 
 -- | A datatype for Longitudes
 newtype Longitude = Longitude Double
