@@ -23,13 +23,13 @@ spatialDistSpatPos (SpatPosLongLat p1) (SpatPosLongLat p2) = spatialDistLongLatP
 spatialDistSpatPos _ _ = error "Can not be calculated"
 
 spatialDistCartesianPos :: CartesianPos -> CartesianPos -> Double
-spatialDistCartesianPos (CartesianPos x1 y1) (CartesianPos x2 y2) =
+spatialDistCartesianPos (CartesianPos _ x1 y1) (CartesianPos _ x2 y2) =
     sqrt (((x1 - x2)^(2 :: Int)) + ((y1 - y2)^(2 :: Int)))
 
 -- Haversine distance
 spatialDistLongLatPos :: LongLatPos -> LongLatPos -> Double
-spatialDistLongLatPos (LongLatPos (Longitude lon1) (Latitude lat1))
-                      (LongLatPos (Longitude lon2) (Latitude lat2)) =
+spatialDistLongLatPos (LongLatPos _ (Longitude lon1) (Latitude lat1))
+                      (LongLatPos _ (Longitude lon2) (Latitude lat2)) =
     let r = 6371000  -- radius of Earth in meters
         toRadians n = n * pi / 180
         square x = x * x

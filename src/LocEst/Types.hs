@@ -5,7 +5,7 @@
 
 module LocEst.Types where
 
-import           Control.Applicative   (empty)
+import           Control.Applicative   (empty, (<|>))
 import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
@@ -14,10 +14,15 @@ import           Data.List             (sort, sortBy)
 import           Data.Ord              (comparing)
 import           GHC.Generics          (Generic)
 import qualified Data.Vector as V
+import Data.ByteString (StrictByteString)
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
 filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
+
+-- a typeclass for things with ids
+class Identifiable a where
+    getID :: a -> String
 
 -- | A datatype for an unidirectional distance matrix
 newtype SpatDistMap = SpatDistMatrixMap {
@@ -120,7 +125,31 @@ data DecayAlgorithm =
 
 instance NFData DecayAlgorithm
 
--- | A datatype for observations in space and time also with coordinates in dependent var space
+-- | A datatype for observations with id and position
+data Observation = Observation {
+      _obsID :: String
+    , _obsPos :: SpatTempDepVarsPos
+} deriving (Show, Generic)
+
+instance NFData Observation
+instance Csv.FromNamedRecord Observation where
+    parseNamedRecord m = do
+        identifier <- filterLookup m "obsID"
+        position <- Csv.parseNamedRecord m
+        pure $ Observation {
+              _obsID = identifier
+            , _obsPos = position
+            }
+instance Csv.DefaultOrdered Observation where
+    headerOrder (Observation identifier position) =
+        Csv.header ["obsID"] <> Csv.headerOrder position
+instance Csv.ToRecord Observation where
+    toRecord (Observation identifier position) =
+        Csv.toRecord identifier <> Csv.toRecord position
+instance Identifiable Observation where
+    getID (Observation identifier _) = identifier
+
+-- | A datatype for positions in space, time and in dependent var space
 data SpatTempDepVarsPos = SpatTempDepVarsPos {
       _stpoSpatTempPos :: SpatTempPos
     , _stpoDepVarsPos  :: DepVarsPos
@@ -214,33 +243,45 @@ data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
 instance NFData SpatPos
 instance Csv.FromNamedRecord SpatPos where
     parseNamedRecord m = do
-        SpatPosCartesian <$> (CartesianPos <$> filterLookup m "x" <*> filterLookup m "y")
+        (SpatPosCartesian <$> Csv.parseNamedRecord m) <|> (SpatPosLongLat <$> Csv.parseNamedRecord m)
 instance Csv.DefaultOrdered SpatPos where
     headerOrder (SpatPosCartesian x) = Csv.headerOrder x
     headerOrder (SpatPosLongLat x)   = Csv.headerOrder x
 instance Csv.ToRecord SpatPos where
     toRecord (SpatPosCartesian x) = Csv.toRecord x
     toRecord (SpatPosLongLat x)   = Csv.toRecord x
+instance Identifiable SpatPos where
+    getID = getID
 
 -- | A datatype for projected coordinates
-data CartesianPos = CartesianPos Double Double
+data CartesianPos = CartesianPos String Double Double
     deriving (Show, Generic)
 
 instance NFData CartesianPos
+instance Csv.FromNamedRecord CartesianPos where
+    parseNamedRecord m =
+        CartesianPos <$> filterLookup m "spatID" <*> filterLookup m "x" <*> filterLookup m "y"
 instance Csv.DefaultOrdered CartesianPos where
-    headerOrder _ = Csv.header ["x", "y"]
+    headerOrder _ = Csv.header ["spatID", "x", "y"]
 instance Csv.ToRecord CartesianPos where
-    toRecord (CartesianPos x y) = Csv.record [Csv.toField x, Csv.toField y]
+    toRecord (CartesianPos s x y) = Csv.record [Csv.toField s, Csv.toField x, Csv.toField y]
+instance Identifiable CartesianPos where
+    getID (CartesianPos identifier _ _) = identifier
 
 -- | A datatype for Long-Lat coordinates
-data LongLatPos = LongLatPos Longitude Latitude
+data LongLatPos = LongLatPos String Longitude Latitude
     deriving (Show, Generic)
 
 instance NFData LongLatPos
+instance Csv.FromNamedRecord LongLatPos where
+    parseNamedRecord m =
+        LongLatPos <$> filterLookup m "spatID" <*> filterLookup m "longitude" <*> filterLookup m "latitude"
 instance Csv.DefaultOrdered LongLatPos where
-    headerOrder _ = Csv.header ["longitude", "latitude"]
+    headerOrder _ = Csv.header ["spatID", "longitude", "latitude"]
 instance Csv.ToRecord LongLatPos where
-    toRecord (LongLatPos long lat) = Csv.record [Csv.toField long, Csv.toField lat]
+    toRecord (LongLatPos s long lat) = Csv.record [Csv.toField s, Csv.toField long, Csv.toField lat]
+instance Identifiable LongLatPos where
+    getID (LongLatPos identifier _ _) = identifier
 
 -- | A datatype for Longitudes
 newtype Longitude = Longitude Double

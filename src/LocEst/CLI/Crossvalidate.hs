@@ -38,8 +38,8 @@ runCrossvalidate :: CrossvalidateOptions -> IO ()
 runCrossvalidate (
     CrossvalidateOptions inObsFile (CrossvalidationSettings testFraction iterations) outFile
     ) = do
-    allObservations <- readSpatTempDepVarsPos inObsFile
-    let depVarsOrdered = sort . HM.keys . getHM $ head $ map _stpoDepVarsPos allObservations
+    allObservations <- readObservations inObsFile
+    let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
 
     testTrainingIterations <- mapM (\_ -> splitTestTraining testFraction allObservations) [1..iterations] -- iterations could be used as seeds?
 
@@ -63,13 +63,14 @@ runCrossvalidate (
         .| ConL.sinkNamedCSV outFile
 
     where
-        oneIterationConduit :: Int -> [String] -> ([SpatTempDepVarsPos],[SpatTempDepVarsPos]) -> ConduitT ([SpatTempDepVarsPos],[SpatTempDepVarsPos]) SpatTempProb (ResourceT IO) ()
+        oneIterationConduit :: Int -> [String] -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) SpatTempProb (ResourceT IO) ()
         oneIterationConduit maxNumThreads varsOrdered (testData,trainingData) = do
             ConL.sourceList testData
                 -- multiply multidimensional positions by algorithms
-                .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myTwoDecays mySummaries)
+                .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myTwoDecays mySummaries . _obsPos)
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (coreSearch varsOrdered trainingData Nothing)
+                   -- distance grid input option not yet implemented here: Nothing
 
 myTwoDecays = [myDecay, myOtherDecay]
 myOtherDecay = DecayDefinition [

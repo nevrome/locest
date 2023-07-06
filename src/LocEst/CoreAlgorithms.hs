@@ -11,14 +11,14 @@ coreSearch = propAtSpatTempDepVarsPos
 
 propAtSpatTempDepVarsPos ::
        [String]
-    -> [SpatTempDepVarsPos]
+    -> [Observation]
     -> Maybe SpatDistMap
     -> SpatTempDepVarsPosWithAlgorithms
     -> SpatTempProb
 propAtSpatTempDepVarsPos
     depVarsOrdered
-    inSpatTempDepVarsPos
-    spatDistMap
+    observations
+    maybeSpatDistMap
     (SpatTempDepVarsPosWithAlgorithms
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         decayDefinition
@@ -27,23 +27,28 @@ propAtSpatTempDepVarsPos
 
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
         
-        spatDists   = case spatDistMap of
-            Nothing          -> map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos $ x) inSpatTempDepVarsPos
-            Just spatDistMap -> --placeholder
-                                map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos $ x) inSpatTempDepVarsPos
-                                -- HM.lookup () -- IDs missing yet
+        spatDists = case maybeSpatDistMap of
+            Nothing ->
+                -- calculate distances directly
+                map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
+            Just (SpatDistMatrixMap spatDistMap) ->
+                -- look up distances in map
+                let obsIDs = map getID observations
+                    gridSpatPosID = getID $ _spatialPos gridSpatTempPos
+                in map (\obsID -> HM.findWithDefault 0 (obsID, gridSpatPosID) spatDistMap) obsIDs
+                   -- default of 0 is a hack for testing purposes!
 
         spatDistsKM = map (/ 1000) spatDists
-        tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
+        tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
 
         -- makes it a lot faster, but has bad side effects
-        filteredByDists = filter (\(ds,dt,x) -> ds <= 2000 && dt <= 2000) $ zip3 spatDistsKM tempDists inSpatTempDepVarsPos
+        filteredByDists = filter (\(ds,dt,x) -> ds <= 2000 && dt <= 2000) $ zip3 spatDistsKM tempDists observations
         filteredInSpatTempDepVarsPos = map (\(_,_,x) -> x) filteredByDists
         filteredSpatDists = map (\(x,_,_) -> x) filteredByDists
         filteredTempDists = map (\(_,x,_) -> x) filteredByDists
 
 
-        depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos) filteredInSpatTempDepVarsPos
+        depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredInSpatTempDepVarsPos
         depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) filteredSpatDists filteredTempDists
         densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
         

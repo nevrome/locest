@@ -34,22 +34,19 @@ encodingOptions = Csv.defaultEncodeOptions {
 
 readSpatDist :: FilePath -> IO SpatDistMap
 readSpatDist path = do
-    obsGridDists <- Con.runConduitRes $
-           sourceCSV path
-        .| ConL.consume
+    obsGridDists <- readCSVToList path
     return $ makeSpatDistMap obsGridDists
-
+readObservations :: FilePath -> IO [Observation]
+readObservations = readCSVToList
 readSpatTempDepVarsPos :: FilePath -> IO [SpatTempDepVarsPos]
-readSpatTempDepVarsPos path =
-    Con.runConduitRes $
-           sourceCSV path
-        .| ConL.consume
-
+readSpatTempDepVarsPos = readCSVToList
 readSpatPos :: FilePath -> IO [SpatPos]
-readSpatPos path =
+readSpatPos = readCSVToList
+
+readCSVToList path = do
     Con.runConduitRes $
-           sourceCSV path
-        .| ConL.consume
+               sourceCSV path
+            .| ConL.consume
 
 sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) => FilePath -> ConduitT () a m ()
 sourceCSV path =

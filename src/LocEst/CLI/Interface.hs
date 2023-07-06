@@ -106,7 +106,7 @@ optParseConcretePositionSettings =
         <$> optParseInSpatGridFile
         <*> optParseTempGridString
         <*> optParseSearchDepVarsPos
-        <*> pure Nothing
+        <*> optParseInSpatDistMapFile
 
 optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
 optParseCrossvalidationSettings =
@@ -134,11 +134,12 @@ readFraction s =
         Left err -> Left $ showParsecErr err
         Right x  -> Right x
 
-optParseInSpatDistMapFile :: OP.Parser FilePath
-optParseInSpatDistMapFile = OP.strOption (
+optParseInSpatDistMapFile :: OP.Parser (Maybe FilePath)
+optParseInSpatDistMapFile = OP.option (Just <$> OP.str) (
        OP.long    "spatDistFile"
     <> OP.metavar "FILE"
     <> OP.help    "..."
+    <> OP.value Nothing
     )
 
 optParseInSpatGridFile :: OP.Parser FilePath
