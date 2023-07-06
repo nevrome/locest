@@ -12,12 +12,18 @@ coreSearch = propAtSpatTempDepVarsPos
 propAtSpatTempDepVarsPos ::
        [String]
     -> [SpatTempDepVarsPos]
+    -> Maybe SpatDistMap
     -> SpatTempDepVarsPosWithAlgorithms
     -> SpatTempProb
 propAtSpatTempDepVarsPos
     depVarsOrdered
     inSpatTempDepVarsPos
-    (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos) decayDefinition densitySummaryAlgorithm) =
+    spatDistMap
+    (SpatTempDepVarsPosWithAlgorithms
+        (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
+        decayDefinition
+        densitySummaryAlgorithm
+    ) =
 
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
         

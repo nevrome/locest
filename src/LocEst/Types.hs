@@ -19,6 +19,26 @@ import qualified Data.Vector as V
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
 filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 
+-- | A datatype for an unidirectional distance matrix
+newtype SpatDistMap = SpatDistMatrixMap {
+    _spatDistMatrixMap :: HM.HashMap (String, String) Double
+} deriving (Show)
+
+makeSpatDistMap :: [SpatDistObsGrid] -> SpatDistMap
+makeSpatDistMap xs =
+    SpatDistMatrixMap $ HM.fromList (map (\(SpatDistObsGrid oID gID d) -> ((oID,gID),d)) xs)
+
+data SpatDistObsGrid = SpatDistObsGrid {
+      _spatDistObsGridObsID :: String
+    , _spatDistObsGridGridID :: String
+    , _spatDistObsGridDistance :: Double
+} deriving (Show, Generic)
+
+instance NFData SpatDistObsGrid
+instance Csv.FromNamedRecord SpatDistObsGrid where
+    parseNamedRecord m = do
+        SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "gridID" <*> filterLookup m "dist"
+
 -- | A datatype for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
       _crossoutDecayDef :: DecayDefinition

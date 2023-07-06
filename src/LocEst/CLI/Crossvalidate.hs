@@ -69,7 +69,7 @@ runCrossvalidate (
                 -- multiply multidimensional positions by algorithms
                 .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myTwoDecays mySummaries)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (coreSearch varsOrdered trainingData)
+                .| ConAA.asyncMapC maxNumThreads (coreSearch varsOrdered trainingData Nothing)
 
 myTwoDecays = [myDecay, myOtherDecay]
 myOtherDecay = DecayDefinition [

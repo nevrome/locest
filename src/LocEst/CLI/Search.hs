@@ -17,6 +17,7 @@ import qualified Control.Monad as OP
 import Control.Exception (throw)
 import System.IO (hPutStrLn, stderr)
 import GHC.Conc (getNumCapabilities)
+import LocEst.Types (SpatDistMap)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
@@ -28,11 +29,12 @@ data ConcretePositionSettings = ConcretePositionSettings {
       _concPosInSpatGridFile :: FilePath
     , _concPosInTempGrid     :: [Int]
     , _concPosDepVarsPosGrid :: [DepVarsPos]
+    , _concPosSpatDistMap    :: Maybe SpatDistMap
 }
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
-    SearchOptions inObsFile (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos) outFile
+    SearchOptions inObsFile (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos _) outFile
     ) = do
     allObservations <- readSpatTempDepVarsPos inObsFile
     inSpatGrid <- readSpatPos inSpatGridFile
@@ -71,7 +73,7 @@ runSearch (
         -- 1. sequential
         -- .| ConL.map coreSearch
         -- 2. normal parallel
-        .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations)
+        .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations Nothing)
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
         .| progress

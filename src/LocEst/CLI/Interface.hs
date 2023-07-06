@@ -106,6 +106,7 @@ optParseConcretePositionSettings =
         <$> optParseInSpatGridFile
         <*> optParseTempGridString
         <*> optParseSearchDepVarsPos
+        <*> pure Nothing
 
 optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
 optParseCrossvalidationSettings =
