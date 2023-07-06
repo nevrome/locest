@@ -32,6 +32,13 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
+readSpatDist :: FilePath -> IO SpatDistMap
+readSpatDist path = do
+    obsGridDists <- Con.runConduitRes $
+           sourceCSV path
+        .| ConL.consume
+    return $ makeSpatDistMap obsGridDists
+
 readSpatTempDepVarsPos :: FilePath -> IO [SpatTempDepVarsPos]
 readSpatTempDepVarsPos path =
     Con.runConduitRes $

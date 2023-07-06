@@ -29,18 +29,21 @@ data ConcretePositionSettings = ConcretePositionSettings {
       _concPosInSpatGridFile :: FilePath
     , _concPosInTempGrid     :: [Int]
     , _concPosDepVarsPosGrid :: [DepVarsPos]
-    , _concPosSpatDistMap    :: Maybe SpatDistMap
+    , _concPosSpatDistFile   :: Maybe FilePath
 }
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
-    SearchOptions inObsFile (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos _) outFile
+    SearchOptions inObsFile (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos inSpatDistFile) outFile
     ) = do
     allObservations <- readSpatTempDepVarsPos inObsFile
     inSpatGrid <- readSpatPos inSpatGridFile
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map _stpoDepVarsPos allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
-    
+    inSpatDists <- case inSpatDistFile of
+        Nothing -> return Nothing
+        Just path -> Just <$> readSpatDist path
+
     -- validate input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"
@@ -73,7 +76,7 @@ runSearch (
         -- 1. sequential
         -- .| ConL.map coreSearch
         -- 2. normal parallel
-        .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations Nothing)
+        .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations inSpatDists)
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
         .| progress

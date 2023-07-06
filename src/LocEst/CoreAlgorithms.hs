@@ -27,7 +27,12 @@ propAtSpatTempDepVarsPos
 
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
         
-        spatDists   = map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos $ x) inSpatTempDepVarsPos
+        spatDists   = case spatDistMap of
+            Nothing          -> map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos $ x) inSpatTempDepVarsPos
+            Just spatDistMap -> --placeholder
+                                map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos $ x) inSpatTempDepVarsPos
+                                -- HM.lookup () -- IDs missing yet
+
         spatDistsKM = map (/ 1000) spatDists
         tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos) inSpatTempDepVarsPos
 

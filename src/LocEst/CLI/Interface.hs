@@ -134,6 +134,13 @@ readFraction s =
         Left err -> Left $ showParsecErr err
         Right x  -> Right x
 
+optParseInSpatDistMapFile :: OP.Parser FilePath
+optParseInSpatDistMapFile = OP.strOption (
+       OP.long    "spatDistFile"
+    <> OP.metavar "FILE"
+    <> OP.help    "..."
+    )
+
 optParseInSpatGridFile :: OP.Parser FilePath
 optParseInSpatGridFile = OP.strOption (
        OP.long    "spatGridFile"
