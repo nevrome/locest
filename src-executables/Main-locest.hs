@@ -2,18 +2,19 @@
 
 --import           Paths_locest                     (version)
 
+import           LocEst.CLI.Crossvalidate (CrossvalidateOptions (..),
+                                           runCrossvalidate)
 import           LocEst.CLI.Interface
-import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
-import LocEst.Utils
-import LocEst.CLI.Crossvalidate (CrossvalidateOptions (..), runCrossvalidate)
+import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
+import           LocEst.Utils
 
-import           Control.Exception    (catch)
-import           Data.Version         (Version, makeVersion, showVersion)
-import qualified Options.Applicative  as OP
-import           System.Exit          (exitFailure)
-import           System.IO            (hPutStrLn, stderr)
-import System.Environment (getArgs)
-import Data.List (isInfixOf)
+import           Control.Exception        (catch)
+import           Data.List                (isInfixOf)
+import           Data.Version             (Version, makeVersion, showVersion)
+import qualified Options.Applicative      as OP
+import           System.Environment       (getArgs)
+import           System.Exit              (exitFailure)
+import           System.IO                (hPutStrLn, stderr)
 
 version :: Version
 version = makeVersion [0,0,0]
@@ -50,17 +51,17 @@ main = do
     where
         -- handling the special --configFile argument
         getConfigFilePath :: [String] -> Maybe FilePath
-        getConfigFilePath [] = Nothing
+        getConfigFilePath []                          = Nothing
         getConfigFilePath ("--configFile" : path : _) = Just path
-        getConfigFilePath (_ : xs) = getConfigFilePath xs
+        getConfigFilePath (_ : xs)                    = getConfigFilePath xs
         removeConfigFileArg :: [String] -> [String]
         removeConfigFileArg [] = []
         removeConfigFileArg (x : xs)
           | "--configFile" `isInfixOf` x = dropNextElement xs
           | otherwise                  = x : removeConfigFileArg xs
           where
-            dropNextElement [] = []
-            dropNextElement [x] = []
+            dropNextElement []       = []
+            dropNextElement [x]      = []
             dropNextElement (_ : ys) = removeConfigFileArg ys
         -- exception handler
         handler :: LOCESTException -> IO ()
@@ -70,7 +71,7 @@ main = do
 
 runCmd :: Subcommand -> IO ()
 runCmd o = case o of
-    CmdSearch opts -> runSearch opts
+    CmdSearch opts        -> runSearch opts
     CmdCrossvalidate opts -> runCrossvalidate opts
 
 optParserInfo :: OP.ParserInfo Options

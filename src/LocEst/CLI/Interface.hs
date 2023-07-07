@@ -1,18 +1,18 @@
 module LocEst.CLI.Interface where
 
-import           LocEst.Types
-import           LocEst.CLI.Search
 import           LocEst.CLI.Crossvalidate
+import           LocEst.CLI.Search
+import           LocEst.Types
 
-import qualified Data.HashMap.Strict as HM
-import qualified Options.Applicative as OP
-import qualified Text.Parsec         as P
-import qualified Text.Parsec.Error  as P
-import qualified Text.Parsec.String  as P
-import Data.Char (isSpace)
-import Data.Function ((&))
-import System.IO (hPutStrLn, stderr)
-import Text.Parsec.Error (errorMessages)
+import           Data.Char                (isSpace)
+import           Data.Function            ((&))
+import qualified Data.HashMap.Strict      as HM
+import qualified Options.Applicative      as OP
+import           System.IO                (hPutStrLn, stderr)
+import qualified Text.Parsec              as P
+import qualified Text.Parsec.Error        as P
+import           Text.Parsec.Error        (errorMessages)
+import qualified Text.Parsec.String       as P
 
 -- config file that uses the optparse interface
 

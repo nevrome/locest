@@ -2,27 +2,26 @@
 
 module LocEst.CLI.Crossvalidate where
 
+import           LocEst.CLI.Search             (multiplySpatTempDepVarsPosByAlgorithms)
+import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
-import           LocEst.CoreAlgorithms
-import LocEst.Utils
-import LocEst.CLI.Search (multiplySpatTempDepVarsPosByAlgorithms)
+import           LocEst.Utils
 
-import           Data.Conduit                   ((.|))
-import qualified Data.Conduit                   as Con
-import qualified Data.Conduit.Algorithms.Async  as ConAA
-import qualified Data.Conduit.List              as ConL
-import qualified Data.HashMap.Strict            as HM
-import qualified Data.Conduit.Combinators as ConC
-import Data.List (sort, sortBy)
-import qualified Control.Monad as OP
-import Control.Exception (throw)
-import System.IO (hPutStrLn, stderr)
-import GHC.Conc (getNumCapabilities)
-import System.Random (randomRIO)
-import           Conduit                   (MonadIO, MonadResource, ConduitT, ResourceT, liftIO)
-import qualified LocEst.Parsers as ConL
-import Data.Either (isLeft)
+import           Conduit                       (ResourceT, liftIO)
+import           Control.Exception             (throw)
+import qualified Control.Monad                 as OP
+import           Data.Conduit                  (ConduitT, (.|))
+import qualified Data.Conduit                  as Con
+import qualified Data.Conduit.Algorithms.Async as ConAA
+import qualified Data.Conduit.Combinators      as ConC
+import qualified Data.Conduit.List             as ConL
+import           Data.Either                   (isLeft)
+import qualified Data.HashMap.Strict           as HM
+import           Data.List                     (sort, sortBy)
+import           GHC.Conc                      (getNumCapabilities)
+import           System.IO                     (hPutStrLn, stderr)
+import           System.Random                 (randomRIO)
 
 data CrossvalidateOptions = CrossvalidateOptions
     { _crossvalidateInObservationFile :: FilePath
@@ -31,8 +30,8 @@ data CrossvalidateOptions = CrossvalidateOptions
     }
 
 data CrossvalidationSettings = CrossvalidationSettings {
-      _crossvalTestFraction  :: Double
-    , _crossvalIterations    :: Int
+      _crossvalTestFraction :: Double
+    , _crossvalIterations   :: Int
 }
 
 runCrossvalidate :: CrossvalidateOptions -> IO ()
@@ -72,7 +71,7 @@ runCrossvalidate (
            ConL.sourceList (sortBy sortFunc perPointRes)
         .| ConL.groupBy groupFunc
         .| ConL.map summarizeFunc
-        .| ConL.sinkNamedCSV outFile
+        .| sinkNamedCSV outFile
 
     where
         oneIterationConduit :: Int -> [String] -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SpatTempProb) (ResourceT IO) ()

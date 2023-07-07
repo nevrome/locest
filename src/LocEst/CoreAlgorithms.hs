@@ -1,13 +1,13 @@
 module LocEst.CoreAlgorithms where
 
 import           LocEst.Distance
-import           LocEst.Types
-import           LocEst.Math.MultivariateNormal (dnormMulti)
 import           LocEst.Math.Basics
-import LocEst.Utils (LOCESTException (..))
+import           LocEst.Math.MultivariateNormal (dnormMulti)
+import           LocEst.Types
+import           LocEst.Utils
 
 import qualified Data.HashMap.Strict            as HM
-import Data.Maybe (catMaybes, isNothing)
+import           Data.Maybe                     (catMaybes, isNothing)
 
 coreSearch = propAtSpatTempDepVarsPos
 
@@ -28,7 +28,7 @@ propAtSpatTempDepVarsPos
     ) =
 
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-        
+
         spatDists = case maybeSpatDistMap of
             Nothing ->
                 -- calculate distances directly
@@ -52,7 +52,7 @@ propAtSpatTempDepVarsPos
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredInSpatTempDepVarsPos
         depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) filteredSpatDists filteredTempDists
         densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
-        
+
         meanDens    = case densitySummaryAlgorithm of
             Maximum -> maximum densities
             Mean    -> avg densities
@@ -95,20 +95,20 @@ calcSD (DecayDefinition depVarList) depVarName spatDist tempDist =
     in run relevantDecay
     where
         run [DecayOneDepVar _ x] = calc x spatDist tempDist
-        run _ = error "this should never happen"
+        run _                    = error "this should never happen"
         calc :: DecayAlgorithm -> Double -> Double -> Double
         calc (LinearSum spatDecay tempDecay) = growth2LinearSum spatDecay tempDecay
         calc (LogSum spatDecay tempDecay)    = growth2LogSum spatDecay tempDecay
 
 growth2LinearSum :: Double -> Double -> Double -> Double -> Double
-growth2LinearSum spatDecay tempDecay spatDist tempDist = 
+growth2LinearSum spatDecay tempDecay spatDist tempDist =
     growthLinear spatDecay spatDist + growthLinear tempDecay tempDist
 
 growthLinear :: Double -> Double -> Double
 growthLinear factor x = factor * x
 
 growth2LogSum :: Double -> Double -> Double -> Double -> Double
-growth2LogSum spatDecay tempDecay spatDist tempDist = 
+growth2LogSum spatDecay tempDecay spatDist tempDist =
     growthLog spatDecay spatDist + growthLog tempDecay tempDist
 
 growthLog :: Double -> Double -> Double

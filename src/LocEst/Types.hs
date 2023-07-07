@@ -7,14 +7,14 @@ module LocEst.Types where
 
 import           Control.Applicative   (empty, (<|>))
 import           Control.DeepSeq
+import           Data.ByteString       (StrictByteString)
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           Data.List             (sort, sortBy)
 import           Data.Ord              (comparing)
+import qualified Data.Vector           as V
 import           GHC.Generics          (Generic)
-import qualified Data.Vector as V
-import Data.ByteString (StrictByteString)
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -37,8 +37,8 @@ makeSpatDistMap xs =
     SpatDistMatrixMap $ HM.fromList (map (\(SpatDistObsGrid oID gID d) -> ((oID,gID),d)) xs)
 
 data SpatDistObsGrid = SpatDistObsGrid {
-      _spatDistObsGridObsID :: String
-    , _spatDistObsGridGridID :: String
+      _spatDistObsGridObsID    :: String
+    , _spatDistObsGridGridID   :: String
     , _spatDistObsGridDistance :: Double
 } deriving (Show, Generic)
 
@@ -66,7 +66,7 @@ instance Csv.ToRecord CrossvalOutput where
 -- | A datatype for search result points in space and time
 data SpatTempProb = SpatTempProb {
       _stprSpatTempDepVarsPosWithAlgos :: SpatTempDepVarsPosWithAlgorithms
-    , _stprprobability :: Double
+    , _stprprobability                 :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
@@ -130,7 +130,7 @@ instance NFData DecayAlgorithm
 
 -- | A datatype for observations with id and position
 data Observation = Observation {
-      _obsID :: String
+      _obsID  :: String
     , _obsPos :: SpatTempDepVarsPos
 } deriving (Show, Generic)
 
@@ -269,7 +269,7 @@ instance Csv.DefaultOrdered CartesianPos where
 instance Csv.ToRecord CartesianPos where
     toRecord (CartesianPos s x y) = Csv.record [Csv.toField s, Csv.toField x, Csv.toField y]
 instance Identifiable CartesianPos where
-    getID (CartesianPos Nothing _ _) = "unnamed"
+    getID (CartesianPos Nothing _ _)           = "unnamed"
     getID (CartesianPos (Just identifier) _ _) = identifier
 
 -- | A datatype for Long-Lat coordinates
@@ -285,7 +285,7 @@ instance Csv.DefaultOrdered LongLatPos where
 instance Csv.ToRecord LongLatPos where
     toRecord (LongLatPos s long lat) = Csv.record [Csv.toField s, Csv.toField long, Csv.toField lat]
 instance Identifiable LongLatPos where
-    getID (LongLatPos Nothing _ _) = "unnamed"
+    getID (LongLatPos Nothing _ _)           = "unnamed"
     getID (LongLatPos (Just identifier) _ _) = identifier
 
 -- | A datatype for Longitudes

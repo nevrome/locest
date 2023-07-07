@@ -2,25 +2,24 @@
 
 module LocEst.CLI.Search where
 
+import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
-import           LocEst.CoreAlgorithms
-import LocEst.Utils
+import           LocEst.Utils
 
-import           Data.Conduit                   ((.|))
-import qualified Data.Conduit                   as Con
-import qualified Data.Conduit.Algorithms.Async  as ConAA
-import qualified Data.Conduit.Combinators  as ConC
-import qualified Data.Conduit.List              as ConL
-import qualified Data.HashMap.Strict            as HM
-import Data.List (sort)
-import qualified Control.Monad as OP
-import Control.Exception (throw)
-import System.IO (hPutStrLn, stderr)
-import GHC.Conc (getNumCapabilities)
-import LocEst.Types (SpatDistMap)
-import Data.Either (isLeft, isRight)
-import Conduit (liftIO)
+import           Conduit                       (liftIO)
+import           Control.Exception             (throw)
+import qualified Control.Monad                 as OP
+import           Data.Conduit                  ((.|))
+import qualified Data.Conduit                  as Con
+import qualified Data.Conduit.Algorithms.Async as ConAA
+import qualified Data.Conduit.Combinators      as ConC
+import qualified Data.Conduit.List             as ConL
+import           Data.Either                   (isLeft, isRight)
+import qualified Data.HashMap.Strict           as HM
+import           Data.List                     (sort)
+import           GHC.Conc                      (getNumCapabilities)
+import           System.IO                     (hPutStrLn, stderr)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
@@ -44,7 +43,7 @@ runSearch (
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
     inSpatDists <- case inSpatDistFile of
-        Nothing -> return Nothing
+        Nothing   -> return Nothing
         Just path -> Just <$> readSpatDist path
 
     -- validate input
@@ -118,11 +117,11 @@ multiplySpatTempDepVarsPosByAlgorithms ::
     -> [DensitySummaryAlgorithm]
     -> SpatTempDepVarsPos
     -> [SpatTempDepVarsPosWithAlgorithms]
-multiplySpatTempDepVarsPosByAlgorithms 
+multiplySpatTempDepVarsPosByAlgorithms
     decayDefinitions
     densitySummaryAlgorithms
     spatTempDepVarsPos =
-    [ SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos x y | x <- decayDefinitions, y <- densitySummaryAlgorithms ] 
+    [ SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos x y | x <- decayDefinitions, y <- densitySummaryAlgorithms ]
 
 
 

@@ -2,9 +2,9 @@
 
 module LocEst.Utils where
 
-import           Control.Exception    (Exception)
-import GHC.Generics (Generic)
-import Control.DeepSeq (NFData)
+import           Control.DeepSeq   (NFData)
+import           Control.Exception (Exception)
+import           GHC.Generics      (Generic)
 
 -- | Different exceptions for locest
 data LOCESTException =

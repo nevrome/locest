@@ -5,21 +5,22 @@ module LocEst.Parsers where
 import           LocEst.Types
 
 import           Conduit                   (MonadIO, MonadResource, liftIO)
+import           Control.Monad             (when)
 import           Control.Monad.Error.Class
+import qualified Data.ByteString           as B
+import qualified Data.ByteString.Builder   as BB
+import qualified Data.ByteString.Char8     as Bchs
 import           Data.Char                 (ord)
 import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
 import qualified Data.Conduit.Combinators  as ConC
 import qualified Data.Conduit.List         as ConL
 import qualified Data.Csv                  as Csv
+import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
-import           System.IO                 (hPutStrLn, stderr, Handle, openFile, hClose, IOMode (..))
-import Control.Monad (when)
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as Bchs
-import qualified Data.Csv.Builder as CsvB
-import qualified Data.ByteString.Builder as BB
+import           System.IO                 (Handle, IOMode (..), hClose,
+                                            hPutStrLn, openFile, stderr)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
