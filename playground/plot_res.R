@@ -29,4 +29,14 @@ hu %>%
 # crossvalidation position test
 system('time locest crossvalidate -i test2Obs.tsv --testFraction 0.1 --iterations 5 -o test_res/test2Crossvalidate.tsv')
 
-# 
+# test with own distance matrix
+
+system('time locest search -i distMatrixObs.tsv -g distMatrixGrid.tsv --spatDistFile distMatrixDists.tsv -t "0" -d "varC1=0+varC2=0" -o test_res/distMatrixTestSearch.tsv')
+
+hu <- readr::read_tsv("test_res/distMatrixTestSearch.tsv")
+
+hu %>%
+  ggplot() +
+  geom_raster(aes(x, y, fill = probability)) +
+  scale_fill_viridis_c() +
+  coord_fixed()

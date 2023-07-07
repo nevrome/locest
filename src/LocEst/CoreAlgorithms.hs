@@ -58,7 +58,8 @@ propAtSpatTempDepVarsPos
             Mean    -> avg densities
             DistanceWeightedMean -> weightedAvg (zipWith calcWeight filteredSpatDists filteredTempDists) densities
 
-    in if (any isNothing spatDists)
+    in 
+       if (any isNothing spatDists)
        then Left $ NormalException "Could not determine distance ..."
        else Right $ SpatTempProb {
           _stprSpatTempDepVarsPosWithAlgos = SpatTempDepVarsPosWithAlgorithms {

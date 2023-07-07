@@ -20,7 +20,9 @@ import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
 import           System.IO                 (Handle, IOMode (..), hClose,
-                                            hPutStrLn, openFile, stderr)
+                                            hPutStrLn, openFile, stderr, hPutStr)
+import Control.Exception (throwIO)
+import LocEst.Utils (LOCESTException(NormalException))
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -44,15 +46,29 @@ readSpatTempDepVarsPos = readCSVToList
 readSpatPos :: FilePath -> IO [SpatPos]
 readSpatPos = readCSVToList
 
+readCSVToList :: (Csv.FromNamedRecord a) => FilePath -> IO [a]
 readCSVToList path = do
-    Con.runConduitRes $
-               sourceCSV path
-            .| ConL.consume
+    hPutStrLn stderr $ "Parsing " ++ path
+    parseRes <- Con.runConduitRes $ sourceCSV path .| ConL.consume
+    goodData <- mapM unwrapCSVParsingErrors parseRes
+    hPutStrLn stderr "Done"
+    return goodData
+    where
+        unwrapCSVParsingErrors :: (Show b, Show c) => Either (Either b c) a -> IO a
+        unwrapCSVParsingErrors parseRes =
+            case parseRes of
+                Left e -> 
+                    case e of
+                        Left e1 -> liftIO $ throwIO $ NormalException $ show e1
+                        Right e2 -> liftIO $ throwIO $ NormalException $ show e2
+                Right res -> return res
 
-sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) => FilePath -> ConduitT () a m ()
+sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) =>
+                FilePath
+             -> ConduitT () (Either (Either ConCsv.CsvStreamHaltParseError ConCsv.CsvStreamRecordParseError) a) m ()
 sourceCSV path =
        ConC.sourceFile path
-    .| ConCsv.fromNamedCsvLiftError (userError . show) decodingOptions
+    .| ConCsv.fromNamedCsvStreamErrorNoThrow decodingOptions
 
 sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => FilePath -> ConduitT a Void m ()
 sinkNamedCSV path =

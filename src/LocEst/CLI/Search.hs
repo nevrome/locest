@@ -20,6 +20,7 @@ import qualified Data.HashMap.Strict           as HM
 import           Data.List                     (sort)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
+import Data.ByteString (hPut)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
@@ -45,7 +46,6 @@ runSearch (
     inSpatDists <- case inSpatDistFile of
         Nothing   -> return Nothing
         Just path -> Just <$> readSpatDist path
-
     -- validate input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"
