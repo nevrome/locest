@@ -10,6 +10,7 @@ import LocEst.Utils
 import           Data.Conduit                   ((.|))
 import qualified Data.Conduit                   as Con
 import qualified Data.Conduit.Algorithms.Async  as ConAA
+import qualified Data.Conduit.Combinators  as ConC
 import qualified Data.Conduit.List              as ConL
 import qualified Data.HashMap.Strict            as HM
 import Data.List (sort)
@@ -18,6 +19,8 @@ import Control.Exception (throw)
 import System.IO (hPutStrLn, stderr)
 import GHC.Conc (getNumCapabilities)
 import LocEst.Types (SpatDistMap)
+import Data.Either (isLeft, isRight)
+import Conduit (liftIO)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
@@ -79,8 +82,19 @@ runSearch (
         .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations inSpatDists)
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
+        -- print progress information
         .| progress
-        .| sinkNamedCSV outFile
+        -- split stream to report the error cases and write the good results to the file system
+        .| Con.getZipSink (
+                Con.ZipSink (
+                       ConC.filter isLeft
+                    .| ConL.mapM_ (\(Left errMsg) -> liftIO $ hPutStrLn stderr (renderLOCESTException errMsg ++ "\n"))
+                ) *>
+                Con.ZipSink (
+                       ConL.mapMaybe rightToJust
+                    .| sinkNamedCSV outFile
+                )
+           )
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True

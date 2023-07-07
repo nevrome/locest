@@ -4,8 +4,10 @@ import           LocEst.Distance
 import           LocEst.Types
 import           LocEst.Math.MultivariateNormal (dnormMulti)
 import           LocEst.Math.Basics
+import LocEst.Utils (LOCESTException (..))
 
 import qualified Data.HashMap.Strict            as HM
+import Data.Maybe (catMaybes, isNothing)
 
 coreSearch = propAtSpatTempDepVarsPos
 
@@ -14,7 +16,7 @@ propAtSpatTempDepVarsPos ::
     -> [Observation]
     -> Maybe SpatDistMap
     -> SpatTempDepVarsPosWithAlgorithms
-    -> SpatTempProb
+    -> Either LOCESTException SpatTempProb
 propAtSpatTempDepVarsPos
     depVarsOrdered
     observations
@@ -30,15 +32,14 @@ propAtSpatTempDepVarsPos
         spatDists = case maybeSpatDistMap of
             Nothing ->
                 -- calculate distances directly
-                map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
+                map (\x -> Just $ spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
             Just (SpatDistMatrixMap spatDistMap) ->
                 -- look up distances in map
                 let obsIDs = map getID observations
                     gridSpatPosID = getID $ _spatialPos gridSpatTempPos
-                in map (\obsID -> HM.findWithDefault 0 (obsID, gridSpatPosID) spatDistMap) obsIDs
-                   -- default of 0 is a hack for testing purposes!
+                in map (\obsID -> HM.lookup (obsID, gridSpatPosID) spatDistMap) obsIDs
 
-        spatDistsKM = map (/ 1000) spatDists
+        spatDistsKM = map (/ 1000) $ catMaybes spatDists
         tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
 
         -- makes it a lot faster, but has bad side effects
@@ -57,7 +58,9 @@ propAtSpatTempDepVarsPos
             Mean    -> avg densities
             DistanceWeightedMean -> weightedAvg (zipWith calcWeight filteredSpatDists filteredTempDists) densities
 
-    in SpatTempProb {
+    in if (any isNothing spatDists)
+       then Left $ NormalException "Could not determine distance ..."
+       else Right $ SpatTempProb {
           _stprSpatTempDepVarsPosWithAlgos = SpatTempDepVarsPosWithAlgorithms {
                 _powialgPosition = SpatTempDepVarsPos {
                   _stpoSpatTempPos = gridSpatTempPos

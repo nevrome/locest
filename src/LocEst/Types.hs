@@ -45,7 +45,7 @@ data SpatDistObsGrid = SpatDistObsGrid {
 instance NFData SpatDistObsGrid
 instance Csv.FromNamedRecord SpatDistObsGrid where
     parseNamedRecord m = do
-        SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "gridID" <*> filterLookup m "dist"
+        SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
 -- | A datatype for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
@@ -257,7 +257,7 @@ instance Identifiable SpatPos where
     getID = getID
 
 -- | A datatype for projected coordinates
-data CartesianPos = CartesianPos (Maybe String) Double Double -- the optional id could be moved to the top, maybe with a new type SpatPosNamed
+data CartesianPos = CartesianPos (Maybe String) Double Double
     deriving (Show, Generic)
 
 instance NFData CartesianPos

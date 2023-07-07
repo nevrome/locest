@@ -20,8 +20,9 @@ import Control.Exception (throw)
 import System.IO (hPutStrLn, stderr)
 import GHC.Conc (getNumCapabilities)
 import System.Random (randomRIO)
-import           Conduit                   (MonadIO, MonadResource, ConduitT, ResourceT)
+import           Conduit                   (MonadIO, MonadResource, ConduitT, ResourceT, liftIO)
 import qualified LocEst.Parsers as ConL
+import Data.Either (isLeft)
 
 data CrossvalidateOptions = CrossvalidateOptions
     { _crossvalidateInObservationFile :: FilePath
@@ -52,8 +53,19 @@ runCrossvalidate (
            ConL.sourceList testTrainingIterations
         -- run per-iteration conduit until no iterations left
         .| Con.awaitForever (oneIterationConduit maxNumberOfThreads depVarsOrdered)
+        -- print progress information
         .| progress
-        .| ConL.consume
+        -- split stream to report the error cases and add the good ones to the result list
+        .| Con.getZipSink (
+                Con.ZipSink (
+                       ConC.filter isLeft
+                    .| ConL.mapM_ (\(Left errMsg) -> liftIO $ hPutStrLn stderr (renderLOCESTException errMsg ++ "\n"))
+                ) *>
+                Con.ZipSink (
+                       ConL.mapMaybe rightToJust
+                    .| ConL.consume
+                )
+           )
 
     -- summary
     Con.runConduitRes $
@@ -63,7 +75,7 @@ runCrossvalidate (
         .| ConL.sinkNamedCSV outFile
 
     where
-        oneIterationConduit :: Int -> [String] -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) SpatTempProb (ResourceT IO) ()
+        oneIterationConduit :: Int -> [String] -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SpatTempProb) (ResourceT IO) ()
         oneIterationConduit maxNumThreads varsOrdered (testData,trainingData) = do
             ConL.sourceList testData
                 -- multiply multidimensional positions by algorithms
