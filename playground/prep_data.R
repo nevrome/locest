@@ -16,7 +16,7 @@ hu %>%
 
 janno_final %>%
   dplyr::select(
-    id = Poseidon_ID,
+    obsID = Poseidon_ID,
     x, y,
     age = Date_BC_AD_Median_Derived,
     varC1 = C1_mds_u,
@@ -32,7 +32,7 @@ janno_final %>%
 janno_final %>%
   dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
   dplyr::select(
-    id = Poseidon_ID,
+    obsID = Poseidon_ID,
     x, y
   )  %>%
   readr::write_tsv(file = "~/agora/locest/playground/test2GridOnePoint.tsv")
