@@ -49,19 +49,18 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
 
 -- | A datatype for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
-      _crossoutDecayDef :: DecayDefinition
-    , _crossoutSumAlgo  :: DensitySummaryAlgorithm
-    , _crossoutProbSum  :: Double
+      _crossoutAlgorithm :: LocestAlgorithm
+    , _crossoutProbSum   :: Double
 } deriving (Show, Generic)
 
 instance NFData CrossvalOutput
 -- these instances are a quick hack - should actually be defined down to the algo types:
 instance Csv.DefaultOrdered CrossvalOutput where
-    headerOrder (CrossvalOutput decayDef sumAlg sumProb) =
-        Csv.header ["decayDef"] <> Csv.header ["sumAlg"] <> Csv.header ["probability"]
+    headerOrder (CrossvalOutput algo sumProb) =
+        Csv.headerOrder algo <> Csv.header ["probability"]
 instance Csv.ToRecord CrossvalOutput where
-    toRecord (CrossvalOutput decayDef sumAlg sumProb) =
-        Csv.record [Csv.toField (show decayDef)] <> Csv.record [Csv.toField (show sumAlg)] <> Csv.record [Csv.toField sumProb]
+    toRecord (CrossvalOutput algo sumProb) =
+        Csv.toRecord algo <> Csv.record [Csv.toField sumProb]
 
 -- | A datatype for search result points in space and time
 data SpatTempProb = SpatTempProb {
@@ -83,21 +82,33 @@ instance Csv.ToRecord SpatTempProb where
 
 -- | A datatype that then also includes algorithms for a given point
 data SpatTempDepVarsPosWithAlgorithms = SpatTempDepVarsPosWithAlgorithms {
-      _powialgPosition    :: SpatTempDepVarsPos
-    , _powialgDecayDef    :: DecayDefinition
-    , _powialgDensSumAlgo :: DensitySummaryAlgorithm
+      _powialgPosition   :: SpatTempDepVarsPos
+    , _powialgAlgorithm  :: LocestAlgorithm
 } deriving (Show, Generic)
 
 instance NFData SpatTempDepVarsPosWithAlgorithms
--- these instances are a quick hack - should actually be defined down to the algo types:
 instance Csv.DefaultOrdered SpatTempDepVarsPosWithAlgorithms where
-    headerOrder (SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos decayDef sumAlg) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.header ["decayDef"] <> Csv.header ["sumAlg"]
+    headerOrder (SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos algorithm) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder algorithm
 instance Csv.ToRecord SpatTempDepVarsPosWithAlgorithms where
-    toRecord (SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos decayDef sumAlg) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField (show decayDef)] <> Csv.record [Csv.toField (show sumAlg)]
+    toRecord (SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos algorithm) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord algorithm
 
 -- Data types for core algorithm specification
+data LocestAlgorithm =
+    AlgoSepIDW {
+        _asiDecayDefinition :: DecayDefinition
+      , _asiDensitySummary :: DensitySummaryAlgorithm
+    } deriving (Show, Eq, Ord, Generic)
+
+instance NFData LocestAlgorithm
+instance Csv.DefaultOrdered LocestAlgorithm where
+    headerOrder (AlgoSepIDW decayDef sumAlg) =
+        Csv.header ["decayDef"] <> Csv.header ["sumAlg"]
+instance Csv.ToRecord LocestAlgorithm where
+    toRecord (AlgoSepIDW decayDef sumAlg) =
+        Csv.record [Csv.toField (show decayDef)] <> Csv.record [Csv.toField (show sumAlg)]
+
 data DensitySummaryAlgorithm =
       Maximum
     | Mean

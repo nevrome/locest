@@ -61,9 +61,7 @@ runSearch (
         ++ " * " ++
         show (length searchDepVarPos) ++ " dependent variable positions"
         ++ " * " ++
-        show (length myDecays) ++ " decay definitions"
-        ++ " * " ++
-        show (length myDecays) ++ " summary algorithms"
+        show (length myAlgos) ++ " algorithms"
     -- run analysis pipeline
     Con.runConduitRes $
         -- begin to stream spatial prediction grid positions
@@ -73,7 +71,7 @@ runSearch (
         -- multiply spatpos input grid by dependent vars positions
         .| ConL.concatMap (multiplySpatPosByDepVarsPos searchDepVarPos)
         -- multiply multidimensional positions by algorithms
-        .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myDecays mySummaries)
+        .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myAlgos)
         -- main search algorithm
         -- 1. sequential
         -- .| ConL.map coreSearch
@@ -113,15 +111,10 @@ multiplySpatPosByDepVarsPos depVarsPos spatTempPos =
     map (\p -> SpatTempDepVarsPos { _stpoSpatTempPos = spatTempPos, _stpoDepVarsPos = p}) depVarsPos
 
 multiplySpatTempDepVarsPosByAlgorithms ::
-       [DecayDefinition]
-    -> [DensitySummaryAlgorithm]
+       [LocestAlgorithm]
     -> SpatTempDepVarsPos
     -> [SpatTempDepVarsPosWithAlgorithms]
 multiplySpatTempDepVarsPosByAlgorithms
-    decayDefinitions
-    densitySummaryAlgorithms
+    algorithms
     spatTempDepVarsPos =
-    [ SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos x y | x <- decayDefinitions, y <- densitySummaryAlgorithms ]
-
-
-
+    map (\a -> SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos a) algorithms

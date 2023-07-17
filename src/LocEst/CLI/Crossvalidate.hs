@@ -78,34 +78,27 @@ runCrossvalidate (
         oneIterationConduit maxNumThreads varsOrdered (testData,trainingData) = do
             ConL.sourceList testData
                 -- multiply multidimensional positions by algorithms
-                .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myTwoDecays mySummaries . _obsPos)
+                .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myAlgos . _obsPos)
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (coreSearch varsOrdered trainingData Nothing)
                    -- distance grid input option not yet implemented here: Nothing
 
-myTwoDecays = [myDecay, myOtherDecay]
-myOtherDecay = DecayDefinition [
-      DecayOneDepVar "varC1" (LinearSum 0.0001 0.0001)
-    , DecayOneDepVar "varC2" (LinearSum 0.0001 0.0001)
-    ]
-
 summarizeFunc :: [SpatTempProb] -> CrossvalOutput
 summarizeFunc xs =
-    let oneProb = _stprSpatTempDepVarsPosWithAlgos $ head xs
-        decayDef = _powialgDecayDef oneProb
-        sumAlg = _powialgDensSumAlgo oneProb
+    let oneProb  = _stprSpatTempDepVarsPosWithAlgos $ head xs
+        algo     = _powialgAlgorithm oneProb
         sumProbs = sum $ map _stprprobability xs
-    in CrossvalOutput decayDef sumAlg sumProbs
+    in CrossvalOutput algo sumProbs
 
 groupFunc :: SpatTempProb -> SpatTempProb -> Bool
-groupFunc (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefA sumAlgA) _)
-          (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefB sumAlgB) _) =
-    (decayDefA == decayDefB) && (sumAlgA == sumAlgB)
+groupFunc (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ algoA) _)
+          (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ algoB) _) =
+    algoA == algoB
 
 sortFunc :: SpatTempProb -> SpatTempProb -> Ordering
-sortFunc (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefA sumAlgA) _)
-         (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ decayDefB sumAlgB) _) =
-    mconcat [compare decayDefA decayDefB, compare sumAlgA sumAlgB]
+sortFunc (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ algoA) _)
+         (SpatTempProb (SpatTempDepVarsPosWithAlgorithms _ algoB) _) =
+    compare algoA algoB
 
 splitTestTraining :: Double -> [a] -> IO ([a], [a])
 splitTestTraining testFraction observations = do

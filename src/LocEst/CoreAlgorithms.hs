@@ -23,8 +23,7 @@ propAtSpatTempDepVarsPos
     maybeSpatDistMap
     (SpatTempDepVarsPosWithAlgorithms
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
-        decayDefinition
-        densitySummaryAlgorithm
+        (AlgoSepIDW decayDefinition densitySummaryAlgorithm)
     ) =
 
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
@@ -67,8 +66,7 @@ propAtSpatTempDepVarsPos
                   _stpoSpatTempPos = gridSpatTempPos
                 , _stpoDepVarsPos  = searchDepVarPos
                 },
-                _powialgDecayDef = decayDefinition,
-                _powialgDensSumAlgo = densitySummaryAlgorithm
+                _powialgAlgorithm = AlgoSepIDW decayDefinition densitySummaryAlgorithm
             }
         , _stprprobability = meanDens
         }
@@ -82,8 +80,8 @@ calcWeight ds dt =
     in 1 / sqrt ((dsSafe ** 2) + (dtSafe ** 2))
 
 -- algorithm options - must be transformed to a proper input when it has stabilized
-mySummaries = [mySummary]
-myDecays = [myDecay]
+myAlgos = [myAlgo]
+myAlgo = AlgoSepIDW myDecay mySummary
 mySummary = DistanceWeightedMean
 myDecay = DecayDefinition [
       DecayOneDepVar "varC1" (LinearSum 0.00001 0.00001)
