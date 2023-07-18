@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module LocEst.CLI.Interface where
 
 import           LocEst.CLI.Crossvalidate
@@ -41,6 +43,21 @@ parseConfigFile configFile = do
       | otherwise     = "--" ++ s
 
 -- general parsers
+
+parseVector pf = do
+    _ <- P.string "c("
+    _ <- P.spaces
+    res <- P.sepBy pf consumeCommaSep
+    _ <- P.spaces
+    _ <- P.string ")"
+    return res
+
+consumeEqualSep = do
+    _ <- P.spaces *> P.char '=' <* P.spaces
+    return ()
+consumeCommaSep = do
+    _ <- P.spaces *> P.char ',' <* P.spaces
+    return ()
 
 parseDoubleSequence = do
     start <- parseDouble
@@ -112,34 +129,39 @@ parseAlgorithmString = do
     where
         parseOneAlgorithm = P.try parseAlgoSepIDW
         parseAlgoSepIDW = do
-            _ <- P.string "SepIDW:" <* P.spaces
+            _ <- P.string "SepIDW("
             decayDef <- parseDecayDef
-            _ <- P.spaces *> P.string "+" <* P.spaces
+            consumeCommaSep
             sumAlg <- parseSumAlg
+            _ <- P.char ')'
             return $ AlgoSepIDW decayDef sumAlg
             where
                 parseDecayDef = do
-                    decayList <- P.many1 (parseDecayOneDepVar <* P.spaces)
+                    decayList <- parseVector parseDecayOneDepVar
                     return $ DecayDefinition decayList
                 parseDecayOneDepVar = do
-                    depVarName <- P.many1 P.letter
-                    _ <- P.spaces
+                    depVarName <- P.many1 P.alphaNum
+                    consumeEqualSep
                     decayAlgorithm <- decayAlgorithmParser
                     return $ DecayOneDepVar depVarName decayAlgorithm
                 decayAlgorithmParser = parseLinearSum P.<|> parseLogSum
                 parseLinearSum = do
-                  _ <- P.string "LinearSum"
+                  P.string "LinearSum"
+                  _ <- P.char '('
                   _ <- P.spaces
                   a <- parseDouble
-                  _ <- P.spaces
+                  consumeCommaSep
                   b <- parseDouble
+                  _ <- P.char ')'
                   return $ LinearSum a b
                 parseLogSum = do
                   _ <- P.string "LogSum"
+                  _ <- P.char '('
                   _ <- P.spaces
                   a <- parseDouble
-                  _ <- P.spaces
+                  consumeCommaSep
                   b <- parseDouble
+                  _ <- P.char ')'
                   return $ LogSum a b
                 parseSumAlg = parseMaximum P.<|> parseMean P.<|> parseDistanceWeightedMean
                 parseMaximum =
