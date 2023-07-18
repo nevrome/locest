@@ -21,55 +21,53 @@ propAtSpatTempDepVarsPos
     depVarsOrdered
     observations
     maybeSpatDistMap
-    (SpatTempDepVarsPosWithAlgorithms
+    searchSetting@(SpatTempDepVarsPosWithAlgorithms
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         (AlgoSepIDW decayDefinition densitySummaryAlgorithm)
     ) =
-
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-
-        spatDists = case maybeSpatDistMap of
-            Nothing ->
-                -- calculate distances directly
-                map (\x -> Just $ spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
-            Just (SpatDistMatrixMap spatDistMap) ->
-                -- look up distances in map
-                let obsIDs = map getID observations
-                    gridSpatPosID = getID $ _spatialPos gridSpatTempPos
-                in map (\obsID -> HM.lookup (obsID, gridSpatPosID) spatDistMap) obsIDs
-
+        -- prepare distances
+        spatDists   = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
         spatDistsKM = map (/ 1000) $ catMaybes spatDists
-        tempDists   = map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
-
-        -- makes it a lot faster, but has bad side effects
-        filteredByDists = filter (\(ds,dt,x) -> ds <= 2000 && dt <= 2000) $ zip3 spatDistsKM tempDists observations
-        filteredInSpatTempDepVarsPos = map (\(_,_,x) -> x) filteredByDists
+        tempDists   = findTempDistsObsGrid observations gridSpatTempPos
+        -- filter obs by distance: makes it a lot faster, but has bad side effects
+        filteredByDists = filterByDists 2000 2000 $ zip3 spatDistsKM tempDists observations
+        filteredObs = map (\(_,_,x) -> x) filteredByDists
         filteredSpatDists = map (\(x,_,_) -> x) filteredByDists
         filteredTempDists = map (\(_,x,_) -> x) filteredByDists
-
-
-        depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredInSpatTempDepVarsPos
+        -- determine mean, sd, and resulting probability densities
+        depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredObs
         depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) filteredSpatDists filteredTempDists
         densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
-
+        -- summarise densities
         meanDens    = case densitySummaryAlgorithm of
             Maximum -> maximum densities
             Mean    -> avg densities
             DistanceWeightedMean -> weightedAvg (zipWith calcWeight filteredSpatDists filteredTempDists) densities
-
     in 
        if (any isNothing spatDists)
        then Left $ NormalException "Could not determine distance ..."
        else Right $ SpatTempProb {
-          _stprSpatTempDepVarsPosWithAlgos = SpatTempDepVarsPosWithAlgorithms {
-                _powialgPosition = SpatTempDepVarsPos {
-                  _stpoSpatTempPos = gridSpatTempPos
-                , _stpoDepVarsPos  = searchDepVarPos
-                },
-                _powialgAlgorithm = AlgoSepIDW decayDefinition densitySummaryAlgorithm
-            }
+          _stprSpatTempDepVarsPosWithAlgos = searchSetting
         , _stprprobability = meanDens
         }
+
+filterByDists :: Double -> Double -> [(Double, Double, Observation)] -> [(Double, Double, Observation)]
+filterByDists fs ft = filter (\(ds,dt,_) -> ds <= fs && dt <= ft)
+
+findTempDistsObsGrid :: [Observation] -> SpatTempPos -> [Double]
+findTempDistsObsGrid observations gridSpatTempPos = 
+    map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
+
+findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMap -> SpatTempPos -> [Maybe Double]
+findSpatDistsObsGrid observations Nothing gridSpatTempPos =
+    -- calculate distances
+    map (\x -> Just $ spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
+findSpatDistsObsGrid observations (Just (SpatDistMatrixMap spatDistMap)) gridSpatTempPos =
+    -- look up distances
+    let obsIDs = map getID observations
+        gridSpatPosID = getID $ _spatialPos gridSpatTempPos
+    in map (\obsID -> HM.lookup (obsID, gridSpatPosID) spatDistMap) obsIDs
 
 calcWeight :: Double -> Double -> Double
 calcWeight ds dt =
