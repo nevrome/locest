@@ -170,7 +170,7 @@ parseAlgorithmString = do
                   b <- parseDouble
                   _ <- P.char ')'
                   return $ LogSum a b
-                parseSumAlg = parseMaximum P.<|> parseMean P.<|> parseDistanceWeightedMean
+                parseSumAlg = P.try parseMaximum P.<|> parseMean P.<|> parseDistanceWeightedMean
                 parseMaximum =
                     P.string "Maximum" >> return Maximum
                 parseMean =
