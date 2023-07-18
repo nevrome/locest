@@ -25,15 +25,15 @@ propAtSpatTempDepVarsPos
     searchSetting@(SpatTempDepVarsPosWithAlgorithms
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         (AlgoSepIDW decayDefinition densitySummaryAlgorithm)
-    ) =
+    ) = do
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
         -- prepare distances
-        spatDists   = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
-        spatDistsKM = map (/ 1000) $ catMaybes spatDists
+    spatDists <- findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
+    let spatDistsKM = map (/ 1000) spatDists
         tempDists   = findTempDistsObsGrid observations gridSpatTempPos
         -- filter obs by distance: makes it a lot faster, but has bad side effects
-        filteredByDists = filterByDists 2000 2000 $ zip3 spatDistsKM tempDists observations
-        filteredObs = map (\(_,_,x) -> x) filteredByDists
+    filteredByDists <- filterByDists 2000 2000 $ zip3 spatDistsKM tempDists observations
+    let filteredObs = map (\(_,_,x) -> x) filteredByDists
         filteredSpatDists = map (\(x,_,_) -> x) filteredByDists
         filteredTempDists = map (\(_,x,_) -> x) filteredByDists
         -- determine mean, sd, and resulting probability densities
@@ -45,10 +45,7 @@ propAtSpatTempDepVarsPos
             Maximum -> maximum densities
             Mean    -> avg densities
             DistanceWeightedMean -> weightedAvg (zipWith calcWeight filteredSpatDists filteredTempDists) densities
-    in 
-        if (any isNothing spatDists)
-        then Left $ NormalException "Could not determine distance ..."
-        else Right $ SpatTempProb {
+    return $ SpatTempProb {
            _stprSpatTempDepVarsPosWithAlgos = searchSetting
          , _stprprobability = meanDens
          }
@@ -59,15 +56,15 @@ propAtSpatTempDepVarsPos
     searchSetting@(SpatTempDepVarsPosWithAlgorithms
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         (AlgoKernSmooth (Uniform spatialKernel) (Uniform temporalKernel))
-    ) =
+    ) = do
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
         -- prepare distances
-        spatDists   = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
-        spatDistsKM = map (/ 1000) $ catMaybes spatDists
+    spatDists <- findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
+    let spatDistsKM = map (/ 1000) spatDists
         tempDists   = findTempDistsObsGrid observations gridSpatTempPos
         -- filter obs by distance: makes it a lot faster, but has bad side effects
-        filteredByDists = filterByDists spatialKernel temporalKernel $ zip3 spatDistsKM tempDists observations
-        filteredObs = map (\(_,_,x) -> x) filteredByDists
+    filteredByDists <- filterByDists spatialKernel temporalKernel $ zip3 spatDistsKM tempDists observations
+    let filteredObs = map (\(_,_,x) -> x) filteredByDists
         filteredSpatDists = map (\(x,_,_) -> x) filteredByDists
         filteredTempDists = map (\(_,x,_) -> x) filteredByDists
         -- determine mean, sd, and the resulting probability density
@@ -75,31 +72,37 @@ propAtSpatTempDepVarsPos
         depVarMeans = map avg $ transpose depVarMeas
         depVarSDs = map sd $ transpose depVarMeas
         density   = dnormMulti depVarMeans depVarSDs searchDepVarsCoords 
-    in 
-        if (any isNothing spatDists || length filteredByDists < 3)
-        then Left $ NormalException "Could not determine distance ..."
-        else Right $ SpatTempProb {
+    return $ SpatTempProb {
            _stprSpatTempDepVarsPosWithAlgos = searchSetting
          , _stprprobability = density
-        }
+         }
 
-
-filterByDists :: Double -> Double -> [(Double, Double, Observation)] -> [(Double, Double, Observation)]
-filterByDists fs ft = filter (\(ds,dt,_) -> ds <= fs && dt <= ft)
+filterByDists :: Double -> Double ->
+                 [(Double, Double, Observation)] ->
+                 Either LOCESTException [(Double, Double, Observation)]
+filterByDists fs ft xs = do
+    let res = filter (\(ds,dt,_) -> ds <= fs && dt <= ft) xs
+    if length res < 3
+    then Left $ NormalException "Less than 3 individuals in subset."
+    else Right res
 
 findTempDistsObsGrid :: [Observation] -> SpatTempPos -> [Double]
 findTempDistsObsGrid observations gridSpatTempPos = 
     map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
 
-findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMap -> SpatTempPos -> [Maybe Double]
+findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMap -> SpatTempPos -> Either LOCESTException [Double]
 findSpatDistsObsGrid observations Nothing gridSpatTempPos =
     -- calculate distances
-    map (\x -> Just $ spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
+    Right $ map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
 findSpatDistsObsGrid observations (Just (SpatDistMatrixMap spatDistMap)) gridSpatTempPos =
     -- look up distances
     let obsIDs = map getID observations
         gridSpatPosID = getID $ _spatialPos gridSpatTempPos
-    in map (\obsID -> HM.lookup (obsID, gridSpatPosID) spatDistMap) obsIDs
+        dists = map (\obsID -> HM.lookup (obsID, gridSpatPosID) spatDistMap) obsIDs
+    in case sequence dists of
+        Nothing -> Left $ NormalException "Distance not in lookup table."
+        Just xs -> Right xs
+
 
 calcWeight :: Double -> Double -> Double
 calcWeight ds dt =
