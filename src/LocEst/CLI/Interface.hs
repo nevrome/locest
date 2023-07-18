@@ -151,7 +151,7 @@ parseAlgorithmString = do
                 parseDecayDef = do
                     decayVec <- parseNamedVector parseVarName decayAlgorithmParser
                     return $ DecayDefinition $ map (uncurry DecayOneDepVar) decayVec
-                decayAlgorithmParser = parseLinearSum P.<|> parseLogSum
+                decayAlgorithmParser = P.try parseLinearSum P.<|> parseLogSum
                 parseLinearSum = do
                   P.string "LinearSum"
                   _ <- P.char '('
