@@ -98,16 +98,26 @@ instance Csv.ToRecord SpatTempDepVarsPosWithAlgorithms where
 data LocestAlgorithm =
     AlgoSepIDW {
         _asiDecayDefinition :: DecayDefinition
-      , _asiDensitySummary :: DensitySummaryAlgorithm
-    } deriving (Show, Eq, Ord, Generic)
+      , _asiDensitySummary  :: DensitySummaryAlgorithm
+    } |
+    AlgoKernSmooth {
+        _aksSpatKernel :: Kernel
+      , _aksTempKernel :: Kernel
+    }
+    deriving (Show, Eq, Ord, Generic)
 
 instance NFData LocestAlgorithm
+-- these instances are just placeholders
 instance Csv.DefaultOrdered LocestAlgorithm where
     headerOrder (AlgoSepIDW decayDef sumAlg) =
         Csv.header ["decayDef"] <> Csv.header ["sumAlg"]
+    headerOrder (AlgoKernSmooth spatKern tempKern) =
+        Csv.header ["spatKern"] <> Csv.header ["tempKern"]
 instance Csv.ToRecord LocestAlgorithm where
     toRecord (AlgoSepIDW decayDef sumAlg) =
         Csv.record [Csv.toField (show decayDef)] <> Csv.record [Csv.toField (show sumAlg)]
+    toRecord (AlgoKernSmooth spatKern tempKern) =
+        Csv.record [Csv.toField (show spatKern)] <> Csv.record [Csv.toField (show tempKern)]
 
 data DensitySummaryAlgorithm =
       Maximum
@@ -138,6 +148,12 @@ data DecayAlgorithm =
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData DecayAlgorithm
+
+data Kernel =
+    Uniform { _kernelUniformRadius :: Double }
+    deriving (Show, Eq, Ord, Generic)
+
+instance NFData Kernel
 
 -- | A datatype for observations with id and position
 data Observation = Observation {

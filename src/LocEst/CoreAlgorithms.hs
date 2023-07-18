@@ -8,6 +8,7 @@ import           LocEst.Utils
 
 import qualified Data.HashMap.Strict            as HM
 import           Data.Maybe                     (catMaybes, isNothing)
+import Data.List (transpose)
 
 coreSearch = propAtSpatTempDepVarsPos
 
@@ -45,12 +46,43 @@ propAtSpatTempDepVarsPos
             Mean    -> avg densities
             DistanceWeightedMean -> weightedAvg (zipWith calcWeight filteredSpatDists filteredTempDists) densities
     in 
-       if (any isNothing spatDists)
-       then Left $ NormalException "Could not determine distance ..."
-       else Right $ SpatTempProb {
-          _stprSpatTempDepVarsPosWithAlgos = searchSetting
-        , _stprprobability = meanDens
+        if (any isNothing spatDists)
+        then Left $ NormalException "Could not determine distance ..."
+        else Right $ SpatTempProb {
+           _stprSpatTempDepVarsPosWithAlgos = searchSetting
+         , _stprprobability = meanDens
+         }
+propAtSpatTempDepVarsPos
+    depVarsOrdered
+    observations
+    maybeSpatDistMap
+    searchSetting@(SpatTempDepVarsPosWithAlgorithms
+        (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
+        (AlgoKernSmooth (Uniform spatialKernel) (Uniform temporalKernel))
+    ) =
+    let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
+        -- prepare distances
+        spatDists   = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
+        spatDistsKM = map (/ 1000) $ catMaybes spatDists
+        tempDists   = findTempDistsObsGrid observations gridSpatTempPos
+        -- filter obs by distance: makes it a lot faster, but has bad side effects
+        filteredByDists = filterByDists spatialKernel temporalKernel $ zip3 spatDistsKM tempDists observations
+        filteredObs = map (\(_,_,x) -> x) filteredByDists
+        filteredSpatDists = map (\(x,_,_) -> x) filteredByDists
+        filteredTempDists = map (\(_,x,_) -> x) filteredByDists
+        -- determine mean, sd, and the resulting probability density
+        depVarMeas = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredObs
+        depVarMeans = map avg $ transpose depVarMeas
+        depVarSDs = map sd $ transpose depVarMeas
+        density   = dnormMulti depVarMeans depVarSDs searchDepVarsCoords 
+    in 
+        if (any isNothing spatDists || length filteredByDists < 3)
+        then Left $ NormalException "Could not determine distance ..."
+        else Right $ SpatTempProb {
+           _stprSpatTempDepVarsPosWithAlgos = searchSetting
+         , _stprprobability = density
         }
+
 
 filterByDists :: Double -> Double -> [(Double, Double, Observation)] -> [(Double, Double, Observation)]
 filterByDists fs ft = filter (\(ds,dt,_) -> ds <= fs && dt <= ft)

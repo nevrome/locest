@@ -32,5 +32,8 @@ weightedAvg weights values =
     let sumWeightedVals = foldl' (\o (w,v) -> o + w * v) 0 $ zip weights values
     in sumWeightedVals / sum weights
 
+sd :: [Double] -> Double
+sd xs = sqrt . avg . map ((^2) . (-) (avg xs)) $ xs
+
 avg :: [Double] -> Double
 avg xs = sum xs / fromIntegral (length xs)

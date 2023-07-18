@@ -138,7 +138,7 @@ readAlgorithmString s =
 
 parseAlgorithmString :: P.Parser LocestAlgorithm
 parseAlgorithmString = do
-    P.try parseAlgoSepIDW
+    P.try parseAlgoSepIDW P.<|> parseAlgoKernelSmooth
     where
         parseAlgoSepIDW = do
             _ <- P.string "SepIDW("
@@ -177,6 +177,23 @@ parseAlgorithmString = do
                     P.string "Mean" >> return Mean
                 parseDistanceWeightedMean =
                     P.string "DistanceWeightedMean" >> return DistanceWeightedMean
+        parseAlgoKernelSmooth = do
+            _ <- P.string "KernSmooth("
+            spatKern <- parseKernel
+            consumeCommaSep
+            tempKern <- parseKernel
+            _ <- P.char ')'
+            return $ AlgoKernSmooth spatKern tempKern
+            where
+                parseKernel = P.try parseUniform
+                parseUniform = do
+                  _ <- P.string "Uniform"
+                  _ <- P.char '('
+                  _ <- P.spaces
+                  radius <- parseDouble
+                  _ <- P.spaces
+                  _ <- P.char ')'
+                  return $ Uniform radius
 
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (
