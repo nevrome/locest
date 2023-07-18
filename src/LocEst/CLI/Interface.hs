@@ -122,7 +122,7 @@ parseNumber = P.many1 P.digit
 
 -- optparse definitions
 
-optParseAlgorithmString :: OP.Parser [LocestAlgorithm]
+optParseAlgorithmString :: OP.Parser LocestAlgorithm
 optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
        OP.long    "algorithm"
     <> OP.short   'a'
@@ -130,17 +130,16 @@ optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
     <> OP.help    "..."
     )
 
-readAlgorithmString :: String -> Either String [LocestAlgorithm]
+readAlgorithmString :: String -> Either String LocestAlgorithm
 readAlgorithmString s =
     case P.runParser parseAlgorithmString () "" s of
         Left err -> Left $ showParsecErr err
         Right x  -> Right x
 
-parseAlgorithmString :: P.Parser [LocestAlgorithm]
+parseAlgorithmString :: P.Parser LocestAlgorithm
 parseAlgorithmString = do
-    P.sepBy parseOneAlgorithm (P.char ',' <* P.spaces) <* P.eof
+    P.try parseAlgoSepIDW
     where
-        parseOneAlgorithm = P.try parseAlgoSepIDW
         parseAlgoSepIDW = do
             _ <- P.string "SepIDW("
             decayDef <- parseDecayDef

@@ -25,7 +25,7 @@ import Data.ByteString (hPut)
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
     , _searchSearchPositionSettings :: ConcretePositionSettings
-    , _searchAlgorithm              :: [LocestAlgorithm]
+    , _searchAlgorithm              :: LocestAlgorithm
     , _searchOutFile                :: FilePath
     }
 
@@ -40,7 +40,7 @@ runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions inObsFile
         (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos inSpatDistFile)
-        algorithms
+        algorithm
         outFile
     ) = do
     allObservations <- readObservations inObsFile
@@ -64,8 +64,6 @@ runSearch (
         show (length inTempGrid) ++ " time slices"
         ++ " * " ++
         show (length searchDepVarPos) ++ " dependent variable positions"
-        ++ " * " ++
-        show (length algorithms) ++ " algorithms"
     -- run analysis pipeline
     Con.runConduitRes $
         -- begin to stream spatial prediction grid positions
@@ -74,8 +72,8 @@ runSearch (
         .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
         -- multiply spatpos input grid by dependent vars positions
         .| ConL.concatMap (multiplySpatPosByDepVarsPos searchDepVarPos)
-        -- multiply multidimensional positions by algorithms
-        .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms algorithms)
+        -- multiply multidimensional positions by algorithms (currently only one in input)
+        .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms [algorithm])
         -- main search algorithm
         -- 1. sequential
         -- .| ConL.map coreSearch
