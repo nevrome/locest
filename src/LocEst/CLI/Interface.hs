@@ -15,11 +15,7 @@ import qualified Text.Parsec              as P
 import qualified Text.Parsec.Error        as P
 import           Text.Parsec.Error        (errorMessages)
 import qualified Text.Parsec.String       as P
-<<<<<<< HEAD
 import Data.List (singleton, groupBy)
-=======
-import Data.List (singleton, groupBy, permutations)
->>>>>>> 2d05935f8471055eda9ef07c788d51ebc406cd4e
 
 -- config file that uses the optparse interface
 
