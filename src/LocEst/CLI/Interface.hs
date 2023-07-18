@@ -44,12 +44,24 @@ parseConfigFile configFile = do
 
 -- general parsers
 
-parseVector pf = do
-    _ <- P.string "c("
+parseVarName = P.string "var" <> P.many1 P.alphaNum
+
+parseNamedVector parseKey parseValue =
+    parseVector $ parseKeyValuePair parseKey parseValue
+
+parseKeyValuePair parseKey parseValue = do
+    key <- parseKey
+    consumeEqualSep
+    value <- parseValue
+    return (key, value)
+
+parseVector parseValue = do
+    _ <- P.string "c"
+    _ <- P.char '('
     _ <- P.spaces
-    res <- P.sepBy pf consumeCommaSep
+    res <- P.sepBy parseValue consumeCommaSep
     _ <- P.spaces
-    _ <- P.string ")"
+    _ <- P.char ')'
     return res
 
 consumeEqualSep = do
@@ -137,13 +149,8 @@ parseAlgorithmString = do
             return $ AlgoSepIDW decayDef sumAlg
             where
                 parseDecayDef = do
-                    decayList <- parseVector parseDecayOneDepVar
-                    return $ DecayDefinition decayList
-                parseDecayOneDepVar = do
-                    depVarName <- P.many1 P.alphaNum
-                    consumeEqualSep
-                    decayAlgorithm <- decayAlgorithmParser
-                    return $ DecayOneDepVar depVarName decayAlgorithm
+                    decayVec <- parseNamedVector parseVarName decayAlgorithmParser
+                    return $ DecayDefinition $ map (uncurry DecayOneDepVar) decayVec
                 decayAlgorithmParser = parseLinearSum P.<|> parseLogSum
                 parseLinearSum = do
                   P.string "LinearSum"
@@ -247,8 +254,7 @@ parseTempGridString :: P.Parser [Int]
 parseTempGridString = do
     P.try parseIntegerSequence P.<|> parseYearList
     where
-        parseYearList = do
-            P.sepBy parseInteger (P.char ',' <* P.spaces) <* P.eof
+        parseYearList = parseVector parseInteger
 
 optParseSearchDepVarsPos :: OP.Parser [DepVarsPos]
 optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
@@ -266,7 +272,7 @@ readSearchDepVarsPos s =
 
 parseSearchDepVarsPos :: P.Parser [DepVarsPos]
 parseSearchDepVarsPos =
-        P.try parseSearchDepVarsPosGrid P.<|> parseSearchDepVarsPosSimpleList
+        P.try parseSearchDepVarsPosGrid P.<|> parseDepVarsPosList
     where
 
     parseSearchDepVarsPosGrid :: P.Parser [DepVarsPos]
@@ -284,20 +290,9 @@ parseSearchDepVarsPos =
         doubleSequence <- parseDoubleSequence
         return $ map (\x -> (identifier, x)) doubleSequence
 
-    parseSearchDepVarsPosSimpleList :: P.Parser [DepVarsPos]
-    parseSearchDepVarsPosSimpleList = do
-        P.sepBy parseSearchDepVarsPosSimpleListOne (P.char ',' <* P.spaces) <* P.eof
-    parseSearchDepVarsPosSimpleListOne :: P.Parser DepVarsPos
-    parseSearchDepVarsPosSimpleListOne = do
-        resList <- P.sepBy parseDepVarCoord (P.spaces *> P.char '+' <* P.spaces)
-        return $ DepVarsPos $ HM.fromList resList
-    parseDepVarCoord = do
-        identifier <- P.string "var" <> P.many1 P.alphaNum
-        P.spaces
-        _ <- P.char '='
-        P.spaces
-        number <- parseDouble
-        return (identifier, number)
+    parseDepVarsPosList = do
+        res <- parseVector $ parseNamedVector parseVarName parseDouble
+        return $ map (DepVarsPos . HM.fromList) res
 
 optParseOutFile :: OP.Parser FilePath
 optParseOutFile = OP.strOption (
