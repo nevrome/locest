@@ -15,6 +15,7 @@ import qualified Text.Parsec              as P
 import qualified Text.Parsec.Error        as P
 import           Text.Parsec.Error        (errorMessages)
 import qualified Text.Parsec.String       as P
+import Data.List (singleton, groupBy)
 
 -- config file that uses the optparse interface
 
@@ -271,28 +272,12 @@ readSearchDepVarsPos s =
         Right x  -> Right x
 
 parseSearchDepVarsPos :: P.Parser [DepVarsPos]
-parseSearchDepVarsPos =
-        P.try parseSearchDepVarsPosGrid P.<|> parseDepVarsPosList
-    where
-
-    parseSearchDepVarsPosGrid :: P.Parser [DepVarsPos]
-    parseSearchDepVarsPosGrid = do
-        listOfSequencesPerVar <- P.sepBy parseSearchDepVarsPosGridOneSequence (P.char '+' <* P.spaces) <* P.eof
-        -- create all permutations
-        let combinations = sequenceA listOfSequencesPerVar
-        return $ map (DepVarsPos . HM.fromList) combinations
-    parseSearchDepVarsPosGridOneSequence :: P.Parser [(String, Double)]
-    parseSearchDepVarsPosGridOneSequence = do
-        identifier <- P.string "var" <> P.many1 P.alphaNum
-        P.spaces
-        _ <- P.char '='
-        P.spaces
-        doubleSequence <- parseDoubleSequence
-        return $ map (\x -> (identifier, x)) doubleSequence
-
-    parseDepVarsPosList = do
-        res <- parseVector $ parseNamedVector parseVarName parseDouble
-        return $ map (DepVarsPos . HM.fromList) res
+parseSearchDepVarsPos = do
+    res <- parseNamedVector parseVarName (P.try parseDoubleSequence P.<|> (singleton <$> parseDouble))
+    let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
+        grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
+        permutations = sequenceA grouped
+    return $ map (DepVarsPos . HM.fromList) permutations
 
 optParseOutFile :: OP.Parser FilePath
 optParseOutFile = OP.strOption (
