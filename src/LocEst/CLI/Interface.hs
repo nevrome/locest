@@ -92,6 +92,63 @@ parseNumber = P.many1 P.digit
 
 -- optparse definitions
 
+optParseAlgorithmString :: OP.Parser [LocestAlgorithm]
+optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
+       OP.long    "algorithm"
+    <> OP.short   'a'
+    <> OP.metavar "..."
+    <> OP.help    "..."
+    )
+
+readAlgorithmString :: String -> Either String [LocestAlgorithm]
+readAlgorithmString s =
+    case P.runParser parseAlgorithmString () "" s of
+        Left err -> Left $ showParsecErr err
+        Right x  -> Right x
+
+parseAlgorithmString :: P.Parser [LocestAlgorithm]
+parseAlgorithmString = do
+    P.sepBy parseOneAlgorithm (P.char ',' <* P.spaces) <* P.eof
+    where
+        parseOneAlgorithm = P.try parseAlgoSepIDW
+        parseAlgoSepIDW = do
+            _ <- P.string "SepIDW:" <* P.spaces
+            decayDef <- parseDecayDef
+            _ <- P.spaces *> P.string "+" <* P.spaces
+            sumAlg <- parseSumAlg
+            return $ AlgoSepIDW decayDef sumAlg
+            where
+                parseDecayDef = do
+                    decayList <- P.many1 (parseDecayOneDepVar <* P.spaces)
+                    return $ DecayDefinition decayList
+                parseDecayOneDepVar = do
+                    depVarName <- P.many1 P.letter
+                    _ <- P.spaces
+                    decayAlgorithm <- decayAlgorithmParser
+                    return $ DecayOneDepVar depVarName decayAlgorithm
+                decayAlgorithmParser = parseLinearSum P.<|> parseLogSum
+                parseLinearSum = do
+                  _ <- P.string "LinearSum"
+                  _ <- P.spaces
+                  a <- parseDouble
+                  _ <- P.spaces
+                  b <- parseDouble
+                  return $ LinearSum a b
+                parseLogSum = do
+                  _ <- P.string "LogSum"
+                  _ <- P.spaces
+                  a <- parseDouble
+                  _ <- P.spaces
+                  b <- parseDouble
+                  return $ LogSum a b
+                parseSumAlg = parseMaximum P.<|> parseMean P.<|> parseDistanceWeightedMean
+                parseMaximum =
+                    P.string "Maximum" >> return Maximum
+                parseMean =
+                    P.string "Mean" >> return Mean
+                parseDistanceWeightedMean =
+                    P.string "DistanceWeightedMean" >> return DistanceWeightedMean
+
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (
        OP.long    "obsFile"
