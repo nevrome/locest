@@ -149,9 +149,9 @@ parseAlgorithmString = do
             return $ AlgoSepIDW decayDef sumAlg
             where
                 parseDecayDef = do
-                    decayVec <- parseNamedVector parseVarName decayAlgorithmParser
+                    decayVec <- parseNamedVector parseVarName parseDecayAlgorithm
                     return $ DecayDefinition $ map (uncurry DecayOneDepVar) decayVec
-                decayAlgorithmParser = P.try parseLinearSum P.<|> parseLogSum
+                parseDecayAlgorithm = P.try parseLinearSum P.<|> parseLogSum
                 parseLinearSum = do
                   P.string "LinearSum"
                   _ <- P.char '('
@@ -179,21 +179,34 @@ parseAlgorithmString = do
                     P.string "DistanceWeightedMean" >> return DistanceWeightedMean
         parseAlgoKernelSmooth = do
             _ <- P.string "KernSmooth("
-            spatKern <- parseKernel
-            consumeCommaSep
-            tempKern <- parseKernel
+            kernDef <- parseKernelDef
             _ <- P.char ')'
-            return $ AlgoKernSmooth spatKern tempKern
+            return $ AlgoKernSmooth kernDef
             where
-                parseKernel = P.try parseUniform
+                parseKernelDef = do
+                    kernelVec <- parseNamedVector parseVarName parseKernel
+                    return $ KernelDefinition $ map (uncurry KernelOneDepVar) kernelVec
+                parseKernel = P.try parseUniform P.<|> parseNormal
                 parseUniform = do
                   _ <- P.string "Uniform"
                   _ <- P.char '('
                   _ <- P.spaces
-                  radius <- parseDouble
+                  spat <- parseDouble
+                  consumeCommaSep
+                  temp <- parseDouble
                   _ <- P.spaces
                   _ <- P.char ')'
-                  return $ Uniform radius
+                  return $ Uniform spat temp
+                parseNormal = do
+                  _ <- P.string "Normal"
+                  _ <- P.char '('
+                  _ <- P.spaces
+                  spat <- parseDouble
+                  consumeCommaSep
+                  temp <- parseDouble
+                  _ <- P.spaces
+                  _ <- P.char ')'
+                  return $ Normal spat temp
 
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (

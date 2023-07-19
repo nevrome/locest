@@ -101,8 +101,7 @@ data LocestAlgorithm =
       , _asiDensitySummary  :: DensitySummaryAlgorithm
     } |
     AlgoKernSmooth {
-        _aksSpatKernel :: Kernel
-      , _aksTempKernel :: Kernel
+        _aksKernelDefinition :: KernelDefinition
     }
     deriving (Show, Eq, Ord, Generic)
 
@@ -111,13 +110,13 @@ instance NFData LocestAlgorithm
 instance Csv.DefaultOrdered LocestAlgorithm where
     headerOrder (AlgoSepIDW decayDef sumAlg) =
         Csv.header ["decayDef"] <> Csv.header ["sumAlg"]
-    headerOrder (AlgoKernSmooth spatKern tempKern) =
-        Csv.header ["spatKern"] <> Csv.header ["tempKern"]
+    headerOrder (AlgoKernSmooth kernDef) =
+        Csv.header ["kernDef"]
 instance Csv.ToRecord LocestAlgorithm where
     toRecord (AlgoSepIDW decayDef sumAlg) =
         Csv.record [Csv.toField (show decayDef)] <> Csv.record [Csv.toField (show sumAlg)]
-    toRecord (AlgoKernSmooth spatKern tempKern) =
-        Csv.record [Csv.toField (show spatKern)] <> Csv.record [Csv.toField (show tempKern)]
+    toRecord (AlgoKernSmooth kernDef) =
+        Csv.record [Csv.toField (show kernDef)]
 
 data DensitySummaryAlgorithm =
       Maximum
@@ -149,8 +148,22 @@ data DecayAlgorithm =
 
 instance NFData DecayAlgorithm
 
+newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
+    deriving (Show, Eq, Ord, Generic)
+
+instance NFData KernelDefinition
+
+data KernelOneDepVar = KernelOneDepVar {
+      _kodvDepVarName :: DepVarName
+    , _kodvKernel     :: Kernel
+    }
+    deriving (Show, Eq, Ord, Generic)
+
+instance NFData KernelOneDepVar
+
 data Kernel =
-    Uniform { _kernelUniformRadius :: Double }
+      Uniform Double Double
+    | Normal Double Double
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
