@@ -58,37 +58,34 @@ propAtSpatTempDepVarsPos
         (AlgoKernSmooth kernelDefinition)
     ) = do
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-        -- prepare distances
     spatDists <- findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
     let spatDistsKM = map (/ 1000) spatDists
         tempDists   = findTempDistsObsGrid observations gridSpatTempPos
-        -- filter obs by distance: makes it a lot faster, but has bad side effects
-    filteredByDists <- filterByDists 2000 2000 $ zip3 spatDistsKM tempDists observations
-    let filteredObs = map (\(_,_,x) -> x) filteredByDists
-        filteredSpatDists = map (\(x,_,_) -> x) filteredByDists
-        filteredTempDists = map (\(_,x,_) -> x) filteredByDists
-        -- determine mean, sd, and the resulting probability density
-        --obsWeights = map (determineWeight spatKern) spatDistsKM
-        depVarMeas = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredObs
-        depVarMeans = map avg $ transpose depVarMeas
-        depVarSDs = map sd $ transpose depVarMeas
-        density   = dnormMulti depVarMeans depVarSDs searchDepVarsCoords 
+        obsWeights  = transpose $ zipWith (determineWeights kernelDefinition) spatDistsKM tempDists
+        depVarMeas  = transpose $ map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) observations
+        depVarMeans = zipWith weightedAvg depVarMeas obsWeights
+        depVarSEs   = zipWith weightedStandardError depVarMeas obsWeights
+        density     = dnormMulti depVarMeans depVarSEs searchDepVarsCoords 
     return $ SpatTempProb {
            _stprSpatTempDepVarsPosWithAlgos = searchSetting
          , _stprprobability = density
          }
     where
-        determineWeight :: Kernel -> Double -> Double -> Double
-        determineWeight kernel spatDist tempDist =
-            case kernel of
-                Uniform spatRadius tempRadius -> 
-                    let spatWeight = if spatDist <= spatRadius then 1 else 0
-                        tempWeight = if tempDist <= tempRadius then 1 else 0
-                    in spatWeight * tempWeight
-                Normal spatSigma tempSigma    ->
-                    let spatWeight = dnorm 0 spatSigma spatDist
-                        tempWeight = dnorm 0 tempSigma tempDist
-                    in spatWeight * tempWeight
+        determineWeights :: KernelDefinition -> Double -> Double -> [Double]
+        determineWeights (KernelDefinition kernelsPerDepVar) spatDist tempDist =
+            map (\(KernelOneDepVar _ k) -> determineWeight k) kernelsPerDepVar 
+            where
+                determineWeight :: Kernel -> Double
+                determineWeight kernel =
+                    case kernel of
+                        Uniform spatRadius tempRadius -> 
+                            let spatWeight = if spatDist <= spatRadius then 1 else 0
+                                tempWeight = if tempDist <= tempRadius then 1 else 0
+                            in spatWeight * tempWeight
+                        Normal spatSigma tempSigma    ->
+                            let spatWeight = dnorm 0 spatSigma spatDist
+                                tempWeight = dnorm 0 tempSigma tempDist
+                            in spatWeight * tempWeight
 
 
 filterByDists :: Double -> Double ->

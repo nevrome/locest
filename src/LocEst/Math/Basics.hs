@@ -27,6 +27,15 @@ dnorm mu sigma x =
         sigma2 = sigma * sigma
     in a*b
 
+-- this function is probably wrong.
+weightedStandardError :: [Double] -> [Double] -> Double
+weightedStandardError values weights =
+    sqrt $ sum weightedVariances / totalWeight
+    where
+        totalWeight = sum weights
+        weightedVariances = zipWith (\x w -> (w / totalWeight) * (x - weightedMean) ^ 2) values weights
+        weightedMean = sum (zipWith (*) values weights) / totalWeight
+
 weightedAvg :: [Double] -> [Double] -> Double
 weightedAvg weights values =
     let sumWeightedVals = foldl' (\o (w,v) -> o + w * v) 0 $ zip weights values
