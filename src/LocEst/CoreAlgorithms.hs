@@ -26,16 +26,18 @@ propAtSpatTempDepVarsPos
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         (AlgoSepIDW decayDefinition densitySummaryAlgorithm)
     ) = do
+    -- determine general per-obs statistics
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-        -- prepare distances
     spatDists <- findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
     let spatDistsKM = map (/ 1000) spatDists
         tempDists   = findTempDistsObsGrid observations gridSpatTempPos
-        -- filter obs by distance: makes it a lot faster, but has bad side effects
-    filteredByDists <- filterByDists 2000 2000 $ zip3 spatDistsKM tempDists observations
-    let filteredObs = map (\(_,_,x) -> x) filteredByDists
-        filteredSpatDists = map (\(x,_,_) -> x) filteredByDists
-        filteredTempDists = map (\(_,x,_) -> x) filteredByDists
+        obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
+    -- filter by dist (for performance)
+    --filteredObsWithDists <- filterByDists 2000 2000 obsWithDist
+    -- algorithm (to be refactored)
+    let filteredObs = map (\(ObsWithDist x _) -> x) obsWithDist
+        filteredSpatDists = map (\(ObsWithDist _ (SpatTempDist x _)) -> x) obsWithDist
+        filteredTempDists = map (\(ObsWithDist _ (SpatTempDist _ x)) -> x) obsWithDist
         -- determine mean, sd, and resulting probability densities
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredObs
         depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) filteredSpatDists filteredTempDists
@@ -63,6 +65,8 @@ propAtSpatTempDepVarsPos
     let spatDistsKM = map (/ 1000) spatDists
         tempDists   = findTempDistsObsGrid observations gridSpatTempPos
         obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
+    -- filter by dist (for performance)
+    --filteredObsWithDists <- filterByDists 2000 2000 obsWithDist
     -- summarize obs information for each depVar
     (means, errs) <- unzip <$> mapM (perDepVar obsWithDist) depVarsOrdered
     -- summarize per-depVar info into a single value
@@ -112,10 +116,10 @@ addDistsToObs :: Observation -> Double -> Double -> ObsWithDist
 addDistsToObs obs spatDist tempDist = ObsWithDist obs (SpatTempDist spatDist tempDist)
 
 filterByDists :: Double -> Double ->
-                 [(Double, Double, Observation)] ->
-                 Either LOCESTException [(Double, Double, Observation)]
+                 [ObsWithDist] ->
+                 Either LOCESTException [ObsWithDist]
 filterByDists fs ft xs = do
-    let res = filter (\(ds,dt,_) -> ds <= fs && dt <= ft) xs
+    let res = filter (\(ObsWithDist obs (SpatTempDist ds dt)) -> ds <= fs && dt <= ft) xs
     if length res < 3
     then Left $ NormalException "Less than 3 individuals in subset."
     else Right res
