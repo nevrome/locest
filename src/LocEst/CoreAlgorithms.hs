@@ -57,26 +57,41 @@ propAtSpatTempDepVarsPos
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         (AlgoKernSmooth kernelDefinition)
     ) = do
+    -- determine general per-obs statistics
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
     spatDists <- findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
     let spatDistsKM = map (/ 1000) spatDists
         tempDists   = findTempDistsObsGrid observations gridSpatTempPos
-        obsWeights  = transpose $ zipWith (determineWeights kernelDefinition) spatDistsKM tempDists
-        depVarMeas  = transpose $ map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) observations
-        depVarMeans = zipWith weightedAvg depVarMeas obsWeights
-        depVarSEs   = zipWith weightedStandardError depVarMeas obsWeights
-        density     = dnormMulti depVarMeans depVarSEs searchDepVarsCoords 
+        obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
+    -- summarize obs information for each depVar
+    (means, errs) <- unzip <$> mapM (perDepVar obsWithDist) depVarsOrdered
+    -- summarize per-depVar info into a single value
+    let density = dnormMulti means errs searchDepVarsCoords
     return $ SpatTempProb {
            _stprSpatTempDepVarsPosWithAlgos = searchSetting
          , _stprprobability = density
          }
     where
-        determineWeights :: KernelDefinition -> Double -> Double -> [Double]
-        determineWeights (KernelDefinition kernelsPerDepVar) spatDist tempDist =
-            map (\(KernelOneDepVar _ k) -> determineWeight k) kernelsPerDepVar 
+        perDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
+        perDepVar obsWithDist depVar = do
+            obsWeights <- mapM (determineWeight kernelDefinition depVar) obsWithDist
+            obsMeas <- mapM (getOneDepVarsPos depVar) obsWithDist
+            let mean = weightedAvg obsMeas obsWeights
+                err  = weightedStandardError obsMeas obsWeights
+            return (mean, err)
+        determineWeight :: KernelDefinition -> DepVarName -> ObsWithDist -> Either LOCESTException Double
+        determineWeight
+            (KernelDefinition kernelsPerDepVar)
+            depVar
+            (ObsWithDist _ (SpatTempDist spatDist tempDist))
+             = do
+                case filter (\(KernelOneDepVar n _) -> n == depVar) kernelsPerDepVar of
+                    []  -> Left  $ NormalException "not in"
+                    [k] -> Right $ forOneKernel $ _kodvKernel k
+                    ks  -> Left  $ NormalException "in more than once"
             where
-                determineWeight :: Kernel -> Double
-                determineWeight kernel =
+                forOneKernel :: Kernel -> Double
+                forOneKernel kernel =
                     case kernel of
                         Uniform spatRadius tempRadius -> 
                             let spatWeight = if spatDist <= spatRadius then 1 else 0
@@ -87,6 +102,14 @@ propAtSpatTempDepVarsPos
                                 tempWeight = dnorm 0 tempSigma tempDist
                             in spatWeight * tempWeight
 
+getOneDepVarsPos :: DepVarName -> ObsWithDist -> Either LOCESTException Double
+getOneDepVarsPos depVar (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
+    case HM.lookup depVar m of
+        Nothing -> Left $ NormalException "Unknown variable"
+        Just x -> Right x
+
+addDistsToObs :: Observation -> Double -> Double -> ObsWithDist
+addDistsToObs obs spatDist tempDist = ObsWithDist obs (SpatTempDist spatDist tempDist)
 
 filterByDists :: Double -> Double ->
                  [(Double, Double, Observation)] ->

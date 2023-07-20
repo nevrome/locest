@@ -168,6 +168,11 @@ data Kernel =
 
 instance NFData Kernel
 
+data ObsWithDist = ObsWithDist {
+      _owdObservation  :: Observation
+    , _owdSpatTempDist :: SpatTempDist
+}
+
 -- | A datatype for observations with id and position
 data Observation = Observation {
       _obsID  :: String
