@@ -11,10 +11,11 @@ import           Data.ByteString       (StrictByteString)
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (sort, sortBy)
+import           Data.List             (sort, sortBy, nub)
 import           Data.Ord              (comparing)
 import qualified Data.Vector           as V
 import           GHC.Generics          (Generic)
+import LocEst.Utils (LOCESTException (..))
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -22,6 +23,55 @@ filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 
 filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
 filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
+
+--
+
+data PermutationTree = PTLeaf PositionEntity | PTFork PositionEntity [PermutationTree] | PTRoot [PermutationTree]
+
+-- addToTree :: PermutationTree -> [PositionEntity] -> PermutationTree
+-- addToTree t                   [] = t
+-- addToTree PRTNil              xs = PRTRoot (map (\x -> PRTNode x []) xs)
+-- addToTree (PRTNode entity []) xs = PRTNode entity (map (\x -> PRTNode x []) xs)
+-- addToTree (PRTNode entity ts) xs = PRTNode entity (map (\t -> addToTree t xs) ts)
+
+addToTree :: [PositionEntity] -> PermutationTree -> PermutationTree
+addToTree [] t = t
+addToTree xs (PTLeaf v) = PTFork v (map PTLeaf xs)
+addToTree xs (PTRoot []) = PTRoot (map PTLeaf xs)
+addToTree xs (PTRoot ts) = PTRoot (map (\t -> addToTree xs t) ts)
+addToTree xs (PTFork v ts) = PTFork v (map (\t -> addToTree xs t) ts)
+
+harvestRipeTree :: PermutationTree -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
+harvestRipeTree = harvestFlattenedTree . flattenTree
+
+flattenTree :: PermutationTree -> [[PositionEntity]]
+flattenTree (PTRoot ts) = concatMap flattenTree ts
+flattenTree (PTFork v ts) = map (v:) (concatMap flattenTree ts) 
+flattenTree (PTLeaf v) = [[v]]
+
+harvestFlattenedTree :: [[PositionEntity]] -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
+harvestFlattenedTree = mapM pluckOne
+    where
+        pluckOne :: [PositionEntity] -> Either LOCESTException SpatTempDepVarsPosWithAlgorithms
+        pluckOne xs = do
+            spatPos    <- exactlyOnce [ v | PESpatPos v <- xs]
+            tempPos    <- exactlyOnce [ v | PETempPos v <- xs]
+            depVarsPos <- exactlyOnce [ v | PEDepVarsPos v <- xs]
+            algorithm  <- exactlyOnce [ v | PEAlgorithm v <- xs]
+            return $ SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos spatPos (SimpleYearBCAD tempPos)) depVarsPos) algorithm
+            where
+                exactlyOnce :: Eq a => [a] -> Either LOCESTException a
+                exactlyOnce xs =
+                    if length (nub xs) == 1
+                    then Right $ head xs
+                    else Left $ NormalException "Permutation tree inconsistent"
+
+data PositionEntity =
+      PESpatPos SpatPos
+    | PETempPos Int
+    | PEDepVarsPos DepVarsPos
+    | PEAlgorithm LocestAlgorithm
+    deriving (Eq)
 
 -- a typeclass for things with ids
 class Identifiable a where
@@ -221,7 +271,7 @@ instance Csv.ToRecord SpatTempDepVarsPos where
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }
-    deriving (Show, Generic)
+    deriving (Eq, Show, Generic)
 
 instance NFData DepVarsPos
 instance Csv.FromNamedRecord DepVarsPos where
@@ -286,7 +336,7 @@ type YearRange = Word
 
 -- | A datatype for spatial positions
 data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
-    deriving (Show, Generic)
+    deriving (Eq, Show, Generic)
 
 instance NFData SpatPos
 instance Csv.FromNamedRecord SpatPos where
@@ -304,7 +354,7 @@ instance Identifiable SpatPos where
 
 -- | A datatype for projected coordinates
 data CartesianPos = CartesianPos (Maybe String) Double Double
-    deriving (Show, Generic)
+    deriving (Eq, Show, Generic)
 
 instance NFData CartesianPos
 instance Csv.FromNamedRecord CartesianPos where
@@ -320,7 +370,7 @@ instance Identifiable CartesianPos where
 
 -- | A datatype for Long-Lat coordinates
 data LongLatPos = LongLatPos (Maybe String) Longitude Latitude
-    deriving (Show, Generic)
+    deriving (Eq, Show, Generic)
 
 instance NFData LongLatPos
 instance Csv.FromNamedRecord LongLatPos where
@@ -336,7 +386,7 @@ instance Identifiable LongLatPos where
 
 -- | A datatype for Longitudes
 newtype Longitude = Longitude Double
-    deriving (Show, Generic)
+    deriving (Eq, Show, Generic)
 
 makeLongitude :: MonadFail m => Double -> m Longitude
 makeLongitude x
@@ -351,7 +401,7 @@ instance Csv.FromField Longitude where
 
 -- | A datatype for Latitudes
 newtype Latitude = Latitude Double
-    deriving (Show, Generic)
+    deriving (Eq, Show, Generic)
 
 makeLatitude :: MonadFail m => Double -> m Latitude
 makeLatitude x

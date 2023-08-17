@@ -15,12 +15,13 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import           Data.Either                   (isLeft, isRight)
+import           Data.Either                   (isLeft, isRight, fromRight)
 import qualified Data.HashMap.Strict           as HM
 import           Data.List                     (sort)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
 import Data.ByteString (hPut)
+import Data.Function ((&))
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
@@ -64,36 +65,48 @@ runSearch (
         show (length inTempGrid) ++ " time slices"
         ++ " * " ++
         show (length searchDepVarPos) ++ " dependent variable positions"
-    -- run analysis pipeline
-    Con.runConduitRes $
-        -- begin to stream spatial prediction grid positions
-           ConL.sourceList inSpatGrid
-        -- multiply spatial input grid by temporal grid
-        .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
-        -- multiply spatpos input grid by dependent vars positions
-        .| ConL.concatMap (multiplySpatPosByDepVarsPos searchDepVarPos)
-        -- multiply multidimensional positions by algorithms (currently only one in input)
-        .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms [algorithm])
-        -- main search algorithm
-        -- 1. sequential
-        -- .| ConL.map coreSearch
-        -- 2. normal parallel
-        .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations inSpatDists)
-        -- 3. chunked parallel
-        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
-        -- print progress information
-        .| progress
-        -- split stream to report the error cases and write the good results to the file system
-        .| Con.getZipSink (
-                Con.ZipSink (
-                       ConC.filter isLeft
-                    .| ConL.mapM_ (\(Left errMsg) -> liftIO $ hPutStrLn stderr (renderLOCESTException errMsg ++ "\n"))
-                ) *>
-                Con.ZipSink (
-                       ConL.mapMaybe rightToJust
-                    .| sinkNamedCSV outFile
-                )
-           )
+    
+    let permutations = PTRoot [] &
+            addToTree (map PEAlgorithm [algorithm]) & -- can be ordered arbitrarily
+            addToTree (map PEDepVarsPos searchDepVarPos) &
+            addToTree (map PETempPos inTempGrid) &
+            addToTree (map PESpatPos inSpatGrid) &
+            harvestRipeTree
+
+    case permutations of
+        Left e -> throw e
+        Right perms -> 
+            -- run analysis pipeline
+            Con.runConduitRes $
+                -- begin to stream spatial prediction grid positions
+                --   ConL.sourceList inSpatGrid
+                -- multiply spatial input grid by temporal grid
+                -- .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
+                -- multiply spatpos input grid by dependent vars positions
+                -- .| ConL.concatMap (multiplySpatPosByDepVarsPos searchDepVarPos)
+                -- multiply multidimensional positions by algorithms (currently only one in input)
+                -- .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms [algorithm])
+                ConL.sourceList perms
+                -- main search algorithm
+                -- 1. sequential
+                -- .| ConL.map coreSearch
+                -- 2. normal parallel
+                .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations inSpatDists)
+                -- 3. chunked parallel
+                -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
+                -- print progress information
+                .| progress
+                -- split stream to report the error cases and write the good results to the file system
+                .| Con.getZipSink (
+                        Con.ZipSink (
+                               ConC.filter isLeft
+                            .| ConL.mapM_ (\(Left errMsg) -> liftIO $ hPutStrLn stderr (renderLOCESTException errMsg ++ "\n"))
+                        ) *>
+                        Con.ZipSink (
+                               ConL.mapMaybe rightToJust
+                            .| sinkNamedCSV outFile
+                        )
+                   )
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
