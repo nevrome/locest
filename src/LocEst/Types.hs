@@ -7,15 +7,13 @@ module LocEst.Types where
 
 import           Control.Applicative   (empty, (<|>))
 import           Control.DeepSeq
-import           Data.ByteString       (StrictByteString)
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (sort, sortBy, nub)
-import           Data.Ord              (comparing)
+import           Data.List             (nub, sort, sortBy)
 import qualified Data.Vector           as V
 import           GHC.Generics          (Generic)
-import LocEst.Utils (LOCESTException (..))
+import           LocEst.Utils          (LOCESTException (..))
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -28,19 +26,19 @@ filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup na
 data PermutationTree = PTLeaf PositionEntity | PTFork PositionEntity [PermutationTree] | PTRoot [PermutationTree]
 
 addPermutation :: [PositionEntity] -> PermutationTree -> PermutationTree
-addPermutation [] t = t
-addPermutation xs (PTLeaf v) = PTFork v (map PTLeaf xs)
-addPermutation xs (PTRoot []) = PTRoot (map PTLeaf xs)
-addPermutation xs (PTRoot ts) = PTRoot (map (\t -> addPermutation xs t) ts)
+addPermutation [] t             = t
+addPermutation xs (PTLeaf v)    = PTFork v (map PTLeaf xs)
+addPermutation xs (PTRoot [])   = PTRoot (map PTLeaf xs)
+addPermutation xs (PTRoot ts)   = PTRoot (map (\t -> addPermutation xs t) ts)
 addPermutation xs (PTFork v ts) = PTFork v (map (\t -> addPermutation xs t) ts)
 
 harvest :: PermutationTree -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
 harvest = harvestFlattened . flattenTree
     where
         flattenTree :: PermutationTree -> [[PositionEntity]]
-        flattenTree (PTRoot ts) = concatMap flattenTree ts
-        flattenTree (PTFork v ts) = map (v:) (concatMap flattenTree ts) 
-        flattenTree (PTLeaf v) = [[v]]
+        flattenTree (PTRoot ts)   = concatMap flattenTree ts
+        flattenTree (PTFork v ts) = map (v:) (concatMap flattenTree ts)
+        flattenTree (PTLeaf v)    = [[v]]
         harvestFlattened :: [[PositionEntity]] -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
         harvestFlattened = mapM pluckOne
             where
@@ -56,9 +54,9 @@ harvest = harvestFlattened . flattenTree
                             algorithm
                     where
                         exactlyOnce :: Eq a => [a] -> Either LOCESTException a
-                        exactlyOnce xs =
-                            if length (nub xs) == 1
-                            then Right $ head xs
+                        exactlyOnce es =
+                            if length (nub es) == 1
+                            then Right $ head es
                             else Left $ NormalException "Permutation tree inconsistent"
 
 data PositionEntity =
@@ -101,7 +99,7 @@ data CrossvalOutput = CrossvalOutput {
 instance NFData CrossvalOutput
 -- these instances are a quick hack - should actually be defined down to the algo types:
 instance Csv.DefaultOrdered CrossvalOutput where
-    headerOrder (CrossvalOutput algo sumProb) =
+    headerOrder (CrossvalOutput algo _) =
         Csv.headerOrder algo <> Csv.header ["probability"]
 instance Csv.ToRecord CrossvalOutput where
     toRecord (CrossvalOutput algo sumProb) =
@@ -119,7 +117,7 @@ data SpatTempProb = SpatTempProb {
 
 instance NFData SpatTempProb
 instance Csv.DefaultOrdered SpatTempProb where
-    headerOrder (SpatTempProb spatTempDepVarsPos prob) =
+    headerOrder (SpatTempProb spatTempDepVarsPos _) =
         Csv.headerOrder spatTempDepVarsPos <> Csv.header ["probability"]
 instance Csv.ToRecord SpatTempProb where
     toRecord (SpatTempProb spatTempDepVarsPos prob) =
@@ -127,8 +125,8 @@ instance Csv.ToRecord SpatTempProb where
 
 -- | A datatype that then also includes algorithms for a given point
 data SpatTempDepVarsPosWithAlgorithms = SpatTempDepVarsPosWithAlgorithms {
-      _powialgPosition   :: SpatTempDepVarsPos
-    , _powialgAlgorithm  :: LocestAlgorithm
+      _powialgPosition  :: SpatTempDepVarsPos
+    , _powialgAlgorithm :: LocestAlgorithm
 } deriving (Show, Generic)
 
 instance NFData SpatTempDepVarsPosWithAlgorithms
@@ -153,9 +151,9 @@ data LocestAlgorithm =
 instance NFData LocestAlgorithm
 -- these instances are just placeholders
 instance Csv.DefaultOrdered LocestAlgorithm where
-    headerOrder (AlgoSepIDW decayDef sumAlg) =
+    headerOrder (AlgoSepIDW _ _) =
         Csv.header ["decayDef"] <> Csv.header ["sumAlg"]
-    headerOrder (AlgoKernSmooth kernDef) =
+    headerOrder (AlgoKernSmooth _) =
         Csv.header ["kernDef"]
 instance Csv.ToRecord LocestAlgorithm where
     toRecord (AlgoSepIDW decayDef sumAlg) =
@@ -234,7 +232,7 @@ instance Csv.FromNamedRecord Observation where
             , _obsPos = position
             }
 instance Csv.DefaultOrdered Observation where
-    headerOrder (Observation identifier position) =
+    headerOrder (Observation _ position) =
         Csv.header ["obsID"] <> Csv.headerOrder position
 instance Csv.ToRecord Observation where
     toRecord (Observation identifier position) =
@@ -321,7 +319,7 @@ data TempPos =
 
 instance NFData TempPos
 instance Csv.DefaultOrdered TempPos where
-    headerOrder (SimpleYearBCAD x) = Csv.header ["age"]
+    headerOrder (SimpleYearBCAD _) = Csv.header ["age"]
 instance Csv.ToField TempPos where
     toField (SimpleYearBCAD x) = Csv.toField x
 

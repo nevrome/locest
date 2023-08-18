@@ -7,18 +7,14 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import qualified Data.HashMap.Strict            as HM
-import           Data.Maybe                     (catMaybes, isNothing)
-import Data.List (transpose)
 
-coreSearch = propAtSpatTempDepVarsPos
-
-propAtSpatTempDepVarsPos ::
+coreSearch ::
        [String]
     -> [Observation]
     -> Maybe SpatDistMap
     -> SpatTempDepVarsPosWithAlgorithms
     -> Either LOCESTException SpatTempProb
-propAtSpatTempDepVarsPos
+coreSearch
     depVarsOrdered
     observations
     maybeSpatDistMap
@@ -41,7 +37,7 @@ propAtSpatTempDepVarsPos
         -- determine mean, sd, and resulting probability densities
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredObs
         depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) filteredSpatDists filteredTempDists
-        densities   = zipWith (\mean sd -> dnormMulti mean sd searchDepVarsCoords) depVarMeans depVarSDs
+        densities   = zipWith (\mean std -> dnormMulti mean std searchDepVarsCoords) depVarMeans depVarSDs
         -- summarise densities
         meanDens    = case densitySummaryAlgorithm of
             Maximum -> maximum densities
@@ -51,7 +47,7 @@ propAtSpatTempDepVarsPos
            _stprSpatTempDepVarsPosWithAlgos = searchSetting
          , _stprprobability = meanDens
          }
-propAtSpatTempDepVarsPos
+coreSearch
     depVarsOrdered
     observations
     maybeSpatDistMap
@@ -92,12 +88,12 @@ propAtSpatTempDepVarsPos
                 case filter (\(KernelOneDepVar n _) -> n == depVar) kernelsPerDepVar of
                     []  -> Left  $ NormalException "not in"
                     [k] -> Right $ forOneKernel $ _kodvKernel k
-                    ks  -> Left  $ NormalException "in more than once"
+                    _   -> Left  $ NormalException "in more than once"
             where
                 forOneKernel :: Kernel -> Double
                 forOneKernel kernel =
                     case kernel of
-                        Uniform spatRadius tempRadius -> 
+                        Uniform spatRadius tempRadius ->
                             let spatWeight = if spatDist <= spatRadius then 1 else 0
                                 tempWeight = if tempDist <= tempRadius then 1 else 0
                             in spatWeight * tempWeight
@@ -110,7 +106,7 @@ getOneDepVarsPos :: DepVarName -> ObsWithDist -> Either LOCESTException Double
 getOneDepVarsPos depVar (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
     case HM.lookup depVar m of
         Nothing -> Left $ NormalException "Unknown variable"
-        Just x -> Right x
+        Just x  -> Right x
 
 addDistsToObs :: Observation -> Double -> Double -> ObsWithDist
 addDistsToObs obs spatDist tempDist = ObsWithDist obs (SpatTempDist spatDist tempDist)
@@ -119,13 +115,13 @@ filterByDists :: Double -> Double ->
                  [ObsWithDist] ->
                  Either LOCESTException [ObsWithDist]
 filterByDists fs ft xs = do
-    let res = filter (\(ObsWithDist obs (SpatTempDist ds dt)) -> ds <= fs && dt <= ft) xs
+    let res = filter (\(ObsWithDist _ (SpatTempDist ds dt)) -> ds <= fs && dt <= ft) xs
     if length res < 3
     then Left $ NormalException "Less than 3 individuals in subset."
     else Right res
 
 findTempDistsObsGrid :: [Observation] -> SpatTempPos -> [Double]
-findTempDistsObsGrid observations gridSpatTempPos = 
+findTempDistsObsGrid observations gridSpatTempPos =
     map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
 
 findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMap -> SpatTempPos -> Either LOCESTException [Double]
@@ -151,9 +147,13 @@ calcWeight ds dt =
     in 1 / sqrt ((dsSafe ** 2) + (dtSafe ** 2))
 
 -- algorithm options - must be transformed to a proper input when it has stabilized
+myAlgos :: [LocestAlgorithm]
 myAlgos = [myAlgo]
+myAlgo :: LocestAlgorithm
 myAlgo = AlgoSepIDW myDecay mySummary
+mySummary :: DensitySummaryAlgorithm
 mySummary = DistanceWeightedMean
+myDecay :: DecayDefinition
 myDecay = DecayDefinition [
       DecayOneDepVar "varC1" (LinearSum 0.00001 0.00001)
     , DecayOneDepVar "varC2" (LinearSum 0.00001 0.00001)

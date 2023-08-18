@@ -7,7 +7,7 @@ import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
 
-import           Conduit                       (liftIO)
+import           Conduit                       (MonadIO, liftIO)
 import           Control.Exception             (throw)
 import qualified Control.Monad                 as OP
 import           Data.Conduit                  ((.|))
@@ -15,13 +15,12 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import           Data.Either                   (isLeft, isRight, fromRight)
+import           Data.Either                   (isLeft)
+import           Data.Function                 ((&))
 import qualified Data.HashMap.Strict           as HM
 import           Data.List                     (sort)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
-import Data.ByteString (hPut)
-import Data.Function ((&))
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
@@ -66,7 +65,7 @@ runSearch (
         show (length inTempGrid) ++ " time slices"
         ++ " * " ++
         show (length searchDepVarPos) ++ " dependent variable positions"
-    hPutStrLn stderr $ "Building permutation tree"
+    hPutStrLn stderr "Building permutation tree"
     let permutations =
             PTRoot [] &
             addPermutation (map PEAlgorithm [algorithm]) & -- can be ordered arbitrarily
@@ -74,10 +73,11 @@ runSearch (
             addPermutation (map PETempPos inTempGrid) &
             addPermutation (map PESpatPos inSpatGrid) &
             harvest
-    hPutStrLn stderr $ "Done"
+    hPutStrLn stderr "Done"
     case permutations of
         Left e -> throw e
-        Right perms -> 
+        Right perms -> do
+            hPutStrLn stderr "Running analysis"
             -- run analysis pipeline
             Con.runConduitRes $
                 ConL.sourceList perms
@@ -94,14 +94,19 @@ runSearch (
                 .| Con.getZipSink (
                         Con.ZipSink (
                                ConC.filter isLeft
-                            .| ConL.mapM_ (\(Left errMsg) -> liftIO $ hPutStrLn stderr (renderLOCESTException errMsg ++ "\n"))
+                            .| ConL.mapM_ printError
                         ) *>
                         Con.ZipSink (
                                ConL.mapMaybe rightToJust
                             .| sinkNamedCSV outFile
                         )
                    )
+            hPutStrLn stderr "Done"
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
+
+printError :: MonadIO m => Either LOCESTException SpatTempProb -> m ()
+printError (Left errMsg) = liftIO $ hPutStrLn stderr (renderLOCESTException errMsg ++ "\n")
+printError (Right _) = error "this should never happen"

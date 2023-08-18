@@ -5,9 +5,9 @@ module LocEst.Parsers where
 import           LocEst.Types
 
 import           Conduit                   (MonadIO, MonadResource, liftIO)
+import           Control.Exception         (throwIO)
 import           Control.Monad             (when)
 import           Control.Monad.Error.Class
-import qualified Data.ByteString           as B
 import qualified Data.ByteString.Builder   as BB
 import qualified Data.ByteString.Char8     as Bchs
 import           Data.Char                 (ord)
@@ -19,10 +19,9 @@ import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
+import           LocEst.Utils              (LOCESTException (NormalException))
 import           System.IO                 (Handle, IOMode (..), hClose,
-                                            hPutStrLn, openFile, stderr, hPutStr)
-import Control.Exception (throwIO)
-import LocEst.Utils (LOCESTException(NormalException))
+                                            hPutStrLn, openFile, stderr)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -57,9 +56,9 @@ readCSVToList path = do
         unwrapCSVParsingErrors :: (Show b, Show c) => Either (Either b c) a -> IO a
         unwrapCSVParsingErrors parseRes =
             case parseRes of
-                Left e -> 
+                Left e ->
                     case e of
-                        Left e1 -> liftIO $ throwIO $ NormalException $ show e1
+                        Left e1  -> liftIO $ throwIO $ NormalException $ show e1
                         Right e2 -> liftIO $ throwIO $ NormalException $ show e2
                 Right res -> return res
 

@@ -61,7 +61,7 @@ main = do
           | otherwise                  = x : removeConfigFileArg xs
           where
             dropNextElement []       = []
-            dropNextElement [x]      = []
+            dropNextElement [_]      = []
             dropNextElement (_ : ys) = removeConfigFileArg ys
         -- exception handler
         handler :: LOCESTException -> IO ()

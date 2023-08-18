@@ -9,13 +9,11 @@ import           LocEst.Types
 import           Data.Char                (isSpace)
 import           Data.Function            ((&))
 import qualified Data.HashMap.Strict      as HM
+import           Data.List                (groupBy, singleton)
 import qualified Options.Applicative      as OP
-import           System.IO                (hPutStrLn, stderr)
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.Error        as P
-import           Text.Parsec.Error        (errorMessages)
 import qualified Text.Parsec.String       as P
-import Data.List (singleton, groupBy)
 
 -- config file that uses the optparse interface
 
@@ -45,17 +43,21 @@ parseConfigFile configFile = do
 
 -- general parsers
 
+parseVarName :: P.Parser String
 parseVarName = P.string "var" <> P.many1 P.alphaNum
 
+parseNamedVector :: P.Parser a -> P.Parser b -> P.Parser [(a,b)]
 parseNamedVector parseKey parseValue =
     parseVector $ parseKeyValuePair parseKey parseValue
 
+parseKeyValuePair :: P.Parser a -> P.Parser b -> P.Parser (a,b)
 parseKeyValuePair parseKey parseValue = do
     key <- parseKey
     consumeEqualSep
     value <- parseValue
     return (key, value)
 
+parseVector :: P.Parser a -> P.Parser [a]
 parseVector parseValue = do
     _ <- P.string "c"
     _ <- P.char '('
@@ -65,13 +67,16 @@ parseVector parseValue = do
     _ <- P.char ')'
     return res
 
+consumeEqualSep :: P.Parser ()
 consumeEqualSep = do
     _ <- P.spaces *> P.char '=' <* P.spaces
     return ()
+consumeCommaSep :: P.Parser ()
 consumeCommaSep = do
     _ <- P.spaces *> P.char ',' <* P.spaces
     return ()
 
+parseDoubleSequence :: P.Parser [Double]
 parseDoubleSequence = do
     start <- parseDouble
     _ <- P.oneOf ":"
@@ -80,25 +85,30 @@ parseDoubleSequence = do
     by <- parsePositiveFloatNumber
     return [start,(start+by)..stop]
 
+parseDouble :: P.Parser Double
 parseDouble = do
     P.try parseNegativeFloatNumber P.<|> parsePositiveFloatNumber
 
+parseNegativeFloatNumber :: P.Parser Double
 parseNegativeFloatNumber = do
     _ <- P.oneOf "-"
     i <- parsePositiveFloatNumber
     return (-i)
 
+parseFraction :: P.Parser Double
 parseFraction = do
     num <- parsePositiveFloatNumber
     if num > 1
     then fail "must be between zero and one"
     else return num
 
+parsePositiveFloatNumber :: P.Parser Double
 parsePositiveFloatNumber = do
     num <- parseNumber
     optionalMore <- P.option "" $ (:) <$> P.char '.' <*> parseNumber
     return $ read $ num ++ optionalMore
 
+parseIntegerSequence :: P.Parser [Int]
 parseIntegerSequence = do
     start <- parseInteger
     _ <- P.oneOf ":"
@@ -107,17 +117,21 @@ parseIntegerSequence = do
     by <- parsePositiveInteger
     return [start,(start+by)..stop]
 
+parseInteger :: P.Parser Int
 parseInteger = do
     P.try parseNegativeInteger P.<|> parsePositiveInteger
 
+parseNegativeInteger :: P.Parser Int
 parseNegativeInteger = do
     _ <- P.oneOf "-"
     i <- parsePositiveInteger
     return (-i)
 
+parsePositiveInteger :: P.Parser Int
 parsePositiveInteger = do
     read <$> parseNumber
 
+parseNumber :: P.Parser [Char]
 parseNumber = P.many1 P.digit
 
 -- optparse definitions
@@ -153,7 +167,7 @@ parseAlgorithmString = do
                     return $ DecayDefinition $ map (uncurry DecayOneDepVar) decayVec
                 parseDecayAlgorithm = P.try parseLinearSum P.<|> parseLogSum
                 parseLinearSum = do
-                  P.string "LinearSum"
+                  _ <- P.string "LinearSum"
                   _ <- P.char '('
                   _ <- P.spaces
                   a <- parseDouble

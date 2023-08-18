@@ -33,7 +33,7 @@ weightedStandardError values weights =
     sqrt $ sum weightedVariances / totalWeight
     where
         totalWeight = sum weights
-        weightedVariances = zipWith (\x w -> (w / totalWeight) * (x - weightedMean) ^ 2) values weights
+        weightedVariances = zipWith (\x w -> (w / totalWeight) * (x - weightedMean) ** 2) values weights
         weightedMean = sum (zipWith (*) values weights) / totalWeight
 
 weightedAvg :: [Double] -> [Double] -> Double
@@ -42,7 +42,7 @@ weightedAvg weights values =
     in sumWeightedVals / sum weights
 
 sd :: [Double] -> Double
-sd xs = sqrt . avg . map ((^2) . (-) (avg xs)) $ xs
+sd xs = sqrt . avg . map ((**2) . (-) (avg xs)) $ xs
 
 avg :: [Double] -> Double
 avg xs = sum xs / fromIntegral (length xs)

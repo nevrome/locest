@@ -2,14 +2,13 @@
 
 module LocEst.CLI.Crossvalidate where
 
+import           LocEst.CLI.Search             (printError)
 import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
 
-import           Conduit                       (ResourceT, liftIO)
-import           Control.Exception             (throw)
-import qualified Control.Monad                 as OP
+import           Conduit                       (ResourceT)
 import           Data.Conduit                  (ConduitT, (.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
@@ -57,7 +56,7 @@ runCrossvalidate (
         .| Con.getZipSink (
                 Con.ZipSink (
                        ConC.filter isLeft
-                    .| ConL.mapM_ (\(Left errMsg) -> liftIO $ hPutStrLn stderr (renderLOCESTException errMsg ++ "\n"))
+                    .| ConL.mapM_ printError
                 ) *>
                 Con.ZipSink (
                        ConL.mapMaybe rightToJust
@@ -112,9 +111,9 @@ shuffle :: [a] -> IO [a]
 shuffle [] = return []
 shuffle xs = do
   randomIndex <- randomRIO (0, length xs - 1)
-  let (left, (selected:right)) = splitAt randomIndex xs
-  rest <- shuffle (left ++ right)
-  return (selected : rest)
+  let (left, right) = splitAt randomIndex xs
+  rest <- shuffle (left ++ tail right)
+  return (head right : rest)
 
 multiplySpatTempDepVarsPosByAlgorithms ::
        [LocestAlgorithm]
