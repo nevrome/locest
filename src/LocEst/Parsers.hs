@@ -22,6 +22,7 @@ import           Data.IORef                (modifyIORef, newIORef, readIORef)
 import           LocEst.Utils              (LOCESTException (NormalException))
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
+import Control.DeepSeq (($!!))
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -37,7 +38,7 @@ encodingOptions = Csv.defaultEncodeOptions {
 readSpatDist :: FilePath -> IO SpatDistMap
 readSpatDist path = do
     obsGridDists <- readCSVToList path
-    return $ makeSpatDistMap obsGridDists
+    return $!! makeSpatDistMap obsGridDists
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
 readSpatTempDepVarsPos :: FilePath -> IO [SpatTempDepVarsPos]
