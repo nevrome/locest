@@ -24,47 +24,42 @@ filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
 filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
 
---
-
+-- | A data type to represent setting permutations
 data PermutationTree = PTLeaf PositionEntity | PTFork PositionEntity [PermutationTree] | PTRoot [PermutationTree]
 
--- addToTree :: PermutationTree -> [PositionEntity] -> PermutationTree
--- addToTree t                   [] = t
--- addToTree PRTNil              xs = PRTRoot (map (\x -> PRTNode x []) xs)
--- addToTree (PRTNode entity []) xs = PRTNode entity (map (\x -> PRTNode x []) xs)
--- addToTree (PRTNode entity ts) xs = PRTNode entity (map (\t -> addToTree t xs) ts)
+addPermutation :: [PositionEntity] -> PermutationTree -> PermutationTree
+addPermutation [] t = t
+addPermutation xs (PTLeaf v) = PTFork v (map PTLeaf xs)
+addPermutation xs (PTRoot []) = PTRoot (map PTLeaf xs)
+addPermutation xs (PTRoot ts) = PTRoot (map (\t -> addPermutation xs t) ts)
+addPermutation xs (PTFork v ts) = PTFork v (map (\t -> addPermutation xs t) ts)
 
-addToTree :: [PositionEntity] -> PermutationTree -> PermutationTree
-addToTree [] t = t
-addToTree xs (PTLeaf v) = PTFork v (map PTLeaf xs)
-addToTree xs (PTRoot []) = PTRoot (map PTLeaf xs)
-addToTree xs (PTRoot ts) = PTRoot (map (\t -> addToTree xs t) ts)
-addToTree xs (PTFork v ts) = PTFork v (map (\t -> addToTree xs t) ts)
-
-harvestRipeTree :: PermutationTree -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
-harvestRipeTree = harvestFlattenedTree . flattenTree
-
-flattenTree :: PermutationTree -> [[PositionEntity]]
-flattenTree (PTRoot ts) = concatMap flattenTree ts
-flattenTree (PTFork v ts) = map (v:) (concatMap flattenTree ts) 
-flattenTree (PTLeaf v) = [[v]]
-
-harvestFlattenedTree :: [[PositionEntity]] -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
-harvestFlattenedTree = mapM pluckOne
+harvest :: PermutationTree -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
+harvest = harvestFlattened . flattenTree
     where
-        pluckOne :: [PositionEntity] -> Either LOCESTException SpatTempDepVarsPosWithAlgorithms
-        pluckOne xs = do
-            spatPos    <- exactlyOnce [ v | PESpatPos v <- xs]
-            tempPos    <- exactlyOnce [ v | PETempPos v <- xs]
-            depVarsPos <- exactlyOnce [ v | PEDepVarsPos v <- xs]
-            algorithm  <- exactlyOnce [ v | PEAlgorithm v <- xs]
-            return $ SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos spatPos (SimpleYearBCAD tempPos)) depVarsPos) algorithm
+        flattenTree :: PermutationTree -> [[PositionEntity]]
+        flattenTree (PTRoot ts) = concatMap flattenTree ts
+        flattenTree (PTFork v ts) = map (v:) (concatMap flattenTree ts) 
+        flattenTree (PTLeaf v) = [[v]]
+        harvestFlattened :: [[PositionEntity]] -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
+        harvestFlattened = mapM pluckOne
             where
-                exactlyOnce :: Eq a => [a] -> Either LOCESTException a
-                exactlyOnce xs =
-                    if length (nub xs) == 1
-                    then Right $ head xs
-                    else Left $ NormalException "Permutation tree inconsistent"
+                pluckOne :: [PositionEntity] -> Either LOCESTException SpatTempDepVarsPosWithAlgorithms
+                pluckOne xs = do
+                    spatPos    <- exactlyOnce [ v | PESpatPos v <- xs]
+                    tempPos    <- exactlyOnce [ v | PETempPos v <- xs]
+                    depVarsPos <- exactlyOnce [ v | PEDepVarsPos v <- xs]
+                    algorithm  <- exactlyOnce [ v | PEAlgorithm v <- xs]
+                    return $
+                        SpatTempDepVarsPosWithAlgorithms
+                            (SpatTempDepVarsPos (SpatTempPos spatPos (SimpleYearBCAD tempPos)) depVarsPos)
+                            algorithm
+                    where
+                        exactlyOnce :: Eq a => [a] -> Either LOCESTException a
+                        exactlyOnce xs =
+                            if length (nub xs) == 1
+                            then Right $ head xs
+                            else Left $ NormalException "Permutation tree inconsistent"
 
 data PositionEntity =
       PESpatPos SpatPos

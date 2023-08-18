@@ -59,33 +59,27 @@ runSearch (
     -- info
     maxNumberOfThreads <- getNumCapabilities
     hPutStrLn stderr $ "Detected max number of threads: " ++ show maxNumberOfThreads
+    -- permutations
     hPutStrLn stderr $ "Required iterations: " ++
         show (length inSpatGrid) ++ " spatial positions"
         ++ " * " ++
         show (length inTempGrid) ++ " time slices"
         ++ " * " ++
         show (length searchDepVarPos) ++ " dependent variable positions"
-    
-    let permutations = PTRoot [] &
-            addToTree (map PEAlgorithm [algorithm]) & -- can be ordered arbitrarily
-            addToTree (map PEDepVarsPos searchDepVarPos) &
-            addToTree (map PETempPos inTempGrid) &
-            addToTree (map PESpatPos inSpatGrid) &
-            harvestRipeTree
-
+    hPutStrLn stderr $ "Building permutation tree"
+    let permutations =
+            PTRoot [] &
+            addPermutation (map PEAlgorithm [algorithm]) & -- can be ordered arbitrarily
+            addPermutation (map PEDepVarsPos searchDepVarPos) &
+            addPermutation (map PETempPos inTempGrid) &
+            addPermutation (map PESpatPos inSpatGrid) &
+            harvest
+    hPutStrLn stderr $ "Done"
     case permutations of
         Left e -> throw e
         Right perms -> 
             -- run analysis pipeline
             Con.runConduitRes $
-                -- begin to stream spatial prediction grid positions
-                --   ConL.sourceList inSpatGrid
-                -- multiply spatial input grid by temporal grid
-                -- .| ConL.concatMap (multiplySpatPosByTempGrid inTempGrid)
-                -- multiply spatpos input grid by dependent vars positions
-                -- .| ConL.concatMap (multiplySpatPosByDepVarsPos searchDepVarPos)
-                -- multiply multidimensional positions by algorithms (currently only one in input)
-                -- .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms [algorithm])
                 ConL.sourceList perms
                 -- main search algorithm
                 -- 1. sequential
@@ -111,25 +105,3 @@ runSearch (
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
-
--- Idea: DensitySummaryAlgorithm and DecayDefinition should be list input arguments (with sequence option for numerics)
---       These lists can then be multiplied into the analysis loop, just as for tempGrid and the DepVarsPos
---       Crossvalidation specification involves then an alternative (!) to --spatGridFile
---       This specification probably has to include test:training split ratio and iterations
-
-multiplySpatPosByTempGrid :: [Int] -> SpatPos -> [SpatTempPos]
-multiplySpatPosByTempGrid tempGrid spatPos =
-    map (\y -> SpatTempPos { _spatialPos = spatPos, _temporalPos = SimpleYearBCAD y}) tempGrid
-
-multiplySpatPosByDepVarsPos :: [DepVarsPos] -> SpatTempPos -> [SpatTempDepVarsPos]
-multiplySpatPosByDepVarsPos depVarsPos spatTempPos =
-    map (\p -> SpatTempDepVarsPos { _stpoSpatTempPos = spatTempPos, _stpoDepVarsPos = p}) depVarsPos
-
-multiplySpatTempDepVarsPosByAlgorithms ::
-       [LocestAlgorithm]
-    -> SpatTempDepVarsPos
-    -> [SpatTempDepVarsPosWithAlgorithms]
-multiplySpatTempDepVarsPosByAlgorithms
-    algorithms
-    spatTempDepVarsPos =
-    map (\a -> SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos a) algorithms

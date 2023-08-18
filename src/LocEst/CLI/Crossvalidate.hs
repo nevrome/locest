@@ -2,7 +2,6 @@
 
 module LocEst.CLI.Crossvalidate where
 
-import           LocEst.CLI.Search             (multiplySpatTempDepVarsPosByAlgorithms)
 import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
@@ -116,3 +115,12 @@ shuffle xs = do
   let (left, (selected:right)) = splitAt randomIndex xs
   rest <- shuffle (left ++ right)
   return (selected : rest)
+
+multiplySpatTempDepVarsPosByAlgorithms ::
+       [LocestAlgorithm]
+    -> SpatTempDepVarsPos
+    -> [SpatTempDepVarsPosWithAlgorithms]
+multiplySpatTempDepVarsPosByAlgorithms
+    algorithms
+    spatTempDepVarsPos =
+    map (\a -> SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos a) algorithms
