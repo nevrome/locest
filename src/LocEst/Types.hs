@@ -75,6 +75,10 @@ newtype SpatDistMap = SpatDistMatrixMap {
     _spatDistMatrixMap :: HM.HashMap (String, String) Double
 } deriving (Show)
 
+makeSpatDistMap :: [SpatDistObsGrid] -> SpatDistMap
+makeSpatDistMap xs =
+    SpatDistMatrixMap $ HM.fromList (map (\(SpatDistObsGrid oID gID d) -> ((oID,gID),d)) xs)
+
 data SpatDistObsGrid = SpatDistObsGrid {
       _spatDistObsGridObsID    :: String
     , _spatDistObsGridGridID   :: String
