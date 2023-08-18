@@ -18,7 +18,9 @@ import qualified Data.Conduit.List         as ConL
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
+import qualified Data.HashMap.Strict       as HM
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
+import qualified Data.Vector               as V
 import           LocEst.Utils              (LOCESTException (NormalException))
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
@@ -34,10 +36,6 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
-readSpatDist :: FilePath -> IO SpatDistMap
-readSpatDist path = do
-    obsGridDists <- readCSVToList path
-    return $ makeSpatDistMap obsGridDists
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
 readSpatTempDepVarsPos :: FilePath -> IO [SpatTempDepVarsPos]
@@ -45,22 +43,37 @@ readSpatTempDepVarsPos = readCSVToList
 readSpatPos :: FilePath -> IO [SpatPos]
 readSpatPos = readCSVToList
 
+readSpatDist :: FilePath -> IO SpatDistMap
+readSpatDist path = do
+    hPutStrLn stderr $ "Parsing " ++ path
+    parseRes <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.map simplify .| ConC.sinkVector
+    let hu = makeSpatDistMap parseRes
+    hPutStrLn stderr "Done"
+    return hu
+    where
+        simplify :: SpatDistObsGrid -> (String, String, Double)
+        simplify (SpatDistObsGrid oID gID d) = (oID,gID,d)
+        makeSpatDistMap :: V.Vector (String, String, Double) -> SpatDistMap
+        makeSpatDistMap vec =
+            SpatDistMatrixMap $ V.foldl' insertIntoMap HM.empty vec
+            where
+                insertIntoMap m (oID, gID, d) = HM.insert (oID, gID) d m
+
 readCSVToList :: (Csv.FromNamedRecord a) => FilePath -> IO [a]
 readCSVToList path = do
     hPutStrLn stderr $ "Parsing " ++ path
-    parseRes <- Con.runConduitRes $ sourceCSV path .| ConL.consume
-    goodData <- mapM unwrapCSVParsingErrors parseRes
+    parseRes <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConL.consume
     hPutStrLn stderr "Done"
-    return goodData
-    where
-        unwrapCSVParsingErrors :: (Show b, Show c) => Either (Either b c) a -> IO a
-        unwrapCSVParsingErrors parseRes =
-            case parseRes of
-                Left e ->
-                    case e of
-                        Left e1  -> liftIO $ throwIO $ NormalException $ show e1
-                        Right e2 -> liftIO $ throwIO $ NormalException $ show e2
-                Right res -> return res
+    return parseRes
+
+unwrapCSVParsingErrors :: (Show b, Show c, MonadIO m) => Either (Either b c) a -> m a
+unwrapCSVParsingErrors parseRes =
+    case parseRes of
+        Left e ->
+            case e of
+                Left e1  -> liftIO $ throwIO $ NormalException $ show e1
+                Right e2 -> liftIO $ throwIO $ NormalException $ show e2
+        Right res -> return res
 
 sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) =>
                 FilePath
@@ -68,6 +81,7 @@ sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) =>
 sourceCSV path =
        ConC.sourceFile path
     .| ConCsv.fromNamedCsvStreamErrorNoThrow decodingOptions
+    .| progress 1000000
 
 sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => FilePath -> ConduitT a Void m ()
 sinkNamedCSV path =
@@ -93,8 +107,8 @@ sinkCSV path =
        ConCsv.toCsv encodingOptions
     .| ConC.sinkFile path
 
-progress :: (MonadIO m) => ConduitT i i m ()
-progress = do
+progress :: (MonadIO m) => Int -> ConduitT i i m ()
+progress reportNum = do
     counterRef <- liftIO $ newIORef (0 :: Int)
     ConL.mapM $ \val -> do
         n <- liftIO $ readIORef counterRef
@@ -104,7 +118,7 @@ progress = do
     where
         logProgress :: Int -> IO ()
         logProgress c
-            |  c `rem` 1000 == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 7 (show c)
+            |  c /= 0 && c `rem` reportNum == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 9 (show c)
             -- |  c == 100          = putStrLn $ "Probing successful. Continuing now..."
             | otherwise = return ()
 
