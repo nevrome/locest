@@ -51,7 +51,7 @@ runCrossvalidate (
         -- run per-iteration conduit until no iterations left
         .| Con.awaitForever (oneIterationConduit maxNumberOfThreads depVarsOrdered)
         -- print progress information
-        .| progress
+        .| progress 1000
         -- split stream to report the error cases and add the good ones to the result list
         .| Con.getZipSink (
                 Con.ZipSink (

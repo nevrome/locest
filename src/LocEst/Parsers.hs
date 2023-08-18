@@ -48,12 +48,11 @@ readSpatPos = readCSVToList
 readCSVToList :: (Csv.FromNamedRecord a) => FilePath -> IO [a]
 readCSVToList path = do
     hPutStrLn stderr $ "Parsing " ++ path
-    parseRes <- Con.runConduitRes $ sourceCSV path .| ConL.consume
-    goodData <- mapM unwrapCSVParsingErrors parseRes
+    parseRes <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConL.consume
     hPutStrLn stderr "Done"
-    return goodData
+    return parseRes
     where
-        unwrapCSVParsingErrors :: (Show b, Show c) => Either (Either b c) a -> IO a
+        unwrapCSVParsingErrors :: (Show b, Show c, MonadIO m) => Either (Either b c) a -> m a
         unwrapCSVParsingErrors parseRes =
             case parseRes of
                 Left e ->
@@ -68,6 +67,7 @@ sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) =>
 sourceCSV path =
        ConC.sourceFile path
     .| ConCsv.fromNamedCsvStreamErrorNoThrow decodingOptions
+    .| progress 1000000
 
 sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => FilePath -> ConduitT a Void m ()
 sinkNamedCSV path =
@@ -93,8 +93,8 @@ sinkCSV path =
        ConCsv.toCsv encodingOptions
     .| ConC.sinkFile path
 
-progress :: (MonadIO m) => ConduitT i i m ()
-progress = do
+progress :: (MonadIO m) => Int -> ConduitT i i m ()
+progress reportNum = do
     counterRef <- liftIO $ newIORef (0 :: Int)
     ConL.mapM $ \val -> do
         n <- liftIO $ readIORef counterRef
@@ -104,7 +104,7 @@ progress = do
     where
         logProgress :: Int -> IO ()
         logProgress c
-            |  c `rem` 1000 == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 7 (show c)
+            |  c /= 0 && c `rem` reportNum == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 9 (show c)
             -- |  c == 100          = putStrLn $ "Probing successful. Continuing now..."
             | otherwise = return ()
 
