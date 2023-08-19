@@ -5,6 +5,7 @@ module LocEst.Parsers where
 import           LocEst.Types
 
 import           Conduit                   (MonadIO, MonadResource, liftIO)
+import           Control.DeepSeq           (($!!))
 import           Control.Exception         (throwIO)
 import           Control.Monad             (when)
 import           Control.Monad.Error.Class
@@ -22,7 +23,6 @@ import           Data.IORef                (modifyIORef, newIORef, readIORef)
 import           LocEst.Utils              (LOCESTException (NormalException))
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
-import Control.DeepSeq (($!!))
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions

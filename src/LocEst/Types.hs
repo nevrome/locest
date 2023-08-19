@@ -317,7 +317,7 @@ instance Csv.ToRecord SpatTempPos where
 -- | A datatype for temporal positions
 data TempPos =
     SimpleYearBCAD YearBCAD -- TODO: add more complex models
-    deriving (Show, Generic)
+    deriving (Eq, Show, Generic)
 
 instance NFData TempPos
 instance Csv.DefaultOrdered TempPos where

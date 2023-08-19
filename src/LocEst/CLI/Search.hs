@@ -98,10 +98,33 @@ runSearch (
                         ) *>
                         Con.ZipSink (
                                ConL.mapMaybe rightToJust
+                            .| normalize True -- this assumes the permutation order to be set accordingly!!
+                                              -- otherwise sorting is necessary, which means everything has to go into memory
                             .| sinkNamedCSV outFile
                         )
                    )
             hPutStrLn stderr "Done"
+
+normalize :: Monad m => Bool -> Con.ConduitT SpatTempProb SpatTempProb m ()
+normalize False = ConC.map id
+normalize True =
+       ConL.groupBy groupingCriteria
+    .| ConL.map scaleProbs
+    .| ConL.concat
+    where
+    groupingCriteria :: SpatTempProb -> SpatTempProb -> Bool
+    groupingCriteria
+        (SpatTempProb (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos _ t1) dv1) alg1) _)
+        (SpatTempProb (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos _ t2) dv2) alg2) _) =
+            t1 == t2 && dv1 == dv2 && alg1 == alg2
+    scaleProbs :: [SpatTempProb] -> [SpatTempProb]
+    scaleProbs stps =
+        let probs = map _stprprobability stps
+            maxProb = maximum probs
+            rescaledProbs = map (/ maxProb) probs
+        in zipWith setProb stps rescaledProbs
+    setProb :: SpatTempProb -> Double -> SpatTempProb
+    setProb stp p = stp {_stprprobability = p}
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
