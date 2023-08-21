@@ -1,4 +1,4 @@
--- {-# LANGUAGE StrictData #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE ApplicativeDo     #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}

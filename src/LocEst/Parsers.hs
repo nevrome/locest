@@ -1,3 +1,4 @@
+{-# LANGUAGE Strict #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module LocEst.Parsers where
@@ -59,10 +60,6 @@ readSpatDist path = do
                 let hashmap' = HM.insert (fromString oID, fromString gID) d hashmap
                 ST.put hashmap'
 
---readSpatDist :: FilePath -> IO SpatDistMap
---readSpatDist path = do
---    obsGridDists <- readCSVToList path
---    return $!! makeSpatDistMap obsGridDists
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
 readSpatTempDepVarsPos :: FilePath -> IO [SpatTempDepVarsPos]
