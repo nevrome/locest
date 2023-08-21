@@ -1,7 +1,7 @@
-{-# LANGUAGE StrictData #-}
 {-# LANGUAGE ApplicativeDo     #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData        #-}
 
 module LocEst.Types where
 
@@ -12,10 +12,10 @@ import qualified Data.ByteString.Short as BSS
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           Data.List             (nub, sort, sortBy)
+import           Data.String           (fromString)
 import qualified Data.Vector           as V
 import           GHC.Generics          (Generic)
 import           LocEst.Utils          (LOCESTException (..))
-import Data.String (fromString)
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a

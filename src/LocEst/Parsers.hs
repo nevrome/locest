@@ -1,34 +1,33 @@
-{-# LANGUAGE Strict #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE Strict           #-}
 
 module LocEst.Parsers where
 
 import           LocEst.Types
 
 import           Conduit                   (MonadIO, MonadResource, liftIO)
-import           Control.DeepSeq           (($!!))
 import           Control.Exception         (throwIO)
 import           Control.Monad             (when)
 import           Control.Monad.Error.Class
+import qualified Control.Monad.State       as ST
 import qualified Data.ByteString.Builder   as BB
 import qualified Data.ByteString.Char8     as Bchs
-import qualified Data.ByteString.Short as BSS
+import qualified Data.ByteString.Short     as BSS
 import           Data.Char                 (ord)
 import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
 import qualified Data.Conduit.Combinators  as ConC
-import qualified Data.Conduit.List         as ConL
 import qualified Data.Conduit.Lift         as ConLF
+import qualified Data.Conduit.List         as ConL
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
+import qualified Data.HashMap.Strict       as HM
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
+import           Data.String               (fromString)
 import           LocEst.Utils              (LOCESTException (NormalException))
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
-import qualified Data.HashMap.Strict as HM
-import qualified Control.Monad.State as ST
-import Data.String (fromString)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -49,7 +48,7 @@ readSpatDist path = do
         ConC.mapM unwrapCSVParsingErrors .|
         sinkHashMap
     hPutStrLn stderr "Done"
-    return $!! SpatDistMatrixMap distMap
+    return $ SpatDistMatrixMap distMap
     where
         -- this accumulates into a state: https://www.yesodweb.com/blog/2014/01/conduit-transformer-exception
         sinkHashMap :: (Monad m) =>

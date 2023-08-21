@@ -7,7 +7,7 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import qualified Data.HashMap.Strict            as HM
-import Data.String (fromString)
+import           Data.String                    (fromString)
 
 coreSearch ::
        [String]
