@@ -60,11 +60,11 @@ runSearch (
     hPutStrLn stderr $ "Detected max number of threads: " ++ show maxNumberOfThreads
     -- permutations
     hPutStrLn stderr $ "Required iterations: " ++
+        "1 algorithm" ++ " * " ++
+        show (length searchDepVarPos) ++ " dependent variable positions" ++ " * " ++
+        show (length inTempGrid) ++ " time slices" ++ " * " ++
         show (length inSpatGrid) ++ " spatial positions"
-        ++ " * " ++
-        show (length inTempGrid) ++ " time slices"
-        ++ " * " ++
-        show (length searchDepVarPos) ++ " dependent variable positions"
+
     hPutStrLn stderr "Building permutation tree"
     let permutations =
             PTRoot [] &

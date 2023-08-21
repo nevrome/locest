@@ -1,23 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
---import           Paths_locest                     (version)
-
 import           LocEst.CLI.Crossvalidate (CrossvalidateOptions (..),
                                            runCrossvalidate)
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.Utils
 
+import           Paths_locest             (version)
 import           Control.Exception        (catch)
 import           Data.List                (isInfixOf)
-import           Data.Version             (Version, makeVersion, showVersion)
+import           Data.Version             (showVersion)
 import qualified Options.Applicative      as OP
 import           System.Environment       (getArgs)
 import           System.Exit              (exitFailure)
 import           System.IO                (hPutStrLn, stderr)
-
-version :: Version
-version = makeVersion [0,0,0]
 
 -- data types
 data Options = Options { _subcommand :: Subcommand }
@@ -77,7 +73,7 @@ runCmd o = case o of
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (
     OP.briefDesc <>
-    OP.progDesc "..."
+    OP.progDesc "Spatiotemporal interpolation and search for macroscale archaeological data."
     )
 
 versionOption :: OP.Parser (a -> a)
@@ -90,9 +86,10 @@ subcommandParser = OP.subparser (
     )
     where
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
-            (OP.progDesc "Search...")
+            (OP.progDesc "Interpolate dependent variables in space and time to determine areas of \
+                          \ increased similarity to specific observations.")
         crossvalidateOptInfo = OP.info (OP.helper <*> (CmdCrossvalidate <$> crossvalidateOptParser))
-            (OP.progDesc "Crossvalidate...")
+            (OP.progDesc "Compare hyperparameter settings for the interpolation through crossvalidation.")
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$>

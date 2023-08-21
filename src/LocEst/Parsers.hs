@@ -126,7 +126,6 @@ progress reportNum = do
         logProgress :: Int -> IO ()
         logProgress c
             |  c /= 0 && c `rem` reportNum == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 9 (show c)
-            -- |  c == 100          = putStrLn $ "Probing successful. Continuing now..."
             | otherwise = return ()
 
 padLeft :: Int -> String -> String
