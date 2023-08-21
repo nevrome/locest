@@ -11,11 +11,13 @@ import           Control.Monad             (when)
 import           Control.Monad.Error.Class
 import qualified Data.ByteString.Builder   as BB
 import qualified Data.ByteString.Char8     as Bchs
+import qualified Data.ByteString.Short as BSS
 import           Data.Char                 (ord)
 import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
 import qualified Data.Conduit.Combinators  as ConC
 import qualified Data.Conduit.List         as ConL
+import qualified Data.Conduit.Lift         as ConLF
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
@@ -23,6 +25,9 @@ import           Data.IORef                (modifyIORef, newIORef, readIORef)
 import           LocEst.Utils              (LOCESTException (NormalException))
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
+import qualified Data.HashMap.Strict as HM
+import qualified Control.Monad.State as ST
+import Data.String (fromString)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -37,8 +42,27 @@ encodingOptions = Csv.defaultEncodeOptions {
 
 readSpatDist :: FilePath -> IO SpatDistMap
 readSpatDist path = do
-    obsGridDists <- readCSVToList path
-    return $!! makeSpatDistMap obsGridDists
+    hPutStrLn stderr $ "Parsing " ++ path
+    distMap <- Con.runConduitRes $
+        sourceCSV path .|
+        ConC.mapM unwrapCSVParsingErrors .|
+        sinkHashMap
+    hPutStrLn stderr "Done"
+    return $!! SpatDistMatrixMap distMap
+    where
+        -- this accumulates into a state: https://www.yesodweb.com/blog/2014/01/conduit-transformer-exception
+        sinkHashMap :: (Monad m) =>
+            ConduitT SpatDistObsGrid Void m (HM.HashMap (BSS.ShortByteString, BSS.ShortByteString) Double)
+        sinkHashMap = ConLF.execStateC HM.empty $
+            Con.awaitForever $ \(SpatDistObsGrid oID gID d) -> do
+                hashmap <- ST.get
+                let hashmap' = HM.insert (fromString oID, fromString gID) d hashmap
+                ST.put hashmap'
+
+--readSpatDist :: FilePath -> IO SpatDistMap
+--readSpatDist path = do
+--    obsGridDists <- readCSVToList path
+--    return $!! makeSpatDistMap obsGridDists
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
 readSpatTempDepVarsPos :: FilePath -> IO [SpatTempDepVarsPos]
@@ -52,15 +76,15 @@ readCSVToList path = do
     parseRes <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConL.consume
     hPutStrLn stderr "Done"
     return parseRes
-    where
-        unwrapCSVParsingErrors :: (Show b, Show c, MonadIO m) => Either (Either b c) a -> m a
-        unwrapCSVParsingErrors parseRes =
-            case parseRes of
-                Left e ->
-                    case e of
-                        Left e1  -> liftIO $ throwIO $ NormalException $ show e1
-                        Right e2 -> liftIO $ throwIO $ NormalException $ show e2
-                Right res -> return res
+
+unwrapCSVParsingErrors :: (Show b, Show c, MonadIO m) => Either (Either b c) a -> m a
+unwrapCSVParsingErrors parseRes =
+    case parseRes of
+        Left e ->
+            case e of
+                Left e1  -> liftIO $ throwIO $ NormalException $ show e1
+                Right e2 -> liftIO $ throwIO $ NormalException $ show e2
+        Right res -> return res
 
 sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) =>
                 FilePath
