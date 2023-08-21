@@ -8,12 +8,14 @@ module LocEst.Types where
 import           Control.Applicative   (empty, (<|>))
 import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
+import qualified Data.ByteString.Short as BSS
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           Data.List             (nub, sort, sortBy)
 import qualified Data.Vector           as V
 import           GHC.Generics          (Generic)
 import           LocEst.Utils          (LOCESTException (..))
+import Data.String (fromString)
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -72,12 +74,12 @@ class Identifiable a where
 
 -- | A datatype for an unidirectional distance matrix
 newtype SpatDistMap = SpatDistMatrixMap {
-    _spatDistMatrixMap :: HM.HashMap (String, String) Double
+    _spatDistMatrixMap :: HM.HashMap (BSS.ShortByteString, BSS.ShortByteString) Double
 } deriving (Show, Generic)
 
 makeSpatDistMap :: [SpatDistObsGrid] -> SpatDistMap
 makeSpatDistMap xs =
-    SpatDistMatrixMap $ HM.fromList (map (\(SpatDistObsGrid oID gID d) -> ((oID,gID),d)) xs)
+    SpatDistMatrixMap $ HM.fromList (map (\(SpatDistObsGrid oID gID d) -> ((fromString oID, fromString gID),d)) xs)
 
 instance NFData SpatDistMap
 

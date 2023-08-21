@@ -50,6 +50,7 @@ runSearch (
     inSpatDists <- case inSpatDistFile of
         Nothing   -> return Nothing
         Just path -> Just <$> readSpatDist path
+    _ <- error ""
     -- validate input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"

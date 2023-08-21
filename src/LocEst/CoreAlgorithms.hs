@@ -7,6 +7,7 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import qualified Data.HashMap.Strict            as HM
+import Data.String (fromString)
 
 coreSearch ::
        [String]
@@ -132,7 +133,7 @@ findSpatDistsObsGrid observations (Just (SpatDistMatrixMap spatDistMap)) gridSpa
     -- look up distances
     let obsIDs = map getID observations
         gridSpatPosID = getID $ _spatialPos gridSpatTempPos
-        dists = map (\obsID -> HM.lookup (obsID, gridSpatPosID) spatDistMap) obsIDs
+        dists = map (\obsID -> HM.lookup (fromString obsID, fromString gridSpatPosID) spatDistMap) obsIDs
     in case sequence dists of
         Nothing -> Left $ NormalException "Distance not in lookup table."
         Just xs -> Right xs
