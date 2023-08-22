@@ -2,19 +2,20 @@ module LocEst.Math.Basics where
 
 import           Data.List (foldl')
 
--- this function is probably wrong
--- TODO: rewrite and use in the kernel smoothing algorithm
-weightedStandardError :: [Double] -> [Double] -> Double
-weightedStandardError values weights =
-    sqrt $ sum weightedVariances / totalWeight
+-- https://stats.stackexchange.com/questions/6534/how-do-i-calculate-a-weighted-standard-deviation-in-excel
+-- http://seismo.berkeley.edu/~kirchner/Toolkits/Toolkit_12.pdf -> Case I ?!
+weightedSD :: [Double] -> [Double] -> Double
+weightedSD values weights =
+    sqrt ((numerator / totalWeight) * (neff / (neff - 1)))
     where
+        numerator = sum $ zipWith (\v w -> w * ((v - weightedMean) ** 2)) values weights
+        weightedMean = weightedAvg values weights
         totalWeight = sum weights
-        weightedVariances = zipWith (\x w -> (w / totalWeight) * (x - weightedMean) ** 2) values weights
-        weightedMean = sum (zipWith (*) values weights) / totalWeight
+        neff = (totalWeight ** 2) / (sum (map (** 2) weights))
 
 weightedAvg :: [Double] -> [Double] -> Double
-weightedAvg weights values =
-    let sumWeightedVals = foldl' (\o (w,v) -> o + w * v) 0 $ zip weights values
+weightedAvg values weights =
+    let sumWeightedVals = foldl' (\o (v,w) -> o + v * w) 0 $ zip values weights
     in sumWeightedVals / sum weights
 
 sd :: [Double] -> Double

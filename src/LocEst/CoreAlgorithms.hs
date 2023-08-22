@@ -105,9 +105,10 @@ coreSearch
         determineWeigthedMeansAndSDsForOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
         determineWeigthedMeansAndSDsForOneDepVar obsWithDist depVar = do
             obsWeights <- mapM (weightForOneObs kernelDefinition) obsWithDist
+            let normalizedObsWeights = map (/ sum obsWeights) obsWeights
             obsMeas <- mapM getOneDepVarPos obsWithDist
-            let mean = weightedAvg obsMeas obsWeights
-                err  = weightedStandardError obsMeas obsWeights
+            let mean = weightedAvg obsMeas normalizedObsWeights
+                err  = weightedSD  obsMeas normalizedObsWeights
             return (mean, err)
             where
                 weightForOneObs :: KernelDefinition -> ObsWithDist -> Either LOCESTException Double
