@@ -2,32 +2,8 @@ module LocEst.Math.Basics where
 
 import           Data.List (foldl')
 
---integrateFaster :: [Double] -> (Double -> Double) -> Double -> Double -> Double
-
--- https://stackoverflow.com/questions/32978290/haskell-numerical-integration-via-trapezoidal-rule-results-in-wrong-sign
-integrate :: Double -> (Double -> Double) -> Double -> Double -> Double
-integrate steps f start stop =
-    h / 2 * (f start + f stop + 2 * partial_sum)
-    where
-        h = (stop - start) / steps
-        myPoints = points (steps-1) h
-        partial_sum = foldl' (\o x -> o + f (x + start)) 0 myPoints
-
-points  :: Double -> Double -> [Double]
-points x1 x2
-    | x1 <= 0 = []
-    | otherwise = (x1*x2) : points (x1-1) x2
-
-dnorm :: Double -> Double -> Double -> Double
-dnorm mu sigma x =
-    let a = recip (sqrt (2 * pi * sigma2))
-        b = exp (-c2 / (2 * sigma2))
-        c = x - mu
-        c2 = c * c
-        sigma2 = sigma * sigma
-    in a*b
-
--- this function is probably wrong.
+-- this function is probably wrong
+-- TODO: rewrite and use in the kernel smoothing algorithm
 weightedStandardError :: [Double] -> [Double] -> Double
 weightedStandardError values weights =
     sqrt $ sum weightedVariances / totalWeight
@@ -46,3 +22,25 @@ sd xs = sqrt . avg . map ((**2) . (-) (avg xs)) $ xs
 
 avg :: [Double] -> Double
 avg xs = sum xs / fromIntegral (length xs)
+
+-- https://stackoverflow.com/questions/32978290/haskell-numerical-integration-via-trapezoidal-rule-results-in-wrong-sign
+integrate :: Double -> (Double -> Double) -> Double -> Double -> Double
+integrate steps f start stop =
+    h / 2 * (f start + f stop + 2 * partial_sum)
+    where
+        h = (stop - start) / steps
+        myPoints = points (steps-1) h
+        partial_sum = foldl' (\o x -> o + f (x + start)) 0 myPoints
+        points  :: Double -> Double -> [Double]
+        points x1 x2
+            | x1 <= 0 = []
+            | otherwise = (x1*x2) : points (x1-1) x2
+
+dnorm :: Double -> Double -> Double -> Double
+dnorm mu sigma x =
+    let a = recip (sqrt (2 * pi * sigma2))
+        b = exp (-c2 / (2 * sigma2))
+        c = x - mu
+        c2 = c * c
+        sigma2 = sigma * sigma
+    in a*b

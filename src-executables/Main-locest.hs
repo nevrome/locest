@@ -6,11 +6,11 @@ import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.Utils
 
-import           Paths_locest             (version)
 import           Control.Exception        (catch)
 import           Data.List                (isInfixOf)
 import           Data.Version             (showVersion)
 import qualified Options.Applicative      as OP
+import           Paths_locest             (version)
 import           System.Environment       (getArgs)
 import           System.Exit              (exitFailure)
 import           System.IO                (hPutStrLn, stderr)

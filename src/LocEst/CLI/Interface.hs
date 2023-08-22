@@ -119,7 +119,7 @@ readTempGridString s =
 parseTempGridString :: P.Parser [Int]
 parseTempGridString = do
     P.try parseIntegerSequence P.<|> parseYearList
-    where 
+    where
         parseYearList = parseVector parseInteger
 
 optParseSearchDepVarsPos :: OP.Parser [DepVarsPos]

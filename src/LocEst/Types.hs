@@ -25,7 +25,10 @@ filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString ->
 filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
 
 -- | A data type to represent setting permutations
-data PermutationTree = PTLeaf PositionEntity | PTFork PositionEntity [PermutationTree] | PTRoot [PermutationTree]
+data PermutationTree =
+      PTLeaf PositionEntity
+    | PTFork PositionEntity [PermutationTree]
+    | PTRoot [PermutationTree]
 
 addPermutation :: [PositionEntity] -> PermutationTree -> PermutationTree
 addPermutation [] t             = t
@@ -219,6 +222,9 @@ data ObsWithDist = ObsWithDist {
       _owdObservation  :: Observation
     , _owdSpatTempDist :: SpatTempDist
 }
+
+addDistsToObs :: Observation -> Double -> Double -> ObsWithDist
+addDistsToObs obs spatDist tempDist = ObsWithDist obs (SpatTempDist spatDist tempDist)
 
 -- | A datatype for observations with id and position
 data Observation = Observation {

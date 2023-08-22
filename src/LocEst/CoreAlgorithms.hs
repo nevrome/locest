@@ -6,6 +6,7 @@ import           LocEst.Math.MultivariateNormal (dnormMulti)
 import           LocEst.Types
 import           LocEst.Utils
 
+import           Control.Monad.List             (mapAndUnzipM)
 import qualified Data.HashMap.Strict            as HM
 import           Data.String                    (fromString)
 
@@ -48,6 +49,34 @@ coreSearch
            _stprSpatTempDepVarsPosWithAlgos = searchSetting
          , _stprprobability = meanDens
          }
+    where
+        calcSD :: DecayDefinition -> DepVarName -> Double -> Double -> Double
+        calcSD (DecayDefinition depVarList) depVarName spatDist tempDist =
+            let relevantDecay = filter (\(DecayOneDepVar var _) -> var == depVarName) depVarList
+            in run relevantDecay
+            where
+                run [DecayOneDepVar _ x] = calc x
+                run _                    = error "this should never happen"
+                calc :: DecayAlgorithm -> Double
+                calc (LinearSum spatDecay tempDecay) = growth2LinearSum spatDecay tempDecay
+                calc (LogSum spatDecay tempDecay)    = growth2LogSum spatDecay tempDecay
+                growth2LinearSum :: Double -> Double -> Double
+                growth2LinearSum spatDecay tempDecay =
+                    growthLinear spatDecay spatDist + growthLinear tempDecay tempDist
+                growthLinear :: Double -> Double -> Double
+                growthLinear factor x = factor * x
+                growth2LogSum :: Double -> Double -> Double
+                growth2LogSum spatDecay tempDecay =
+                    growthLog spatDecay spatDist + growthLog tempDecay tempDist
+                growthLog :: Double -> Double -> Double
+                growthLog factor x = factor * log x
+        calcWeight :: Double -> Double -> Double
+        calcWeight ds dt =
+            -- we can not divide by 0, so distances below 1 are set to 1
+            -- not very clever, needs a more general solution
+            let dsSafe = max ds 1
+                dtSafe = max dt 1
+            in 1 / sqrt ((dsSafe ** 2) + (dtSafe ** 2))
 coreSearch
     depVarsOrdered
     observations
@@ -65,7 +94,7 @@ coreSearch
     -- filter by dist (for performance)
     --filteredObsWithDists <- filterByDists 2000 2000 obsWithDist
     -- summarize obs information for each depVar
-    (means, errs) <- unzip <$> mapM (perDepVar obsWithDist) depVarsOrdered
+    (means, errs) <- mapAndUnzipM (determineWeigthedMeansAndSDsForOneDepVar obsWithDist) depVarsOrdered
     -- summarize per-depVar info into a single value
     let density = dnormMulti means errs searchDepVarsCoords
     return $ SpatTempProb {
@@ -73,48 +102,40 @@ coreSearch
          , _stprprobability = density
          }
     where
-        perDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
-        perDepVar obsWithDist depVar = do
-            obsWeights <- mapM (determineWeight kernelDefinition depVar) obsWithDist
-            obsMeas <- mapM (getOneDepVarsPos depVar) obsWithDist
+        determineWeigthedMeansAndSDsForOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
+        determineWeigthedMeansAndSDsForOneDepVar obsWithDist depVar = do
+            obsWeights <- mapM (weightForOneObs kernelDefinition) obsWithDist
+            obsMeas <- mapM getOneDepVarPos obsWithDist
             let mean = weightedAvg obsMeas obsWeights
                 err  = weightedStandardError obsMeas obsWeights
             return (mean, err)
-        determineWeight :: KernelDefinition -> DepVarName -> ObsWithDist -> Either LOCESTException Double
-        determineWeight
-            (KernelDefinition kernelsPerDepVar)
-            depVar
-            (ObsWithDist _ (SpatTempDist spatDist tempDist))
-             = do
-                case filter (\(KernelOneDepVar n _) -> n == depVar) kernelsPerDepVar of
-                    []  -> Left  $ NormalException "not in"
-                    [k] -> Right $ forOneKernel $ _kodvKernel k
-                    _   -> Left  $ NormalException "in more than once"
             where
-                forOneKernel :: Kernel -> Double
-                forOneKernel kernel =
-                    case kernel of
-                        Uniform spatRadius tempRadius ->
-                            let spatWeight = if spatDist <= spatRadius then 1 else 0
-                                tempWeight = if tempDist <= tempRadius then 1 else 0
-                            in spatWeight * tempWeight
-                        Normal spatSigma tempSigma    ->
-                            let spatWeight = dnorm 0 spatSigma spatDist
-                                tempWeight = dnorm 0 tempSigma tempDist
-                            in spatWeight * tempWeight
+                weightForOneObs :: KernelDefinition -> ObsWithDist -> Either LOCESTException Double
+                weightForOneObs
+                    (KernelDefinition kernelsPerDepVar)
+                    (ObsWithDist _ (SpatTempDist spatDist tempDist))
+                     = do
+                        case filter (\(KernelOneDepVar n _) -> n == depVar) kernelsPerDepVar of
+                            []                    -> Left  $ NormalException "not in"
+                            [KernelOneDepVar _ k] -> Right $ weightByKernel k
+                            _                     -> Left  $ NormalException "in more than once"
+                    where
+                        weightByKernel :: Kernel -> Double
+                        weightByKernel (Uniform spatRadius tempRadius) =
+                                let spatWeight = if spatDist <= spatRadius then 1 else 0
+                                    tempWeight = if tempDist <= tempRadius then 1 else 0
+                                in spatWeight * tempWeight
+                        weightByKernel (Normal spatSigma tempSigma) =
+                                let spatWeight = dnorm 0 spatSigma spatDist
+                                    tempWeight = dnorm 0 tempSigma tempDist
+                                in spatWeight * tempWeight
+                getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
+                getOneDepVarPos (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
+                    case HM.lookup depVar m of
+                        Nothing -> Left $ NormalException "Unknown variable"
+                        Just x  -> Right x
 
-getOneDepVarsPos :: DepVarName -> ObsWithDist -> Either LOCESTException Double
-getOneDepVarsPos depVar (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
-    case HM.lookup depVar m of
-        Nothing -> Left $ NormalException "Unknown variable"
-        Just x  -> Right x
-
-addDistsToObs :: Observation -> Double -> Double -> ObsWithDist
-addDistsToObs obs spatDist tempDist = ObsWithDist obs (SpatTempDist spatDist tempDist)
-
-filterByDists :: Double -> Double ->
-                 [ObsWithDist] ->
-                 Either LOCESTException [ObsWithDist]
+filterByDists :: Double -> Double -> [ObsWithDist] -> Either LOCESTException [ObsWithDist]
 filterByDists fs ft xs = do
     let res = filter (\(ObsWithDist _ (SpatTempDist ds dt)) -> ds <= fs && dt <= ft) xs
     if length res < 3
@@ -126,26 +147,17 @@ findTempDistsObsGrid observations gridSpatTempPos =
     map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
 
 findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMap -> SpatTempPos -> Either LOCESTException [Double]
+-- calculate distances
 findSpatDistsObsGrid observations Nothing gridSpatTempPos =
-    -- calculate distances
     Right $ map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
+-- look up distances
 findSpatDistsObsGrid observations (Just (SpatDistMatrixMap spatDistMap)) gridSpatTempPos =
-    -- look up distances
     let obsIDs = map getID observations
         gridSpatPosID = getID $ _spatialPos gridSpatTempPos
         dists = map (\obsID -> HM.lookup (fromString obsID, fromString gridSpatPosID) spatDistMap) obsIDs
     in case sequence dists of
         Nothing -> Left $ NormalException "Distance not in lookup table."
         Just xs -> Right xs
-
-
-calcWeight :: Double -> Double -> Double
-calcWeight ds dt =
-    -- we can not divide by 0, so distances below 1 are set to 1
-    -- not very clever, needs a more general solution
-    let dsSafe = max ds 1
-        dtSafe = max dt 1
-    in 1 / sqrt ((dsSafe ** 2) + (dtSafe ** 2))
 
 -- algorithm options - must be transformed to a proper input when it has stabilized
 myAlgos :: [LocestAlgorithm]
@@ -159,28 +171,3 @@ myDecay = DecayDefinition [
       DecayOneDepVar "varC1" (LinearSum 0.00001 0.00001)
     , DecayOneDepVar "varC2" (LinearSum 0.00001 0.00001)
     ]
-
-calcSD :: DecayDefinition -> DepVarName -> Double -> Double -> Double
-calcSD (DecayDefinition depVarList) depVarName spatDist tempDist =
-    let relevantDecay = filter (\(DecayOneDepVar var _) -> var == depVarName) depVarList
-    in run relevantDecay
-    where
-        run [DecayOneDepVar _ x] = calc x spatDist tempDist
-        run _                    = error "this should never happen"
-        calc :: DecayAlgorithm -> Double -> Double -> Double
-        calc (LinearSum spatDecay tempDecay) = growth2LinearSum spatDecay tempDecay
-        calc (LogSum spatDecay tempDecay)    = growth2LogSum spatDecay tempDecay
-
-growth2LinearSum :: Double -> Double -> Double -> Double -> Double
-growth2LinearSum spatDecay tempDecay spatDist tempDist =
-    growthLinear spatDecay spatDist + growthLinear tempDecay tempDist
-
-growthLinear :: Double -> Double -> Double
-growthLinear factor x = factor * x
-
-growth2LogSum :: Double -> Double -> Double -> Double -> Double
-growth2LogSum spatDecay tempDecay spatDist tempDist =
-    growthLog spatDecay spatDist + growthLog tempDecay tempDist
-
-growthLog :: Double -> Double -> Double
-growthLog factor x = factor * log x
