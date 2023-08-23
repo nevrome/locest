@@ -106,18 +106,13 @@ coreSearch
         calcDensity means errs searchDepVarsCoords
             | any isNaN means = 0/0 -- creates NaN
             | any isNaN errs  = 0/0
-            | otherwise       = dnormMulti means (map replaceInfinite errs) searchDepVarsCoords
-            where
-                replaceInfinite :: Double -> Double
-                replaceInfinite x
-                    | isInfinite x = 0.2 --infite means there is only one sample in kernel range
-                    | otherwise    = x
+            | otherwise       = dnormMulti means errs searchDepVarsCoords
         smoothedValueOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
         smoothedValueOneDepVar obsWithDist depVar = smoothedValue
             where
                 smoothedValue :: Either LOCESTException (Double, Double)
                 smoothedValue = do
-                    means <- mapM getOneDepVarPos obsWithDist
+                    means   <- mapM getOneDepVarPos obsWithDist
                     weights <- mapM weightForOneObs obsWithDist
                     let mean = weightedAvg means weights
                         err  = weightedSD  means weights 

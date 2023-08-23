@@ -15,6 +15,8 @@ hu %>%
   scale_fill_viridis_c() +
   coord_fixed()
 
+plot(-1000:1000, dnorm(-1000:1000,0,400), ylim = c(0,0.01))
+mvtnorm::dmvnorm(c(700,700), c(0,0), diag(c(500^2,500^2)))
 
 hu %>%
   ggplot() +
@@ -27,16 +29,18 @@ hu %>%
   ggplot() +
   facet_wrap(~age) +
   #geom_raster(aes(x, y, fill = varC1Res)) +
-  geom_raster(data = hu %>% dplyr::filter(varC1ResErr == "Infinity"), aes(x,y), fill = "blue") +
-  geom_raster(data = hu %>% dplyr::filter(varC1ResErr != "Infinity" & varC1ResErr != "NaN") %>% dplyr::mutate(varC1ResErr = as.numeric(varC1ResErr)), aes(x,y, fill = varC1ResErr)) +
-  geom_point(data = obs %>% dplyr::filter(age > -8000 & age < -4000) %>% dplyr::mutate(age = round(age, -3)), aes(x,y), shape = 4, color = "red") +
-  scale_fill_viridis_c() +
-  coord_fixed()
-
-hu %>%
-  ggplot() +
-  facet_wrap(~age) +
-  geom_raster(aes(x, y, fill = varC2Res)) +
+  #geom_raster(data = hu %>% dplyr::filter(varC1ResErr == "Infinity"), aes(x,y), fill = "blue") +
+  geom_raster(
+    data = hu %>%
+      dplyr::filter(varC1ResErr != "Infinity" & varC1ResErr != "NaN") %>%
+      dplyr::mutate(varC1ResErr = as.numeric(varC1ResErr)), aes(x,y, fill = varC1ResErr)
+  ) +
+  geom_point(
+    data = obs %>% dplyr::filter(age > -8000 & age < -4000) %>%
+      dplyr::mutate(age = round(age, -3)),
+    aes(x,y),
+    shape = 4, color = "red"
+  ) +
   #geom_point(data = hu %>% dplyr::filter(varC2ResErr > 0.025), aes(x,y), shape = 4, color = "red") +
   scale_fill_viridis_c() +
   coord_fixed()

@@ -9,32 +9,22 @@ import           Foreign.Storable              (Storable)
 import qualified Numeric.LinearAlgebra.Data    as HD
 import qualified Numeric.LinearAlgebra.HMatrix as H
 
--- mu: mean on each pc
--- sigma: sd on each pc
--- x: coordinates for point-of-interest on each pc
+-- taken from https://github.com/idontgetoutmuch/random-fu-multivariate
+-- and tested against mvtnorm::dmvnorm in R
 dnormMulti :: [Double] -> [Double] -> [Double] -> Double
-dnormMulti mu sigma x = normalPDF (makeMu mu) (makeSigma sigma) (makeX x)
-
-makeX :: [Double] -> H.Vector Double
-makeX = HD.fromList
-
-makeMu :: [Double] -> H.Vector Double
-makeMu = HD.fromList
+dnormMulti mu sigma x = normalPDF (HD.fromList mu) (makeSigma sigma) (HD.fromList x)
 
 makeSigma :: [Double] -> H.Herm Double
 makeSigma xs = H.sym $ HD.diagl xs
 
--- taken from https://github.com/idontgetoutmuch/random-fu-multivariate
 normalPDF :: (H.Numeric a, H.Field a, H.Indexable (H.Vector a) a, Num (H.Vector a)) =>
              H.Vector a -> H.Herm a -> H.Vector a -> a
 normalPDF mu sigma x = exp $ normalLogPDF mu sigma x
 
--- taken from https://github.com/idontgetoutmuch/random-fu-multivariate
 normalLogPDF :: (H.Numeric a, H.Field a, H.Indexable (H.Vector a) a, Num (H.Vector a)) =>
                  H.Vector a -> H.Herm a -> H.Vector a -> a
-normalLogPDF mu bigSigma x = - H.sumElements (H.cmap log (diagonals dec))
-                              - 0.5 * fromIntegral (H.size mu) * log (2 * pi)
-                              - 0.5 * s
+normalLogPDF mu bigSigma x =
+    - H.sumElements (H.cmap log (diagonals dec)) - 0.5 * fromIntegral (H.size mu) * log (2 * pi) - 0.5 * s
     where
         dec = fromJust $ H.mbChol bigSigma
         t = fromJust $ H.linearSolve (H.tr dec) (H.asColumn $ x - mu)
