@@ -15,8 +15,8 @@ hu %>%
   scale_fill_viridis_c() +
   coord_fixed()
 
-plot(-1000:1000, dnorm(-1000:1000,0,400), ylim = c(0,0.01))
-mvtnorm::dmvnorm(c(700,700), c(0,0), diag(c(500^2,500^2)))
+#plot(-1000:1000, dnorm(-1000:1000,0,400), ylim = c(0,0.01))
+#mvtnorm::dmvnorm(c(700,700), c(0,0), diag(c(500^2,500^2)))
 
 hu %>%
   ggplot() +

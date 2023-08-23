@@ -96,27 +96,35 @@ coreSearch
     --filteredObsWithDists <- filterByDists 2000 2000 obsWithDist
     -- summarize obs information for each depVar
     (means, errs) <- mapAndUnzipM (smoothedValueOneDepVar obsWithDist) depVarsOrdered
+    
+    let minSpatDistKM = minimum spatDistsKM
+        minTempDist = minimum tempDists
+        combinedMinDist = sqrt ((minSpatDistKM ^ 2) + (minTempDist ^ 2))
+    let errsRescaled = map (rescaleErr combinedMinDist) errs
+    
     return $ SearchResult {
            _srSpatTempDepVarsPosWithAlgos = searchSetting
-         , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zipWith3 (\n m e -> (n,(m,e))) depVarsOrdered means errs
-         , _srProbability = calcDensity means errs searchDepVarsCoords
+         , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zipWith3 (\n m e -> (n,(m,e))) depVarsOrdered means errsRescaled
+         , _srProbability = calcDensity means errsRescaled searchDepVarsCoords
          }
     where
+        rescaleErr :: Double -> Double -> Double
+        rescaleErr minDist err
+            | minDist < 200 = err
+            | otherwise     = err * (minDist / 200)
         calcDensity :: [Double] -> [Double] -> [Double] -> Double
         calcDensity means errs searchDepVarsCoords
             | any isNaN means = 0/0 -- creates NaN
             | any isNaN errs  = 0/0
             | otherwise       = dnormMulti means errs searchDepVarsCoords
         smoothedValueOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
-        smoothedValueOneDepVar obsWithDist depVar = smoothedValue
+        smoothedValueOneDepVar obsWithDist depVar = do
+                means   <- mapM getOneDepVarPos obsWithDist
+                weights <- mapM weightForOneObs obsWithDist
+                let mean = weightedAvg means weights
+                    err  = weightedSD  means weights
+                return (mean, err)
             where
-                smoothedValue :: Either LOCESTException (Double, Double)
-                smoothedValue = do
-                    means   <- mapM getOneDepVarPos obsWithDist
-                    weights <- mapM weightForOneObs obsWithDist
-                    let mean = weightedAvg means weights
-                        err  = weightedSD  means weights 
-                    return (mean, err)
                 weightForOneObs :: ObsWithDist -> Either LOCESTException Double
                 weightForOneObs (ObsWithDist _ (SpatTempDist spatDist tempDist))
                      = do
