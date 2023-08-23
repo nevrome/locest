@@ -11,6 +11,7 @@ hu <- readr::read_tsv("test_res/test2Search.tsv")
 hu %>%
   ggplot() +
   facet_wrap(~age) +
+  #geom_raster(aes(x, y, fill = log10(probability))) +
   geom_raster(aes(x, y, fill = probability)) +
   scale_fill_viridis_c() +
   coord_fixed()
@@ -25,18 +26,19 @@ hu %>%
   scale_fill_viridis_c() +
   coord_fixed()
 
-hu %>%
-  ggplot() +
+ggplot() +
   facet_wrap(~age) +
   #geom_raster(aes(x, y, fill = varC1Res)) +
   #geom_raster(data = hu %>% dplyr::filter(varC1ResErr == "Infinity"), aes(x,y), fill = "blue") +
   geom_raster(
     data = hu %>%
       dplyr::filter(varC1ResErr != "Infinity" & varC1ResErr != "NaN") %>%
+      dplyr::filter(age == -5000) %>%
       dplyr::mutate(varC1ResErr = as.numeric(varC1ResErr)), aes(x,y, fill = varC1ResErr)
   ) +
   geom_point(
-    data = obs %>% dplyr::filter(age > -8000 & age < -4000) %>%
+    data = obs %>%
+      dplyr::filter(age > -8000 & age < -4000) %>%
       dplyr::mutate(age = round(age, -3)),
     aes(x,y),
     shape = 4, color = "red"
