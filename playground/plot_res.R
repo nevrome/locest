@@ -1,6 +1,8 @@
 library(magrittr)
 library(ggplot2)
 
+obs <- readr::read_tsv("test2Obs.tsv")
+
 # normal search test
 system('time locest search --configFile "normalSearch.conf"')
 
@@ -13,11 +15,21 @@ hu %>%
   scale_fill_viridis_c() +
   coord_fixed()
 
+
 hu %>%
   ggplot() +
   facet_wrap(~age) +
   geom_raster(aes(x, y, fill = varC1Res)) +
-  #geom_point(data = hu %>% dplyr::filter(varC1ResErr == "Infinity"), aes(x,y), shape = 4, color = "red") +
+  scale_fill_viridis_c() +
+  coord_fixed()
+
+hu %>%
+  ggplot() +
+  facet_wrap(~age) +
+  #geom_raster(aes(x, y, fill = varC1Res)) +
+  geom_raster(data = hu %>% dplyr::filter(varC1ResErr == "Infinity"), aes(x,y), fill = "blue") +
+  geom_raster(data = hu %>% dplyr::filter(varC1ResErr != "Infinity" & varC1ResErr != "NaN") %>% dplyr::mutate(varC1ResErr = as.numeric(varC1ResErr)), aes(x,y, fill = varC1ResErr)) +
+  geom_point(data = obs %>% dplyr::filter(age > -8000 & age < -4000) %>% dplyr::mutate(age = round(age, -3)), aes(x,y), shape = 4, color = "red") +
   scale_fill_viridis_c() +
   coord_fixed()
 

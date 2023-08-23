@@ -110,7 +110,7 @@ coreSearch
             where
                 replaceInfinite :: Double -> Double
                 replaceInfinite x
-                    | isInfinite x = 100
+                    | isInfinite x = 0.2 --infite means there is only one sample in kernel range
                     | otherwise    = x
         smoothedValueOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
         smoothedValueOneDepVar obsWithDist depVar = smoothedValue
