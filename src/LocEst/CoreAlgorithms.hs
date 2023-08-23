@@ -15,7 +15,7 @@ coreSearch ::
     -> [Observation]
     -> Maybe SpatDistMap
     -> SpatTempDepVarsPosWithAlgorithms
-    -> Either LOCESTException SpatTempProb
+    -> Either LOCESTException SearchResult
 coreSearch
     depVarsOrdered
     observations
@@ -45,9 +45,10 @@ coreSearch
             Maximum -> maximum densities
             Mean    -> avg densities
             DistanceWeightedMean -> weightedAvg (zipWith calcWeight filteredSpatDists filteredTempDists) densities
-    return $ SpatTempProb {
-           _stprSpatTempDepVarsPosWithAlgos = searchSetting
-         , _stprprobability = meanDens
+    return $ SearchResult {
+           _srSpatTempDepVarsPosWithAlgos = searchSetting
+         , _srInterpolation = Nothing
+         , _srProbability = meanDens
          }
     where
         calcSD :: DecayDefinition -> DepVarName -> Double -> Double -> Double
@@ -97,9 +98,10 @@ coreSearch
     (means, errs) <- mapAndUnzipM (determineWeigthedMeansAndSDsForOneDepVar obsWithDist) depVarsOrdered
     -- summarize per-depVar info into a single value
     let density = dnormMulti means errs searchDepVarsCoords
-    return $ SpatTempProb {
-           _stprSpatTempDepVarsPosWithAlgos = searchSetting
-         , _stprprobability = density
+    return $ SearchResult {
+           _srSpatTempDepVarsPosWithAlgos = searchSetting
+         , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zipWith3 (\n m e -> (n,(m,e))) depVarsOrdered means errs
+         , _srProbability = density
          }
     where
         determineWeigthedMeansAndSDsForOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)

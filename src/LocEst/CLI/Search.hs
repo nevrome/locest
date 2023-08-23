@@ -105,31 +105,31 @@ runSearch (
                    )
             hPutStrLn stderr "Done"
 
-normalize :: Monad m => Bool -> Con.ConduitT SpatTempProb SpatTempProb m ()
+normalize :: Monad m => Bool -> Con.ConduitT SearchResult SearchResult m ()
 normalize False = ConC.map id
 normalize True =
        ConL.groupBy groupingCriteria
     .| ConL.map scaleProbs
     .| ConL.concat
     where
-    groupingCriteria :: SpatTempProb -> SpatTempProb -> Bool
+    groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria
-        (SpatTempProb (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos _ t1) dv1) alg1) _)
-        (SpatTempProb (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos _ t2) dv2) alg2) _) =
+        (SearchResult (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos _ t1) dv1) alg1) _ _)
+        (SearchResult (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos _ t2) dv2) alg2) _ _) =
             t1 == t2 && dv1 == dv2 && alg1 == alg2
-    scaleProbs :: [SpatTempProb] -> [SpatTempProb]
+    scaleProbs :: [SearchResult] -> [SearchResult]
     scaleProbs stps =
-        let probs = map _stprprobability stps
+        let probs = map _srProbability stps
             maxProb = maximum probs
             rescaledProbs = map (/ maxProb) probs
         in zipWith setProb stps rescaledProbs
-    setProb :: SpatTempProb -> Double -> SpatTempProb
-    setProb stp p = stp {_stprprobability = p}
+    setProb :: SearchResult -> Double -> SearchResult
+    setProb stp p = stp {_srProbability = p}
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
 
-printError :: MonadIO m => Either LOCESTException SpatTempProb -> m ()
+printError :: MonadIO m => Either LOCESTException a -> m ()
 printError (Left errMsg) = liftIO $ hPutStrLn stderr (renderLOCESTException errMsg ++ "\n")
 printError (Right _) = error "this should never happen"

@@ -113,6 +113,28 @@ instance Csv.ToRecord CrossvalOutput where
         Csv.toRecord algo <> Csv.record [Csv.toField sumProb]
 
 -- | A datatype for search result points in space and time
+data SearchResult = SearchResult {
+      _srSpatTempDepVarsPosWithAlgos :: SpatTempDepVarsPosWithAlgorithms
+    , _srInterpolation               :: Maybe DepVarsUncertainPos
+    , _srProbability                 :: Double
+    -- to model the different densities per input point
+    -- (which will certainly be necessary for debugging)
+    -- SpatTempProb must somehow include also the source Observation
+    -- Perhabs this could be implemented as a Maybe String for the Obs name?
+} deriving (Show, Generic)
+
+instance NFData SearchResult
+instance Csv.DefaultOrdered SearchResult where
+    headerOrder (SearchResult spatTempDepVarsPos Nothing _) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.header ["probability"]
+    headerOrder (SearchResult spatTempDepVarsPos (Just depVarsUncertainPos) _) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder depVarsUncertainPos <> Csv.header ["probability"]
+instance Csv.ToRecord SearchResult where
+    toRecord (SearchResult spatTempDepVarsPos Nothing prob) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
+    toRecord (SearchResult spatTempDepVarsPos (Just depVarsUncertainPos) prob) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord depVarsUncertainPos <> Csv.record [Csv.toField prob]
+
 data SpatTempProb = SpatTempProb {
       _stprSpatTempDepVarsPosWithAlgos :: SpatTempDepVarsPosWithAlgorithms
     , _stprprobability                 :: Double
@@ -271,6 +293,19 @@ instance Csv.DefaultOrdered SpatTempDepVarsPos where
 instance Csv.ToRecord SpatTempDepVarsPos where
     toRecord (SpatTempDepVarsPos spatTempPos depVarsPos) =
         Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
+
+-- | A datatype for dependent vars with errors
+newtype DepVarsUncertainPos = DepVarsUncertainPos { _dvupGetHM :: HM.HashMap String (Double, Double) }
+    deriving (Eq, Show, Generic)
+
+instance NFData DepVarsUncertainPos
+instance Csv.DefaultOrdered DepVarsUncertainPos where
+    headerOrder (DepVarsUncertainPos hm) =
+        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr"]) $ sort $ map fst $ HM.toList hm
+instance Csv.ToRecord DepVarsUncertainPos where
+    toRecord (DepVarsUncertainPos hm) =
+        let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
+        in V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b) -> [a,b]) orderedValues
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }
