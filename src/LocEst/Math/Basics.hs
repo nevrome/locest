@@ -2,7 +2,7 @@ module LocEst.Math.Basics where
 
 import           Data.List (foldl')
 
--- https://stats.stackexchange.com/questions/6534/how-do-i-calculate-a-weighted-standard-deviation-in-excel
+-- https://statss.stackexchange.com/questions/6534/how-do-i-calculate-a-weighted-standard-deviation-in-excel
 -- http://seismo.berkeley.edu/~kirchner/Toolkits/Toolkit_12.pdf -> Case I ?!
 weightedSD :: [Double] -> [Double] -> Double
 weightedSD values weights =
@@ -39,7 +39,7 @@ integrate steps f start stop =
 
 dnorm :: Double -> Double -> Double -> Double
 dnorm mu sigma x =
-    let a = recip (sqrt (2 * pi * sigma2))
+    let a = recip (sqrt (2 * pi * sigma2)) -- recip: returns 1 / argument
         b = exp (-c2 / (2 * sigma2))
         c = x - mu
         c2 = c * c

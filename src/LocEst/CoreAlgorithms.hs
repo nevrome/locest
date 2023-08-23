@@ -95,43 +95,49 @@ coreSearch
     -- filter by dist (for performance)
     --filteredObsWithDists <- filterByDists 2000 2000 obsWithDist
     -- summarize obs information for each depVar
-    (means, errs) <- mapAndUnzipM (determineWeigthedMeansAndSDsForOneDepVar obsWithDist) depVarsOrdered
-    -- summarize per-depVar info into a single value
-    let density = dnormMulti means errs searchDepVarsCoords
+    (means, errs) <- mapAndUnzipM (smoothedValueOneDepVar obsWithDist) depVarsOrdered
     return $ SearchResult {
            _srSpatTempDepVarsPosWithAlgos = searchSetting
          , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zipWith3 (\n m e -> (n,(m,e))) depVarsOrdered means errs
-         , _srProbability = density
+         , _srProbability = calcDensity means errs searchDepVarsCoords
          }
     where
-        determineWeigthedMeansAndSDsForOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
-        determineWeigthedMeansAndSDsForOneDepVar obsWithDist depVar = do
-            obsWeights <- mapM (weightForOneObs kernelDefinition) obsWithDist
-            let normalizedObsWeights = map (/ sum obsWeights) obsWeights
-            obsMeas <- mapM getOneDepVarPos obsWithDist
-            let mean = weightedAvg obsMeas normalizedObsWeights
-                err  = weightedSD  obsMeas normalizedObsWeights
-            return (mean, err)
+        calcDensity :: [Double] -> [Double] -> [Double] -> Double
+        calcDensity means errs searchDepVarsCoords
+            | any isNaN means = 0/0 -- creates NaN
+            | any isNaN errs  = 0/0
+            | otherwise       = dnormMulti means (map replaceInfinite errs) searchDepVarsCoords
             where
-                weightForOneObs :: KernelDefinition -> ObsWithDist -> Either LOCESTException Double
-                weightForOneObs
-                    (KernelDefinition kernelsPerDepVar)
-                    (ObsWithDist _ (SpatTempDist spatDist tempDist))
+                replaceInfinite :: Double -> Double
+                replaceInfinite x
+                    | isInfinite x = 100
+                    | otherwise    = x
+        smoothedValueOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
+        smoothedValueOneDepVar obsWithDist depVar = smoothedValue
+            where
+                smoothedValue :: Either LOCESTException (Double, Double)
+                smoothedValue = do
+                    means <- mapM getOneDepVarPos obsWithDist
+                    weights <- mapM weightForOneObs obsWithDist
+                    let mean = weightedAvg means weights
+                        err  = weightedSD  means weights 
+                    return (mean, err)
+                weightForOneObs :: ObsWithDist -> Either LOCESTException Double
+                weightForOneObs (ObsWithDist _ (SpatTempDist spatDist tempDist))
                      = do
+                        let (KernelDefinition kernelsPerDepVar) = kernelDefinition
                         case filter (\(KernelOneDepVar n _) -> n == depVar) kernelsPerDepVar of
-                            []                    -> Left  $ NormalException "not in"
+                            []                    -> Left  $ NormalException "Variable not defined in kernel"
                             [KernelOneDepVar _ k] -> Right $ weightByKernel k
-                            _                     -> Left  $ NormalException "in more than once"
+                            _                     -> Left  $ NormalException "Variable defined multiple times in kernel"
                     where
                         weightByKernel :: Kernel -> Double
                         weightByKernel (Uniform spatRadius tempRadius) =
-                                let spatWeight = if spatDist <= spatRadius then 1 else 0
-                                    tempWeight = if tempDist <= tempRadius then 1 else 0
-                                in spatWeight * tempWeight
+                            let spatWeight = if spatDist <= spatRadius then 1 else 0
+                                tempWeight = if tempDist <= tempRadius then 1 else 0
+                            in spatWeight * tempWeight
                         weightByKernel (Normal spatSigma tempSigma) =
-                                let spatWeight = dnorm 0 spatSigma spatDist
-                                    tempWeight = dnorm 0 tempSigma tempDist
-                                in spatWeight * tempWeight
+                            dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
                 getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
                 getOneDepVarPos (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
                     case HM.lookup depVar m of

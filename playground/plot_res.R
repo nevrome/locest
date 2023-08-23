@@ -17,7 +17,7 @@ hu %>%
   ggplot() +
   facet_wrap(~age) +
   geom_raster(aes(x, y, fill = varC1Res)) +
-  geom_point(data = hu %>% dplyr::filter(varC1ResErr > 0.025), aes(x,y), shape = 4, color = "red") +
+  #geom_point(data = hu %>% dplyr::filter(varC1ResErr == "Infinity"), aes(x,y), shape = 4, color = "red") +
   scale_fill_viridis_c() +
   coord_fixed()
 
@@ -25,7 +25,7 @@ hu %>%
   ggplot() +
   facet_wrap(~age) +
   geom_raster(aes(x, y, fill = varC2Res)) +
-  geom_point(data = hu %>% dplyr::filter(varC2ResErr > 0.025), aes(x,y), shape = 4, color = "red") +
+  #geom_point(data = hu %>% dplyr::filter(varC2ResErr > 0.025), aes(x,y), shape = 4, color = "red") +
   scale_fill_viridis_c() +
   coord_fixed()
 
