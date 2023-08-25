@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
 
 module LocEst.CLI.Search where
 
@@ -47,11 +48,11 @@ runSearch (
         threads
         outFile
     ) = do
-    allObservations <- readObservations inObsFile
-    inSpatGrid <- readSpatPos inSpatGridFile
+    !allObservations <- readObservations inObsFile
+    !inSpatGrid <- readSpatPos inSpatGridFile
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
-    inSpatDists <- case inSpatDistFile of
+    !inSpatDists <- case inSpatDistFile of
         Nothing   -> return Nothing
         Just path -> Just <$> readSpatDist path
     -- validate input
