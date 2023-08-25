@@ -33,13 +33,14 @@ ggplot() +
   geom_raster(
     data = hu %>%
       dplyr::filter(varC1ResErr != "Infinity" & varC1ResErr != "NaN") %>%
-      dplyr::filter(age == -5000) %>%
+      #dplyr::filter(age == -5000) %>%
       dplyr::mutate(varC1ResErr = as.numeric(varC1ResErr)), aes(x,y, fill = varC1ResErr)
   ) +
   geom_point(
     data = obs %>%
-      dplyr::filter(age > -8000 & age < -4000) %>%
-      dplyr::mutate(age = round(age, -3)),
+      dplyr::filter(age > -7500 & age < -4500) %>%
+      dplyr::mutate(age = round(age, -3)),# %>%
+      #dplyr::filter(age == -5000),
     aes(x,y),
     shape = 4, color = "red"
   ) +

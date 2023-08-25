@@ -112,7 +112,7 @@ coreSearch
                 means   <- mapM getOneDepVarPos obsWithDist
                 weights <- mapM weightForOneObs obsWithDist
                 let mean = weightedAvg means weights
-                    err  = weightedSD  means weights
+                    err  = weightedSEM means weights
                 return (mean, err)
             where
                 weightForOneObs :: ObsWithDist -> Either LOCESTException Double
@@ -130,7 +130,7 @@ coreSearch
                                 tempWeight = if tempDist <= tempRadius then 1 else 0
                             in spatWeight * tempWeight
                         weightByKernel (Normal spatSigma tempSigma) =
-                            dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
+                            dnormMulti [0, 0] [spatSigma ** 2, tempSigma ** 2] [spatDist, tempDist]
                 getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
                 getOneDepVarPos (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
                     case HM.lookup depVar m of

@@ -3,15 +3,25 @@ module LocEst.Math.Basics where
 import           Data.List (foldl')
 
 -- https://statss.stackexchange.com/questions/6534/how-do-i-calculate-a-weighted-standard-deviation-in-excel
--- http://seismo.berkeley.edu/~kirchner/Toolkits/Toolkit_12.pdf -> Case I ?!
+-- http://seismo.berkeley.edu/~kirchner/Toolkits/Toolkit_12.pdf -> Case I !
+weightedSEM :: [Double] -> [Double] -> Double
+weightedSEM values weights =
+    sqrt (weightedVar values weights / neff)
+    where
+        totalWeight = sum weights
+        neff = (totalWeight ** 2) / sum (map (** 2) weights)
+
 weightedSD :: [Double] -> [Double] -> Double
-weightedSD values weights =
-    sqrt ((numerator / totalWeight) * (neff / (neff - 1)))
+weightedSD values weights = sqrt (weightedVar values weights)
+
+weightedVar :: [Double] -> [Double] -> Double
+weightedVar values weights =
+    (numerator / totalWeight) * (neff / (neff - 1))
     where
         numerator = sum $ zipWith (\v w -> w * ((v - weightedMean) ** 2)) values weights
         weightedMean = weightedAvg values weights
         totalWeight = sum weights
-        neff = (totalWeight ** 2) / (sum (map (** 2) weights))
+        neff = (totalWeight ** 2) / sum (map (** 2) weights)
 
 weightedAvg :: [Double] -> [Double] -> Double
 weightedAvg values weights =
