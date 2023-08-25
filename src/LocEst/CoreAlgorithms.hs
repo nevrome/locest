@@ -94,8 +94,14 @@ coreSearch
         obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
     -- filter by dist (for performance)
     --filteredObsWithDists <- filterByDists 2000 2000 obsWithDist
+
+    let minSpatDistKM = minimum spatDistsKM
+        minTempDist = minimum tempDists
+        combinedMinDist = sqrt ((minSpatDistKM ** 2) + (minTempDist ** 2))
+
     -- summarize obs information for each depVar
-    (means, errs) <- mapAndUnzipM (smoothedValueOneDepVar obsWithDist) depVarsOrdered
+    (means, errs) <- mapAndUnzipM (smoothedValueOneDepVar obsWithDist combinedMinDist) depVarsOrdered
+
     return $ SearchResult {
            _srSpatTempDepVarsPosWithAlgos = searchSetting
          , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zipWith3 (\n m e -> (n,(m,e))) depVarsOrdered means errs
@@ -107,35 +113,43 @@ coreSearch
             | any isNaN means = 0/0 -- creates NaN
             | any isNaN errs  = 0/0
             | otherwise       = dnormMulti means errs searchDepVarsCoords
-        smoothedValueOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
-        smoothedValueOneDepVar obsWithDist depVar = do
-                means   <- mapM getOneDepVarPos obsWithDist
-                weights <- mapM weightForOneObs obsWithDist
-                let mean = weightedAvg means weights
-                    err  = weightedSEM means weights
-                return (mean, err)
+        smoothedValueOneDepVar :: [ObsWithDist] -> Double -> DepVarName -> Either LOCESTException (Double, Double)
+        smoothedValueOneDepVar obsWithDist minDist depVar = do
+            kernel  <- getKernelForOneDepVar kernelDefinition depVar
+            means   <- mapM getOneDepVarPos obsWithDist
+            let weights = map (weightForOneObs kernel) obsWithDist
+            let mean = weightedAvg means weights
+                err  = rescaleErr kernel $ weightedSEM means weights
+            return (mean, err)
             where
-                weightForOneObs :: ObsWithDist -> Either LOCESTException Double
-                weightForOneObs (ObsWithDist _ (SpatTempDist spatDist tempDist))
-                     = do
-                        let (KernelDefinition kernelsPerDepVar) = kernelDefinition
-                        case filter (\(KernelOneDepVar n _) -> n == depVar) kernelsPerDepVar of
-                            []                    -> Left  $ NormalException "Variable not defined in kernel"
-                            [KernelOneDepVar _ k] -> Right $ weightByKernel k
-                            _                     -> Left  $ NormalException "Variable defined multiple times in kernel"
-                    where
-                        weightByKernel :: Kernel -> Double
-                        weightByKernel (Uniform spatRadius tempRadius) =
-                            let spatWeight = if spatDist <= spatRadius then 1 else 0
-                                tempWeight = if tempDist <= tempRadius then 1 else 0
-                            in spatWeight * tempWeight
-                        weightByKernel (Normal spatSigma tempSigma) =
-                            dnormMulti [0, 0] [spatSigma ** 2, tempSigma ** 2] [spatDist, tempDist]
                 getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
                 getOneDepVarPos (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
                     case HM.lookup depVar m of
                         Nothing -> Left $ NormalException "Unknown variable"
                         Just x  -> Right x
+                weightForOneObs :: Kernel -> ObsWithDist -> Double
+                weightForOneObs (Uniform spatRadius tempRadius) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
+                    let spatWeight = if spatDist <= spatRadius then 1 else 0
+                        tempWeight = if tempDist <= tempRadius then 1 else 0
+                    in spatWeight * tempWeight
+                weightForOneObs (Normal spatSigma tempSigma) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
+                    dnormMulti [0, 0] [spatSigma ** 2, tempSigma ** 2] [spatDist, tempDist]
+                rescaleErr :: Kernel -> Double -> Double
+                rescaleErr (Uniform spatRadius tempRadius) =
+                    modifyErr (sqrt (spatRadius ** 2 + tempRadius ** 2))
+                rescaleErr (Normal spatSigma tempSigma) =
+                    modifyErr (sqrt (spatSigma ** 2 + tempSigma ** 2))
+                modifyErr :: Double -> Double -> Double
+                modifyErr threshold err
+                    | minDist < threshold = err
+                    | otherwise     = err * (minDist / threshold)
+
+getKernelForOneDepVar :: KernelDefinition -> String -> Either LOCESTException Kernel
+getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
+    case filter (\(KernelOneDepVar n _) -> n == depVar) kernelsPerDepVar of
+        []                    -> Left  $ NormalException "Variable not defined in kernel"
+        [KernelOneDepVar _ k] -> Right $ k
+        _                     -> Left  $ NormalException "Variable defined multiple times in kernel"
 
 filterByDists :: Double -> Double -> [ObsWithDist] -> Either LOCESTException [ObsWithDist]
 filterByDists fs ft xs = do
