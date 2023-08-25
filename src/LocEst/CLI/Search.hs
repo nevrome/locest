@@ -55,12 +55,12 @@ runSearch (
     !inSpatDists <- case inSpatDistFile of
         Nothing   -> return Nothing
         Just path -> Just <$> readSpatDist path
-    -- validate input
+    -- validating input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"
     OP.when (depVarsOrdered /= head depVarsFromSearch) $ do
         throw $ NormalException "dep vars in -i and -d not equal"
-    -- info
+    -- number of threads
     numThreads <- case threads of
         SingleThread      -> pure 1
         MultipleThreads n -> pure n
@@ -69,13 +69,13 @@ runSearch (
             hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
             return detectedThreads
     hPutStrLn stderr $ "Working with threads: " ++ show numThreads
-    -- permutations
-    hPutStrLn stderr $ "Required iterations: " ++
+    -- preparing permutations
+    hPutStrLn stderr $ "Permutations: " ++
         "1 algorithm" ++ " * " ++
         show (length searchDepVarPos) ++ " dependent variable positions" ++ " * " ++
         show (length inTempGrid) ++ " time slices" ++ " * " ++
         show (length inSpatGrid) ++ " spatial positions"
-
+    hPutStrLn stderr $ "Required iterations: " ++ show (length searchDepVarPos * length inTempGrid * length inSpatGrid)
     hPutStrLn stderr "Building permutation tree"
     let permutations =
             PTRoot [] &
@@ -85,6 +85,7 @@ runSearch (
             addPermutation (map PESpatPos inSpatGrid) &
             harvest
     hPutStrLn stderr "Done"
+    -- running all permutations
     case permutations of
         Left e -> throw e
         Right perms -> do
