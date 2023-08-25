@@ -14,12 +14,14 @@ coreSearch ::
        [String]
     -> [Observation]
     -> Maybe SpatDistMap
+    -> Maybe (Double,Double)
     -> SpatTempDepVarsPosWithAlgorithms
     -> Either LOCESTException SearchResult
 coreSearch
     depVarsOrdered
     observations
     maybeSpatDistMap
+    spaceTimeFilter
     searchSetting@(SpatTempDepVarsPosWithAlgorithms
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         (AlgoSepIDW decayDefinition densitySummaryAlgorithm)
@@ -31,11 +33,13 @@ coreSearch
         tempDists   = findTempDistsObsGrid observations gridSpatTempPos
         obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
     -- filter by dist (for performance)
-    --filteredObsWithDists <- filterByDists 2000 2000 obsWithDist
+    filteredObsWithDists <- case spaceTimeFilter of
+        Just (spaceFilter,timeFilter) -> filterByDists spaceFilter timeFilter obsWithDist
+        Nothing -> pure obsWithDist
     -- algorithm (to be refactored)
-    let filteredObs = map (\(ObsWithDist x _) -> x) obsWithDist
-        filteredSpatDists = map (\(ObsWithDist _ (SpatTempDist x _)) -> x) obsWithDist
-        filteredTempDists = map (\(ObsWithDist _ (SpatTempDist _ x)) -> x) obsWithDist
+    let filteredObs       = map (\(ObsWithDist x _) -> x) filteredObsWithDists
+        filteredSpatDists = map (\(ObsWithDist _ (SpatTempDist x _)) -> x) filteredObsWithDists
+        filteredTempDists = map (\(ObsWithDist _ (SpatTempDist _ x)) -> x) filteredObsWithDists
         -- determine mean, sd, and resulting probability densities
         depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredObs
         depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) filteredSpatDists filteredTempDists
@@ -82,6 +86,7 @@ coreSearch
     depVarsOrdered
     observations
     maybeSpatDistMap
+    spaceTimeFilter
     searchSetting@(SpatTempDepVarsPosWithAlgorithms
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         (AlgoKernSmooth kernelDefinition)
@@ -93,14 +98,16 @@ coreSearch
         tempDists   = findTempDistsObsGrid observations gridSpatTempPos
         obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
     -- filter by dist (for performance)
-    --filteredObsWithDists <- filterByDists 2000 2000 obsWithDist
+    filteredObsWithDists <- case spaceTimeFilter of
+        Just (spaceFilter,timeFilter) -> filterByDists spaceFilter timeFilter obsWithDist
+        Nothing -> pure obsWithDist
 
     let minSpatDistKM = minimum spatDistsKM
         minTempDist = minimum tempDists
         combinedMinDist = sqrt ((minSpatDistKM ** 2) + (minTempDist ** 2))
 
     -- summarize obs information for each depVar
-    (means, errs) <- mapAndUnzipM (smoothedValueOneDepVar obsWithDist combinedMinDist) depVarsOrdered
+    (means, errs) <- mapAndUnzipM (smoothedValueOneDepVar filteredObsWithDists combinedMinDist) depVarsOrdered
 
     return $ SearchResult {
            _srSpatTempDepVarsPosWithAlgos = searchSetting

@@ -6,9 +6,9 @@ obs <- readr::read_tsv("test2Obs.tsv")
 # normal search test
 system('time locest search --configFile "normalSearch.conf"')
 
-hu3 <- readr::read_tsv("test_res/test2Search.tsv")
+hu4 <- readr::read_tsv("test_res/test2Search.tsv")
 
-hu3 %>%
+hu4 %>%
   ggplot() +
   facet_wrap(~age) +
   #geom_raster(aes(x, y, fill = log10(probability))) +
@@ -19,7 +19,7 @@ hu3 %>%
 #plot(-1000:1000, dnorm(-1000:1000,0,400), ylim = c(0,0.01))
 #mvtnorm::dmvnorm(c(700,700), c(0,0), diag(c(500^2,500^2)))
 
-hu2 %>%
+hu3 %>%
   ggplot() +
   facet_wrap(~age) +
   geom_raster(aes(x, y, fill = varC1Res)) +
@@ -31,7 +31,7 @@ ggplot() +
   #geom_raster(aes(x, y, fill = varC1Res)) +
   #geom_raster(data = hu %>% dplyr::filter(varC1ResErr == "Infinity"), aes(x,y), fill = "blue") +
   geom_raster(
-    data = hu2 %>%
+    data = hu3 %>%
       dplyr::filter(varC1ResErr != "Infinity" & varC1ResErr != "NaN") %>%
       dplyr::filter(age == -5000) %>%
       dplyr::mutate(varC1ResErr = as.numeric(varC1ResErr)), aes(x,y, fill = varC1ResErr)

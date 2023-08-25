@@ -85,6 +85,30 @@ readFraction s =
         Left err -> Left $ showParsecErr err
         Right x  -> Right x
 
+optParseSpaceTimeFilter :: OP.Parser (Maybe (Double,Double))
+optParseSpaceTimeFilter = OP.option (Just <$> OP.eitherReader readSpaceTime) (
+       OP.long    "spaceTimeFilter"
+    <> OP.metavar "SpaceTimeFilter(DOUBLE,DOUBLE)"
+    <> OP.help    "Filter list of relevant observations for each prediction point by space and time. \
+                   \ This can be set to speed up the calculation."
+    <> OP.value Nothing
+    )
+    where
+        readSpaceTime :: String -> Either String (Double,Double)
+        readSpaceTime s =
+            case P.runParser parseSpaceTime () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseSpaceTime = do
+          _ <- P.string "SpaceTimeFilter"
+          _ <- P.char '('
+          _ <- P.spaces
+          a <- parseDouble
+          consumeCommaSep
+          b <- parseDouble
+          _ <- P.char ')'
+          return (a,b)
+
 optParseInSpatDistMapFile :: OP.Parser (Maybe FilePath)
 optParseInSpatDistMapFile = OP.option (Just <$> OP.str) (
        OP.long    "spatDistFile"
@@ -216,7 +240,7 @@ parseAlgorithmString = do
                 parseDistanceWeightedMean =
                     P.string "DistanceWeightedMean" >> return DistanceWeightedMean
         parseAlgoKernelSmooth = do
-            _ <- P.string "KernSmooth("
+            _ <- P.string "KAS("
             kernDef <- parseKernelDef
             _ <- P.char ')'
             return $ AlgoKernSmooth kernDef

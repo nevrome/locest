@@ -26,6 +26,7 @@ data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
     , _searchSearchPositionSettings :: ConcretePositionSettings
     , _searchAlgorithm              :: LocestAlgorithm
+    , _spaceSpaceTimeFilter         :: Maybe (Double,Double)
     , _searchOutFile                :: FilePath
     }
 
@@ -41,6 +42,7 @@ runSearch (
     SearchOptions inObsFile
         (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos inSpatDistFile)
         algorithm
+        spaceTimeFilter
         outFile
     ) = do
     allObservations <- readObservations inObsFile
@@ -85,7 +87,7 @@ runSearch (
                 -- 1. sequential
                 -- .| ConL.map coreSearch
                 -- 2. normal parallel
-                .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations inSpatDists)
+                .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations inSpatDists spaceTimeFilter)
                 -- 3. chunked parallel
                 -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
                 -- print progress information
