@@ -126,7 +126,7 @@ coreSearch
             means   <- mapM getOneDepVarPos obsWithDist
             let weights = map (weightForOneObs kernel) obsWithDist
             let mean = weightedAvg means weights
-                err  = rescaleErr kernel $ weightedSEM means weights
+                err  = weightedSEM means weights -- rescaleErr kernel $ weightedSEM means weights
             return (mean, err)
             where
                 getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
