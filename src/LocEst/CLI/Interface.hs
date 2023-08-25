@@ -14,6 +14,7 @@ import qualified Options.Applicative      as OP
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.Error        as P
 import qualified Text.Parsec.String       as P
+import Text.Read (readMaybe)
 
 -- config file that uses the optparse interface
 
@@ -42,6 +43,22 @@ parseConfigFile configFile = do
       | otherwise     = "--" ++ s
 
 -- optparse-applicative interface
+
+optParseNumberOfThreads :: OP.Parser NumberOfThreads
+optParseNumberOfThreads = OP.option (OP.eitherReader readNumberOfThreads) (
+    OP.long "threads" <>
+    OP.metavar "INT|detect" <>
+    OP.help "Maximum number of worker threads." <>
+    OP.value SingleThread <>
+    OP.showDefault
+    ) where
+        readNumberOfThreads :: String -> Either String NumberOfThreads
+        readNumberOfThreads s = do
+            if s == "detect"
+            then Right DetectThreads
+            else case readMaybe s of
+                Just n  -> Right $ MultipleThreads n
+                Nothing -> Left "must be either \"Inf\" or an integer number"
 
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (

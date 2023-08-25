@@ -451,3 +451,9 @@ instance Csv.ToField Latitude where
     toField (Latitude x) = Csv.toField x
 instance Csv.FromField Latitude where
     parseField x = Csv.parseField x >>= makeLatitude
+
+data NumberOfThreads =
+      SingleThread
+    | MultipleThreads Int
+    | DetectThreads
+    deriving Show

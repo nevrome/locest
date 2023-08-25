@@ -97,6 +97,7 @@ searchOptParser = SearchOptions <$>
                         <*> optParseConcretePositionSettings
                         <*> optParseAlgorithmString
                         <*> optParseSpaceTimeFilter
+                        <*> optParseNumberOfThreads
                         <*> optParseOutFile
 
 crossvalidateOptParser :: OP.Parser CrossvalidateOptions

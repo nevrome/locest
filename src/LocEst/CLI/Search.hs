@@ -27,6 +27,7 @@ data SearchOptions = SearchOptions
     , _searchSearchPositionSettings :: ConcretePositionSettings
     , _searchAlgorithm              :: LocestAlgorithm
     , _spaceSpaceTimeFilter         :: Maybe (Double,Double)
+    , _numThreads                   :: NumberOfThreads
     , _searchOutFile                :: FilePath
     }
 
@@ -43,6 +44,7 @@ runSearch (
         (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos inSpatDistFile)
         algorithm
         spaceTimeFilter
+        threads
         outFile
     ) = do
     allObservations <- readObservations inObsFile
@@ -58,8 +60,14 @@ runSearch (
     OP.when (depVarsOrdered /= head depVarsFromSearch) $ do
         throw $ NormalException "dep vars in -i and -d not equal"
     -- info
-    maxNumberOfThreads <- getNumCapabilities
-    hPutStrLn stderr $ "Detected max number of threads: " ++ show maxNumberOfThreads
+    numThreads <- case threads of
+        SingleThread      -> pure 1
+        MultipleThreads n -> pure n
+        DetectThreads     -> do
+            detectedThreads <- getNumCapabilities
+            hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
+            return detectedThreads
+    hPutStrLn stderr $ "Working with threads: " ++ show numThreads
     -- permutations
     hPutStrLn stderr $ "Required iterations: " ++
         "1 algorithm" ++ " * " ++
@@ -87,7 +95,7 @@ runSearch (
                 -- 1. sequential
                 -- .| ConL.map coreSearch
                 -- 2. normal parallel
-                .| ConAA.asyncMapC maxNumberOfThreads (coreSearch depVarsOrdered allObservations inSpatDists spaceTimeFilter)
+                .| ConAA.asyncMapC numThreads (coreSearch depVarsOrdered allObservations inSpatDists spaceTimeFilter)
                 -- 3. chunked parallel
                 -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
                 -- print progress information
