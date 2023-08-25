@@ -148,8 +148,8 @@ coreSearch
                     modifyErr (sqrt (spatSigma ** 2 + tempSigma ** 2))
                 modifyErr :: Double -> Double -> Double
                 modifyErr threshold err
-                    | minDist < threshold = err
-                    | otherwise     = err * (minDist / threshold)
+                    | minDist < (threshold/2) = err
+                    | otherwise     = err * (minDist / (threshold/2))
 
 getKernelForOneDepVar :: KernelDefinition -> String -> Either LOCESTException Kernel
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
