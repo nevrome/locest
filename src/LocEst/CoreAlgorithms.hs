@@ -33,7 +33,11 @@ coreSearch
         obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
     -- filter by dist (for performance)
     filteredObsWithDists <- case spaceTimeFilter of
-        Just (spaceFilter,timeFilter) -> filterByDists spaceFilter timeFilter obsWithDist
+        Just (spaceFilter,timeFilter) -> do
+            let res = filterByDists spaceFilter timeFilter obsWithDist
+            if length res < 3
+            then Left $ NormalException "Less than 3 individuals in subset."
+            else Right res
         Nothing -> pure obsWithDist
     -- algorithm (to be refactored)
     let filteredObs       = map (\(ObsWithDist x _) -> x) filteredObsWithDists
@@ -98,7 +102,11 @@ coreSearch
         obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
     -- filter by dist (for performance)
     filteredObsWithDists <- case spaceTimeFilter of
-        Just (spaceFilter,timeFilter) -> filterByDists spaceFilter timeFilter obsWithDist
+        Just (spaceFilter,timeFilter) -> do
+            let res = filterByDists spaceFilter timeFilter obsWithDist
+            if length res < 3
+            then Left $ NormalException "Less than 3 individuals in subset."
+            else Right res
         Nothing -> pure obsWithDist
     -- summarize obs information for each depVar
     perDepVar <- mapM (smoothedValueOneDepVar filteredObsWithDists) depVarsOrdered
@@ -144,12 +152,8 @@ getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
         [KernelOneDepVar _ k] -> Right $ k
         _                     -> Left  $ NormalException "Variable defined multiple times in kernel"
 
-filterByDists :: Double -> Double -> [ObsWithDist] -> Either LOCESTException [ObsWithDist]
-filterByDists fs ft xs = do
-    let res = filter (\(ObsWithDist _ (SpatTempDist ds dt)) -> ds <= fs && dt <= ft) xs
-    if length res < 3
-    then Left $ NormalException "Less than 3 individuals in subset."
-    else Right res
+filterByDists :: Double -> Double -> [ObsWithDist] -> [ObsWithDist]
+filterByDists fs ft = filter (\(ObsWithDist _ (SpatTempDist ds dt)) -> ds <= fs && dt <= ft)
 
 findTempDistsObsGrid :: [Observation] -> SpatTempPos -> [Double]
 findTempDistsObsGrid observations gridSpatTempPos =
