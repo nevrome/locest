@@ -110,7 +110,7 @@ runSearch (
                         ) *>
                         Con.ZipSink (
                                ConL.mapMaybe rightToJust
-                            .| normalize True -- this assumes the permutation order to be set accordingly!!
+                            .| normalize False -- this assumes the permutation order to be set accordingly!!
                                               -- otherwise sorting is necessary, which means everything has to go into memory
                             .| sinkNamedCSV outFile
                         )

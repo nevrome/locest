@@ -6,9 +6,9 @@ obs <- readr::read_tsv("test2Obs.tsv")
 # normal search test
 system('time locest search --configFile "normalSearch.conf"')
 
-hu4 <- readr::read_tsv("test_res/test2Search.tsv")
+hu5 <- readr::read_tsv("test_res/test2Search.tsv")
 
-hu4 %>%
+hu5 %>%
   ggplot() +
   facet_wrap(~age) +
   geom_raster(aes(x, y, fill = probability)) +
@@ -18,19 +18,19 @@ hu4 %>%
 #plot(-1000:1000, dnorm(-1000:1000,0,400), ylim = c(0,0.01))
 #mvtnorm::dmvnorm(c(700,700), c(0,0), diag(c(500^2,500^2)))
 
-hu4 %>%
+hu45 %>%
   ggplot() +
   facet_wrap(~age) +
   geom_raster(aes(x, y, fill = varC1Neff)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
-hu4 %>%
+hu5 %>%
   ggplot() +
   facet_wrap(~age) +
   geom_raster(aes(x, y, fill = probability)) +
   geom_point(
-    data = hu4 %>% dplyr::filter((varC1Dens+varC2Dens)/2 < 0.000001),
+    data = hu5 %>% dplyr::filter((varC1Dens+varC2Dens)/2 < 0.000001),
     aes(x,y),
     shape = 4, color = "red"
   ) +
