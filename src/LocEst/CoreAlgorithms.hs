@@ -8,6 +8,7 @@ import           LocEst.Utils
 
 import qualified Data.HashMap.Strict            as HM
 import           Data.String                    (fromString)
+import Data.List (unzip4)
 
 coreSearch ::
        [String]
@@ -110,7 +111,7 @@ coreSearch
         Nothing -> pure obsWithDist
     -- summarize obs information for each depVar
     perDepVar <- mapM (smoothedValueOneDepVar filteredObsWithDists) depVarsOrdered
-    let (means, errs, _) = unzip3 perDepVar
+    let (means, errs, _, _) = unzip4 perDepVar
     return $ SearchResult {
            _srSpatTempDepVarsPosWithAlgos = searchSetting
          , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zip depVarsOrdered perDepVar
@@ -122,7 +123,7 @@ coreSearch
             | any isNaN means = 0/0 -- creates NaN
             | any isNaN errs  = 0/0
             | otherwise       = dnormMulti means errs searchDepVarsCoords
-        smoothedValueOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double, Double)
+        smoothedValueOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double, Double, Double)
         smoothedValueOneDepVar obsWithDist depVar = do
             kernel  <- getKernelForOneDepVar kernelDefinition depVar
             means   <- mapM getOneDepVarPos obsWithDist
@@ -130,7 +131,8 @@ coreSearch
             let mean = weightedAvg means weights
                 err  = weightedSEM means weights
                 density = sum weights
-            return (mean, err, density)
+                effn = neff density weights
+            return (mean, err, density, effn)
             where
                 getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
                 getOneDepVarPos (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =

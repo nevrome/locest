@@ -6,22 +6,25 @@ import           Data.List (foldl')
 -- http://seismo.berkeley.edu/~kirchner/Toolkits/Toolkit_12.pdf -> Case I !
 weightedSEM :: [Double] -> [Double] -> Double
 weightedSEM values weights =
-    sqrt (weightedVar values weights / neff)
+    sqrt (weightedVar values weights / effn)
     where
         totalWeight = sum weights
-        neff = (totalWeight ** 2) / sum (map (** 2) weights)
+        effn = neff totalWeight weights
+
+neff :: Double -> [Double] -> Double
+neff totalWeight weights = (totalWeight ** 2) / sum (map (** 2) weights)
 
 weightedSD :: [Double] -> [Double] -> Double
 weightedSD values weights = sqrt (weightedVar values weights)
 
 weightedVar :: [Double] -> [Double] -> Double
 weightedVar values weights =
-    (numerator / totalWeight) * (neff / (neff - 1))
+    (numerator / totalWeight) * (effn / (effn - 1))
     where
         numerator = sum $ zipWith (\v w -> w * ((v - weightedMean) ** 2)) values weights
         weightedMean = weightedAvg values weights
         totalWeight = sum weights
-        neff = (totalWeight ** 2) / sum (map (** 2) weights)
+        effn = neff totalWeight weights
 
 weightedAvg :: [Double] -> [Double] -> Double
 weightedAvg values weights =

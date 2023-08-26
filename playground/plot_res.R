@@ -21,7 +21,7 @@ hu4 %>%
 hu4 %>%
   ggplot() +
   facet_wrap(~age) +
-  geom_raster(aes(x, y, fill = varC1Res)) +
+  geom_raster(aes(x, y, fill = varC1Neff)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
