@@ -295,17 +295,17 @@ instance Csv.ToRecord SpatTempDepVarsPos where
         Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
 
 -- | A datatype for dependent vars with errors
-newtype DepVarsUncertainPos = DepVarsUncertainPos { _dvupGetHM :: HM.HashMap String (Double, Double) }
+newtype DepVarsUncertainPos = DepVarsUncertainPos { _dvupGetHM :: HM.HashMap String (Double, Double, Double) }
     deriving (Eq, Show, Generic)
 
 instance NFData DepVarsUncertainPos
 instance Csv.DefaultOrdered DepVarsUncertainPos where
     headerOrder (DepVarsUncertainPos hm) =
-        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr"]) $ sort $ map fst $ HM.toList hm
+        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr", n ++ "Dens"]) $ sort $ map fst $ HM.toList hm
 instance Csv.ToRecord DepVarsUncertainPos where
     toRecord (DepVarsUncertainPos hm) =
         let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
-        in V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b) -> [a,b]) orderedValues
+        in V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c) -> [a,b,c]) orderedValues
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }

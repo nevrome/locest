@@ -11,7 +11,6 @@ hu4 <- readr::read_tsv("test_res/test2Search.tsv")
 hu4 %>%
   ggplot() +
   facet_wrap(~age) +
-  #geom_raster(aes(x, y, fill = log10(probability))) +
   geom_raster(aes(x, y, fill = probability)) +
   scale_fill_viridis_c() +
   coord_fixed()
@@ -23,6 +22,18 @@ hu4 %>%
   ggplot() +
   facet_wrap(~age) +
   geom_raster(aes(x, y, fill = varC1Res)) +
+  scale_fill_viridis_c() +
+  coord_fixed()
+
+hu4 %>%
+  ggplot() +
+  facet_wrap(~age) +
+  geom_raster(aes(x, y, fill = probability)) +
+  geom_point(
+    data = hu4 %>% dplyr::filter((varC1Dens+varC2Dens)/2 < 0.000001),
+    aes(x,y),
+    shape = 4, color = "red"
+  ) +
   scale_fill_viridis_c() +
   coord_fixed()
 
