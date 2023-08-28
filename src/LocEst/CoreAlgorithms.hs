@@ -24,7 +24,7 @@ coreSearch
     spaceTimeFilter
     searchSetting@(SpatTempDepVarsPosWithAlgorithms
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
-        (AlgoSepIDW decayDefinition densitySummaryAlgorithm)
+        (AlgoInverseKernSmooth kernelDefinition densitySummaryAlgorithm)
     ) = do
     -- determine general per-obs statistics
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
@@ -40,52 +40,18 @@ coreSearch
             then Left $ NormalException "Less than 3 individuals in subset."
             else Right res
         Nothing -> pure obsWithDist
-    -- algorithm (to be refactored)
-    let filteredObs       = map (\(ObsWithDist x _) -> x) filteredObsWithDists
-        filteredSpatDists = map (\(ObsWithDist _ (SpatTempDist x _)) -> x) filteredObsWithDists
-        filteredTempDists = map (\(ObsWithDist _ (SpatTempDist _ x)) -> x) filteredObsWithDists
-        -- determine mean, sd, and resulting probability densities
-        depVarMeans = map (depVarsExtractOrdered depVarsOrdered . _stpoDepVarsPos . _obsPos) filteredObs
-        depVarSDs   = zipWith (\sdist tdist -> map (\depVar -> 0.005 + calcSD decayDefinition depVar sdist tdist) depVarsOrdered) filteredSpatDists filteredTempDists
-        densities   = zipWith (\mean std -> dnormMulti mean std searchDepVarsCoords) depVarMeans depVarSDs
-        -- summarise densities
-        meanDens    = case densitySummaryAlgorithm of
-            Maximum -> maximum densities
-            Mean    -> avg densities
-            DistanceWeightedMean -> weightedAvg (zipWith calcWeight filteredSpatDists filteredTempDists) densities
+    -- summarize obs information for each depVar
+    perObs <- mapM (meansAndWeightsOneObs searchDepVarsCoords kernelDefinition depVarsOrdered) filteredObsWithDists
+    -- summarise densities
+    let meanDens = case densitySummaryAlgorithm of
+            Maximum -> maximum perObs
+            Mean    -> undefined
+            DistanceWeightedMean -> undefined
     return $ SearchResult {
            _srSpatTempDepVarsPosWithAlgos = searchSetting
          , _srInterpolation = Nothing
          , _srProbability = meanDens
          }
-    where
-        calcSD :: DecayDefinition -> DepVarName -> Double -> Double -> Double
-        calcSD (DecayDefinition depVarList) depVarName spatDist tempDist =
-            let relevantDecay = filter (\(DecayOneDepVar var _) -> var == depVarName) depVarList
-            in run relevantDecay
-            where
-                run [DecayOneDepVar _ x] = calc x
-                run _                    = error "this should never happen"
-                calc :: DecayAlgorithm -> Double
-                calc (LinearSum spatDecay tempDecay) = growth2LinearSum spatDecay tempDecay
-                calc (LogSum spatDecay tempDecay)    = growth2LogSum spatDecay tempDecay
-                growth2LinearSum :: Double -> Double -> Double
-                growth2LinearSum spatDecay tempDecay =
-                    growthLinear spatDecay spatDist + growthLinear tempDecay tempDist
-                growthLinear :: Double -> Double -> Double
-                growthLinear factor x = factor * x
-                growth2LogSum :: Double -> Double -> Double
-                growth2LogSum spatDecay tempDecay =
-                    growthLog spatDecay spatDist + growthLog tempDecay tempDist
-                growthLog :: Double -> Double -> Double
-                growthLog factor x = factor * log x
-        calcWeight :: Double -> Double -> Double
-        calcWeight ds dt =
-            -- we can not divide by 0, so distances below 1 are set to 1
-            -- not very clever, needs a more general solution
-            let dsSafe = max ds 1
-                dtSafe = max dt 1
-            in 1 / sqrt ((dsSafe ** 2) + (dtSafe ** 2))
 coreSearch
     depVarsOrdered
     observations
@@ -110,7 +76,7 @@ coreSearch
             else Right res
         Nothing -> pure obsWithDist
     -- summarize obs information for each depVar
-    perDepVar <- mapM (smoothedValueOneDepVar filteredObsWithDists) depVarsOrdered
+    perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition filteredObsWithDists) depVarsOrdered
     let (means, errs, _, _) = unzip4 perDepVar
     return $ SearchResult {
            _srSpatTempDepVarsPosWithAlgos = searchSetting
@@ -123,29 +89,40 @@ coreSearch
             | any isNaN means = 0/0 -- creates NaN
             | any isNaN errs  = 0/0
             | otherwise       = dnormMulti means errs searchDepVarsCoords
-        smoothedValueOneDepVar :: [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double, Double, Double)
-        smoothedValueOneDepVar obsWithDist depVar = do
-            kernel  <- getKernelForOneDepVar kernelDefinition depVar
-            means   <- mapM getOneDepVarPos obsWithDist
-            let weights = map (weightForOneObs kernel) obsWithDist
-            let mean = weightedAvg means weights
-                err  = weightedSEM means weights
-                density = sum weights
-                effn = neff density weights
-            return (mean, err, density, effn)
-            where
-                getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
-                getOneDepVarPos (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
-                    case HM.lookup depVar m of
-                        Nothing -> Left $ NormalException "Unknown variable"
-                        Just x  -> Right x
-                weightForOneObs :: Kernel -> ObsWithDist -> Double
-                weightForOneObs (Uniform spatRadius tempRadius) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
-                    let spatWeight = if spatDist <= spatRadius then 1 else 0
-                        tempWeight = if tempDist <= tempRadius then 1 else 0
-                    in spatWeight * tempWeight
-                weightForOneObs (Normal spatSigma tempSigma) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
-                    dnormMulti [0, 0] [spatSigma ** 2, tempSigma ** 2] [spatDist, tempDist]
+
+meansAndWeightsOneObs :: [Double] -> KernelDefinition -> [DepVarName] -> ObsWithDist -> Either LOCESTException Double
+meansAndWeightsOneObs searchDepVarsCoords kernelDefinition depVars oneObsWithDist = do
+    (means, weights) <- unzip <$> mapM (\x -> meanAndWeightOneDepVarOneObs kernelDefinition x oneObsWithDist) depVars
+    return $ dnormMulti means weights searchDepVarsCoords
+
+smoothedValueOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double, Double, Double)
+smoothedValueOneDepVar kernelDefinition obsWithDist depVar = do
+    (means, weights) <- unzip <$> mapM (meanAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist 
+    let mean = weightedAvg means weights
+        err  = weightedSEM means weights
+        density = sum weights
+        effn = neff density weights
+    return (mean, err, density, effn)
+
+meanAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> Either LOCESTException (Double, Double)
+meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
+    kernel  <- getKernelForOneDepVar kernelDefinition depVar
+    mean <- getOneDepVarPos oneObsWithDist
+    let weight = weightForOneObs kernel oneObsWithDist
+    return (mean, weight)
+    where
+        getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
+        getOneDepVarPos (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
+            case HM.lookup depVar m of
+                Nothing -> Left $ NormalException "Unknown variable"
+                Just x  -> Right x
+        weightForOneObs :: Kernel -> ObsWithDist -> Double
+        weightForOneObs (Uniform spatRadius tempRadius) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
+            let spatWeight = if spatDist <= spatRadius then 1 else 0
+                tempWeight = if tempDist <= tempRadius then 1 else 0
+            in spatWeight * tempWeight
+        weightForOneObs (Normal spatSigma tempSigma) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
+            dnormMulti [0, 0] [spatSigma ** 2, tempSigma ** 2] [spatDist, tempDist]
 
 getKernelForOneDepVar :: KernelDefinition -> String -> Either LOCESTException Kernel
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
@@ -174,15 +151,3 @@ findSpatDistsObsGrid observations (Just (SpatDistMatrixMap spatDistMap)) gridSpa
         Nothing -> Left $ NormalException "Distance not in lookup table."
         Just xs -> Right xs
 
--- algorithm options - must be transformed to a proper input when it has stabilized
-myAlgos :: [LocestAlgorithm]
-myAlgos = [myAlgo]
-myAlgo :: LocestAlgorithm
-myAlgo = AlgoSepIDW myDecay mySummary
-mySummary :: DensitySummaryAlgorithm
-mySummary = DistanceWeightedMean
-myDecay :: DecayDefinition
-myDecay = DecayDefinition [
-      DecayOneDepVar "varC1" (LinearSum 0.00001 0.00001)
-    , DecayOneDepVar "varC2" (LinearSum 0.00001 0.00001)
-    ]

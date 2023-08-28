@@ -220,35 +220,13 @@ parseAlgorithmString = do
     P.try parseAlgoSepIDW P.<|> parseAlgoKernelSmooth
     where
         parseAlgoSepIDW = do
-            _ <- P.string "SepIDW("
-            decayDef <- parseDecayDef
+            _ <- P.string "IKAS("
+            kernDef <- parseKernelDef
             consumeCommaSep
             sumAlg <- parseSumAlg
             _ <- P.char ')'
-            return $ AlgoSepIDW decayDef sumAlg
+            return $ AlgoInverseKernSmooth kernDef sumAlg
             where
-                parseDecayDef = do
-                    decayVec <- parseNamedVector parseVarName parseDecayAlgorithm
-                    return $ DecayDefinition $ map (uncurry DecayOneDepVar) decayVec
-                parseDecayAlgorithm = P.try parseLinearSum P.<|> parseLogSum
-                parseLinearSum = do
-                  _ <- P.string "LinearSum"
-                  _ <- P.char '('
-                  _ <- P.spaces
-                  a <- parseDouble
-                  consumeCommaSep
-                  b <- parseDouble
-                  _ <- P.char ')'
-                  return $ LinearSum a b
-                parseLogSum = do
-                  _ <- P.string "LogSum"
-                  _ <- P.char '('
-                  _ <- P.spaces
-                  a <- parseDouble
-                  consumeCommaSep
-                  b <- parseDouble
-                  _ <- P.char ')'
-                  return $ LogSum a b
                 parseSumAlg = P.try parseMaximum P.<|> parseMean P.<|> parseDistanceWeightedMean
                 parseMaximum =
                     P.string "Maximum" >> return Maximum
@@ -261,31 +239,30 @@ parseAlgorithmString = do
             kernDef <- parseKernelDef
             _ <- P.char ')'
             return $ AlgoKernSmooth kernDef
-            where
-                parseKernelDef = do
-                    kernelVec <- parseNamedVector parseVarName parseKernel
-                    return $ KernelDefinition $ map (uncurry KernelOneDepVar) kernelVec
-                parseKernel = P.try parseUniform P.<|> parseNormal
-                parseUniform = do
-                  _ <- P.string "Uniform"
-                  _ <- P.char '('
-                  _ <- P.spaces
-                  spat <- parseDouble
-                  consumeCommaSep
-                  temp <- parseDouble
-                  _ <- P.spaces
-                  _ <- P.char ')'
-                  return $ Uniform spat temp
-                parseNormal = do
-                  _ <- P.string "Normal"
-                  _ <- P.char '('
-                  _ <- P.spaces
-                  spat <- parseDouble
-                  consumeCommaSep
-                  temp <- parseDouble
-                  _ <- P.spaces
-                  _ <- P.char ')'
-                  return $ Normal spat temp
+        parseKernelDef = do
+            kernelVec <- parseNamedVector parseVarName parseKernel
+            return $ KernelDefinition $ map (uncurry KernelOneDepVar) kernelVec
+        parseKernel = P.try parseUniform P.<|> parseNormal
+        parseUniform = do
+          _ <- P.string "Uniform"
+          _ <- P.char '('
+          _ <- P.spaces
+          spat <- parseDouble
+          consumeCommaSep
+          temp <- parseDouble
+          _ <- P.spaces
+          _ <- P.char ')'
+          return $ Uniform spat temp
+        parseNormal = do
+          _ <- P.string "Normal"
+          _ <- P.char '('
+          _ <- P.spaces
+          spat <- parseDouble
+          consumeCommaSep
+          temp <- parseDouble
+          _ <- P.spaces
+          _ <- P.char ')'
+          return $ Normal spat temp
 
 -- general parsers
 

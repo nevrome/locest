@@ -168,9 +168,9 @@ instance Csv.ToRecord SpatTempDepVarsPosWithAlgorithms where
 
 -- Data types for core algorithm specification
 data LocestAlgorithm =
-    AlgoSepIDW {
-        _asiDecayDefinition :: DecayDefinition
-      , _asiDensitySummary  :: DensitySummaryAlgorithm
+    AlgoInverseKernSmooth {
+        _aiksKernelDefinition :: KernelDefinition
+      , _aiksDensitySummary   :: DensitySummaryAlgorithm
     } |
     AlgoKernSmooth {
         _aksKernelDefinition :: KernelDefinition
@@ -180,13 +180,13 @@ data LocestAlgorithm =
 instance NFData LocestAlgorithm
 -- these instances are just placeholders
 instance Csv.DefaultOrdered LocestAlgorithm where
-    headerOrder (AlgoSepIDW _ _) =
-        Csv.header ["decayDef"] <> Csv.header ["sumAlg"]
+    headerOrder (AlgoInverseKernSmooth _ _) =
+        Csv.header ["kernDef"] <> Csv.header ["sumAlg"]
     headerOrder (AlgoKernSmooth _) =
         Csv.header ["kernDef"]
 instance Csv.ToRecord LocestAlgorithm where
-    toRecord (AlgoSepIDW decayDef sumAlg) =
-        Csv.record [Csv.toField (show decayDef)] <> Csv.record [Csv.toField (show sumAlg)]
+    toRecord (AlgoInverseKernSmooth kernDef sumAlg) =
+        Csv.record [Csv.toField (show kernDef)] <> Csv.record [Csv.toField (show sumAlg)]
     toRecord (AlgoKernSmooth kernDef) =
         Csv.record [Csv.toField (show kernDef)]
 
@@ -198,27 +198,7 @@ data DensitySummaryAlgorithm =
 
 instance NFData DensitySummaryAlgorithm
 
-newtype DecayDefinition = DecayDefinition [DecayOneDepVar]
-    deriving (Show, Eq, Ord, Generic)
-
-instance NFData DecayDefinition
-
-data DecayOneDepVar = DecayOneDepVar {
-      _stddvDepVarName    :: DepVarName
-    , _stddvSpatTempDecay :: DecayAlgorithm
-    }
-    deriving (Show, Eq, Ord, Generic)
-
-instance NFData DecayOneDepVar
-
 type DepVarName = String
-
-data DecayAlgorithm =
-      LinearSum Double Double
-    | LogSum Double Double
-    deriving (Show, Eq, Ord, Generic)
-
-instance NFData DecayAlgorithm
 
 newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
