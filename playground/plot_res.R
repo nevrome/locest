@@ -53,7 +53,7 @@ ggplot() +
       dplyr::filter(age == -5000),
     aes(x,y),
     shape = 4, color = "red"
-  ) +
+  ) +d
   scale_fill_viridis_c() +
   coord_fixed()
 
@@ -75,7 +75,7 @@ system('time locest crossvalidate -i test2Obs.tsv --testFraction 0.1 --iteration
 
 # test with own distance matrix
 
-system('time locest search -i distMatrixObs.tsv -g distMatrixGrid.tsv --spatDistFile distMatrixDists.tsv -t "c(0)" -d "c(varC1 = 0,varC2 = 0)" -a "SepIDW(c(varC1 = LinearSum(0.00001, 0.00001), varC2 = LinearSum(0.00001, 0.00001)), DistanceWeightedMean)" -o test_res/distMatrixTestSearch.tsv')
+system('time locest search -i distMatrixObs.tsv -g distMatrixGrid.tsv --spatDistFile distMatrixDists.tsv -t "c(0)" -d "c(varC1 = 0,varC2 = 0)" -a "KAS(c(varC1 = Normal(200, 200), varC2 = Normal(200, 200)))" -o test_res/distMatrixTestSearch.tsv')
 
 hu <- readr::read_tsv("test_res/distMatrixTestSearch.tsv")
 

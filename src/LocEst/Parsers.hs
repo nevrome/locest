@@ -51,6 +51,7 @@ readSpatDist path = do
     return $ SpatDistMatrixMap distMap
     where
         -- this accumulates into a state: https://www.yesodweb.com/blog/2014/01/conduit-transformer-exception
+        -- hashmap should eventually be replaced with some sort of matrix - would certainly be more efficient
         sinkHashMap :: (Monad m) =>
             ConduitT SpatDistObsGrid Void m (HM.HashMap (BSS.ShortByteString, BSS.ShortByteString) Double)
         sinkHashMap = ConLF.execStateC HM.empty $
