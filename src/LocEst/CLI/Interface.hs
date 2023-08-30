@@ -44,21 +44,39 @@ parseConfigFile configFile = do
 
 -- optparse-applicative interface
 
+optParseNormalization :: OP.Parser Normalization
+optParseNormalization = OP.option (OP.eitherReader readNormalization) (
+    OP.long "normalization" <>
+    OP.metavar "NormBySpace|NoNorm" <>
+    OP.help "How the output probabilities should be normalized." <>
+    OP.value NoNorm <>
+    OP.showDefault
+    )
+    where
+        readNormalization :: String -> Either String Normalization
+        readNormalization s =
+            case P.runParser parseNormalization () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseNormalization = P.try parseNormBySpace P.<|> parseNoNorm
+        parseNormBySpace = P.string "NormBySpace" >> return NormBySpace
+        parseNoNorm      = P.string "NoNorm"      >> return NoNorm
+
 optParseNumberOfThreads :: OP.Parser NumberOfThreads
 optParseNumberOfThreads = OP.option (OP.eitherReader readNumberOfThreads) (
     OP.long "threads" <>
-    OP.metavar "INT|detect" <>
+    OP.metavar "INT|Detect" <>
     OP.help "Maximum number of worker threads." <>
     OP.value SingleThread <>
     OP.showDefault
     ) where
         readNumberOfThreads :: String -> Either String NumberOfThreads
         readNumberOfThreads s = do
-            if s == "detect"
+            if s == "Detect"
             then Right DetectThreads
             else case readMaybe s of
                 Just n  -> Right $ MultipleThreads n
-                Nothing -> Left "must be either \"Inf\" or an integer number"
+                Nothing -> Left "must be either \"Detect\" or an integer number"
 
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (

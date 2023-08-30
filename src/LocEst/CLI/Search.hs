@@ -28,6 +28,7 @@ data SearchOptions = SearchOptions
     , _searchSearchPositionSettings :: ConcretePositionSettings
     , _searchAlgorithm              :: LocestAlgorithm
     , _spaceSpaceTimeFilter         :: Maybe (Double,Double)
+    , _normalize                    :: Normalization
     , _numThreads                   :: NumberOfThreads
     , _searchOutFile                :: FilePath
     }
@@ -45,6 +46,7 @@ runSearch (
         (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos inSpatDistFile)
         algorithm
         spaceTimeFilter
+        normalization
         threads
         outFile
     ) = do
@@ -110,16 +112,16 @@ runSearch (
                         ) *>
                         Con.ZipSink (
                                ConL.mapMaybe rightToJust
-                            .| normalize False -- this assumes the permutation order to be set accordingly!!
-                                              -- otherwise sorting is necessary, which means everything has to go into memory
+                            .| normalize normalization -- this assumes the permutation order to be set accordingly!!
+                                                       -- otherwise sorting is necessary, which means everything has to go into memory
                             .| sinkNamedCSV outFile
                         )
                    )
             hPutStrLn stderr "Done"
 
-normalize :: Monad m => Bool -> Con.ConduitT SearchResult SearchResult m ()
-normalize False = ConC.map id
-normalize True =
+normalize :: Monad m => Normalization -> Con.ConduitT SearchResult SearchResult m ()
+normalize NoNorm = ConC.map id
+normalize NormBySpace =
        ConL.groupBy groupingCriteria
     .| ConL.map scaleProbs
     .| ConL.concat

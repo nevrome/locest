@@ -97,6 +97,7 @@ searchOptParser = SearchOptions <$>
                         <*> optParseConcretePositionSettings
                         <*> optParseAlgorithmString
                         <*> optParseSpaceTimeFilter
+                        <*> optParseNormalization
                         <*> optParseNumberOfThreads
                         <*> optParseOutFile
 

@@ -75,6 +75,10 @@ data PositionEntity =
 class Identifiable a where
     getID :: a -> String
 
+-- | A datatype for normalization of the output
+data Normalization = NormBySpace | NoNorm
+    deriving (Show)
+
 -- | A datatype for an unidirectional distance matrix
 newtype SpatDistMap = SpatDistMatrixMap {
     _spatDistMatrixMap :: HM.HashMap (BSS.ShortByteString, BSS.ShortByteString) Double
