@@ -7,8 +7,8 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import qualified Data.HashMap.Strict            as HM
+import           Data.List                      (unzip4)
 import           Data.String                    (fromString)
-import Data.List (unzip4)
 
 coreSearch ::
        [String]
@@ -17,41 +17,6 @@ coreSearch ::
     -> Maybe (Double,Double)
     -> SpatTempDepVarsPosWithAlgorithms
     -> Either LOCESTException SearchResult
-coreSearch
-    depVarsOrdered
-    observations
-    maybeSpatDistMap
-    spaceTimeFilter
-    searchSetting@(SpatTempDepVarsPosWithAlgorithms
-        (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
-        (AlgoInverseKernSmooth kernelDefinition densitySummaryAlgorithm)
-    ) = do
-    -- determine general per-obs statistics
-    let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-    spatDists <- findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
-    let spatDistsKM = map (/ 1000) spatDists
-        tempDists   = findTempDistsObsGrid observations gridSpatTempPos
-        obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
-    -- filter by dist (for performance)
-    filteredObsWithDists <- case spaceTimeFilter of
-        Just (spaceFilter,timeFilter) -> do
-            let res = filterByDists spaceFilter timeFilter obsWithDist
-            if length res < 3
-            then Left $ NormalException "Less than 3 individuals in subset."
-            else Right res
-        Nothing -> pure obsWithDist
-    -- summarize obs information for each depVar
-    perObs <- mapM (meansAndWeightsOneObs searchDepVarsCoords kernelDefinition depVarsOrdered) filteredObsWithDists
-    -- summarise densities
-    let meanDens = case densitySummaryAlgorithm of
-            Maximum -> maximum perObs
-            Mean    -> undefined
-            DistanceWeightedMean -> undefined
-    return $ SearchResult {
-           _srSpatTempDepVarsPosWithAlgos = searchSetting
-         , _srInterpolation = Nothing
-         , _srProbability = meanDens
-         }
 coreSearch
     depVarsOrdered
     observations
@@ -97,7 +62,7 @@ meansAndWeightsOneObs searchDepVarsCoords kernelDefinition depVars oneObsWithDis
 
 smoothedValueOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double, Double, Double)
 smoothedValueOneDepVar kernelDefinition obsWithDist depVar = do
-    (means, weights) <- unzip <$> mapM (meanAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist 
+    (means, weights) <- unzip <$> mapM (meanAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist
     let mean = weightedAvg means weights
         err  = weightedSEM means weights
         density = sum weights

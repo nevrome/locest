@@ -14,7 +14,7 @@ import qualified Options.Applicative      as OP
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.Error        as P
 import qualified Text.Parsec.String       as P
-import Text.Read (readMaybe)
+import           Text.Read                (readMaybe)
 
 -- config file that uses the optparse interface
 
@@ -217,23 +217,8 @@ readAlgorithmString s =
 
 parseAlgorithmString :: P.Parser LocestAlgorithm
 parseAlgorithmString = do
-    P.try parseAlgoSepIDW P.<|> parseAlgoKernelSmooth
+    P.try parseAlgoKernelSmooth -- P.<|> parseOtherAlgo
     where
-        parseAlgoSepIDW = do
-            _ <- P.string "IKAS("
-            kernDef <- parseKernelDef
-            consumeCommaSep
-            sumAlg <- parseSumAlg
-            _ <- P.char ')'
-            return $ AlgoInverseKernSmooth kernDef sumAlg
-            where
-                parseSumAlg = P.try parseMaximum P.<|> parseMean P.<|> parseDistanceWeightedMean
-                parseMaximum =
-                    P.string "Maximum" >> return Maximum
-                parseMean =
-                    P.string "Mean" >> return Mean
-                parseDistanceWeightedMean =
-                    P.string "DistanceWeightedMean" >> return DistanceWeightedMean
         parseAlgoKernelSmooth = do
             _ <- P.string "KAS("
             kernDef <- parseKernelDef

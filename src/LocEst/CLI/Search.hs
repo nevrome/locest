@@ -1,5 +1,5 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE BangPatterns #-}
 
 module LocEst.CLI.Search where
 

@@ -168,10 +168,6 @@ instance Csv.ToRecord SpatTempDepVarsPosWithAlgorithms where
 
 -- Data types for core algorithm specification
 data LocestAlgorithm =
-    AlgoInverseKernSmooth {
-        _aiksKernelDefinition :: KernelDefinition
-      , _aiksDensitySummary   :: DensitySummaryAlgorithm
-    } |
     AlgoKernSmooth {
         _aksKernelDefinition :: KernelDefinition
     }
@@ -180,13 +176,9 @@ data LocestAlgorithm =
 instance NFData LocestAlgorithm
 -- these instances are just placeholders
 instance Csv.DefaultOrdered LocestAlgorithm where
-    headerOrder (AlgoInverseKernSmooth _ _) =
-        Csv.header ["kernDef"] <> Csv.header ["sumAlg"]
     headerOrder (AlgoKernSmooth _) =
         Csv.header ["kernDef"]
 instance Csv.ToRecord LocestAlgorithm where
-    toRecord (AlgoInverseKernSmooth kernDef sumAlg) =
-        Csv.record [Csv.toField (show kernDef)] <> Csv.record [Csv.toField (show sumAlg)]
     toRecord (AlgoKernSmooth kernDef) =
         Csv.record [Csv.toField (show kernDef)]
 
