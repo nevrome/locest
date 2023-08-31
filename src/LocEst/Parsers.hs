@@ -40,25 +40,18 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
-readSpatDist :: FilePath -> IO SpatDistMap
-readSpatDist path = do
+readSpatDist :: [Observation] -> [SpatPos] -> FilePath -> IO SpatDistMatrix
+readSpatDist obs spatGrid path = do
     hPutStrLn stderr $ "Parsing " ++ path
-    distMap <- Con.runConduitRes $
+    let nObs = length obs
+        nGridPoints = length spatGrid
+    distVec <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
-        sinkHashMap
+        ConC.map (\(SpatDistObsGrid _ _ d) -> d) .|
+        ConC.sinkVector
     hPutStrLn stderr "Done"
-    return $ SpatDistMatrixMap distMap
-    where
-        -- this accumulates into a state: https://www.yesodweb.com/blog/2014/01/conduit-transformer-exception
-        -- hashmap should eventually be replaced with some sort of matrix - would certainly be more efficient
-        sinkHashMap :: (Monad m) =>
-            ConduitT SpatDistObsGrid Void m (HM.HashMap (BSS.ShortByteString, BSS.ShortByteString) Double)
-        sinkHashMap = ConLF.execStateC HM.empty $
-            Con.awaitForever $ \(SpatDistObsGrid oID gID d) -> do
-                hashmap <- ST.get
-                let hashmap' = HM.insert (fromString oID, fromString gID) d hashmap
-                ST.put hashmap'
+    return $ SpatDistMatrix nObs nGridPoints distVec
 
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
