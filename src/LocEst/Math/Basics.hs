@@ -58,3 +58,13 @@ dnorm mu sigma x =
         c2 = c * c
         sigma2 = sigma * sigma
     in a*b
+
+-- this applies only for basic covariance matrices (only values on the diagonals)
+-- was mostly written by ChatGPT and only tested by comparing to mvtnorm::dmvnorm in R
+dnormMulti :: [Double] -> [Double] -> [Double] -> Double
+dnormMulti mus sigmas positions = constantFactor * exp (-0.5 * exponentTerm)
+  where
+    constantFactor = 1 / sqrt (product $ map (* (2 * pi)) sigmasSq)
+    sigmasSq = map (** 2) sigmas
+    exponentTerm = foldl' (\acc (mu, sigma, x) -> acc + ((x - mu) / sigma) ** 2) 0 terms
+    terms = zip3 mus sigmas positions

@@ -2,13 +2,12 @@ module LocEst.CoreAlgorithms where
 
 import           LocEst.Distance
 import           LocEst.Math.Basics
-import           LocEst.Math.MultivariateNormal (dnormMulti)
 import           LocEst.Types
 import           LocEst.Utils
 
-import qualified Data.HashMap.Strict            as HM
-import           Data.List                      (unzip4)
-import           Data.String                    (fromString)
+import qualified Data.HashMap.Strict as HM
+import           Data.List           (unzip4)
+import           Data.String         (fromString)
 
 coreSearch ::
        [String]
@@ -53,12 +52,7 @@ coreSearch
         calcDensity means errs searchDepVarsCoords
             | any isNaN means = 0/0 -- creates NaN
             | any isNaN errs  = 0/0
-            | otherwise       = dnormMulti means errs searchDepVarsCoords
-
-meansAndWeightsOneObs :: [Double] -> KernelDefinition -> [DepVarName] -> ObsWithDist -> Either LOCESTException Double
-meansAndWeightsOneObs searchDepVarsCoords kernelDefinition depVars oneObsWithDist = do
-    (means, weights) <- unzip <$> mapM (\x -> meanAndWeightOneDepVarOneObs kernelDefinition x oneObsWithDist) depVars
-    return $ dnormMulti means weights searchDepVarsCoords
+            | otherwise       = dnormMulti means (map sqrt errs) searchDepVarsCoords -- TODO: figure out, why the errs get too small without the sqrt
 
 smoothedValueOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double, Double, Double)
 smoothedValueOneDepVar kernelDefinition obsWithDist depVar = do
@@ -87,7 +81,7 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
                 tempWeight = if tempDist <= tempRadius then 1 else 0
             in spatWeight * tempWeight
         weightForOneObs (Normal spatSigma tempSigma) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
-            dnormMulti [0, 0] [spatSigma ** 2, tempSigma ** 2] [spatDist, tempDist]
+            dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
 
 getKernelForOneDepVar :: KernelDefinition -> String -> Either LOCESTException Kernel
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do

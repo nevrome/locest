@@ -53,7 +53,7 @@ ggplot() +
       dplyr::filter(age == -5000),
     aes(x,y),
     shape = 4, color = "red"
-  ) +d
+  ) +
   scale_fill_viridis_c() +
   coord_fixed()
 
