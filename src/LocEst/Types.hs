@@ -12,9 +12,9 @@ import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           Data.List             (nub, sort, sortBy)
 import qualified Data.Vector           as V
+import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
 import           LocEst.Utils          (LOCESTException (..))
-import qualified Data.Vector.Unboxed as VU
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -222,9 +222,9 @@ addDistsToObs obs spatDist tempDist = ObsWithDist obs (SpatTempDist spatDist tem
 
 -- | A datatype for observations with id and position
 data Observation = Observation {
-      _obsIndex :: Int 
-    , _obsID  :: String
-    , _obsPos :: SpatTempDepVarsPos
+      _obsIndex :: Int
+    , _obsID    :: String
+    , _obsPos   :: SpatTempDepVarsPos
 } deriving (Show, Generic)
 
 instance NFData Observation
@@ -366,9 +366,9 @@ instance Identifiable SpatPos where
     getID (SpatPosCartesian x) = getID x
     getID (SpatPosLongLat x)   = getID x
     getIndex (SpatPosCartesian x) = getIndex x
-    getIndex (SpatPosLongLat x) = getIndex x
+    getIndex (SpatPosLongLat x)   = getIndex x
     setIndex (SpatPosCartesian x) i = SpatPosCartesian (setIndex x i)
-    setIndex (SpatPosLongLat x) i = SpatPosLongLat (setIndex x i)
+    setIndex (SpatPosLongLat x) i   = SpatPosLongLat (setIndex x i)
 
 -- | A datatype for projected coordinates
 data CartesianPos = CartesianPos Int (Maybe String) Double Double
