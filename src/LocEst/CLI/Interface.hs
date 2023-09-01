@@ -149,7 +149,7 @@ optParseInSpatDistMapFile = OP.option (Just <$> OP.str) (
        OP.long    "spatDistFile"
     <> OP.metavar "FILE"
     <> OP.help    "Path to a .tsv file with spatial distances between observations and the spatial \
-                   \positions of interest."
+                   \positions of interest. Must be ordered as --obsFile and --spatGridFile."
     <> OP.value Nothing
     )
 

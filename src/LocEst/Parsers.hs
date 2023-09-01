@@ -45,6 +45,7 @@ readSpatDist obs spatGrid path = do
     distVec <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
+        --ConC.map (\(SpatDistObsGrid _ _ d) -> d) .|
         checkOrder .|
         ConC.sinkVector
     hPutStrLn stderr "Done"
@@ -55,7 +56,6 @@ readSpatDist obs spatGrid path = do
         let outerCycle = map getID obs
             innerCycle = map getID spatGrid
             fullCycle  = [(o,i) | o <- outerCycle, i <- innerCycle]
-        -- Throw an exception if the cyclical order is not maintained
         loop fullCycle
         where
             loop (expected:rest) = do
@@ -68,6 +68,7 @@ readSpatDist obs spatGrid path = do
                             Con.yield dist
                             loop rest
                         else do
+                            -- throw an exception if the order is not as expected
                             liftIO $ throwIO $ NormalException $
                                 "Order of entries in --spatDistFile not equal to -i and -g. " ++
                                 "Expected: " ++ show (obsID, spatID) ++ " but got: " ++ show expected
