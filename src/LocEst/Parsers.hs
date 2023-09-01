@@ -52,24 +52,27 @@ readSpatDist obs spatGrid path = do
     where
     checkOrder :: (MonadIO m) => ConduitT SpatDistObsGrid Double m ()
     checkOrder = do
-        let cyclicalOrder = map getID spatGrid
+        let outerCycle = map getID obs
+            innerCycle = map getID spatGrid
+            fullCycle  = [(o,i) | o <- outerCycle, i <- innerCycle]
         -- Throw an exception if the cyclical order is not maintained
-        loop cyclicalOrder cyclicalOrder
+        loop fullCycle
         where
-            loop order (expected:rest) = do
+            loop (expected:rest) = do
                 val <- Con.await
                 case val of
                     Just oneSpatDist -> do
-                        let (SpatDistObsGrid _ s dist) = oneSpatDist
-                        if s == expected
+                        let (SpatDistObsGrid obsID spatID dist) = oneSpatDist
+                        if (obsID, spatID) == expected
                         then do
                             Con.yield dist
-                            loop order rest
+                            loop rest
                         else do
-                            liftIO $ throwIO $ NormalException $ "huhu"
+                            liftIO $ throwIO $ NormalException $
+                                "Order of entries in --spatDistFile not equal to -i and -g. " ++
+                                "Expected: " ++ show (obsID, spatID) ++ " but got: " ++ show expected
                     Nothing -> return ()
-            loop order [] = loop order order
-
+            loop [] = return ()
 
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
