@@ -9,22 +9,19 @@ import           Conduit                   (MonadIO, MonadResource, liftIO)
 import           Control.Exception         (throwIO)
 import           Control.Monad             (when)
 import           Control.Monad.Error.Class
-import qualified Control.Monad.State       as ST
+--import qualified Control.Monad.State       as ST
 import qualified Data.ByteString.Builder   as BB
 import qualified Data.ByteString.Char8     as Bchs
-import qualified Data.ByteString.Short     as BSS
 import           Data.Char                 (ord)
 import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
 import qualified Data.Conduit.Combinators  as ConC
-import qualified Data.Conduit.Lift         as ConLF
+--import qualified Data.Conduit.Lift         as ConLF
 import qualified Data.Conduit.List         as ConL
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
-import qualified Data.HashMap.Strict       as HM
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
-import           Data.String               (fromString)
 import           LocEst.Utils              (LOCESTException (NormalException))
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
@@ -40,25 +37,42 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
-readSpatDist :: FilePath -> IO SpatDistMap
-readSpatDist path = do
+readSpatDist :: [Observation] -> [SpatPos] -> FilePath -> IO SpatDistMatrix
+readSpatDist obs spatGrid path = do
     hPutStrLn stderr $ "Parsing " ++ path
-    distMap <- Con.runConduitRes $
+    let nObs = length obs
+        nGridPoints = length spatGrid
+    distVec <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
-        sinkHashMap
+        checkOrder .|
+        ConC.sinkVector
     hPutStrLn stderr "Done"
-    return $ SpatDistMatrixMap distMap
+    return $ SpatDistMatrix nGridPoints nObs distVec
     where
-        -- this accumulates into a state: https://www.yesodweb.com/blog/2014/01/conduit-transformer-exception
-        -- hashmap should eventually be replaced with some sort of matrix - would certainly be more efficient
-        sinkHashMap :: (Monad m) =>
-            ConduitT SpatDistObsGrid Void m (HM.HashMap (BSS.ShortByteString, BSS.ShortByteString) Double)
-        sinkHashMap = ConLF.execStateC HM.empty $
-            Con.awaitForever $ \(SpatDistObsGrid oID gID d) -> do
-                hashmap <- ST.get
-                let hashmap' = HM.insert (fromString oID, fromString gID) d hashmap
-                ST.put hashmap'
+    checkOrder :: (MonadIO m) => ConduitT SpatDistObsGrid Double m ()
+    checkOrder = do
+        let outerCycle = map getID obs
+            innerCycle = map getID spatGrid
+            fullCycle  = [(o,i) | o <- outerCycle, i <- innerCycle]
+        -- Throw an exception if the cyclical order is not maintained
+        loop fullCycle
+        where
+            loop (expected:rest) = do
+                val <- Con.await
+                case val of
+                    Just oneSpatDist -> do
+                        let (SpatDistObsGrid obsID spatID dist) = oneSpatDist
+                        if (obsID, spatID) == expected
+                        then do
+                            Con.yield dist
+                            loop rest
+                        else do
+                            liftIO $ throwIO $ NormalException $
+                                "Order of entries in --spatDistFile not equal to -i and -g. " ++
+                                "Expected: " ++ show (obsID, spatID) ++ " but got: " ++ show expected
+                    Nothing -> return ()
+            loop [] = return ()
 
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList

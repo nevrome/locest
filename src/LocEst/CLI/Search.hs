@@ -50,13 +50,15 @@ runSearch (
         threads
         outFile
     ) = do
-    !allObservations <- readObservations inObsFile
-    !inSpatGrid <- readSpatPos inSpatGridFile
+    !allObservationsUnindexed <- readObservations inObsFile
+    let allObservations = zipWith setIndex allObservationsUnindexed [0..]
+    !inSpatGridUnindexed <- readSpatPos inSpatGridFile
+    let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
     !inSpatDists <- case inSpatDistFile of
         Nothing   -> return Nothing
-        Just path -> Just <$> readSpatDist path
+        Just path -> Just <$> readSpatDist allObservations inSpatGrid path
     -- validating input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"

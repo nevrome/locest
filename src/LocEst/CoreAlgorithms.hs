@@ -7,12 +7,11 @@ import           LocEst.Utils
 
 import qualified Data.HashMap.Strict as HM
 import           Data.List           (unzip4)
-import           Data.String         (fromString)
 
 coreSearch ::
        [String]
     -> [Observation]
-    -> Maybe SpatDistMap
+    -> Maybe SpatDistMatrix
     -> Maybe (Double,Double)
     -> SpatTempDepVarsPosWithAlgorithms
     -> Either LOCESTException SearchResult
@@ -27,7 +26,7 @@ coreSearch
     ) = do
     -- determine general per-obs statistics
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-    spatDists <- findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
+    let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
     let spatDistsKM = map (/ 1000) spatDists
         tempDists   = findTempDistsObsGrid observations gridSpatTempPos
         obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
@@ -71,7 +70,7 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
     return (mean, weight)
     where
         getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
-        getOneDepVarPos (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
+        getOneDepVarPos (ObsWithDist (Observation _ _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
             case HM.lookup depVar m of
                 Nothing -> Left $ NormalException "Unknown variable"
                 Just x  -> Right x
@@ -97,16 +96,13 @@ findTempDistsObsGrid :: [Observation] -> SpatTempPos -> [Double]
 findTempDistsObsGrid observations gridSpatTempPos =
     map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
 
-findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMap -> SpatTempPos -> Either LOCESTException [Double]
+findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMatrix -> SpatTempPos -> [Double]
 -- calculate distances
 findSpatDistsObsGrid observations Nothing gridSpatTempPos =
-    Right $ map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
+    map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
 -- look up distances
-findSpatDistsObsGrid observations (Just (SpatDistMatrixMap spatDistMap)) gridSpatTempPos =
-    let obsIDs = map getID observations
-        gridSpatPosID = getID $ _spatialPos gridSpatTempPos
-        dists = map (\obsID -> HM.lookup (fromString obsID, fromString gridSpatPosID) spatDistMap) obsIDs
-    in case sequence dists of
-        Nothing -> Left $ NormalException "Distance not in lookup table."
-        Just xs -> Right xs
+findSpatDistsObsGrid observations (Just spatDistMatrix) gridSpatTempPos =
+    let obsIndizes = map getIndex observations
+        gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
+    in map (lookUpDistance spatDistMatrix gridSpatPosIndex) obsIndizes
 
