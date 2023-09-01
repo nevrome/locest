@@ -45,10 +45,31 @@ readSpatDist obs spatGrid path = do
     distVec <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
-        ConC.map (\(SpatDistObsGrid _ _ d) -> d) .|
+        checkOrder .|
         ConC.sinkVector
     hPutStrLn stderr "Done"
     return $ SpatDistMatrix nGridPoints nObs distVec
+    where
+    checkOrder :: (MonadIO m) => ConduitT SpatDistObsGrid Double m ()
+    checkOrder = do
+        let cyclicalOrder = map getID spatGrid
+        -- Throw an exception if the cyclical order is not maintained
+        loop cyclicalOrder cyclicalOrder
+        where
+            loop order (expected:rest) = do
+                val <- Con.await
+                case val of
+                    Just oneSpatDist -> do
+                        let (SpatDistObsGrid _ s dist) = oneSpatDist
+                        if s == expected
+                        then do
+                            Con.yield dist
+                            loop order rest
+                        else do
+                            liftIO $ throwIO $ NormalException $ "huhu"
+                    Nothing -> return ()
+            loop order [] = loop order order
+
 
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
