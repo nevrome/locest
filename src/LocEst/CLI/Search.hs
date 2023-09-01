@@ -22,7 +22,6 @@ import qualified Data.HashMap.Strict           as HM
 import           Data.List                     (sort)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
-import LocEst.Types (Observation(_obsIndex), Identifiable (setIndex))
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
@@ -52,14 +51,14 @@ runSearch (
         outFile
     ) = do
     !allObservationsUnindexed <- readObservations inObsFile
-    let allObservations = map (\(i,x) -> setIndex x i) $ zip 0:(length allObservationsUnindexed - 1) allObservationsUnindexed
+    let allObservations = zipWith setIndex allObservationsUnindexed [0..]
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
-    let allObservations = map (\(i,x) -> setIndex x i) $ zip 0:(length inSpatGridUnindexed - 1) inSpatGridUnindexed
+    let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
     !inSpatDists <- case inSpatDistFile of
         Nothing   -> return Nothing
-        Just path -> Just <$> readSpatDist path
+        Just path -> Just <$> readSpatDist allObservations inSpatGrid path
     -- validating input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"

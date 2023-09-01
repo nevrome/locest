@@ -8,11 +8,9 @@ module LocEst.Types where
 import           Control.Applicative   (empty, (<|>))
 import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
-import qualified Data.ByteString.Short as BSS
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           Data.List             (nub, sort, sortBy)
-import           Data.String           (fromString)
 import qualified Data.Vector           as V
 import           GHC.Generics          (Generic)
 import           LocEst.Utils          (LOCESTException (..))
@@ -369,7 +367,8 @@ instance Identifiable SpatPos where
     getID (SpatPosLongLat x)   = getID x
     getIndex (SpatPosCartesian x) = getIndex x
     getIndex (SpatPosLongLat x) = getIndex x
-    setIndex = setIndex
+    setIndex (SpatPosCartesian x) i = SpatPosCartesian (setIndex x i)
+    setIndex (SpatPosLongLat x) i = SpatPosLongLat (setIndex x i)
 
 -- | A datatype for projected coordinates
 data CartesianPos = CartesianPos Int (Maybe String) Double Double

@@ -7,7 +7,6 @@ import           LocEst.Utils
 
 import qualified Data.HashMap.Strict as HM
 import           Data.List           (unzip4)
-import           Data.String         (fromString)
 
 coreSearch ::
        [String]
@@ -71,7 +70,7 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
     return (mean, weight)
     where
         getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
-        getOneDepVarPos (ObsWithDist (Observation _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
+        getOneDepVarPos (ObsWithDist (Observation _ _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
             case HM.lookup depVar m of
                 Nothing -> Left $ NormalException "Unknown variable"
                 Just x  -> Right x
@@ -102,9 +101,8 @@ findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMatrix -> SpatTempPos -> 
 findSpatDistsObsGrid observations Nothing gridSpatTempPos =
     map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
 -- look up distances
-findSpatDistsObsGrid observations (Just (SpatDistMatrix ncol nrow vec)) gridSpatTempPos =
-    let obsIDs = map getID observations
-        gridSpatPosID = getID $ _spatialPos gridSpatTempPos
-        dists = map (\obsID -> HM.lookup (fromString obsID, fromString gridSpatPosID) spatDistMap) obsIDs
-    in dists
+findSpatDistsObsGrid observations (Just spatDistMatrix) gridSpatTempPos =
+    let obsIndizes = map getIndex observations
+        gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
+    in map (lookUpDistance spatDistMatrix gridSpatPosIndex) obsIndizes
 

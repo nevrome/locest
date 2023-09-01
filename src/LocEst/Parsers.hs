@@ -9,22 +9,19 @@ import           Conduit                   (MonadIO, MonadResource, liftIO)
 import           Control.Exception         (throwIO)
 import           Control.Monad             (when)
 import           Control.Monad.Error.Class
-import qualified Control.Monad.State       as ST
+--import qualified Control.Monad.State       as ST
 import qualified Data.ByteString.Builder   as BB
 import qualified Data.ByteString.Char8     as Bchs
-import qualified Data.ByteString.Short     as BSS
 import           Data.Char                 (ord)
 import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
 import qualified Data.Conduit.Combinators  as ConC
-import qualified Data.Conduit.Lift         as ConLF
+--import qualified Data.Conduit.Lift         as ConLF
 import qualified Data.Conduit.List         as ConL
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
-import qualified Data.HashMap.Strict       as HM
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
-import           Data.String               (fromString)
 import           LocEst.Utils              (LOCESTException (NormalException))
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
@@ -51,7 +48,7 @@ readSpatDist obs spatGrid path = do
         ConC.map (\(SpatDistObsGrid _ _ d) -> d) .|
         ConC.sinkVector
     hPutStrLn stderr "Done"
-    return $ SpatDistMatrix nObs nGridPoints distVec
+    return $ SpatDistMatrix nGridPoints nObs distVec
 
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
