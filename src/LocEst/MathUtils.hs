@@ -1,4 +1,4 @@
-module LocEst.Math.Basics where
+module LocEst.MathUtils where
 
 import           Data.List (foldl')
 
