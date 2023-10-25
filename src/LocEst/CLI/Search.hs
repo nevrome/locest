@@ -22,6 +22,7 @@ import qualified Data.HashMap.Strict           as HM
 import           Data.List                     (sort)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
+import qualified Codec.Serialise as S
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
@@ -61,9 +62,11 @@ runSearch (
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
-    !inSpatDists <- case spatDistFileSettings of
-        Nothing   -> return Nothing
-        Just (SpatDistFileSettings path noOrderCheck) -> Just <$> readSpatDist noOrderCheck allObservations inSpatGrid path
+    -- !inSpatDists <- case spatDistFileSettings of
+    --    Nothing   -> return Nothing
+    --    Just (SpatDistFileSettings path noOrderCheck) -> Just <$> readSpatDist noOrderCheck allObservations inSpatGrid path
+    --S.writeFileSerialise "test.cbor" inSpatDists
+    inSpatDists <- S.readFileDeserialise "test.cbor"
     -- validating input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"

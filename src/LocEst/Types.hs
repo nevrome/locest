@@ -15,6 +15,7 @@ import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
 import           LocEst.Utils          (LOCESTException (..))
+import qualified Codec.Serialise as S
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -82,6 +83,9 @@ data Normalization = NormBySpace | NoNorm
 
 -- | A datatype for an unidirectional distance matrix
 data SpatDistMatrix = SpatDistMatrix Int Int (VU.Vector Double)
+    deriving (Generic)
+
+instance S.Serialise SpatDistMatrix
 
 lookUpDistance :: SpatDistMatrix -> Int -> Int -> Double
 lookUpDistance (SpatDistMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
