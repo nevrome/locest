@@ -5,26 +5,30 @@ import           LocEst.CLI.Crossvalidate (CrossvalidateOptions (..),
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.Utils
+import           LocEst.CLI.Serialise     (SerialiseOptions (..),
+                                           SpatDistFileSettings (..),
+                                           runSerialise)
+import           LocEst.CLI.SampleAge     (SampleAgeOptions (..),
+                                           runSampleAge)
 
 import           Control.Exception        (catch)
 import           Data.List                (isInfixOf)
 import           Data.Version             (showVersion)
-import           LocEst.CLI.Serialise     (SerialiseOptions (..),
-                                           SpatDistFileSettings (..),
-                                           runSerialise)
 import qualified Options.Applicative      as OP
 import           Paths_locest             (version)
 import           System.Environment       (getArgs)
 import           System.Exit              (exitFailure)
 import           System.IO                (hPutStrLn, stderr)
 
+
 -- data types
 data Options = Options { _subcommand :: Subcommand }
 
 data Subcommand =
-      CmdSearch SearchOptions
-    | CmdCrossvalidate CrossvalidateOptions
+      CmdSampleAge SampleAgeOptions
     | CmdSerialise SerialiseOptions
+    | CmdSearch SearchOptions
+    | CmdCrossvalidate CrossvalidateOptions
 
 -- CLI interface configuration
 main :: IO ()
@@ -71,9 +75,10 @@ main = do
 
 runCmd :: Subcommand -> IO ()
 runCmd o = case o of
+    CmdSampleAge opts     -> runSampleAge opts
+    CmdSerialise opts     -> runSerialise opts
     CmdSearch opts        -> runSearch opts
     CmdCrossvalidate opts -> runCrossvalidate opts
-    CmdSerialise opts     -> runSerialise opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (
@@ -86,18 +91,37 @@ versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.hel
 
 subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
-           OP.command "search" searchOptInfo
-        <> OP.command "crossvalidate" crossvalidateOptInfo
+           OP.command "sampleage" sampleAgeOptInfo
         <> OP.command "serialise" serialiseOptInfo
+        <> OP.command "search" searchOptInfo
+        <> OP.command "crossvalidate" crossvalidateOptInfo
     )
     where
+        sampleAgeOptInfo = OP.info (OP.helper <*> (CmdSampleAge <$> sampleAgeOptParser))
+            (OP.progDesc "Draw plausible age samples for each observation from their age ranges and \
+                          \radiocarbon dates.")
+        serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
+            (OP.progDesc "Transform input data to compact binary blobs for faster startup.")
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
             (OP.progDesc "Interpolate dependent variables in space and time to determine areas of \
                           \ increased similarity to specific observations.")
         crossvalidateOptInfo = OP.info (OP.helper <*> (CmdCrossvalidate <$> crossvalidateOptParser))
             (OP.progDesc "Compare hyperparameter settings for the interpolation through crossvalidation.")
-        serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
-            (OP.progDesc "...")
+
+sampleAgeOptParser :: OP.Parser SampleAgeOptions
+sampleAgeOptParser = SampleAgeOptions <$>
+                            optParseInObservationFile
+                        <*> optParseOutFile
+
+serialiseOptParser :: OP.Parser SerialiseOptions
+serialiseOptParser = SerialiseSpatDistFile <$> (
+                        SpatDistFileSettings <$>
+                            optParseInSpatDistMapFile
+                        <*> optParseInObservationFile
+                        <*> optParseInSpatGridFile
+                        <*> optParseInSpatDistNoOrderCheck
+                        <*> optParseOutFile
+                        )
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$>
@@ -114,15 +138,5 @@ crossvalidateOptParser = CrossvalidateOptions <$>
                             optParseInObservationFile
                         <*> optParseCrossvalidationSettings
                         <*> optParseOutFile
-
-serialiseOptParser :: OP.Parser SerialiseOptions
-serialiseOptParser = SerialiseSpatDistFile <$> (
-                        SpatDistFileSettings <$>
-                            optParseInSpatDistMapFile
-                        <*> optParseInObservationFile
-                        <*> optParseInSpatGridFile
-                        <*> optParseInSpatDistNoOrderCheck
-                        <*> optParseOutFile
-                        )
 
 
