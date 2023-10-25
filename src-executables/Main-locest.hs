@@ -9,12 +9,14 @@ import           LocEst.Utils
 import           Control.Exception        (catch)
 import           Data.List                (isInfixOf)
 import           Data.Version             (showVersion)
+import           LocEst.CLI.Serialise     (SerialiseOptions (..),
+                                           SpatDistFileSettings (..),
+                                           runSerialise)
 import qualified Options.Applicative      as OP
 import           Paths_locest             (version)
 import           System.Environment       (getArgs)
 import           System.Exit              (exitFailure)
 import           System.IO                (hPutStrLn, stderr)
-import LocEst.CLI.Serialise (SerialiseOptions (..), runSerialise, SpatDistFileSettings (..))
 
 -- data types
 data Options = Options { _subcommand :: Subcommand }

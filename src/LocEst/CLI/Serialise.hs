@@ -1,9 +1,9 @@
 module LocEst.CLI.Serialise where
 
-import           LocEst.Types
 import qualified Codec.Serialise as S
-import LocEst.Parsers
-import           System.IO                     (hPutStrLn, stderr)
+import           LocEst.Parsers
+import           LocEst.Types
+import           System.IO       (hPutStrLn, stderr)
 
 data SerialiseOptions = SerialiseSpatDistFile SpatDistFileSettings
 

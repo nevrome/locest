@@ -8,6 +8,7 @@ import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
 
+import qualified Codec.Serialise               as S
 import           Conduit                       (MonadIO, liftIO)
 import           Control.Exception             (throw)
 import qualified Control.Monad                 as OP
@@ -22,7 +23,6 @@ import qualified Data.HashMap.Strict           as HM
 import           Data.List                     (sort)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
-import qualified Codec.Serialise as S
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath

@@ -5,6 +5,7 @@
 
 module LocEst.Types where
 
+import qualified Codec.Serialise       as S
 import           Control.Applicative   (empty, (<|>))
 import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
@@ -15,7 +16,6 @@ import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
 import           LocEst.Utils          (LOCESTException (..))
-import qualified Codec.Serialise as S
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
