@@ -14,6 +14,7 @@ import           Paths_locest             (version)
 import           System.Environment       (getArgs)
 import           System.Exit              (exitFailure)
 import           System.IO                (hPutStrLn, stderr)
+import LocEst.CLI.Serialise (SerialiseOptions (..), runSerialise, SpatDistFileSettings (..))
 
 -- data types
 data Options = Options { _subcommand :: Subcommand }
@@ -21,6 +22,7 @@ data Options = Options { _subcommand :: Subcommand }
 data Subcommand =
       CmdSearch SearchOptions
     | CmdCrossvalidate CrossvalidateOptions
+    | CmdSerialise SerialiseOptions
 
 -- CLI interface configuration
 main :: IO ()
@@ -69,6 +71,7 @@ runCmd :: Subcommand -> IO ()
 runCmd o = case o of
     CmdSearch opts        -> runSearch opts
     CmdCrossvalidate opts -> runCrossvalidate opts
+    CmdSerialise opts     -> runSerialise opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (
@@ -83,6 +86,7 @@ subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
            OP.command "search" searchOptInfo
         <> OP.command "crossvalidate" crossvalidateOptInfo
+        <> OP.command "serialise" serialiseOptInfo
     )
     where
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
@@ -90,6 +94,8 @@ subcommandParser = OP.subparser (
                           \ increased similarity to specific observations.")
         crossvalidateOptInfo = OP.info (OP.helper <*> (CmdCrossvalidate <$> crossvalidateOptParser))
             (OP.progDesc "Compare hyperparameter settings for the interpolation through crossvalidation.")
+        serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
+            (OP.progDesc "...")
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$>
@@ -106,3 +112,15 @@ crossvalidateOptParser = CrossvalidateOptions <$>
                             optParseInObservationFile
                         <*> optParseCrossvalidationSettings
                         <*> optParseOutFile
+
+serialiseOptParser :: OP.Parser SerialiseOptions
+serialiseOptParser = SerialiseSpatDistFile <$> (
+                        SpatDistFileSettings <$>
+                            optParseInSpatDistMapFile
+                        <*> optParseInObservationFile
+                        <*> optParseInSpatGridFile
+                        <*> optParseInSpatDistNoOrderCheck
+                        <*> optParseOutFile
+                        )
+
+

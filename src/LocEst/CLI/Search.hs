@@ -38,18 +38,13 @@ data ConcretePositionSettings = ConcretePositionSettings {
       _concPosInSpatGridFile :: FilePath
     , _concPosInTempGrid     :: [Int]
     , _concPosDepVarsPosGrid :: [DepVarsPos]
-    , _concPosSpatDistFile   :: Maybe SpatDistFileSettings
-}
-
-data SpatDistFileSettings = SpatDistFileSettings {
-    _spfsSpatDistFile :: FilePath,
-    _spfsNoOrderCheck :: Bool
+    , _concPosSpatDistFile   :: Maybe FilePath
 }
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions inObsFile
-        (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos spatDistFileSettings)
+        (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos spatDistFile)
         algorithm
         spaceTimeFilter
         normalization
@@ -62,11 +57,12 @@ runSearch (
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
-    -- !inSpatDists <- case spatDistFileSettings of
-    --    Nothing   -> return Nothing
-    --    Just (SpatDistFileSettings path noOrderCheck) -> Just <$> readSpatDist noOrderCheck allObservations inSpatGrid path
-    --S.writeFileSerialise "test.cbor" inSpatDists
-    inSpatDists <- S.readFileDeserialise "test.cbor"
+    !inSpatDists <- case spatDistFile of
+        Nothing   -> pure Nothing
+        Just path -> do
+            hPutStrLn stderr $ "Deserialising spatial distances from " ++ path
+            dists <- S.readFileDeserialise path
+            return $ Just dists
     -- validating input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"

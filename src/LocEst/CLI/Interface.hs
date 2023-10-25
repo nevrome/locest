@@ -92,7 +92,7 @@ optParseConcretePositionSettings =
         <$> optParseInSpatGridFile
         <*> optParseTempGridString
         <*> optParseSearchDepVarsPos
-        <*> optParseInSpatDistMapFileWith
+        <*> OP.optional optParseInSpatDistMapFile
 
 optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
 optParseCrossvalidationSettings =
@@ -143,9 +143,6 @@ optParseSpaceTimeFilter = OP.option (Just <$> OP.eitherReader readSpaceTime) (
           b <- parseDouble
           _ <- P.char ')'
           return (a,b)
-
-optParseInSpatDistMapFileWith :: OP.Parser (Maybe SpatDistFileSettings)
-optParseInSpatDistMapFileWith = OP.optional (SpatDistFileSettings <$> optParseInSpatDistMapFile <*> optParseInSpatDistNoOrderCheck)
 
 optParseInSpatDistMapFile :: OP.Parser FilePath
 optParseInSpatDistMapFile = OP.strOption (
