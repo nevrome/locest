@@ -37,13 +37,18 @@ data ConcretePositionSettings = ConcretePositionSettings {
       _concPosInSpatGridFile :: FilePath
     , _concPosInTempGrid     :: [Int]
     , _concPosDepVarsPosGrid :: [DepVarsPos]
-    , _concPosSpatDistFile   :: Maybe FilePath
+    , _concPosSpatDistFile   :: Maybe SpatDistFileSettings
+}
+
+data SpatDistFileSettings = SpatDistFileSettings {
+    _spfsSpatDistFile :: FilePath,
+    _spfsNoOrderCheck :: Bool
 }
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions inObsFile
-        (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos inSpatDistFile)
+        (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos spatDistFileSettings)
         algorithm
         spaceTimeFilter
         normalization
@@ -56,9 +61,9 @@ runSearch (
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
-    !inSpatDists <- case inSpatDistFile of
+    !inSpatDists <- case spatDistFileSettings of
         Nothing   -> return Nothing
-        Just path -> Just <$> readSpatDist allObservations inSpatGrid path
+        Just (SpatDistFileSettings path noOrderCheck) -> Just <$> readSpatDist noOrderCheck allObservations inSpatGrid path
     -- validating input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"

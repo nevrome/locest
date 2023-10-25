@@ -92,7 +92,7 @@ optParseConcretePositionSettings =
         <$> optParseInSpatGridFile
         <*> optParseTempGridString
         <*> optParseSearchDepVarsPos
-        <*> optParseInSpatDistMapFile
+        <*> optParseInSpatDistMapFileWith
 
 optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
 optParseCrossvalidationSettings =
@@ -144,13 +144,22 @@ optParseSpaceTimeFilter = OP.option (Just <$> OP.eitherReader readSpaceTime) (
           _ <- P.char ')'
           return (a,b)
 
-optParseInSpatDistMapFile :: OP.Parser (Maybe FilePath)
-optParseInSpatDistMapFile = OP.option (Just <$> OP.str) (
+optParseInSpatDistMapFileWith :: OP.Parser (Maybe SpatDistFileSettings)
+optParseInSpatDistMapFileWith = OP.optional (SpatDistFileSettings <$> optParseInSpatDistMapFile <*> optParseInSpatDistNoOrderCheck)
+
+optParseInSpatDistMapFile :: OP.Parser FilePath
+optParseInSpatDistMapFile = OP.strOption (
        OP.long    "spatDistFile"
     <> OP.metavar "FILE"
     <> OP.help    "Path to a .tsv file with spatial distances between observations and the spatial \
                    \positions of interest. Must be ordered as --obsFile and --spatGridFile."
-    <> OP.value Nothing
+    )
+
+optParseInSpatDistNoOrderCheck :: OP.Parser Bool
+optParseInSpatDistNoOrderCheck = OP.switch (
+    OP.long "noOrderCheck" <>
+    OP.help "Don't validate the order of the spatDistFile to speed up the reading. \
+             \Should only be set if the order is certainly correct."
     )
 
 optParseInSpatGridFile :: OP.Parser FilePath

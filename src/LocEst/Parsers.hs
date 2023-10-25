@@ -37,17 +37,20 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
-readSpatDist :: [Observation] -> [SpatPos] -> FilePath -> IO SpatDistMatrix
-readSpatDist obs spatGrid path = do
+readSpatDist :: Bool -> [Observation] -> [SpatPos] -> FilePath -> IO SpatDistMatrix
+readSpatDist noOrderCheck obs spatGrid path = do
     hPutStrLn stderr $ "Parsing " ++ path
     let nObs = length obs
         nGridPoints = length spatGrid
     distVec <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
-        --ConC.map (\(SpatDistObsGrid _ _ d) -> d) .|
-        checkOrder .|
-        ConC.sinkVector
+        (
+            if noOrderCheck
+            then ConC.map (\(SpatDistObsGrid _ _ d) -> d)
+            else checkOrder
+        ) .|
+        ConC.sinkVectorN (nObs * nGridPoints)
     hPutStrLn stderr "Done"
     return $ SpatDistMatrix nGridPoints nObs distVec
     where
