@@ -29,10 +29,15 @@ hu5 %>%
   ggplot() +
   facet_wrap(~age) +
   geom_raster(aes(x, y, fill = probability)) +
-  geom_point(
+  # geom_point(
+  #   data = hu5 %>% dplyr::filter((varC1Dens+varC2Dens)/2 < 0.000001),
+  #   aes(x,y),
+  #   shape = 4, color = "red"
+  # ) +
+  geom_raster(
     data = hu5 %>% dplyr::filter((varC1Dens+varC2Dens)/2 < 0.000001),
     aes(x,y),
-    shape = 4, color = "red"
+    fill = "white", alpha = 0.5
   ) +
   scale_fill_viridis_c() +
   coord_fixed()
