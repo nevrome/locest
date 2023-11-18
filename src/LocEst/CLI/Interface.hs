@@ -241,37 +241,33 @@ readAlgorithmString s =
 
 parseAlgorithmString :: P.Parser LocestAlgorithm
 parseAlgorithmString = do
-    P.try parseAlgoKernelSmooth -- P.<|> parseOtherAlgo
+    P.try parseAlgoDiffusion P.<|> parseAlgoKernelSmooth
     where
+        parseAlgoDiffusion = do
+            _ <- P.string "IDW("
+            kernDef <- parseKernelDef
+            _ <- P.char ')'
+            return $ AlgoDiffusion kernDef
         parseAlgoKernelSmooth = do
             _ <- P.string "KAS("
             kernDef <- parseKernelDef
             _ <- P.char ')'
-            return $ AlgoKernSmooth kernDef
+            return $ AlgoKernelSmoothing kernDef
         parseKernelDef = do
             kernelVec <- parseNamedVector parseVarName parseKernel
             return $ KernelDefinition $ map (uncurry KernelOneDepVar) kernelVec
-        parseKernel = P.try parseUniform P.<|> parseNormal
-        parseUniform = do
-          _ <- P.string "Uniform"
+        parseKernel = do
+          _ <- P.string "Kernel"
           _ <- P.char '('
           _ <- P.spaces
-          spat <- parseDouble
+          spatScalingFactor <- parseDouble
           consumeCommaSep
-          temp <- parseDouble
+          tempScalingFactor <- parseDouble
+          consumeCommaSep
+          nugget <- parseDouble
           _ <- P.spaces
           _ <- P.char ')'
-          return $ Uniform spat temp
-        parseNormal = do
-          _ <- P.string "Normal"
-          _ <- P.char '('
-          _ <- P.spaces
-          spat <- parseDouble
-          consumeCommaSep
-          temp <- parseDouble
-          _ <- P.spaces
-          _ <- P.char ')'
-          return $ Normal spat temp
+          return $ Kernel spatScalingFactor tempScalingFactor nugget
 
 -- general parsers
 

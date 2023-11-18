@@ -172,27 +172,24 @@ instance Csv.ToRecord SpatTempDepVarsPosWithAlgorithms where
 
 -- Data types for core algorithm specification
 data LocestAlgorithm =
-    AlgoKernSmooth {
+      AlgoDiffusion {
+        _adKernelDefinition :: KernelDefinition
+      }
+    | AlgoKernelSmoothing {
         _aksKernelDefinition :: KernelDefinition
-    }
+      } 
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData LocestAlgorithm
 -- these instances are just placeholders
 instance Csv.DefaultOrdered LocestAlgorithm where
-    headerOrder (AlgoKernSmooth _) =
+    headerOrder _ =
         Csv.header ["kernDef"]
 instance Csv.ToRecord LocestAlgorithm where
-    toRecord (AlgoKernSmooth kernDef) =
+    toRecord (AlgoDiffusion kernDef) =
         Csv.record [Csv.toField (show kernDef)]
-
-data DensitySummaryAlgorithm =
-      Maximum
-    | Mean
-    | DistanceWeightedMean
-    deriving (Show, Eq, Ord, Generic)
-
-instance NFData DensitySummaryAlgorithm
+    toRecord (AlgoKernelSmoothing kernDef) =
+        Csv.record [Csv.toField (show kernDef)]
 
 type DepVarName = String
 
@@ -209,9 +206,11 @@ data KernelOneDepVar = KernelOneDepVar {
 
 instance NFData KernelOneDepVar
 
-data Kernel =
-      Uniform Double Double
-    | Normal Double Double
+data Kernel = Kernel {
+          _kernelSpaceScalingFactor :: Double
+        , _kernelTimeScalingFactor  :: Double
+        , _kernelNugget             :: Double
+      }
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
@@ -275,17 +274,17 @@ instance Csv.ToRecord SpatTempDepVarsPos where
         Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
 
 -- | A datatype for dependent vars with errors
-newtype DepVarsUncertainPos = DepVarsUncertainPos { _dvupGetHM :: HM.HashMap String (Double, Double, Double, Double) }
+newtype DepVarsUncertainPos = DepVarsUncertainPos { _dvupGetHM :: HM.HashMap String (Double, Double) }
     deriving (Eq, Show, Generic)
 
 instance NFData DepVarsUncertainPos
 instance Csv.DefaultOrdered DepVarsUncertainPos where
     headerOrder (DepVarsUncertainPos hm) =
-        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr", n ++ "Dens", n ++ "Neff"]) $ sort $ map fst $ HM.toList hm
+        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr"]) $ sort $ map fst $ HM.toList hm
 instance Csv.ToRecord DepVarsUncertainPos where
     toRecord (DepVarsUncertainPos hm) =
         let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
-        in V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c,d) -> [a,b,c,d]) orderedValues
+        in V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b) -> [a,b]) orderedValues
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }

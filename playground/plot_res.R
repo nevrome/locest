@@ -3,6 +3,12 @@ library(ggplot2)
 
 obs <- readr::read_tsv("test2Obs.tsv")
 
+ggplot() +
+  geom_point(
+    data = obs,
+    mapping = aes(varC1, varC2)
+  )
+
 # normal search test
 system('time locest search --configFile "normalSearch.conf"')
 

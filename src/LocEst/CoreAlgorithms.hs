@@ -22,7 +22,7 @@ coreSearch
     spaceTimeFilter
     searchSetting@(SpatTempDepVarsPosWithAlgorithms
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
-        (AlgoKernSmooth kernelDefinition)
+        algorithm
     ) = do
     -- determine general per-obs statistics
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
@@ -39,8 +39,8 @@ coreSearch
             else Right res
         Nothing -> pure obsWithDist
     -- summarize obs information for each depVar
-    perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition filteredObsWithDists) depVarsOrdered
-    let (means, errs, _, _) = unzip4 perDepVar
+    perDepVar <- mapM (interpolateOneDepVar algorithm filteredObsWithDists) depVarsOrdered
+    let (means, errs) = unzip perDepVar
     return $ SearchResult {
            _srSpatTempDepVarsPosWithAlgos = searchSetting
          , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zip depVarsOrdered perDepVar
@@ -53,34 +53,44 @@ coreSearch
             | any isNaN errs  = 0/0
             | otherwise       = dnormMulti means (map sqrt errs) searchDepVarsCoords -- TODO: figure out, why the errs get too small without the sqrt
 
-smoothedValueOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double, Double, Double)
-smoothedValueOneDepVar kernelDefinition obsWithDist depVar = do
-    (means, weights) <- unzip <$> mapM (meanAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist
-    let mean = weightedAvg means weights
-        err  = weightedSEM means weights
-        density = sum weights
-        effn = neff density weights
-    return (mean, err, density, effn)
-
-meanAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> Either LOCESTException (Double, Double)
-meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
-    kernel  <- getKernelForOneDepVar kernelDefinition depVar
-    mean <- getOneDepVarPos oneObsWithDist
-    let weight = weightForOneObs kernel oneObsWithDist
-    return (mean, weight)
+interpolateOneDepVar :: LocestAlgorithm -> [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double)
+interpolateOneDepVar (AlgoDiffusion kernelDefinition) obsWithDist depVar = do
+    kernel <- getKernelForOneDepVar kernelDefinition depVar
+    vals <- mapM (valOneDepVarOneObs depVar) obsWithDist
+    let weights = map (weightOneObs kernel) obsWithDist
+        mean = weightedAvg vals weights
+        var = 1 / sum weights
+        --err  = weightedSEM vals weights
+    return (mean, var)
     where
-        getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
-        getOneDepVarPos (ObsWithDist (Observation _ _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
-            case HM.lookup depVar m of
-                Nothing -> Left $ NormalException "Unknown variable"
-                Just x  -> Right x
-        weightForOneObs :: Kernel -> ObsWithDist -> Double
-        weightForOneObs (Uniform spatRadius tempRadius) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
-            let spatWeight = if spatDist <= spatRadius then 1 else 0
-                tempWeight = if tempDist <= tempRadius then 1 else 0
-            in spatWeight * tempWeight
-        weightForOneObs (Normal spatSigma tempSigma) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
-            dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
+        weightOneObs :: Kernel -> ObsWithDist -> Double
+        weightOneObs kernel@(Kernel _ _ n) oneObsWithDist =
+            let d = scaledDistance kernel oneObsWithDist
+            in 1 / ((d**2) + n)
+interpolateOneDepVar (AlgoKernelSmoothing kernelDefinition) obsWithDist depVar = do
+    kernel@(Kernel _ _ n) <- getKernelForOneDepVar kernelDefinition depVar
+    vals <- mapM (valOneDepVarOneObs depVar) obsWithDist
+    let weights = map (weightOneObs kernel) obsWithDist
+        mean = weightedAvg vals weights
+        var = n / sum weights
+        --err  = weightedSEM vals weights
+    return (mean, var)
+    where
+        weightOneObs :: Kernel -> ObsWithDist -> Double
+        weightOneObs kernel@(Kernel _ _ n) oneObsWithDist =
+            let d = scaledDistance kernel oneObsWithDist
+            in exp (-(d**2))
+
+valOneDepVarOneObs :: DepVarName -> ObsWithDist -> Either LOCESTException Double
+valOneDepVarOneObs depVar (ObsWithDist (Observation _ _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
+    case HM.lookup depVar m of
+        Nothing -> Left $ NormalException "Unknown variable"
+        Just x  -> Right x
+
+scaledDistance :: Kernel -> ObsWithDist -> Double
+scaledDistance (Kernel ss ts _) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
+    --error $ show (ss, ts,  spatDist, tempDist)
+    sqrt (((ss * spatDist)**2) + ((ts * tempDist)**2))
 
 getKernelForOneDepVar :: KernelDefinition -> String -> Either LOCESTException Kernel
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
