@@ -89,3 +89,7 @@ hu %>%
   geom_raster(aes(x, y, fill = probability)) +
   scale_fill_viridis_c() +
   coord_fixed()
+
+# age sampling test
+
+system('time locest sampleage -i age_sampling_test.tsv -o test_res/age_samples.tsv')

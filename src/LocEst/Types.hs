@@ -16,6 +16,8 @@ import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
 import           LocEst.Utils          (LOCESTException (..))
+import qualified Currycarbon.Types as C14T
+import qualified Currycarbon.Parsers as C14P
 
 -- helper functions
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
@@ -339,7 +341,7 @@ instance Csv.ToRecord SpatTempPos where
 
 -- | A datatype for temporal positions
 data TempPos =
-    SimpleYearBCAD YearBCAD -- TODO: add more complex models
+      SimpleYearBCAD YearBCAD -- TODO: add more complex models
     deriving (Eq, Show, Generic)
 
 instance NFData TempPos
@@ -350,7 +352,40 @@ instance Csv.ToField TempPos where
 
 type YearBP = Word
 type YearBCAD = Int
-type YearRange = Word
+
+-- | A datatype for sample-wise, raw age information
+data ObservationAge = ObservationAge {
+      _obsAgeID  :: String
+    , _obsAgeRaw :: RawTempPos
+} deriving (Show, Generic)
+
+instance Csv.FromNamedRecord ObservationAge where
+    parseNamedRecord m = do
+        identifier <- filterLookup m "obsID"
+        rawTempPos <- Csv.parseNamedRecord m
+        pure $ ObservationAge {
+              _obsAgeID  = identifier
+            , _obsAgeRaw = rawTempPos
+            }
+
+-- | A datatype for raw age information
+data RawTempPos =
+      CurryCarbonCalExpr [C14T.CalExpr]
+    -- | AgeRangeBP YearBP YearBP
+    -- | AgeRangeBCAD YearBCAD YearBCAD
+    deriving (Show, Generic)
+
+instance Csv.FromNamedRecord RawTempPos where
+    parseNamedRecord m = do
+        rawAgeString <- filterLookup m "ageRaw"
+        makeRawTempPos rawAgeString
+
+makeRawTempPos :: MonadFail m => String -> m RawTempPos
+makeRawTempPos s = do
+    let eitherCalExpr = C14P.readCalExpr s
+    case eitherCalExpr of
+        Left err -> fail $ show err
+        Right x  -> pure (CurryCarbonCalExpr x)
 
 -- | A datatype for spatial positions
 data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
