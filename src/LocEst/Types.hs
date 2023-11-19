@@ -370,7 +370,7 @@ instance Csv.FromNamedRecord ObservationAge where
 
 -- | A datatype for raw age information
 data RawTempPos =
-      CurryCarbonCalExpr [C14T.CalExpr]
+      CurryCarbonCalExpr C14T.CalExpr
     -- | AgeRangeBP YearBP YearBP
     -- | AgeRangeBCAD YearBCAD YearBCAD
     deriving (Show, Generic)
@@ -382,7 +382,7 @@ instance Csv.FromNamedRecord RawTempPos where
 
 makeRawTempPos :: MonadFail m => String -> m RawTempPos
 makeRawTempPos s = do
-    let eitherCalExpr = C14P.readCalExpr s
+    let eitherCalExpr = C14P.readOneCalExpr s
     case eitherCalExpr of
         Left err -> fail $ show err
         Right x  -> pure (CurryCarbonCalExpr x)

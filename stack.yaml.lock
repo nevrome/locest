@@ -11,6 +11,17 @@ packages:
       size: 655
   original:
     hackage: cassava-conduit-0.6.2
+- completed:
+    commit: c5fc9fedefc5f7fb3c86d72183cffabdff807235
+    git: https://github.com/nevrome/currycarbon
+    name: currycarbon
+    pantry-tree:
+      sha256: 90fba6444eca07d21d3f41c58dc950eb22fc76e3e86b64162c3d11c78204b5b1
+      size: 1835
+    version: 0.2.1.2
+  original:
+    commit: c5fc9fedefc5f7fb3c86d72183cffabdff807235
+    git: https://github.com/nevrome/currycarbon
 snapshots:
 - completed:
     sha256: 85d2382958c178491d3fe50d770a624621f5ab456beef7d31ac7521f780c9bc7

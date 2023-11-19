@@ -4,3 +4,5 @@ packages:
 - .
 extra-deps:
   - 'cassava-conduit-0.6.2'
+  - git: https://github.com/nevrome/currycarbon
+    commit: c5fc9fedefc5f7fb3c86d72183cffabdff807235
