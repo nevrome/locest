@@ -59,9 +59,9 @@ interpolateOneDepVar (AlgoDiffusion kernelDefinition) obsWithDist depVar = do
     vals <- mapM (valOneDepVarOneObs depVar) obsWithDist
     let weights = map (weightOneObs kernel) obsWithDist
         mean = weightedAvg vals weights
-        var = 1 / sum weights
+        sd = sqrt (1 / sum weights)
         --err  = weightedSEM vals weights
-    return (mean, var)
+    return (mean, sd)
     where
         weightOneObs :: Kernel -> ObsWithDist -> Double
         weightOneObs kernel@(Kernel _ _ n) oneObsWithDist =
@@ -72,9 +72,9 @@ interpolateOneDepVar (AlgoKernelSmoothing kernelDefinition) obsWithDist depVar =
     vals <- mapM (valOneDepVarOneObs depVar) obsWithDist
     let weights = map (weightOneObs kernel) obsWithDist
         mean = weightedAvg vals weights
-        var = n / sum weights
+        sd = sqrt (n / sum weights)
         --err  = weightedSEM vals weights
-    return (mean, var)
+    return (mean, sd)
     where
         weightOneObs :: Kernel -> ObsWithDist -> Double
         weightOneObs kernel@(Kernel _ _ n) oneObsWithDist =
@@ -90,7 +90,7 @@ valOneDepVarOneObs depVar (ObsWithDist (Observation _ _ (SpatTempDepVarsPos _ (D
 scaledDistance :: Kernel -> ObsWithDist -> Double
 scaledDistance (Kernel ss ts _) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
     --error $ show (ss, ts,  spatDist, tempDist)
-    sqrt (((ss * spatDist)**2) + ((ts * tempDist)**2))
+    sqrt (((spatDist**2)/(ss**2)) + ((tempDist**2)/(ts**2)))
 
 getKernelForOneDepVar :: KernelDefinition -> String -> Either LOCESTException Kernel
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do

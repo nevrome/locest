@@ -17,7 +17,7 @@ hu5 <- readr::read_tsv("test_res/test2Search.tsv")
 hu5 %>%
   ggplot() +
   facet_wrap(~age) +
-  geom_raster(aes(x, y, fill = probability)) +
+  geom_raster(aes(x, y, fill = varC1ResErr)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
