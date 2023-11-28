@@ -25,6 +25,33 @@ janno_final %>%
   readr::write_tsv(file = "~/agora/locest/playground/test2Obs.tsv")
 
 janno_final %>%
+  dplyr::select(
+    Poseidon_ID,
+    Date_Type,
+    Date_C14_Uncal_BP, Date_C14_Uncal_BP_Err,
+    Date_BC_AD_Start, Date_BC_AD_Stop
+  ) %>%
+  dplyr::mutate(
+    currycarbon_expression =
+      dplyr::case_when(
+        Date_Type == "C14" ~
+          purrr::pmap_chr(
+            list(Poseidon_ID, Date_C14_Uncal_BP, Date_C14_Uncal_BP_Err),
+            \(id, age, sigma) {
+              paste0(id, ": ", paste0("(", age, ",", sigma, ")", collapse = " + "))
+            }
+          ),
+        TRUE ~ paste0(
+            Poseidon_ID, ": rangeBCAD(", Date_BC_AD_Start, ",", Date_BC_AD_Stop, ")"
+          )
+      )
+  ) %$%
+  currycarbon_expression %>%
+  writeLines(con = "test2CurrycarbonInput.txt")
+
+system("currycarbon -i test2CurrycarbonInput.txt -q --samplesFile test2CurrycarbonSamples.csv -n 3 --seed 123")
+
+janno_final %>%
   dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
   dplyr::select(Poseidon_ID, C1_mds_u, C2_mds_u) %>%
   as.matrix
