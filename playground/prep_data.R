@@ -49,7 +49,7 @@ janno_final %>%
   currycarbon_expression %>%
   writeLines(con = "test2CurrycarbonInput.txt")
 
-system("currycarbon -i test2CurrycarbonInput.txt -q --samplesFile test2CurrycarbonSamples.csv -n 3 --seed 123")
+system("currycarbon -i test2CurrycarbonInput.txt -q --samplesFile test2CurrycarbonSamples.csv -n 5 --seed 123")
 
 janno_final %>%
   dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
