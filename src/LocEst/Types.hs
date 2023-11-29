@@ -37,26 +37,27 @@ addPermutation xs (PTRoot [])   = PTRoot (map PTLeaf xs)
 addPermutation xs (PTRoot ts)   = PTRoot (map (\t -> addPermutation xs t) ts)
 addPermutation xs (PTFork v ts) = PTFork v (map (\t -> addPermutation xs t) ts)
 
-harvest :: PermutationTree -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
+harvest :: PermutationTree -> Either LOCESTException [CoreAlgorithmSettings]
 harvest = harvestFlattened . flattenTree
     where
         flattenTree :: PermutationTree -> [[PositionEntity]]
         flattenTree (PTRoot ts)   = concatMap flattenTree ts
         flattenTree (PTFork v ts) = map (v:) (concatMap flattenTree ts)
         flattenTree (PTLeaf v)    = [[v]]
-        harvestFlattened :: [[PositionEntity]] -> Either LOCESTException [SpatTempDepVarsPosWithAlgorithms]
+        harvestFlattened :: [[PositionEntity]] -> Either LOCESTException [CoreAlgorithmSettings]
         harvestFlattened = mapM pluckOne
             where
-                pluckOne :: [PositionEntity] -> Either LOCESTException SpatTempDepVarsPosWithAlgorithms
+                pluckOne :: [PositionEntity] -> Either LOCESTException CoreAlgorithmSettings
                 pluckOne xs = do
                     spatPos    <- exactlyOnce [ v | PESpatPos v <- xs]
                     tempPos    <- exactlyOnce [ v | PETempPos v <- xs]
                     depVarsPos <- exactlyOnce [ v | PEDepVarsPos v <- xs]
                     algorithm  <- exactlyOnce [ v | PEAlgorithm v <- xs]
                     return $
-                        SpatTempDepVarsPosWithAlgorithms
+                        CoreAlgorithmSettings
                             (SpatTempDepVarsPos (SpatTempPos spatPos (TempPos tempPos)) depVarsPos)
                             algorithm
+                            0
                     where
                         exactlyOnce :: Eq a => [a] -> Either LOCESTException a
                         exactlyOnce es =
@@ -121,9 +122,9 @@ instance Csv.ToRecord CrossvalOutput where
 
 -- | A datatype for search result points in space and time
 data SearchResult = SearchResult {
-      _srSpatTempDepVarsPosWithAlgos :: SpatTempDepVarsPosWithAlgorithms
-    , _srInterpolation               :: Maybe DepVarsUncertainPos
-    , _srProbability                 :: Double
+      _srCoreAlgorithmSettings :: CoreAlgorithmSettings
+    , _srInterpolation         :: Maybe DepVarsUncertainPos
+    , _srProbability           :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
@@ -143,12 +144,12 @@ instance Csv.ToRecord SearchResult where
         Csv.toRecord spatTempDepVarsPos <> Csv.toRecord depVarsUncertainPos <> Csv.record [Csv.toField prob]
 
 data SpatTempProb = SpatTempProb {
-      _stprSpatTempDepVarsPosWithAlgos :: SpatTempDepVarsPosWithAlgorithms
-    , _stprprobability                 :: Double
+      _stprCoreAlgorithmSettings :: CoreAlgorithmSettings
+    , _stprprobability           :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
-    -- Perhabs this could be implemented as a Maybe String for the Obs name?
+    -- Perhaps this could be implemented as a Maybe String for the Obs name?
 } deriving (Show, Generic)
 
 instance NFData SpatTempProb
@@ -159,19 +160,24 @@ instance Csv.ToRecord SpatTempProb where
     toRecord (SpatTempProb spatTempDepVarsPos prob) =
         Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
 
--- | A datatype that then also includes algorithms for a given point
-data SpatTempDepVarsPosWithAlgorithms = SpatTempDepVarsPosWithAlgorithms {
-      _powialgPosition  :: SpatTempDepVarsPos
-    , _powialgAlgorithm :: LocestAlgorithm
+-- | A datatype with core-algorithm settings
+data CoreAlgorithmSettings = CoreAlgorithmSettings {
+      _casPosition              :: SpatTempDepVarsPos
+    , _casAlgorithm             :: LocestAlgorithm
+    , _casTempSamplingIteration :: Int
 } deriving (Show, Generic)
 
-instance NFData SpatTempDepVarsPosWithAlgorithms
-instance Csv.DefaultOrdered SpatTempDepVarsPosWithAlgorithms where
-    headerOrder (SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos algorithm) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder algorithm
-instance Csv.ToRecord SpatTempDepVarsPosWithAlgorithms where
-    toRecord (SpatTempDepVarsPosWithAlgorithms spatTempDepVarsPos algorithm) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord algorithm
+instance NFData CoreAlgorithmSettings
+instance Csv.DefaultOrdered CoreAlgorithmSettings where
+    headerOrder (CoreAlgorithmSettings spatTempDepVarsPos algorithm _) =
+           Csv.headerOrder spatTempDepVarsPos
+        <> Csv.headerOrder algorithm
+        <> Csv.header ["tempSamplingIteration"]
+instance Csv.ToRecord CoreAlgorithmSettings where
+    toRecord (CoreAlgorithmSettings spatTempDepVarsPos algorithm tempSamplingIteration) =
+           Csv.toRecord spatTempDepVarsPos
+        <> Csv.toRecord algorithm
+        <> Csv.record [Csv.toField tempSamplingIteration]
 
 -- Data types for core algorithm specification
 data LocestAlgorithm =

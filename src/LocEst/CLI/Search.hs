@@ -147,9 +147,9 @@ normalize NormBySpace =
     where
     groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria
-        (SearchResult (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos _ t1) dv1) alg1) _ _)
-        (SearchResult (SpatTempDepVarsPosWithAlgorithms (SpatTempDepVarsPos (SpatTempPos _ t2) dv2) alg2) _ _) =
-            t1 == t2 && dv1 == dv2 && alg1 == alg2
+        (SearchResult (CoreAlgorithmSettings (SpatTempDepVarsPos (SpatTempPos _ t1) dv1) alg1 tri1) _ _)
+        (SearchResult (CoreAlgorithmSettings (SpatTempDepVarsPos (SpatTempPos _ t2) dv2) alg2 tri2) _ _) =
+            t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
     scaleProbs :: [SearchResult] -> [SearchResult]
     scaleProbs stps =
         let probs = map _srProbability stps

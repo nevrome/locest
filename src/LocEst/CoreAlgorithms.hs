@@ -14,7 +14,7 @@ coreSearch ::
     -> Maybe TempSampleMatrix
     -> Maybe SpatDistMatrix
     -> Maybe (Double,Double)
-    -> SpatTempDepVarsPosWithAlgorithms
+    -> CoreAlgorithmSettings
     -> Either LOCESTException SearchResult
 coreSearch
     depVarsOrdered
@@ -22,9 +22,10 @@ coreSearch
     maybeTempSamples
     maybeSpatDistMap
     spaceTimeFilter
-    searchSetting@(SpatTempDepVarsPosWithAlgorithms
+    searchSetting@(CoreAlgorithmSettings
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         (AlgoKernSmooth kernelDefinition)
+        _ -- tempSamplingIteration
     ) = do
     -- determine general per-obs statistics
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
@@ -44,7 +45,7 @@ coreSearch
     perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition filteredObsWithDists) depVarsOrdered
     let (means, errs, _, _) = unzip4 perDepVar
     return $ SearchResult {
-           _srSpatTempDepVarsPosWithAlgos = searchSetting
+           _srCoreAlgorithmSettings = searchSetting
          , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zip depVarsOrdered perDepVar
          , _srProbability = calcDensity means errs searchDepVarsCoords
          }
