@@ -55,7 +55,7 @@ harvest = harvestFlattened . flattenTree
                     algorithm  <- exactlyOnce [ v | PEAlgorithm v <- xs]
                     return $
                         SpatTempDepVarsPosWithAlgorithms
-                            (SpatTempDepVarsPos (SpatTempPos spatPos (SimpleYearBCAD tempPos)) depVarsPos)
+                            (SpatTempDepVarsPos (SpatTempPos spatPos (TempPos tempPos)) depVarsPos)
                             algorithm
                     where
                         exactlyOnce :: Eq a => [a] -> Either LOCESTException a
@@ -325,7 +325,7 @@ instance NFData SpatTempPos
 instance Csv.FromNamedRecord SpatTempPos where
     parseNamedRecord m = do
         spatPos <- Csv.parseNamedRecord m
-        tempPos <- SimpleYearBCAD <$> filterLookup m "age"
+        tempPos <- Csv.parseNamedRecord m
         pure $ SpatTempPos {
               _spatialPos = spatPos
             , _temporalPos = tempPos
@@ -337,16 +337,28 @@ instance Csv.ToRecord SpatTempPos where
     toRecord (SpatTempPos spatPos tempPos) =
         Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]
 
+-- | A datatype for age samples
+data TempSample = TempSample {
+      _tempSampObsID :: String
+    , _tempSampAge   :: TempPos
+} deriving (Show, Generic)
+
+instance NFData TempSample
+instance Csv.FromNamedRecord TempSample where
+    parseNamedRecord m =
+        TempSample <$> filterLookup m "sample" <*> Csv.parseNamedRecord m
+
 -- | A datatype for temporal positions
-data TempPos =
-    SimpleYearBCAD YearBCAD -- TODO: add more complex models
+newtype TempPos = TempPos YearBCAD
     deriving (Eq, Show, Generic)
 
 instance NFData TempPos
+instance Csv.FromNamedRecord TempPos where
+    parseNamedRecord m = TempPos <$> filterLookup m "calBCAD"
 instance Csv.DefaultOrdered TempPos where
-    headerOrder (SimpleYearBCAD _) = Csv.header ["age"]
+    headerOrder (TempPos _) = Csv.header ["age"]
 instance Csv.ToField TempPos where
-    toField (SimpleYearBCAD x) = Csv.toField x
+    toField (TempPos x) = Csv.toField x
 
 type YearBP = Word
 type YearBCAD = Int

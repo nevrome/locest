@@ -26,6 +26,7 @@ import           System.IO                     (hPutStrLn, stderr)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
+    , _searchInObsTempSamplesFile   :: Maybe FilePath
     , _searchSearchPositionSettings :: ConcretePositionSettings
     , _searchAlgorithm              :: LocestAlgorithm
     , _spaceSpaceTimeFilter         :: Maybe (Double,Double)
@@ -43,7 +44,9 @@ data ConcretePositionSettings = ConcretePositionSettings {
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
-    SearchOptions inObsFile
+    SearchOptions
+        inObsFile
+        _ --inObsTempSamplesFile
         (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos spatDistFile)
         algorithm
         spaceTimeFilter

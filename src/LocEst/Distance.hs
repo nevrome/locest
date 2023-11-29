@@ -11,7 +11,7 @@ temporalDistSpatTempPos (SpatTempPos _ tempP1) (SpatTempPos _ tempP2) =
     temporalDistTempPos tempP1 tempP2
 
 temporalDistTempPos :: TempPos -> TempPos -> Double
-temporalDistTempPos (SimpleYearBCAD t1) (SimpleYearBCAD t2) = fromIntegral $ abs (t1 - t2)
+temporalDistTempPos (TempPos t1) (TempPos t2) = fromIntegral $ abs (t1 - t2)
 
 spatialDistSpatTempPos :: SpatTempPos -> SpatTempPos -> Double
 spatialDistSpatTempPos (SpatTempPos spatP1 _) (SpatTempPos spatP2 _) =

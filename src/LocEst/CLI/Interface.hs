@@ -86,6 +86,14 @@ optParseInObservationFile = OP.strOption (
     <> OP.help    "Path to the .tsv file with input observations to inform the field."
     )
 
+optParseInObsTempSamplesFile :: OP.Parser (Maybe FilePath)
+optParseInObsTempSamplesFile = OP.option (Just <$> OP.str) (
+    OP.long "tempSampFile" <>
+    OP.metavar "FILE" <>
+    OP.help "Path to ..." <>
+    OP.value Nothing
+    )
+
 optParseConcretePositionSettings :: OP.Parser ConcretePositionSettings
 optParseConcretePositionSettings =
     ConcretePositionSettings
