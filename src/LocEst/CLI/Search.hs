@@ -46,7 +46,7 @@ runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions
         inObsFile
-        _ --inObsTempSamplesFile
+        inObsTempSamplesFile
         (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos spatDistFile)
         algorithm
         spaceTimeFilter
@@ -56,6 +56,9 @@ runSearch (
     ) = do
     !allObservationsUnindexed <- readObservations inObsFile
     let allObservations = zipWith setIndex allObservationsUnindexed [0..]
+    !inObsTempSamples <- case inObsTempSamplesFile of
+        Nothing   -> pure Nothing
+        Just path -> Just <$> readTempSamp False allObservations 5 path
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
@@ -108,7 +111,14 @@ runSearch (
                 -- 1. sequential
                 -- .| ConL.map coreSearch
                 -- 2. normal parallel
-                .| ConAA.asyncMapC numThreads (coreSearch depVarsOrdered allObservations inSpatDists spaceTimeFilter)
+                .| ConAA.asyncMapC numThreads (
+                    coreSearch
+                        depVarsOrdered
+                        allObservations
+                        inObsTempSamples
+                        inSpatDists
+                        spaceTimeFilter
+                    )
                 -- 3. chunked parallel
                 -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
                 -- print progress information

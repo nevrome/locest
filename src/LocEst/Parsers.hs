@@ -55,7 +55,7 @@ readTempSamp noOrderCheck obs nSamples path = do
     where
     checkOrder :: (MonadIO m) => ConduitT TempSample YearBCAD m ()
     checkOrder = do
-        loop (map getID obs)
+        loop (concatMap (replicate nSamples . getID) obs)
         where
             loop (expected:rest) = do
                 val <- Con.await
@@ -70,7 +70,7 @@ readTempSamp noOrderCheck obs nSamples path = do
                             -- throw an exception if the order is not as expected
                             liftIO $ throwIO $ NormalException $
                                 "Order of entries in --tempSampFile not equal to -i. " ++
-                                "Expected: " ++ show obsID ++ " but got: " ++ show expected
+                                "Expected: " ++ show expected ++ " but got: " ++ show obsID
                     Nothing -> return ()
             loop [] = return ()
 
@@ -111,7 +111,7 @@ readSpatDist noOrderCheck obs spatGrid path = do
                             -- throw an exception if the order is not as expected
                             liftIO $ throwIO $ NormalException $
                                 "Order of entries in --spatDistFile not equal to -i and -g. " ++
-                                "Expected: " ++ show (obsID, spatID) ++ " but got: " ++ show expected
+                                "Expected: " ++ show expected ++ " but got: " ++ show (obsID, spatID)
                     Nothing -> return ()
             loop [] = return ()
 

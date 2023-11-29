@@ -11,6 +11,7 @@ import           Data.List           (unzip4)
 coreSearch ::
        [String]
     -> [Observation]
+    -> Maybe TempSampleMatrix
     -> Maybe SpatDistMatrix
     -> Maybe (Double,Double)
     -> SpatTempDepVarsPosWithAlgorithms
@@ -18,6 +19,7 @@ coreSearch ::
 coreSearch
     depVarsOrdered
     observations
+    maybeTempSamples
     maybeSpatDistMap
     spaceTimeFilter
     searchSetting@(SpatTempDepVarsPosWithAlgorithms
@@ -28,7 +30,7 @@ coreSearch
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
     let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
     let spatDistsKM = map (/ 1000) spatDists
-        tempDists   = findTempDistsObsGrid observations gridSpatTempPos
+        tempDists   = findTempDistsObsGrid observations maybeTempSamples gridSpatTempPos
         obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
     -- filter by dist (for performance)
     filteredObsWithDists <- case spaceTimeFilter of
@@ -92,9 +94,16 @@ getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
 filterByDists :: Double -> Double -> [ObsWithDist] -> [ObsWithDist]
 filterByDists fs ft = filter (\(ObsWithDist _ (SpatTempDist ds dt)) -> ds <= fs && dt <= ft)
 
-findTempDistsObsGrid :: [Observation] -> SpatTempPos -> [Double]
-findTempDistsObsGrid observations gridSpatTempPos =
+findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> SpatTempPos -> [Double]
+-- calculate distances from mean ages
+findTempDistsObsGrid observations Nothing gridSpatTempPos =
     map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
+-- look up age samples and calculate distances from them
+findTempDistsObsGrid observations (Just tempSampleMatrix) gridSpatTempPos =
+    let obsIndizes = map getIndex observations
+        obsAgeSamples = map (lookUpTempSample tempSampleMatrix 3) obsIndizes
+        (SpatTempPos _ (TempPos gridPointAge)) = gridSpatTempPos
+    in map (temporalDistYearBCAD gridPointAge) obsAgeSamples
 
 findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMatrix -> SpatTempPos -> [Double]
 -- calculate distances
