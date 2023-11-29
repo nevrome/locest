@@ -8,8 +8,6 @@ import           LocEst.Utils
 import           LocEst.CLI.Serialise     (SerialiseOptions (..),
                                            SpatDistFileSettings (..),
                                            runSerialise)
-import           LocEst.CLI.SampleAge     (SampleAgeOptions (..),
-                                           runSampleAge)
 
 import           Control.Exception        (catch)
 import           Data.List                (isInfixOf)
@@ -25,8 +23,7 @@ import           System.IO                (hPutStrLn, stderr)
 data Options = Options { _subcommand :: Subcommand }
 
 data Subcommand =
-      CmdSampleAge SampleAgeOptions
-    | CmdSerialise SerialiseOptions
+      CmdSerialise SerialiseOptions
     | CmdSearch SearchOptions
     | CmdCrossvalidate CrossvalidateOptions
 
@@ -75,7 +72,6 @@ main = do
 
 runCmd :: Subcommand -> IO ()
 runCmd o = case o of
-    CmdSampleAge opts     -> runSampleAge opts
     CmdSerialise opts     -> runSerialise opts
     CmdSearch opts        -> runSearch opts
     CmdCrossvalidate opts -> runCrossvalidate opts
@@ -91,15 +87,11 @@ versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.hel
 
 subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
-           OP.command "sampleage" sampleAgeOptInfo
-        <> OP.command "serialise" serialiseOptInfo
+           OP.command "serialise" serialiseOptInfo
         <> OP.command "search" searchOptInfo
         <> OP.command "crossvalidate" crossvalidateOptInfo
     )
     where
-        sampleAgeOptInfo = OP.info (OP.helper <*> (CmdSampleAge <$> sampleAgeOptParser))
-            (OP.progDesc "Draw plausible age samples for each observation from their age ranges and \
-                          \radiocarbon dates.")
         serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
             (OP.progDesc "Transform input data to compact binary blobs for faster startup.")
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
@@ -107,11 +99,6 @@ subcommandParser = OP.subparser (
                           \ increased similarity to specific observations.")
         crossvalidateOptInfo = OP.info (OP.helper <*> (CmdCrossvalidate <$> crossvalidateOptParser))
             (OP.progDesc "Compare hyperparameter settings for the interpolation through crossvalidation.")
-
-sampleAgeOptParser :: OP.Parser SampleAgeOptions
-sampleAgeOptParser = SampleAgeOptions <$>
-                            optParseInObservationFile
-                        <*> optParseOutFile
 
 serialiseOptParser :: OP.Parser SerialiseOptions
 serialiseOptParser = SerialiseSpatDistFile <$> (

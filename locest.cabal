@@ -20,7 +20,7 @@ library
     exposed-modules:
       LocEst.CLI.Search, LocEst.Types, LocEst.Parsers, LocEst.Distance, LocEst.MathUtils,
       LocEst.CLI.Interface, LocEst.CoreAlgorithms, LocEst.Utils, LocEst.CLI.Crossvalidate,
-      LocEst.CLI.Serialise, LocEst.CLI.SampleAge
+      LocEst.CLI.Serialise
     hs-source-dirs:
       src
     build-depends:
