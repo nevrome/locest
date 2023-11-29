@@ -25,13 +25,13 @@ coreSearch
     searchSetting@(CoreAlgorithmSettings
         (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
         (AlgoKernSmooth kernelDefinition)
-        _ -- tempSamplingIteration
+        tempSamplingIteration
     ) = do
     -- determine general per-obs statistics
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
     let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
     let spatDistsKM = map (/ 1000) spatDists
-        tempDists   = findTempDistsObsGrid observations maybeTempSamples gridSpatTempPos
+        tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
         obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
     -- filter by dist (for performance)
     filteredObsWithDists <- case spaceTimeFilter of
@@ -95,14 +95,14 @@ getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
 filterByDists :: Double -> Double -> [ObsWithDist] -> [ObsWithDist]
 filterByDists fs ft = filter (\(ObsWithDist _ (SpatTempDist ds dt)) -> ds <= fs && dt <= ft)
 
-findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> SpatTempPos -> [Double]
+findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> Int -> SpatTempPos -> [Double]
 -- calculate distances from mean ages
-findTempDistsObsGrid observations Nothing gridSpatTempPos =
+findTempDistsObsGrid observations Nothing _ gridSpatTempPos =
     map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
 -- look up age samples and calculate distances from them
-findTempDistsObsGrid observations (Just tempSampleMatrix) gridSpatTempPos =
+findTempDistsObsGrid observations (Just tempSampleMatrix) iteration gridSpatTempPos =
     let obsIndizes = map getIndex observations
-        obsAgeSamples = map (lookUpTempSample tempSampleMatrix 3) obsIndizes
+        obsAgeSamples = map (lookUpTempSample tempSampleMatrix iteration) obsIndizes
         (SpatTempPos _ (TempPos gridPointAge)) = gridSpatTempPos
     in map (temporalDistYearBCAD gridPointAge) obsAgeSamples
 

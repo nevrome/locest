@@ -59,6 +59,9 @@ runSearch (
     !inObsTempSamples <- case inObsTempSamplesFile of
         Nothing   -> pure Nothing
         Just path -> Just <$> readTempSamp False allObservations path
+    let nrTempSamples = case inObsTempSamples of
+            Nothing -> 1
+            Just (TempSampleMatrix n _ _) -> n
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
@@ -86,14 +89,18 @@ runSearch (
     -- preparing permutations
     hPutStrLn stderr $ "Permutations: " ++
         "1 algorithm" ++ " * " ++
+        show nrTempSamples ++ " time resampling iterations" ++ " * " ++
         show (length searchDepVarPos) ++ " dependent variable positions" ++ " * " ++
         show (length inTempGrid) ++ " time slices" ++ " * " ++
         show (length inSpatGrid) ++ " spatial positions"
-    hPutStrLn stderr $ "Required iterations: " ++ show (length searchDepVarPos * length inTempGrid * length inSpatGrid)
+    hPutStrLn stderr $ "Required iterations: " ++
+        show (nrTempSamples * length searchDepVarPos * length inTempGrid * length inSpatGrid)
     hPutStrLn stderr "Building permutation tree"
     let permutations =
             PTRoot [] &
-            addPermutation (map PEAlgorithm [algorithm]) & -- can be ordered arbitrarily
+            -- the following elements can be ordered arbitrarily
+            addPermutation [PEAlgorithm algorithm] &
+            addPermutation (map PETempSampling [0..(nrTempSamples-1)]) &
             addPermutation (map PEDepVarsPos searchDepVarPos) &
             addPermutation (map PETempPos inTempGrid) &
             addPermutation (map PESpatPos inSpatGrid) &

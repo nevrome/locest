@@ -53,11 +53,12 @@ harvest = harvestFlattened . flattenTree
                     tempPos    <- exactlyOnce [ v | PETempPos v <- xs]
                     depVarsPos <- exactlyOnce [ v | PEDepVarsPos v <- xs]
                     algorithm  <- exactlyOnce [ v | PEAlgorithm v <- xs]
+                    tempSamp   <- exactlyOnce [ v | PETempSampling v <- xs]
                     return $
                         CoreAlgorithmSettings
                             (SpatTempDepVarsPos (SpatTempPos spatPos (TempPos tempPos)) depVarsPos)
                             algorithm
-                            0
+                            tempSamp
                     where
                         exactlyOnce :: Eq a => [a] -> Either LOCESTException a
                         exactlyOnce es =
@@ -70,6 +71,7 @@ data PositionEntity =
     | PETempPos Int
     | PEDepVarsPos DepVarsPos
     | PEAlgorithm LocestAlgorithm
+    | PETempSampling Int
     deriving (Eq)
 
 -- a typeclass for things with ids
