@@ -37,6 +37,43 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
+readTempSamp :: Bool -> [Observation] -> Int -> FilePath -> IO TempSampleMatrix
+readTempSamp noOrderCheck obs nSamples path = do
+    hPutStrLn stderr $ "Parsing " ++ path
+    let nObs = length obs
+    sampleVec <- Con.runConduitRes $
+        sourceCSV path .|
+        ConC.mapM unwrapCSVParsingErrors .|
+        (
+            if noOrderCheck
+            then ConC.map (\(TempSample _ age) -> age)
+            else checkOrder
+        ) .|
+        ConC.sinkVectorN (nObs * nSamples)
+    hPutStrLn stderr "Done"
+    return $ TempSampleMatrix nSamples nObs sampleVec
+    where
+    checkOrder :: (MonadIO m) => ConduitT TempSample YearBCAD m ()
+    checkOrder = do
+        loop (map getID obs)
+        where
+            loop (expected:rest) = do
+                val <- Con.await
+                case val of
+                    Just oneTempSamp -> do
+                        let (TempSample obsID age) = oneTempSamp
+                        if obsID == expected
+                        then do
+                            Con.yield age
+                            loop rest
+                        else do
+                            -- throw an exception if the order is not as expected
+                            liftIO $ throwIO $ NormalException $
+                                "Order of entries in --tempSampFile not equal to -i. " ++
+                                "Expected: " ++ show obsID ++ " but got: " ++ show expected
+                    Nothing -> return ()
+            loop [] = return ()
+
 readSpatDist :: Bool -> [Observation] -> [SpatPos] -> FilePath -> IO SpatDistMatrix
 readSpatDist noOrderCheck obs spatGrid path = do
     hPutStrLn stderr $ "Parsing " ++ path
@@ -47,7 +84,7 @@ readSpatDist noOrderCheck obs spatGrid path = do
         ConC.mapM unwrapCSVParsingErrors .|
         (
             if noOrderCheck
-            then ConC.map (\(SpatDistObsGrid _ _ d) -> d)
+            then ConC.map (\(SpatDistObsGrid _ _ dist) -> dist)
             else checkOrder
         ) .|
         ConC.sinkVectorN (nObs * nGridPoints)

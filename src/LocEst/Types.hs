@@ -82,8 +82,11 @@ data Normalization = NormBySpace | NoNorm
     deriving (Show)
 
 -- | A datatype for an unidirectional distance matrix
-data SpatDistMatrix = SpatDistMatrix Int Int (VU.Vector Double)
-    deriving (Generic)
+data SpatDistMatrix = SpatDistMatrix {
+      _sDMNrGridPoints :: Int -- column number
+    , _sDMNrObs        :: Int -- row number
+    , _sDMMatrix       :: VU.Vector Double
+} deriving (Generic)
 
 instance S.Serialise SpatDistMatrix
 
@@ -337,16 +340,26 @@ instance Csv.ToRecord SpatTempPos where
     toRecord (SpatTempPos spatPos tempPos) =
         Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]
 
+-- | A datatype for a matrix with age samples for observations
+data TempSampleMatrix = TempSampleMatrix {
+      _tSMNrSamples :: Int -- column number
+    , _tSMNrObs     :: Int -- row number
+    , _tSMMatrix    :: VU.Vector YearBCAD
+} deriving (Generic)
+
+lookUpTempSample :: TempSampleMatrix -> Int -> Int -> YearBCAD
+lookUpTempSample (TempSampleMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
+
 -- | A datatype for age samples
 data TempSample = TempSample {
       _tempSampObsID :: String
-    , _tempSampAge   :: TempPos
+    , _tempSampAge   :: YearBCAD
 } deriving (Show, Generic)
 
 instance NFData TempSample
 instance Csv.FromNamedRecord TempSample where
     parseNamedRecord m =
-        TempSample <$> filterLookup m "sample" <*> Csv.parseNamedRecord m
+        TempSample <$> filterLookup m "sample" <*> filterLookup m "calBCAD"
 
 -- | A datatype for temporal positions
 newtype TempPos = TempPos YearBCAD
@@ -354,7 +367,7 @@ newtype TempPos = TempPos YearBCAD
 
 instance NFData TempPos
 instance Csv.FromNamedRecord TempPos where
-    parseNamedRecord m = TempPos <$> filterLookup m "calBCAD"
+    parseNamedRecord m = TempPos <$> filterLookup m "age"
 instance Csv.DefaultOrdered TempPos where
     headerOrder (TempPos _) = Csv.header ["age"]
 instance Csv.ToField TempPos where
