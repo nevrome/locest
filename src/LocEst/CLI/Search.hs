@@ -58,7 +58,7 @@ runSearch (
     let allObservations = zipWith setIndex allObservationsUnindexed [0..]
     !inObsTempSamples <- case inObsTempSamplesFile of
         Nothing   -> pure Nothing
-        Just path -> Just <$> readTempSamp False allObservations 5 path
+        Just path -> Just <$> readTempSamp False allObservations path
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
     let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations

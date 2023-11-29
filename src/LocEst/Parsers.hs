@@ -37,24 +37,37 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
-readTempSamp :: Bool -> [Observation] -> Int -> FilePath -> IO TempSampleMatrix
-readTempSamp noOrderCheck obs nSamples path = do
+readTempSamp :: Bool -> [Observation] -> FilePath -> IO TempSampleMatrix
+readTempSamp noOrderCheck obs path = do
     hPutStrLn stderr $ "Parsing " ++ path
     let nObs = length obs
+    -- determine number of samples to expect
+    hPutStrLn stderr "Counting the number of age samples"
+    nSamples <- Con.runConduitRes $
+        sourceCSV path .|
+        ConC.mapM unwrapCSVParsingErrors .|
+        ConC.takeWhile (\(TempSample obsID _) -> obsID == _obsID (head obs)) .|
+        ConC.length
+    if nSamples > 0
+    then hPutStrLn stderr $ "Expected age samples per observation: " ++ show nSamples
+    else liftIO $ throwIO $ NormalException $
+        "Order of entries in --tempSampFile not equal to -i. " ++
+        "Expected first value: " ++ _obsID (head obs)
+    -- start the actual parsing
     sampleVec <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
         (
             if noOrderCheck
             then ConC.map (\(TempSample _ age) -> age)
-            else checkOrder
+            else checkOrder nSamples
         ) .|
         ConC.sinkVectorN (nObs * nSamples)
     hPutStrLn stderr "Done"
     return $ TempSampleMatrix nSamples nObs sampleVec
     where
-    checkOrder :: (MonadIO m) => ConduitT TempSample YearBCAD m ()
-    checkOrder = do
+    checkOrder :: (MonadIO m) => Int -> ConduitT TempSample YearBCAD m ()
+    checkOrder nSamples = do
         loop (concatMap (replicate nSamples . getID) obs)
         where
             loop (expected:rest) = do
@@ -70,7 +83,7 @@ readTempSamp noOrderCheck obs nSamples path = do
                             -- throw an exception if the order is not as expected
                             liftIO $ throwIO $ NormalException $
                                 "Order of entries in --tempSampFile not equal to -i. " ++
-                                "Expected: " ++ show expected ++ " but got: " ++ show obsID
+                                "Expected: " ++ expected ++ " but got: " ++ obsID
                     Nothing -> return ()
             loop [] = return ()
 
