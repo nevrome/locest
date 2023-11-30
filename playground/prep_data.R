@@ -37,8 +37,8 @@ janno_final %>%
         Date_Type == "C14" ~
           purrr::pmap_chr(
             list(Poseidon_ID, Date_C14_Uncal_BP, Date_C14_Uncal_BP_Err),
-            \(id, age, sigma) {
-              paste0(id, ": ", paste0("(", age, ",", sigma, ")", collapse = " + "))
+            \(id, bp, sigma) {
+              paste0(id, ": ", paste0("(", bp, ",", sigma, ")", collapse = " + "))
             }
           ),
         TRUE ~ paste0(
@@ -49,7 +49,7 @@ janno_final %>%
   currycarbon_expression %>%
   writeLines(con = "test2CurrycarbonInput.txt")
 
-system("currycarbon -i test2CurrycarbonInput.txt -q --samplesFile test2CurrycarbonSamples.csv -n 5 --seed 123")
+system("currycarbon -i test2CurrycarbonInput.txt -q --samplesFile test2CurrycarbonSamples.tsv -n 5 --seed 123")
 
 janno_final %>%
   dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
