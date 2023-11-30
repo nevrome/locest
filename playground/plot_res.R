@@ -9,7 +9,7 @@ system('time locest search --configFile "normalSearch.conf"')
 hu5 <- readr::read_tsv("test_res/test2Search.tsv")
 
 hu5 %>%
-  dplyr::filter(tempSamplingIteration == 2) %>%
+  dplyr::filter(tempSamplingIteration == 0) %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
   geom_raster(aes(x, y, fill = probability)) +
