@@ -18,7 +18,7 @@ janno_final %>%
   dplyr::select(
     obsID = Poseidon_ID,
     x, y,
-    age = Date_BC_AD_Median_Derived,
+    yearBCAD = Date_BC_AD_Median_Derived,
     varC1 = C1_mds_u,
     varC2 = C2_mds_u
   )  %>%
@@ -38,11 +38,14 @@ janno_final %>%
           purrr::pmap_chr(
             list(Poseidon_ID, Date_C14_Uncal_BP, Date_C14_Uncal_BP_Err),
             \(id, bp, sigma) {
-              paste0(id, ": ", paste0("(", bp, ",", sigma, ")", collapse = " + "))
+              paste0(
+                id, ": ",
+                paste0("(", bp, ",", sigma, ")", collapse = " + "))
             }
           ),
         TRUE ~ paste0(
-            Poseidon_ID, ": rangeBCAD(", Date_BC_AD_Start, ",", Date_BC_AD_Stop, ")"
+            Poseidon_ID, ": ",
+            "rangeBCAD(", Date_BC_AD_Start, ",", Date_BC_AD_Stop, ")"
           )
       )
   ) %$%

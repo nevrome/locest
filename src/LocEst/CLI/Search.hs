@@ -60,7 +60,7 @@ runSearch (
         Nothing   -> pure Nothing
         Just path -> Just <$> readTempSamp False allObservations path
     let nrTempSamples = case inObsTempSamples of
-            Nothing -> 1
+            Nothing                       -> 1
             Just (TempSampleMatrix n _ _) -> n
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]

@@ -4,10 +4,10 @@ import           LocEst.CLI.Crossvalidate (CrossvalidateOptions (..),
                                            runCrossvalidate)
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
-import           LocEst.Utils
 import           LocEst.CLI.Serialise     (SerialiseOptions (..),
                                            SpatDistFileSettings (..),
                                            runSerialise)
+import           LocEst.Utils
 
 import           Control.Exception        (catch)
 import           Data.List                (isInfixOf)

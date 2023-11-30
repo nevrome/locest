@@ -9,9 +9,9 @@ system('time locest search --configFile "normalSearch.conf"')
 hu5 <- readr::read_tsv("test_res/test2Search.tsv")
 
 hu5 %>%
-  dplyr::filter(tempSamplingIteration == 1) %>%
+  dplyr::filter(tempSamplingIteration == 2) %>%
   ggplot() +
-  facet_wrap(~age) +
+  facet_wrap(~yearBCAD) +
   geom_raster(aes(x, y, fill = probability)) +
   scale_fill_viridis_c() +
   coord_fixed()
@@ -21,14 +21,14 @@ hu5 %>%
 
 hu5 %>%
   ggplot() +
-  facet_wrap(~age) +
+  facet_wrap(~yearBCAD) +
   geom_raster(aes(x, y, fill = varC1Res)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
 hu5 %>%
   ggplot() +
-  facet_wrap(~age) +
+  facet_wrap(~yearBCAD) +
   geom_raster(aes(x, y, fill = probability)) +
   # geom_point(
   #   data = hu5 %>% dplyr::filter((varC1Dens+varC2Dens)/2 < 0.000001),
@@ -44,19 +44,19 @@ hu5 %>%
   coord_fixed()
 
 ggplot() +
-  facet_wrap(~age) +
+  facet_wrap(~yearBCAD) +
   geom_raster(
     data = hu5 %>%
       dplyr::filter(varC1ResErr != "Infinity" & varC1ResErr != "NaN") %>%
-      dplyr::filter(age == -5000) %>%
+      dplyr::filter(yearBCAD == -5000) %>%
       dplyr::mutate(varC1ResErr = log10(as.numeric(varC1ResErr))),
     aes(x,y, fill = varC1ResErr)
   ) +
   geom_point(
     data = obs %>%
-      dplyr::filter(age > -7500 & age < -4500) %>%
-      dplyr::mutate(age = round(age, -3)) %>%
-      dplyr::filter(age == -5000),
+      dplyr::filter(yearBCAD > -7500 & yearBCAD < -4500) %>%
+      dplyr::mutate(yearBCAD = round(yearBCAD, -3)) %>%
+      dplyr::filter(yearBCAD == -5000),
     aes(x,y),
     shape = 4, color = "red"
   ) +
@@ -70,7 +70,7 @@ hu <- readr::read_tsv("test_res/test2Interpolate.tsv")
 
 hu %>%
   ggplot() +
-  facet_wrap(~age) +
+  facet_wrap(~yearBCAD) +
   geom_raster(aes(varC1, varC2, fill = probability)) +
   scale_fill_viridis_c() +
   coord_fixed()

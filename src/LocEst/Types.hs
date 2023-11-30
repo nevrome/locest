@@ -12,14 +12,29 @@ import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           Data.List             (nub, sort, sortBy)
+import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
 import           LocEst.Utils          (LOCESTException (..))
 
 -- helper functions
+
+-- lookup one column name
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
 filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
+
+-- lookup multiple column names and keep the first match
+filterLookupMulti :: Csv.FromField a => Csv.NamedRecord -> [Bchs.ByteString] -> Csv.Parser a
+filterLookupMulti m names =
+    maybe empty Csv.parseField $ lookupMulti names
+    where
+        lookupMulti :: [Bchs.ByteString] -> Maybe Bchs.ByteString
+        lookupMulti keys =
+            let vals = map (`HM.lookup` m) keys
+            in case catMaybes vals of
+                []    -> Nothing
+                (x:_) -> Just x
 
 filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
 filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
@@ -367,7 +382,7 @@ data TempSample = TempSample {
 instance NFData TempSample
 instance Csv.FromNamedRecord TempSample where
     parseNamedRecord m =
-        TempSample <$> filterLookup m "sample" <*> filterLookup m "calBCAD"
+        TempSample <$> filterLookupMulti m ["obsID", "id"] <*> filterLookup m "yearBCAD"
 
 -- | A datatype for temporal positions
 newtype TempPos = TempPos YearBCAD
@@ -375,9 +390,9 @@ newtype TempPos = TempPos YearBCAD
 
 instance NFData TempPos
 instance Csv.FromNamedRecord TempPos where
-    parseNamedRecord m = TempPos <$> filterLookup m "age"
+    parseNamedRecord m = TempPos <$> filterLookup m "yearBCAD"
 instance Csv.DefaultOrdered TempPos where
-    headerOrder (TempPos _) = Csv.header ["age"]
+    headerOrder (TempPos _) = Csv.header ["yearBCAD"]
 instance Csv.ToField TempPos where
     toField (TempPos x) = Csv.toField x
 
