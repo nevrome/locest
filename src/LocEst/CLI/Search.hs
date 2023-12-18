@@ -64,7 +64,7 @@ runSearch (
             Just (TempSampleMatrix n _ _) -> n
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
-    let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_stpoDepVarsPos . _obsPos) allObservations
+    let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_hyposDepVarsPos . _obsPos) allObservations
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
     !inSpatDists <- case spatDistFile of
         Nothing   -> pure Nothing
@@ -154,8 +154,8 @@ normalize NormBySpace =
     where
     groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria
-        (SearchResult (CoreAlgorithmSettings (SpatTempDepVarsPos (SpatTempPos _ t1) dv1) alg1 tri1) _ _)
-        (SearchResult (CoreAlgorithmSettings (SpatTempDepVarsPos (SpatTempPos _ t2) dv2) alg2 tri2) _ _) =
+        (SearchResult (CoreAlgorithmSettings (HyperPos (SpatTempPos _ t1) dv1) alg1 tri1) _ _)
+        (SearchResult (CoreAlgorithmSettings (HyperPos (SpatTempPos _ t2) dv2) alg2 tri2) _ _) =
             t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
     scaleProbs :: [SearchResult] -> [SearchResult]
     scaleProbs stps =

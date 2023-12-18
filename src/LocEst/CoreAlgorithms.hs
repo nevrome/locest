@@ -23,16 +23,19 @@ coreSearch
     maybeSpatDistMap
     spaceTimeFilter
     searchSetting@(CoreAlgorithmSettings
-        (SpatTempDepVarsPos gridSpatTempPos searchDepVarPos)
+        (HyperPos searchIndepVarPos searchDepVarPos)
         (AlgoKernSmooth kernelDefinition)
         tempSamplingIteration
     ) = do
     -- determine general per-obs statistics
+    obsWithDist <- case searchIndepVarPos of
+        IndepSpatTempPos gridSpatTempPos -> do
+            let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
+                spatDistsKM = map (/ 1000) spatDists
+                tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
+            return $ zipWith3 addDistsToObs observations spatDistsKM tempDists
+        IndepArbitraryDimPos blubb -> undefined
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-    let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
-    let spatDistsKM = map (/ 1000) spatDists
-        tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
-        obsWithDist = zipWith3 addDistsToObs observations spatDistsKM tempDists
     -- filter by dist (for performance)
     filteredObsWithDists <- case spaceTimeFilter of
         Just (spaceFilter,timeFilter) -> do
@@ -73,7 +76,7 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
     return (mean, weight)
     where
         getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
-        getOneDepVarPos (ObsWithDist (Observation _ _ (SpatTempDepVarsPos _ (DepVarsPos m))) _) =
+        getOneDepVarPos (ObsWithDist (Observation _ _ (HyperPos _ (DepVarsPos m))) _) =
             case HM.lookup depVar m of
                 Nothing -> Left $ NormalException "Unknown variable"
                 Just x  -> Right x
@@ -98,7 +101,7 @@ filterByDists fs ft = filter (\(ObsWithDist _ (SpatTempDist ds dt)) -> ds <= fs 
 findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> Int -> SpatTempPos -> [Double]
 -- calculate distances from mean ages
 findTempDistsObsGrid observations Nothing _ gridSpatTempPos =
-    map (temporalDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos) observations
+    map (temporalDistSpatTempPos gridSpatTempPos . _hyposIndepVarsPos . _obsPos) observations
 -- look up age samples and calculate distances from them
 findTempDistsObsGrid observations (Just tempSampleMatrix) iteration gridSpatTempPos =
     let obsIndizes = map getIndex observations
@@ -109,7 +112,7 @@ findTempDistsObsGrid observations (Just tempSampleMatrix) iteration gridSpatTemp
 findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMatrix -> SpatTempPos -> [Double]
 -- calculate distances
 findSpatDistsObsGrid observations Nothing gridSpatTempPos =
-    map (\x -> spatialDistSpatTempPos gridSpatTempPos . _stpoSpatTempPos . _obsPos $ x) observations
+    map (\x -> spatialDistSpatTempPos gridSpatTempPos . _hyposIndepVarsPos . _obsPos $ x) observations
 -- look up distances
 findSpatDistsObsGrid observations (Just spatDistMatrix) gridSpatTempPos =
     let obsIndizes = map getIndex observations

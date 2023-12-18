@@ -71,7 +71,7 @@ harvest = harvestFlattened . flattenTree
                     tempSamp   <- exactlyOnce [ v | PETempSampling v <- xs]
                     return $
                         CoreAlgorithmSettings
-                            (SpatTempDepVarsPos (SpatTempPos spatPos (TempPos tempPos)) depVarsPos)
+                            (HyperPos (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) depVarsPos)
                             algorithm
                             tempSamp
                     where
@@ -179,7 +179,7 @@ instance Csv.ToRecord SpatTempProb where
 
 -- | A datatype with core-algorithm settings
 data CoreAlgorithmSettings = CoreAlgorithmSettings {
-      _casPosition              :: SpatTempDepVarsPos
+      _casPosition              :: HyperPos
     , _casAlgorithm             :: LocestAlgorithm
     , _casTempSamplingIteration :: Int
 } deriving (Show, Generic)
@@ -254,7 +254,7 @@ addDistsToObs obs spatDist tempDist = ObsWithDist obs (SpatTempDist spatDist tem
 data Observation = Observation {
       _obsIndex :: Int
     , _obsID    :: String
-    , _obsPos   :: SpatTempDepVarsPos
+    , _obsPos   :: HyperPos
 } deriving (Show, Generic)
 
 instance NFData Observation
@@ -278,26 +278,26 @@ instance Identifiable Observation where
     getIndex (Observation index _ _) = index
     setIndex x i = x {_obsIndex = i}
 
--- | A datatype for positions in space, time and in dependent var space
-data SpatTempDepVarsPos = SpatTempDepVarsPos {
-      _stpoSpatTempPos :: SpatTempPos
-    , _stpoDepVarsPos  :: DepVarsPos
+-- | A datatype for positions in independent and dependent var space
+data HyperPos = HyperPos {
+      _hyposIndepVarsPos :: IndepVarsPos
+    , _hyposDepVarsPos   :: DepVarsPos
 } deriving (Show, Generic)
 
-instance NFData SpatTempDepVarsPos
-instance Csv.FromNamedRecord SpatTempDepVarsPos where
+instance NFData HyperPos
+instance Csv.FromNamedRecord HyperPos where
     parseNamedRecord m = do
         spatTempPos <- Csv.parseNamedRecord m
         depVarsPos <- Csv.parseNamedRecord m
-        pure $ SpatTempDepVarsPos {
-              _stpoSpatTempPos = spatTempPos
-            , _stpoDepVarsPos  = depVarsPos
+        pure $ HyperPos {
+              _hyposIndepVarsPos = spatTempPos
+            , _hyposDepVarsPos   = depVarsPos
             }
-instance Csv.DefaultOrdered SpatTempDepVarsPos where
-    headerOrder (SpatTempDepVarsPos spatTempPos depVarsPos) =
+instance Csv.DefaultOrdered HyperPos where
+    headerOrder (HyperPos spatTempPos depVarsPos) =
         Csv.headerOrder spatTempPos <> Csv.headerOrder depVarsPos
-instance Csv.ToRecord SpatTempDepVarsPos where
-    toRecord (SpatTempDepVarsPos spatTempPos depVarsPos) =
+instance Csv.ToRecord HyperPos where
+    toRecord (HyperPos spatTempPos depVarsPos) =
         Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
 
 -- | A datatype for dependent vars with errors
@@ -335,6 +335,42 @@ depVarsExtractOrdered :: [String] -> DepVarsPos -> [Double]
 depVarsExtractOrdered orderedKeys (DepVarsPos hm) =
     map (hm HM.!) orderedKeys
 
+newtype ArbitraryDimPos = ArbitraryDimPos { getHM2 :: HM.HashMap String Double }
+    deriving (Eq, Show, Generic)
+
+instance NFData ArbitraryDimPos
+instance Csv.FromNamedRecord ArbitraryDimPos where
+    parseNamedRecord m = do
+        let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k) m
+        let extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ extractedVarsBS
+        pure $ ArbitraryDimPos extractedVarsStringDouble
+instance Csv.DefaultOrdered ArbitraryDimPos where
+    headerOrder (ArbitraryDimPos hm) =
+        V.map Bchs.pack $ V.fromList $ sort $ map fst $ HM.toList hm
+instance Csv.ToRecord ArbitraryDimPos where
+    toRecord (ArbitraryDimPos hm) =
+        let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
+        in V.map (Bchs.pack . show) $ V.fromList orderedValues
+
+extractOrdered :: [String] -> ArbitraryDimPos -> [Double]
+extractOrdered orderedKeys (ArbitraryDimPos hm) =
+    map (hm HM.!) orderedKeys
+
+-- A datatype for positions in a spatiotemporal or an arbitrary space
+data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos
+    deriving (Eq, Show, Generic)
+
+instance NFData IndepVarsPos
+instance Csv.FromNamedRecord IndepVarsPos where
+    parseNamedRecord m = do
+        (IndepSpatTempPos <$> Csv.parseNamedRecord m) <|> (IndepArbitraryDimPos <$> Csv.parseNamedRecord m)
+instance Csv.DefaultOrdered IndepVarsPos where
+    headerOrder (IndepSpatTempPos x)     = Csv.headerOrder x
+    headerOrder (IndepArbitraryDimPos x) = Csv.headerOrder x
+instance Csv.ToRecord IndepVarsPos where
+    toRecord (IndepSpatTempPos x)     = Csv.toRecord x
+    toRecord (IndepArbitraryDimPos x) = Csv.toRecord x
+
 -- | A datatype for distances in space and time
 data SpatTempDist = SpatTempDist {
       _spatDist :: Double
@@ -345,7 +381,7 @@ data SpatTempDist = SpatTempDist {
 data SpatTempPos = SpatTempPos {
       _spatialPos  :: SpatPos
     , _temporalPos :: TempPos
-} deriving (Show, Generic)
+} deriving (Eq, Show, Generic)
 
 instance NFData SpatTempPos
 instance Csv.FromNamedRecord SpatTempPos where
