@@ -132,6 +132,8 @@ readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
 readHyperPos :: FilePath -> IO [HyperPos]
 readHyperPos = readCSVToList
+readArbitraryDimPos :: FilePath -> IO [ArbitraryDimPos]
+readArbitraryDimPos = readCSVToList
 readSpatPos :: FilePath -> IO [SpatPos]
 readSpatPos = readCSVToList
 

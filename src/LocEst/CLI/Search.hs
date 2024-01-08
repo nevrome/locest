@@ -26,7 +26,6 @@ import           System.IO                     (hPutStrLn, stderr)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile      :: FilePath
-    , _searchInObsTempSamplesFile   :: Maybe FilePath
     , _searchSearchPositionSettings :: ConcretePositionSettings
     , _searchAlgorithm              :: LocestAlgorithm
     , _spaceSpaceTimeFilter         :: Maybe (Double,Double)
@@ -36,48 +35,80 @@ data SearchOptions = SearchOptions
     }
 
 data ConcretePositionSettings = ConcretePositionSettings {
-      _concPosInSpatGridFile :: FilePath
-    , _concPosInTempGrid     :: [Int]
+      _concPosInSpatGridFile :: PredGridSettings
     , _concPosDepVarsPosGrid :: [DepVarsPos]
-    , _concPosSpatDistFile   :: Maybe FilePath
 }
 
-runSearch :: SearchOptions -> IO ()
-runSearch (
-    SearchOptions
-        inObsFile
-        inObsTempSamplesFile
-        (ConcretePositionSettings inSpatGridFile inTempGrid searchDepVarPos spatDistFile)
-        algorithm
-        spaceTimeFilter
-        normalization
-        threads
-        outFile
-    ) = do
-    !allObservationsUnindexed <- readObservations inObsFile
-    let allObservations = zipWith setIndex allObservationsUnindexed [0..]
-    !inObsTempSamples <- case inObsTempSamplesFile of
-        Nothing   -> pure Nothing
-        Just path -> Just <$> readTempSamp False allObservations path
-    let nrTempSamples = case inObsTempSamples of
-            Nothing                       -> 1
-            Just (TempSampleMatrix n _ _) -> n
+data PredGridSettings = SpaceTimeGridSet SpaceTimeGridSettings | ArbitraryDimGridSet ArbitraryDimGridSettings
+
+data SpaceTimeGridSettings = SpaceTimeGridSettings {
+      _stgsInSpatGridFile :: FilePath
+    , _stgsInTempGrid     :: [Int]
+    , _stgsInSpatDistFile :: Maybe FilePath
+    , _stgsInObsTempSamplesFile :: Maybe FilePath
+}
+
+data ArbitraryDimGridSettings = ArbitraryDimGridSettings {
+      _adgsInArbitraryDimGridFile :: FilePath
+}
+
+data IndepVarPredGrid = SpaceTimeGrid {
+      _stGridSpatPos :: [SpatPos]
+    , _stGridTempPos :: [Int]
+    , _stGridSpatDist :: Maybe SpatDistMatrix
+    , _stGridTempSamples :: Maybe TempSampleMatrix
+} | ArbitraryDimGrid {
+      _adGridPos :: [ArbitraryDimPos]
+}
+
+readIndepVarPredGrid :: PredGridSettings -> [Observation] -> IO IndepVarPredGrid
+readIndepVarPredGrid
+    (SpaceTimeGridSet (SpaceTimeGridSettings inSpatGridFile inTempGrid spatDistFile inObsTempSamplesFile))
+    allObservations = do
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
-    let indepVarsPosFromObs = head $ map (_hyposIndepVarsPos . _obsPos) allObservations
-    let indepVarsOrdered = case indepVarsPosFromObs of
-            IndepSpatTempPos _ -> []
-            IndepArbitraryDimPos x -> sort . HM.keys . getADPHM $ x
-    -- let indepVarsPosFromGrid = ... inSpatGrid ... TODO
-    let depVarsFromObs = head $ map (_hyposDepVarsPos . _obsPos) allObservations
-    let depVarsOrdered = sort . HM.keys . getHM $ depVarsFromObs
-    let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
     !inSpatDists <- case spatDistFile of
         Nothing   -> pure Nothing
         Just path -> do
             hPutStrLn stderr $ "Deserialising spatial distances from " ++ path
             dists <- S.readFileDeserialise path
             return $ Just dists
+    !inObsTempSamples <- case inObsTempSamplesFile of
+        Nothing   -> pure Nothing
+        Just path -> Just <$> readTempSamp False allObservations path
+    return $ SpaceTimeGrid inSpatGrid inTempGrid inSpatDists inObsTempSamples
+readIndepVarPredGrid
+    (ArbitraryDimGridSet (ArbitraryDimGridSettings inArbitraryDimGridFile))
+    allObservations = do
+    !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
+    return $ ArbitraryDimGrid inArbitraryDimPos
+
+runSearch :: SearchOptions -> IO ()
+runSearch (
+    SearchOptions
+        inObsFile
+        (ConcretePositionSettings searchIndepVarPos searchDepVarPos)
+        algorithm
+        spaceTimeFilter
+        normalization
+        threads
+        outFile
+    ) = do
+    -- read observations
+    !allObservationsUnindexed <- readObservations inObsFile
+    let allObservations = zipWith setIndex allObservationsUnindexed [0..]
+    -- read prediction grid
+    predGrid <- readIndepVarPredGrid searchIndepVarPos allObservations
+    --     
+    let indepVarsPosFromObs = head $ map (_hyposIndepVarsPos . _obsPos) allObservations
+    let indepVarsOrdered = case indepVarsPosFromObs of
+            IndepSpatTempPos _ -> []
+            IndepArbitraryDimPos x -> sort . HM.keys . getADPHM $ x
+
+    let depVarsFromObs = head $ map (_hyposDepVarsPos . _obsPos) allObservations
+    let depVarsOrdered = sort . HM.keys . getHM $ depVarsFromObs
+    let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
+    
     -- validating input
     OP.when (not $ allEqual depVarsFromSearch) $ do
         throw $ NormalException "dep vars within -d not equal"
@@ -93,14 +124,14 @@ runSearch (
             return detectedThreads
     hPutStrLn stderr $ "Working with threads: " ++ show numThreads
     -- preparing permutations
-    hPutStrLn stderr $ "Permutations: " ++
-        "1 algorithm" ++ " * " ++
-        show nrTempSamples ++ " time resampling iterations" ++ " * " ++
-        show (length searchDepVarPos) ++ " dependent variable positions" ++ " * " ++
-        show (length inTempGrid) ++ " time slices" ++ " * " ++
-        show (length inSpatGrid) ++ " spatial positions"
-    hPutStrLn stderr $ "Required iterations: " ++
-        show (nrTempSamples * length searchDepVarPos * length inTempGrid * length inSpatGrid)
+    --hPutStrLn stderr $ "Permutations: " ++
+    --    "1 algorithm" ++ " * " ++
+    --    show nrTempSamples ++ " time resampling iterations" ++ " * " ++
+    --     show (length searchDepVarPos) ++ " dependent variable positions" ++ " * " ++
+    --     show (length inTempGrid) ++ " time slices" ++ " * " ++
+    --     show (length inSpatGrid) ++ " spatial positions"
+    --hPutStrLn stderr $ "Required iterations: " ++
+    --    show (nrTempSamples * length searchDepVarPos * length inTempGrid * length inSpatGrid)
     hPutStrLn stderr "Building permutation tree"
     let permutations =
             PTRoot [] &
