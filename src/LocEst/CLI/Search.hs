@@ -64,7 +64,13 @@ runSearch (
             Just (TempSampleMatrix n _ _) -> n
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
-    let depVarsOrdered = sort . HM.keys . getHM $ head $ map (_hyposDepVarsPos . _obsPos) allObservations
+    let indepVarsPosFromObs = head $ map (_hyposIndepVarsPos . _obsPos) allObservations
+    let indepVarsOrdered = case indepVarsPosFromObs of
+            IndepSpatTempPos _ -> []
+            IndepArbitraryDimPos x -> sort . HM.keys . getADPHM $ x
+    -- let indepVarsPosFromGrid = ... inSpatGrid ... TODO
+    let depVarsFromObs = head $ map (_hyposDepVarsPos . _obsPos) allObservations
+    let depVarsOrdered = sort . HM.keys . getHM $ depVarsFromObs
     let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
     !inSpatDists <- case spatDistFile of
         Nothing   -> pure Nothing
@@ -120,6 +126,7 @@ runSearch (
                 -- 2. normal parallel
                 .| ConAA.asyncMapC numThreads (
                     coreSearch
+                        indepVarsOrdered
                         depVarsOrdered
                         allObservations
                         inObsTempSamples

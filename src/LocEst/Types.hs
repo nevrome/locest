@@ -244,11 +244,10 @@ instance NFData Kernel
 
 data ObsWithDist = ObsWithDist {
       _owdObservation  :: Observation
-    , _owdSpatTempDist :: SpatTempDist
+    , _owdSpatTempDist :: IndepVarsDist
 }
 
-addDistsToObs :: Observation -> Double -> Double -> ObsWithDist
-addDistsToObs obs spatDist tempDist = ObsWithDist obs (SpatTempDist spatDist tempDist)
+data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist Double
 
 -- | A datatype for observations with id and position
 data Observation = Observation {
@@ -335,7 +334,7 @@ depVarsExtractOrdered :: [String] -> DepVarsPos -> [Double]
 depVarsExtractOrdered orderedKeys (DepVarsPos hm) =
     map (hm HM.!) orderedKeys
 
-newtype ArbitraryDimPos = ArbitraryDimPos { getHM2 :: HM.HashMap String Double }
+newtype ArbitraryDimPos = ArbitraryDimPos { getADPHM :: HM.HashMap String Double }
     deriving (Eq, Show, Generic)
 
 instance NFData ArbitraryDimPos

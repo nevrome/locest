@@ -10,6 +10,7 @@ import           Data.List           (unzip4)
 
 coreSearch ::
        [String]
+    -> [String]
     -> [Observation]
     -> Maybe TempSampleMatrix
     -> Maybe SpatDistMatrix
@@ -17,6 +18,7 @@ coreSearch ::
     -> CoreAlgorithmSettings
     -> Either LOCESTException SearchResult
 coreSearch
+    indepVarsOrdered
     depVarsOrdered
     observations
     maybeTempSamples
@@ -33,8 +35,16 @@ coreSearch
             let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
                 spatDistsKM = map (/ 1000) spatDists
                 tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
-            return $ zipWith3 addDistsToObs observations spatDistsKM tempDists
-        IndepArbitraryDimPos _ -> undefined
+            return $ zipWith3
+                (\o s t -> ObsWithDist o (IndepSpatTempDist (SpatTempDist s t)))
+                observations spatDistsKM tempDists
+        IndepArbitraryDimPos arbitraryDimPos -> do
+            let orderedIndepCoordsGrid = extractOrdered indepVarsOrdered arbitraryDimPos
+                orderedIndepCoordsObs  = undefined
+            let arbitraryDimDist = undefined
+            return $ zipWith
+                (\o d -> ObsWithDist o (IndepArbitraryDimDist d))
+                observations arbitraryDimDist
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
     -- filter by dist (for performance)
     filteredObsWithDists <- case spaceTimeFilter of
@@ -81,11 +91,13 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
                 Nothing -> Left $ NormalException "Unknown variable"
                 Just x  -> Right x
         weightForOneObs :: Kernel -> ObsWithDist -> Double
-        weightForOneObs (Uniform spatRadius tempRadius) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
+        weightForOneObs (Uniform spatRadius tempRadius)
+                        (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             let spatWeight = if spatDist <= spatRadius then 1 else 0
                 tempWeight = if tempDist <= tempRadius then 1 else 0
             in spatWeight * tempWeight
-        weightForOneObs (Normal spatSigma tempSigma) (ObsWithDist _ (SpatTempDist spatDist tempDist)) =
+        weightForOneObs (Normal spatSigma tempSigma)
+                        (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
 
 getKernelForOneDepVar :: KernelDefinition -> String -> Either LOCESTException Kernel
@@ -96,7 +108,7 @@ getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
         _                     -> Left  $ NormalException "Variable defined multiple times in kernel"
 
 filterByDists :: Double -> Double -> [ObsWithDist] -> [ObsWithDist]
-filterByDists fs ft = filter (\(ObsWithDist _ (SpatTempDist ds dt)) -> ds <= fs && dt <= ft)
+filterByDists fs ft = filter (\(ObsWithDist _ (IndepSpatTempDist (SpatTempDist ds dt))) -> ds <= fs && dt <= ft)
 
 findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> Int -> SpatTempPos -> [Double]
 -- calculate distances from mean ages
