@@ -52,7 +52,7 @@ data ArbitraryDimGridSettings = ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
 }
 
-data IndepVarPredGrid = SpaceTimeGrid {
+data IndepVarsPredGrid = SpaceTimeGrid {
       _stGridSpatPos :: [SpatPos]
     , _stGridTempPos :: [Int]
     , _stGridSpatDist :: Maybe SpatDistMatrix
@@ -61,7 +61,7 @@ data IndepVarPredGrid = SpaceTimeGrid {
       _adGridPos :: [ArbitraryDimPos]
 }
 
-readIndepVarPredGrid :: PredGridSettings -> [Observation] -> IO IndepVarPredGrid
+readIndepVarPredGrid :: PredGridSettings -> [Observation] -> IO IndepVarsPredGrid
 readIndepVarPredGrid
     (SpaceTimeGridSet (SpaceTimeGridSettings inSpatGridFile inTempGrid spatDistFile inObsTempSamplesFile))
     allObservations = do
@@ -83,6 +83,22 @@ readIndepVarPredGrid
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
     return $ ArbitraryDimGrid inArbitraryDimPos
 
+createPermutations :: LocestAlgorithm -> IndepVarsPredGrid -> [DepVarsPos] -> Either LOCESTException [CoreAlgorithmSettings]
+createPermutations
+    algorithm (SpaceTimeGrid inSpatGrid inTempGrid _ inObsTempSamples) searchDepVarPos =
+        let nrTempSamples = case inObsTempSamples of
+                Nothing                       -> 1
+                Just (TempSampleMatrix n _ _) -> n
+        in PTRoot [] &
+            -- the following elements can be ordered arbitrarily
+            addPermutation [PEAlgorithm algorithm] &
+            addPermutation (map PETempSampling [0..(nrTempSamples-1)]) &
+            addPermutation (map PEDepVarsPos searchDepVarPos) &
+            addPermutation (map PETempPos inTempGrid) &
+            addPermutation (map PESpatPos inSpatGrid) &
+            harvest
+
+
 runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions
@@ -98,22 +114,21 @@ runSearch (
     !allObservationsUnindexed <- readObservations inObsFile
     let allObservations = zipWith setIndex allObservationsUnindexed [0..]
     -- read prediction grid
-    predGrid <- readIndepVarPredGrid searchIndepVarPos allObservations
-    --     
-    let indepVarsPosFromObs = head $ map (_hyposIndepVarsPos . _obsPos) allObservations
-    let indepVarsOrdered = case indepVarsPosFromObs of
+    indepVarsPredGrid <- readIndepVarPredGrid searchIndepVarPos allObservations
+    -- determine ordered indep vars (if available)
+    let indepVarsFromObsOrdered = case (head $ map (_hyposIndepVarsPos . _obsPos) allObservations) of
             IndepSpatTempPos _ -> []
             IndepArbitraryDimPos x -> sort . HM.keys . getADPHM $ x
-
-    let depVarsFromObs = head $ map (_hyposDepVarsPos . _obsPos) allObservations
-    let depVarsOrdered = sort . HM.keys . getHM $ depVarsFromObs
-    let depVarsFromSearch = map (sort . HM.keys . getHM) searchDepVarPos
-    
-    -- validating input
-    OP.when (not $ allEqual depVarsFromSearch) $ do
-        throw $ NormalException "dep vars within -d not equal"
-    OP.when (depVarsOrdered /= head depVarsFromSearch) $ do
-        throw $ NormalException "dep vars in -i and -d not equal"
+    let indepVarsPosFromGridOrdered = case indepVarsPredGrid of
+            SpaceTimeGrid _ _ _ _ -> []
+            ArbitraryDimGrid x -> sort . HM.keys . getADPHM $ head x
+    OP.when (indepVarsFromObsOrdered /= indepVarsPosFromGridOrdered) $ do
+        throw $ NormalException "indep vars in -? and -? not equal"
+    -- determine ordered dep vars
+    let depVarsFromObsOrdered = sort . HM.keys . getHM $ (_hyposDepVarsPos . _obsPos) $ head allObservations
+        depVarsFromGridOrdered = sort . HM.keys . getHM $ head searchDepVarPos
+    OP.when (depVarsFromObsOrdered /= depVarsFromGridOrdered) $ do
+        throw $ NormalException "dep vars in -? and -? not equal"
     -- number of threads
     numThreads <- case threads of
         SingleThread      -> pure 1
@@ -133,15 +148,10 @@ runSearch (
     --hPutStrLn stderr $ "Required iterations: " ++
     --    show (nrTempSamples * length searchDepVarPos * length inTempGrid * length inSpatGrid)
     hPutStrLn stderr "Building permutation tree"
-    let permutations =
-            PTRoot [] &
-            -- the following elements can be ordered arbitrarily
-            addPermutation [PEAlgorithm algorithm] &
-            addPermutation (map PETempSampling [0..(nrTempSamples-1)]) &
-            addPermutation (map PEDepVarsPos searchDepVarPos) &
-            addPermutation (map PETempPos inTempGrid) &
-            addPermutation (map PESpatPos inSpatGrid) &
-            harvest
+
+
+    let permutations = createPermutations algorithm searchIndepVarPos searchDepVarPos
+
     hPutStrLn stderr "Done"
     -- running all permutations
     case permutations of
@@ -157,8 +167,8 @@ runSearch (
                 -- 2. normal parallel
                 .| ConAA.asyncMapC numThreads (
                     coreSearch
-                        indepVarsOrdered
-                        depVarsOrdered
+                        indepVarsPosFromGridOrdered
+                        depVarsFromGridOrdered
                         allObservations
                         inObsTempSamples
                         inSpatDists
