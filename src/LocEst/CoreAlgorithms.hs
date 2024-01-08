@@ -34,7 +34,7 @@ coreSearch
                 spatDistsKM = map (/ 1000) spatDists
                 tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
             return $ zipWith3 addDistsToObs observations spatDistsKM tempDists
-        IndepArbitraryDimPos blubb -> undefined
+        IndepArbitraryDimPos _ -> undefined
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
     -- filter by dist (for performance)
     filteredObsWithDists <- case spaceTimeFilter of
@@ -101,7 +101,8 @@ filterByDists fs ft = filter (\(ObsWithDist _ (SpatTempDist ds dt)) -> ds <= fs 
 findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> Int -> SpatTempPos -> [Double]
 -- calculate distances from mean ages
 findTempDistsObsGrid observations Nothing _ gridSpatTempPos =
-    map (temporalDistSpatTempPos gridSpatTempPos . _hyposIndepVarsPos . _obsPos) observations
+    let spatTempPos = map (extractSpatTempPos . _hyposIndepVarsPos . _obsPos) observations
+    in map (temporalDistSpatTempPos gridSpatTempPos) spatTempPos
 -- look up age samples and calculate distances from them
 findTempDistsObsGrid observations (Just tempSampleMatrix) iteration gridSpatTempPos =
     let obsIndizes = map getIndex observations
@@ -112,10 +113,13 @@ findTempDistsObsGrid observations (Just tempSampleMatrix) iteration gridSpatTemp
 findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMatrix -> SpatTempPos -> [Double]
 -- calculate distances
 findSpatDistsObsGrid observations Nothing gridSpatTempPos =
-    map (\x -> spatialDistSpatTempPos gridSpatTempPos . _hyposIndepVarsPos . _obsPos $ x) observations
+    map (spatialDistSpatTempPos gridSpatTempPos . extractSpatTempPos . _hyposIndepVarsPos . _obsPos) observations
 -- look up distances
 findSpatDistsObsGrid observations (Just spatDistMatrix) gridSpatTempPos =
     let obsIndizes = map getIndex observations
         gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
     in map (lookUpDistance spatDistMatrix gridSpatPosIndex) obsIndizes
 
+extractSpatTempPos :: IndepVarsPos -> SpatTempPos
+extractSpatTempPos (IndepSpatTempPos x) = x
+extractSpatTempPos _                    = error "this should never happen"

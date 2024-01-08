@@ -145,7 +145,7 @@ data SearchResult = SearchResult {
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
-    -- Perhabs this could be implemented as a Maybe String for the Obs name?
+    -- Perhaps this could be implemented as a Maybe String for the Obs name?
 } deriving (Show, Generic)
 
 instance NFData SearchResult
@@ -287,18 +287,18 @@ data HyperPos = HyperPos {
 instance NFData HyperPos
 instance Csv.FromNamedRecord HyperPos where
     parseNamedRecord m = do
-        spatTempPos <- Csv.parseNamedRecord m
+        indepVarsPos <- Csv.parseNamedRecord m
         depVarsPos <- Csv.parseNamedRecord m
         pure $ HyperPos {
-              _hyposIndepVarsPos = spatTempPos
+              _hyposIndepVarsPos = indepVarsPos
             , _hyposDepVarsPos   = depVarsPos
             }
 instance Csv.DefaultOrdered HyperPos where
-    headerOrder (HyperPos spatTempPos depVarsPos) =
-        Csv.headerOrder spatTempPos <> Csv.headerOrder depVarsPos
+    headerOrder (HyperPos indepVarsPos depVarsPos) =
+        Csv.headerOrder indepVarsPos <> Csv.headerOrder depVarsPos
 instance Csv.ToRecord HyperPos where
-    toRecord (HyperPos spatTempPos depVarsPos) =
-        Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
+    toRecord (HyperPos indepVarsPos depVarsPos) =
+        Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
 -- | A datatype for dependent vars with errors
 newtype DepVarsUncertainPos = DepVarsUncertainPos { _dvupGetHM :: HM.HashMap String (Double, Double, Double, Double) }
