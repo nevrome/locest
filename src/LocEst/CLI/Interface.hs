@@ -272,22 +272,18 @@ parseAlgorithmString = do
           _ <- P.string "Uniform"
           _ <- P.char '('
           _ <- P.spaces
-          spat <- parseDouble
-          consumeCommaSep
-          temp <- parseDouble
+          res <- P.sepBy parseDouble consumeCommaSep
           _ <- P.spaces
           _ <- P.char ')'
-          return $ Uniform [spat, temp]
+          return $ Uniform res
         parseNormal = do
           _ <- P.string "Normal"
           _ <- P.char '('
           _ <- P.spaces
-          spat <- parseDouble
-          consumeCommaSep
-          temp <- parseDouble
+          res <- P.sepBy parseDouble consumeCommaSep
           _ <- P.spaces
           _ <- P.char ')'
-          return $ Normal [spat, temp]
+          return $ Normal res
 
 -- general parsers
 

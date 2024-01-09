@@ -43,10 +43,8 @@ coreSearch
             return $ zipWith
                 (\o d -> ObsWithDist o (IndepArbitraryDimDist d))
                 observations arbitraryDimDist
-
-    let searchDepVarsCoords = getValues searchDepVarPos
-
     -- summarize obs information for each depVar
+    let searchDepVarsCoords = getValues searchDepVarPos
     perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition obsWithDist) depVarsOrdered
     let (means, errs, _, _) = unzip4 perDepVar
     return $ SearchResult {
