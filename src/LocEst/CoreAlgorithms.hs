@@ -15,7 +15,7 @@ coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> Either LOCES
 coreSearch
     observations
     (CoreSupplement
-        indepVarsOrdered depVarsOrdered
+        depVarsOrdered
         spaceTimeFilter maybeSpatDistMap maybeTempSamples
     )
     searchSetting@(CorePermutation
@@ -40,7 +40,7 @@ coreSearch
                 Nothing -> pure obsRaw
             return $ map (\(o, s, t) -> ObsWithDist o (IndepSpatTempDist (SpatTempDist s t))) filteredObsWithDists
         IndepArbitraryDimPos arbitraryDimPos -> do
-            let arbitraryDimDist = findArbitraryDimDistsObsGrid indepVarsOrdered observations arbitraryDimPos
+            let arbitraryDimDist = findArbitraryDimDistsObsGrid observations arbitraryDimPos
             return $ zipWith
                 (\o d -> ObsWithDist o (IndepArbitraryDimDist d))
                 observations arbitraryDimDist
@@ -127,10 +127,10 @@ findSpatDistsObsGrid observations (Just spatDistMatrix) gridSpatTempPos =
         gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
     in map (lookUpDistance spatDistMatrix gridSpatPosIndex) obsIndizes
 
-findArbitraryDimDistsObsGrid :: [String] -> [Observation] -> ArbitraryDimPos -> [[Double]]
-findArbitraryDimDistsObsGrid indepVarsOrdered observations gridAbritryDimPos =
-    let gridPos = extractOrdered indepVarsOrdered gridAbritryDimPos
-    in map (allDistances gridPos . (extractOrdered indepVarsOrdered) . extractArbitraryDimPos . _hyposIndepVarsPos . _obsPos) observations
+findArbitraryDimDistsObsGrid :: [Observation] -> ArbitraryDimPos -> [[Double]]
+findArbitraryDimDistsObsGrid observations gridAbritryDimPos =
+    let gridPos = getValues gridAbritryDimPos
+    in map (allDistances gridPos . getValues . extractArbitraryDimPos . _hyposIndepVarsPos . _obsPos) observations
 
 extractSpatTempPos :: IndepVarsPos -> SpatTempPos
 extractSpatTempPos (IndepSpatTempPos x) = x

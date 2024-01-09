@@ -89,6 +89,11 @@ data PositionEntity =
     | PETempSampling Int
     deriving (Eq)
 
+-- a typeclass for maps
+class PseudoMap a where
+    getKeys :: a -> [String]
+    getValues :: a -> [Double]
+
 -- a typeclass for things with ids
 class Identifiable a where
     getID :: a -> String
@@ -192,7 +197,6 @@ data IndepVarsPredGrid =
     } |
     ArbitraryDimGrid {
       _adGridPos  :: [ArbitraryDimPos]
-    , _adVarOrder :: [String]
     }
 
 data DepVarsPredGrid = DepVarsPredGrid {
@@ -201,8 +205,7 @@ data DepVarsPredGrid = DepVarsPredGrid {
 }
 
 data CoreSupplement = CoreSupplement {
-      _csIndepVarsOrder  :: [String]
-    , _csDepVarsOrder    :: [String]
+      _csDepVarsOrder    :: [String]
     , _csSpaceTimeFilter :: Maybe (Double, Double)
     , _csSpatDist        :: Maybe SpatDistMatrix
     , _csTempSamp        :: Maybe TempSampleMatrix
@@ -365,26 +368,25 @@ depVarsExtractOrdered :: [String] -> DepVarsPos -> [Double]
 depVarsExtractOrdered orderedKeys (DepVarsPos hm) =
     map (hm HM.!) orderedKeys
 
-newtype ArbitraryDimPos = ArbitraryDimPos { getADPHM :: HM.HashMap String Double }
+newtype ArbitraryDimPos = ArbitraryDimPos [(String, Double)]
     deriving (Eq, Show, Generic)
 
 instance NFData ArbitraryDimPos
 instance Csv.FromNamedRecord ArbitraryDimPos where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k) m
-        let extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
-        pure $ ArbitraryDimPos extractedVarsStringDouble
+            extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
+            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
+        pure $ ArbitraryDimPos sortedList
 instance Csv.DefaultOrdered ArbitraryDimPos where
-    headerOrder (ArbitraryDimPos hm) =
-        V.map Bchs.pack $ V.fromList $ sort $ map fst $ HM.toList hm
+    headerOrder (ArbitraryDimPos l) =
+        V.map Bchs.pack $ V.fromList $ map fst l
 instance Csv.ToRecord ArbitraryDimPos where
-    toRecord (ArbitraryDimPos hm) =
-        let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
-        in V.map (Bchs.pack . show) $ V.fromList orderedValues
-
-extractOrdered :: [String] -> ArbitraryDimPos -> [Double]
-extractOrdered orderedKeys (ArbitraryDimPos hm) =
-    map (hm HM.!) orderedKeys
+    toRecord (ArbitraryDimPos l) =
+        V.map (Bchs.pack . show) $ V.fromList $ map snd l
+instance PseudoMap ArbitraryDimPos where
+    getKeys (ArbitraryDimPos l) = map fst l
+    getValues (ArbitraryDimPos l) = map snd l
 
 -- A datatype for positions in a spatiotemporal or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos

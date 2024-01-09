@@ -70,11 +70,11 @@ readIndepVarsPredGrid
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
     let indepVarsFromObsOrdered = case (head $ map (_hyposIndepVarsPos . _obsPos) observations) of
             IndepSpatTempPos _     -> []
-            IndepArbitraryDimPos x -> sort . HM.keys . getADPHM $ x
-    let indepVarsPosFromGridOrdered = sort . HM.keys . getADPHM $ head inArbitraryDimPos
+            IndepArbitraryDimPos x -> getKeys x
+    let indepVarsPosFromGridOrdered = getKeys $ head inArbitraryDimPos
     OP.when (indepVarsFromObsOrdered /= indepVarsPosFromGridOrdered) $ do
         throw $ NormalException "indep vars in -? and -? not equal"
-    return $ ArbitraryDimGrid inArbitraryDimPos indepVarsPosFromGridOrdered
+    return $ ArbitraryDimGrid inArbitraryDimPos
 
 readDepVarsPredGrid :: [DepVarsPos] -> [Observation] -> IO DepVarsPredGrid
 readDepVarsPredGrid depVarsPos observations = do
@@ -88,9 +88,9 @@ createCoreSupplement :: SearchGrid -> CoreSupplement
 createCoreSupplement (SearchGrid indepVarsPredGrid (DepVarsPredGrid _ depVarsOrdered)) =
     case indepVarsPredGrid of
         SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples ->
-            CoreSupplement [] depVarsOrdered spaceTimeFilter maybeSpatDistMap maybeTempSamples
-        ArbitraryDimGrid _ indepVarsOrdered ->
-            CoreSupplement indepVarsOrdered depVarsOrdered Nothing Nothing Nothing
+            CoreSupplement depVarsOrdered spaceTimeFilter maybeSpatDistMap maybeTempSamples
+        ArbitraryDimGrid _ ->
+            CoreSupplement depVarsOrdered Nothing Nothing Nothing
 
 createPermutations ::
        LocestAlgorithm
@@ -123,7 +123,7 @@ createPermutations
         return permutations
 createPermutations
     algorithm
-    (ArbitraryDimGrid gridPos _)
+    (ArbitraryDimGrid gridPos)
     (DepVarsPredGrid depVarPos _) = return $ Right replicateWithListMonad
         where
             replicateWithListMonad :: [CorePermutation]
