@@ -9,22 +9,27 @@ import qualified Data.HashMap.Strict as HM
 import           Data.List           (unzip4)
 
 coreSearch ::
-       [String]
-    -> [String]
-    -> [Observation]
-    -> Maybe TempSampleMatrix
-    -> Maybe SpatDistMatrix
-    -> Maybe (Double,Double)
-    -> CorePermutations
+--       [String]
+--    -> [String]
+     [Observation]
+--    -> Maybe TempSampleMatrix
+--    -> Maybe SpatDistMatrix
+--    -> Maybe (Double,Double)
+    -> SearchGrid
+    -> CorePermutation
     -> Either LOCESTException SearchResult
 coreSearch
-    indepVarsOrdered
-    depVarsOrdered
+--    indepVarsOrdered
+--    depVarsOrdered
     observations
-    maybeTempSamples
-    maybeSpatDistMap
-    spaceTimeFilter
-    searchSetting@(CorePermutations
+--    maybeTempSamples
+--    maybeSpatDistMap
+--    spaceTimeFilter
+    (SearchGrid
+        indepVarsPredGrid
+        (DepVarsPredGrid _ depVarsOrdered)
+    )
+    searchSetting@(CorePermutation
         (HyperPos searchIndepVarPos searchDepVarPos)
         (AlgoKernSmooth kernelDefinition)
         tempSamplingIteration
@@ -32,33 +37,37 @@ coreSearch
     -- determine general per-obs statistics
     obsWithDist <- case searchIndepVarPos of
         IndepSpatTempPos gridSpatTempPos -> do
-            let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
+            let (SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples) = indepVarsPredGrid
+                spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
                 spatDistsKM = map (/ 1000) spatDists
                 tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
-            return $ zipWith3
-                (\o s t -> ObsWithDist o (IndepSpatTempDist (SpatTempDist s t)))
-                observations spatDistsKM tempDists
+                obs = zipWith3
+                    (\o s t -> ObsWithDist o (IndepSpatTempDist (SpatTempDist s t)))
+                    observations spatDistsKM tempDists
+                -- filter by dist (for performance)
+            filteredObsWithDists <- case spaceTimeFilter of
+                Just (spaceFilter,timeFilter) -> do
+                    let res = filterByDists spaceFilter timeFilter obs
+                    if length res < 3
+                    then Left $ NormalException "Less than 3 individuals in subset."
+                    else Right res
+                Nothing -> pure obs
+            return filteredObsWithDists
         IndepArbitraryDimPos arbitraryDimPos -> do
-            let orderedIndepCoordsGrid = extractOrdered indepVarsOrdered arbitraryDimPos
+            let (ArbitraryDimGrid _ indepVarsOrdered) = indepVarsPredGrid
+                orderedIndepCoordsGrid = extractOrdered indepVarsOrdered arbitraryDimPos
                 orderedIndepCoordsObs  = undefined
-            let arbitraryDimDist = undefined
+                arbitraryDimDist = undefined
             return $ zipWith
                 (\o d -> ObsWithDist o (IndepArbitraryDimDist d))
                 observations arbitraryDimDist
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
-    -- filter by dist (for performance)
-    filteredObsWithDists <- case spaceTimeFilter of
-        Just (spaceFilter,timeFilter) -> do
-            let res = filterByDists spaceFilter timeFilter obsWithDist
-            if length res < 3
-            then Left $ NormalException "Less than 3 individuals in subset."
-            else Right res
-        Nothing -> pure obsWithDist
+
     -- summarize obs information for each depVar
-    perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition filteredObsWithDists) depVarsOrdered
+    perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition obsWithDist) depVarsOrdered
     let (means, errs, _, _) = unzip4 perDepVar
     return $ SearchResult {
-           _srCorePermutations = searchSetting
+           _srCorePermutation = searchSetting
          , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zip depVarsOrdered perDepVar
          , _srProbability = calcDensity means errs searchDepVarsCoords
          }

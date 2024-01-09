@@ -48,27 +48,6 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
 }
 
-data SearchGrid = SearchGrid {
-      _searchPosIndepVarsGrid :: IndepVarsPredGrid
-    , _searchPosDepVarsGrid   :: DepVarsPredGrid
-}
-
-data IndepVarsPredGrid = SpaceTimeGrid {
-      _stGridSpatPos        :: [SpatPos]
-    , _stGridTempPos        :: [Int]
-    , _stGridSpaceTimeFiler :: Maybe (Double, Double)
-    , _stGridSpatDist       :: Maybe SpatDistMatrix
-    , _stGridTempSamples    :: Maybe TempSampleMatrix
-} | ArbitraryDimGrid {
-      _adGridPos  :: [ArbitraryDimPos]
-    , _adVarOrder :: [String]
-}
-
-data DepVarsPredGrid = DepVarsPredGrid {
-      _depVarsGrid  :: [DepVarsPos]
-    , _depVarsOrder :: [String]
-}
-
 readIndepVarsPredGrid :: IndepVarsPredGridSettings -> [Observation] -> IO IndepVarsPredGrid
 readIndepVarsPredGrid
     (SpaceTimeGridSettings
@@ -113,22 +92,41 @@ createPermutations ::
        LocestAlgorithm
     -> IndepVarsPredGrid
     -> DepVarsPredGrid
-    -> Either LOCESTException [CorePermutations]
+    -> IO (Either LOCESTException [CorePermutation])
 createPermutations
     algorithm
     (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples)
-    (DepVarsPredGrid depVarPos _) =
+    (DepVarsPredGrid depVarPos _) = do
         let nrTempSamples = case inObsTempSamples of
                 Nothing                       -> 1
                 Just (TempSampleMatrix n _ _) -> n
-        in PTRoot [] &
-            -- the following elements can be ordered arbitrarily
-            addPermutation [PEAlgorithm algorithm] &
-            addPermutation (map PETempSampling [0..(nrTempSamples-1)]) &
-            addPermutation (map PEDepVarsPos depVarPos) &
-            addPermutation (map PETempPos inTempGrid) &
-            addPermutation (map PESpatPos inSpatGrid) &
-            harvest
+            permutations = PTRoot [] &
+                -- the following elements can be ordered arbitrarily
+                addPermutation [PEAlgorithm algorithm] &
+                addPermutation (map PETempSampling [0..(nrTempSamples-1)]) &
+                addPermutation (map PEDepVarsPos depVarPos) &
+                addPermutation (map PETempPos inTempGrid) &
+                addPermutation (map PESpatPos inSpatGrid) &
+                harvest
+        hPutStrLn stderr $ "Permutations: " ++
+            "1 algorithm" ++ " * " ++
+            show nrTempSamples ++ " time resampling iterations" ++ " * " ++
+            show (length depVarPos) ++ " dependent variable positions" ++ " * " ++
+            show (length inTempGrid) ++ " time slices" ++ " * " ++
+            show (length inSpatGrid) ++ " spatial positions"
+        hPutStrLn stderr $ "Required iterations: " ++
+            show (nrTempSamples * length depVarPos * length inTempGrid * length inSpatGrid)
+        return permutations
+createPermutations
+    algorithm
+    (ArbitraryDimGrid gridPos order)
+    (DepVarsPredGrid depVarPos _) = return $ Right replicateWithListMonad
+        where
+            replicateWithListMonad :: [CorePermutation]
+            replicateWithListMonad = do
+                indepPos <- gridPos
+                depPos <- depVarPos
+                return $ CorePermutation (HyperPos (IndepArbitraryDimPos indepPos) depPos) algorithm 1
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
@@ -157,16 +155,8 @@ runSearch (
             return detectedThreads
     hPutStrLn stderr $ "Working with threads: " ++ show numThreads
     -- preparing permutations
-    --hPutStrLn stderr $ "Permutations: " ++
-    --    "1 algorithm" ++ " * " ++
-    --    show nrTempSamples ++ " time resampling iterations" ++ " * " ++
-    --     show (length searchDepVarPos) ++ " dependent variable positions" ++ " * " ++
-    --     show (length inTempGrid) ++ " time slices" ++ " * " ++
-    --     show (length inSpatGrid) ++ " spatial positions"
-    --hPutStrLn stderr $ "Required iterations: " ++
-    --    show (nrTempSamples * length searchDepVarPos * length inTempGrid * length inSpatGrid)
     hPutStrLn stderr "Building permutation tree"
-    let permutations = createPermutations algorithm indepVarsPredGrid depVarsPredGrid
+    permutations <- createPermutations algorithm indepVarsPredGrid depVarsPredGrid
     hPutStrLn stderr "Done"
     -- running all permutations
     case permutations of
@@ -180,15 +170,7 @@ runSearch (
                 -- 1. sequential
                 -- .| ConL.map coreSearch
                 -- 2. normal parallel
-                .| ConAA.asyncMapC numThreads (
-                    coreSearch
-                        indepVarsPosFromGridOrdered
-                        depVarsFromGridOrdered
-                        allObservations
-                        inObsTempSamples
-                        inSpatDists
-                        spaceTimeFilter
-                    )
+                .| ConAA.asyncMapC numThreads (coreSearch allObservations searchGrid)
                 -- 3. chunked parallel
                 -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
                 -- print progress information
@@ -217,8 +199,8 @@ normalize NormBySpace =
     where
     groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria
-        (SearchResult (CorePermutations (HyperPos (IndepSpatTempPos (SpatTempPos _ t1)) dv1) alg1 tri1) _ _)
-        (SearchResult (CorePermutations (HyperPos (IndepSpatTempPos (SpatTempPos _ t2)) dv2) alg2 tri2) _ _) =
+        (SearchResult (CorePermutation (HyperPos (IndepSpatTempPos (SpatTempPos _ t1)) dv1) alg1 tri1) _ _)
+        (SearchResult (CorePermutation (HyperPos (IndepSpatTempPos (SpatTempPos _ t2)) dv2) alg2 tri2) _ _) =
             t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
     groupingCriteria _ _ = False
     scaleProbs :: [SearchResult] -> [SearchResult]
