@@ -25,49 +25,59 @@ import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
 
 data SearchOptions = SearchOptions
-    { _searchInObservationFile      :: FilePath
-    , _searchSearchPositionSettings :: ConcretePositionSettings
-    , _searchAlgorithm              :: LocestAlgorithm
-    , _spaceSpaceTimeFilter         :: Maybe (Double,Double)
-    , _normalize                    :: Normalization
-    , _numThreads                   :: NumberOfThreads
-    , _searchOutFile                :: FilePath
+    { _searchInObservationFile  :: FilePath
+    , _searchSearchGridSettings :: SearchGridSettings
+    , _searchAlgorithm          :: LocestAlgorithm
+    , _normalize                :: Normalization
+    , _numThreads               :: NumberOfThreads
+    , _searchOutFile            :: FilePath
     }
 
-data ConcretePositionSettings = ConcretePositionSettings {
-      _concPosInSpatGridFile :: PredGridSettings
-    , _concPosDepVarsPosGrid :: [DepVarsPos]
+data SearchGridSettings = SearchGridSettings {
+      _searchPosSetIndepVarsGrid :: IndepVarsPredGridSettings
+    , _searchPosSetDepVarsGrid   :: [DepVarsPos]
 }
 
-data PredGridSettings = SpaceTimeGridSet SpaceTimeGridSettings | ArbitraryDimGridSet ArbitraryDimGridSettings
-
-data SpaceTimeGridSettings = SpaceTimeGridSettings {
-      _stgsInSpatGridFile :: FilePath
-    , _stgsInTempGrid     :: [Int]
-    , _stgsInSpatDistFile :: Maybe FilePath
+data IndepVarsPredGridSettings = SpaceTimeGridSettings {
+      _stgsInSpatGridFile       :: FilePath
+    , _stgsInTempGrid           :: [Int]
+    , _spaceSpaceTimeFilter     :: Maybe (Double,Double)
+    , _stgsInSpatDistFile       :: Maybe FilePath
     , _stgsInObsTempSamplesFile :: Maybe FilePath
-}
-
-data ArbitraryDimGridSettings = ArbitraryDimGridSettings {
+} | ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
 }
 
-data IndepVarsPredGrid = SpaceTimeGrid {
-      _stGridSpatPos :: [SpatPos]
-    , _stGridTempPos :: [Int]
-    , _stGridSpatDist :: Maybe SpatDistMatrix
-    , _stGridTempSamples :: Maybe TempSampleMatrix
-} | ArbitraryDimGrid {
-      _adGridPos :: [ArbitraryDimPos]
+data SearchGrid = SearchGrid {
+      _searchPosIndepVarsGrid :: IndepVarsPredGrid
+    , _searchPosDepVarsGrid   :: DepVarsPredGrid
 }
 
-readIndepVarPredGrid :: PredGridSettings -> [Observation] -> IO IndepVarsPredGrid
-readIndepVarPredGrid
-    (SpaceTimeGridSet (SpaceTimeGridSettings inSpatGridFile inTempGrid spatDistFile inObsTempSamplesFile))
+data IndepVarsPredGrid = SpaceTimeGrid {
+      _stGridSpatPos        :: [SpatPos]
+    , _stGridTempPos        :: [Int]
+    , _stGridSpaceTimeFiler :: Maybe (Double, Double)
+    , _stGridSpatDist       :: Maybe SpatDistMatrix
+    , _stGridTempSamples    :: Maybe TempSampleMatrix
+} | ArbitraryDimGrid {
+      _adGridPos  :: [ArbitraryDimPos]
+    , _adVarOrder :: [String]
+}
+
+data DepVarsPredGrid = DepVarsPredGrid {
+      _depVarsGrid  :: [DepVarsPos]
+    , _depVarsOrder :: [String]
+}
+
+readIndepVarsPredGrid :: IndepVarsPredGridSettings -> [Observation] -> IO IndepVarsPredGrid
+readIndepVarsPredGrid
+    (SpaceTimeGridSettings
+        inSpatGridFile inTempGrid inSpaceTimeFilter inSpatDistFile inObsTempSamplesFile
+    )
     allObservations = do
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
-    !inSpatDists <- case spatDistFile of
+    !inSpatDists <- case inSpatDistFile of
         Nothing   -> pure Nothing
         Just path -> do
             hPutStrLn stderr $ "Deserialising spatial distances from " ++ path
@@ -76,16 +86,38 @@ readIndepVarPredGrid
     !inObsTempSamples <- case inObsTempSamplesFile of
         Nothing   -> pure Nothing
         Just path -> Just <$> readTempSamp False allObservations path
-    return $ SpaceTimeGrid inSpatGrid inTempGrid inSpatDists inObsTempSamples
+    return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeFilter inSpatDists inObsTempSamples
 readIndepVarPredGrid
-    (ArbitraryDimGridSet (ArbitraryDimGridSettings inArbitraryDimGridFile))
-    allObservations = do
+    (ArbitraryDimGridSettings inArbitraryDimGridFile)
+    observations = do
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
-    return $ ArbitraryDimGrid inArbitraryDimPos
+    -- determine ordered indep vars (if available)
+    let indepVarsFromObsOrdered = case (head $ map (_hyposIndepVarsPos . _obsPos) observations) of
+            IndepSpatTempPos _     -> []
+            IndepArbitraryDimPos x -> sort . HM.keys . getADPHM $ x
+    let indepVarsPosFromGridOrdered = sort . HM.keys . getADPHM $ head inArbitraryDimPos
+    OP.when (indepVarsFromObsOrdered /= indepVarsPosFromGridOrdered) $ do
+        throw $ NormalException "indep vars in -? and -? not equal"
+    return $ ArbitraryDimGrid inArbitraryDimPos indepVarsPosFromGridOrdered
 
-createPermutations :: LocestAlgorithm -> IndepVarsPredGrid -> [DepVarsPos] -> Either LOCESTException [CoreAlgorithmSettings]
+readDepVarsPredGrid :: [DepVarsPos] -> [Observation] -> IO DepVarsPredGrid
+readDepVarsPredGrid depVarsPos observations = do
+    -- determine ordered dep vars
+    let depVarsFromGridOrdered = sort . HM.keys . getHM $ head depVarsPos
+        depVarsFromObsOrdered = sort . HM.keys . getHM $ (_hyposDepVarsPos . _obsPos) $ head observations
+    OP.when (depVarsFromObsOrdered /= depVarsFromGridOrdered) $ do
+        throw $ NormalException "dep vars in -? and -? not equal"
+    return $ DepVarsPredGrid depVarsPos depVarsFromObsOrdered
+
+createPermutations ::
+       LocestAlgorithm
+    -> IndepVarsPredGrid
+    -> DepVarsPredGrid
+    -> Either LOCESTException [CorePermutations]
 createPermutations
-    algorithm (SpaceTimeGrid inSpatGrid inTempGrid _ inObsTempSamples) searchDepVarPos =
+    algorithm
+    (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples)
+    (DepVarsPredGrid depVarPos _) =
         let nrTempSamples = case inObsTempSamples of
                 Nothing                       -> 1
                 Just (TempSampleMatrix n _ _) -> n
@@ -93,19 +125,17 @@ createPermutations
             -- the following elements can be ordered arbitrarily
             addPermutation [PEAlgorithm algorithm] &
             addPermutation (map PETempSampling [0..(nrTempSamples-1)]) &
-            addPermutation (map PEDepVarsPos searchDepVarPos) &
+            addPermutation (map PEDepVarsPos depVarPos) &
             addPermutation (map PETempPos inTempGrid) &
             addPermutation (map PESpatPos inSpatGrid) &
             harvest
-
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions
         inObsFile
-        (ConcretePositionSettings searchIndepVarPos searchDepVarPos)
+        (SearchGridSettings indepVarsPredGridSettings depVarsPredGridSettings)
         algorithm
-        spaceTimeFilter
         normalization
         threads
         outFile
@@ -113,22 +143,10 @@ runSearch (
     -- read observations
     !allObservationsUnindexed <- readObservations inObsFile
     let allObservations = zipWith setIndex allObservationsUnindexed [0..]
-    -- read prediction grid
-    indepVarsPredGrid <- readIndepVarPredGrid searchIndepVarPos allObservations
-    -- determine ordered indep vars (if available)
-    let indepVarsFromObsOrdered = case (head $ map (_hyposIndepVarsPos . _obsPos) allObservations) of
-            IndepSpatTempPos _ -> []
-            IndepArbitraryDimPos x -> sort . HM.keys . getADPHM $ x
-    let indepVarsPosFromGridOrdered = case indepVarsPredGrid of
-            SpaceTimeGrid _ _ _ _ -> []
-            ArbitraryDimGrid x -> sort . HM.keys . getADPHM $ head x
-    OP.when (indepVarsFromObsOrdered /= indepVarsPosFromGridOrdered) $ do
-        throw $ NormalException "indep vars in -? and -? not equal"
-    -- determine ordered dep vars
-    let depVarsFromObsOrdered = sort . HM.keys . getHM $ (_hyposDepVarsPos . _obsPos) $ head allObservations
-        depVarsFromGridOrdered = sort . HM.keys . getHM $ head searchDepVarPos
-    OP.when (depVarsFromObsOrdered /= depVarsFromGridOrdered) $ do
-        throw $ NormalException "dep vars in -? and -? not equal"
+    -- read and prepare prediction grids
+    indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings allObservations
+    depVarsPredGrid   <- readDepVarsPredGrid depVarsPredGridSettings allObservations
+    let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
     -- number of threads
     numThreads <- case threads of
         SingleThread      -> pure 1
@@ -148,10 +166,7 @@ runSearch (
     --hPutStrLn stderr $ "Required iterations: " ++
     --    show (nrTempSamples * length searchDepVarPos * length inTempGrid * length inSpatGrid)
     hPutStrLn stderr "Building permutation tree"
-
-
-    let permutations = createPermutations algorithm searchIndepVarPos searchDepVarPos
-
+    let permutations = createPermutations algorithm indepVarsPredGrid depVarsPredGrid
     hPutStrLn stderr "Done"
     -- running all permutations
     case permutations of
@@ -202,8 +217,8 @@ normalize NormBySpace =
     where
     groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria
-        (SearchResult (CoreAlgorithmSettings (HyperPos (IndepSpatTempPos (SpatTempPos _ t1)) dv1) alg1 tri1) _ _)
-        (SearchResult (CoreAlgorithmSettings (HyperPos (IndepSpatTempPos (SpatTempPos _ t2)) dv2) alg2 tri2) _ _) =
+        (SearchResult (CorePermutations (HyperPos (IndepSpatTempPos (SpatTempPos _ t1)) dv1) alg1 tri1) _ _)
+        (SearchResult (CorePermutations (HyperPos (IndepSpatTempPos (SpatTempPos _ t2)) dv2) alg2 tri2) _ _) =
             t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
     groupingCriteria _ _ = False
     scaleProbs :: [SearchResult] -> [SearchResult]

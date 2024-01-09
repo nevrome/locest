@@ -52,17 +52,17 @@ addPermutation xs (PTRoot [])   = PTRoot (map PTLeaf xs)
 addPermutation xs (PTRoot ts)   = PTRoot (map (\t -> addPermutation xs t) ts)
 addPermutation xs (PTFork v ts) = PTFork v (map (\t -> addPermutation xs t) ts)
 
-harvest :: PermutationTree -> Either LOCESTException [CoreAlgorithmSettings]
+harvest :: PermutationTree -> Either LOCESTException [CorePermutations]
 harvest = harvestFlattened . flattenTree
     where
         flattenTree :: PermutationTree -> [[PositionEntity]]
         flattenTree (PTRoot ts)   = concatMap flattenTree ts
         flattenTree (PTFork v ts) = map (v:) (concatMap flattenTree ts)
         flattenTree (PTLeaf v)    = [[v]]
-        harvestFlattened :: [[PositionEntity]] -> Either LOCESTException [CoreAlgorithmSettings]
+        harvestFlattened :: [[PositionEntity]] -> Either LOCESTException [CorePermutations]
         harvestFlattened = mapM pluckOne
             where
-                pluckOne :: [PositionEntity] -> Either LOCESTException CoreAlgorithmSettings
+                pluckOne :: [PositionEntity] -> Either LOCESTException CorePermutations
                 pluckOne xs = do
                     spatPos    <- exactlyOnce [ v | PESpatPos v <- xs]
                     tempPos    <- exactlyOnce [ v | PETempPos v <- xs]
@@ -70,7 +70,7 @@ harvest = harvestFlattened . flattenTree
                     algorithm  <- exactlyOnce [ v | PEAlgorithm v <- xs]
                     tempSamp   <- exactlyOnce [ v | PETempSampling v <- xs]
                     return $
-                        CoreAlgorithmSettings
+                        CorePermutations
                             (HyperPos (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) depVarsPos)
                             algorithm
                             tempSamp
@@ -139,9 +139,9 @@ instance Csv.ToRecord CrossvalOutput where
 
 -- | A datatype for search result points in space and time
 data SearchResult = SearchResult {
-      _srCoreAlgorithmSettings :: CoreAlgorithmSettings
-    , _srInterpolation         :: Maybe DepVarsUncertainPos
-    , _srProbability           :: Double
+      _srCorePermutations :: CorePermutations
+    , _srInterpolation    :: Maybe DepVarsUncertainPos
+    , _srProbability      :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
@@ -161,8 +161,8 @@ instance Csv.ToRecord SearchResult where
         Csv.toRecord spatTempDepVarsPos <> Csv.toRecord depVarsUncertainPos <> Csv.record [Csv.toField prob]
 
 data SpatTempProb = SpatTempProb {
-      _stprCoreAlgorithmSettings :: CoreAlgorithmSettings
-    , _stprprobability           :: Double
+      _stprCorePermutations :: CorePermutations
+    , _stprprobability      :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
@@ -178,20 +178,20 @@ instance Csv.ToRecord SpatTempProb where
         Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
 
 -- | A datatype with core-algorithm settings
-data CoreAlgorithmSettings = CoreAlgorithmSettings {
+data CorePermutations = CorePermutations {
       _casPosition              :: HyperPos
     , _casAlgorithm             :: LocestAlgorithm
     , _casTempSamplingIteration :: Int
 } deriving (Show, Generic)
 
-instance NFData CoreAlgorithmSettings
-instance Csv.DefaultOrdered CoreAlgorithmSettings where
-    headerOrder (CoreAlgorithmSettings spatTempDepVarsPos algorithm _) =
+instance NFData CorePermutations
+instance Csv.DefaultOrdered CorePermutations where
+    headerOrder (CorePermutations spatTempDepVarsPos algorithm _) =
            Csv.headerOrder spatTempDepVarsPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["tempSamplingIteration"]
-instance Csv.ToRecord CoreAlgorithmSettings where
-    toRecord (CoreAlgorithmSettings spatTempDepVarsPos algorithm tempSamplingIteration) =
+instance Csv.ToRecord CorePermutations where
+    toRecord (CorePermutations spatTempDepVarsPos algorithm tempSamplingIteration) =
            Csv.toRecord spatTempDepVarsPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
