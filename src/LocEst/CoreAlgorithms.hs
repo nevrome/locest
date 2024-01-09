@@ -8,26 +8,12 @@ import           LocEst.Utils
 import qualified Data.HashMap.Strict as HM
 import           Data.List           (unzip4)
 
-coreSearch ::
---       [String]
---    -> [String]
-     [Observation]
---    -> Maybe TempSampleMatrix
---    -> Maybe SpatDistMatrix
---    -> Maybe (Double,Double)
-    -> SearchGrid
-    -> CorePermutation
-    -> Either LOCESTException SearchResult
+coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> Either LOCESTException SearchResult
 coreSearch
---    indepVarsOrdered
---    depVarsOrdered
     observations
---    maybeTempSamples
---    maybeSpatDistMap
---    spaceTimeFilter
-    (SearchGrid
-        indepVarsPredGrid
-        (DepVarsPredGrid _ depVarsOrdered)
+    (CoreSupplement
+        indepVarsOrdered depVarsOrdered
+        spaceTimeFilter maybeSpatDistMap maybeTempSamples
     )
     searchSetting@(CorePermutation
         (HyperPos searchIndepVarPos searchDepVarPos)
@@ -37,8 +23,7 @@ coreSearch
     -- determine general per-obs statistics
     obsWithDist <- case searchIndepVarPos of
         IndepSpatTempPos gridSpatTempPos -> do
-            let (SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples) = indepVarsPredGrid
-                spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
+            let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
                 spatDistsKM = map (/ 1000) spatDists
                 tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
                 obs = zipWith3
@@ -54,8 +39,7 @@ coreSearch
                 Nothing -> pure obs
             return filteredObsWithDists
         IndepArbitraryDimPos arbitraryDimPos -> do
-            let (ArbitraryDimGrid _ indepVarsOrdered) = indepVarsPredGrid
-                orderedIndepCoordsGrid = extractOrdered indepVarsOrdered arbitraryDimPos
+            let orderedIndepCoordsGrid = extractOrdered indepVarsOrdered arbitraryDimPos
                 orderedIndepCoordsObs  = undefined
                 arbitraryDimDist = undefined
             return $ zipWith

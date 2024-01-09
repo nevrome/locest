@@ -70,7 +70,6 @@ readIndepVarPredGrid
     (ArbitraryDimGridSettings inArbitraryDimGridFile)
     observations = do
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
-    -- determine ordered indep vars (if available)
     let indepVarsFromObsOrdered = case (head $ map (_hyposIndepVarsPos . _obsPos) observations) of
             IndepSpatTempPos _     -> []
             IndepArbitraryDimPos x -> sort . HM.keys . getADPHM $ x
@@ -81,12 +80,19 @@ readIndepVarPredGrid
 
 readDepVarsPredGrid :: [DepVarsPos] -> [Observation] -> IO DepVarsPredGrid
 readDepVarsPredGrid depVarsPos observations = do
-    -- determine ordered dep vars
     let depVarsFromGridOrdered = sort . HM.keys . getHM $ head depVarsPos
         depVarsFromObsOrdered = sort . HM.keys . getHM $ (_hyposDepVarsPos . _obsPos) $ head observations
     OP.when (depVarsFromObsOrdered /= depVarsFromGridOrdered) $ do
         throw $ NormalException "dep vars in -? and -? not equal"
     return $ DepVarsPredGrid depVarsPos depVarsFromObsOrdered
+
+createCoreSupplement :: SearchGrid -> CoreSupplement
+createCoreSupplement (SearchGrid indepVarsPredGrid (DepVarsPredGrid _ depVarsOrdered)) =
+    case indepVarsPredGrid of
+        SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples ->
+            CoreSupplement [] depVarsOrdered spaceTimeFilter maybeSpatDistMap maybeTempSamples
+        ArbitraryDimGrid _ indepVarsOrdered ->
+            CoreSupplement indepVarsOrdered depVarsOrdered Nothing Nothing Nothing
 
 createPermutations ::
        LocestAlgorithm
@@ -138,13 +144,6 @@ runSearch (
         threads
         outFile
     ) = do
-    -- read observations
-    !allObservationsUnindexed <- readObservations inObsFile
-    let allObservations = zipWith setIndex allObservationsUnindexed [0..]
-    -- read and prepare prediction grids
-    indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings allObservations
-    depVarsPredGrid   <- readDepVarsPredGrid depVarsPredGridSettings allObservations
-    let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
     -- number of threads
     numThreads <- case threads of
         SingleThread      -> pure 1
@@ -154,6 +153,14 @@ runSearch (
             hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
             return detectedThreads
     hPutStrLn stderr $ "Working with threads: " ++ show numThreads
+    -- read observations
+    !observationsUnindexed <- readObservations inObsFile
+    let observations = zipWith setIndex observationsUnindexed [0..]
+    -- read and prepare prediction grids
+    indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings observations
+    depVarsPredGrid   <- readDepVarsPredGrid depVarsPredGridSettings observations
+    let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
+        supplement = createCoreSupplement searchGrid
     -- preparing permutations
     hPutStrLn stderr "Building permutation tree"
     permutations <- createPermutations algorithm indepVarsPredGrid depVarsPredGrid
@@ -170,7 +177,7 @@ runSearch (
                 -- 1. sequential
                 -- .| ConL.map coreSearch
                 -- 2. normal parallel
-                .| ConAA.asyncMapC numThreads (coreSearch allObservations searchGrid)
+                .| ConAA.asyncMapC numThreads (coreSearch observations supplement)
                 -- 3. chunked parallel
                 -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
                 -- print progress information

@@ -140,8 +140,8 @@ instance Csv.ToRecord CrossvalOutput where
 -- | A datatype for search result points in space and time
 data SearchResult = SearchResult {
       _srCorePermutation :: CorePermutation
-    , _srInterpolation    :: Maybe DepVarsUncertainPos
-    , _srProbability      :: Double
+    , _srInterpolation   :: Maybe DepVarsUncertainPos
+    , _srProbability     :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
@@ -162,33 +162,12 @@ instance Csv.ToRecord SearchResult where
 
 data SpatTempProb = SpatTempProb {
       _stprCorePermutation :: CorePermutation
-    , _stprprobability      :: Double
+    , _stprprobability     :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
     -- Perhaps this could be implemented as a Maybe String for the Obs name?
 } deriving (Show, Generic)
-
-data SearchGrid = SearchGrid {
-      _searchPosIndepVarsGrid :: IndepVarsPredGrid
-    , _searchPosDepVarsGrid   :: DepVarsPredGrid
-}
-
-data IndepVarsPredGrid = SpaceTimeGrid {
-      _stGridSpatPos        :: [SpatPos]
-    , _stGridTempPos        :: [Int]
-    , _stGridSpaceTimeFilter :: Maybe (Double, Double)
-    , _stGridSpatDist       :: Maybe SpatDistMatrix
-    , _stGridTempSamples    :: Maybe TempSampleMatrix
-} | ArbitraryDimGrid {
-      _adGridPos  :: [ArbitraryDimPos]
-    , _adVarOrder :: [String]
-}
-
-data DepVarsPredGrid = DepVarsPredGrid {
-      _depVarsGrid  :: [DepVarsPos]
-    , _depVarsOrder :: [String]
-}
 
 instance NFData SpatTempProb
 instance Csv.DefaultOrdered SpatTempProb where
@@ -197,6 +176,37 @@ instance Csv.DefaultOrdered SpatTempProb where
 instance Csv.ToRecord SpatTempProb where
     toRecord (SpatTempProb spatTempDepVarsPos prob) =
         Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
+
+data SearchGrid = SearchGrid {
+      _searchPosIndepVarsGrid :: IndepVarsPredGrid
+    , _searchPosDepVarsGrid   :: DepVarsPredGrid
+}
+
+data IndepVarsPredGrid =
+    SpaceTimeGrid {
+      _stGridSpatPos         :: [SpatPos]
+    , _stGridTempPos         :: [Int]
+    , _stGridSpaceTimeFilter :: Maybe (Double, Double)
+    , _stGridSpatDist        :: Maybe SpatDistMatrix
+    , _stGridTempSamples     :: Maybe TempSampleMatrix
+    } |
+    ArbitraryDimGrid {
+      _adGridPos  :: [ArbitraryDimPos]
+    , _adVarOrder :: [String]
+    }
+
+data DepVarsPredGrid = DepVarsPredGrid {
+      _depVarsGrid  :: [DepVarsPos]
+    , _depVarsOrder :: [String]
+}
+
+data CoreSupplement = CoreSupplement {
+      _csIndepVarsOrder  :: [String]
+    , _csDepVarsOrder    :: [String]
+    , _csSpaceTimeFilter :: Maybe (Double, Double)
+    , _csSpatDist        :: Maybe SpatDistMatrix
+    , _csTempSamp        :: Maybe TempSampleMatrix
+}
 
 -- | A datatype with core-algorithm settings
 data CorePermutation = CorePermutation {
