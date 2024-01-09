@@ -19,8 +19,6 @@ import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import           Data.Either                   (isLeft)
 import           Data.Function                 ((&))
-import qualified Data.HashMap.Strict           as HM
-import           Data.List                     (sort)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
 
@@ -78,8 +76,8 @@ readIndepVarsPredGrid
 
 readDepVarsPredGrid :: [DepVarsPos] -> [Observation] -> IO DepVarsPredGrid
 readDepVarsPredGrid depVarsPos observations = do
-    let depVarsFromGridOrdered = sort . HM.keys . getHM $ head depVarsPos
-        depVarsFromObsOrdered = sort . HM.keys . getHM $ (_hyposDepVarsPos . _obsPos) $ head observations
+    let depVarsFromGridOrdered = getKeys $ head depVarsPos
+        depVarsFromObsOrdered = getKeys $ (_hyposDepVarsPos . _obsPos) $ head observations
     OP.when (depVarsFromObsOrdered /= depVarsFromGridOrdered) $ do
         throw $ NormalException "dep vars in -? and -? not equal"
     return $ DepVarsPredGrid depVarsPos depVarsFromObsOrdered

@@ -8,7 +8,6 @@ import           LocEst.Types
 
 import           Data.Char                (isSpace)
 import           Data.Function            ((&))
-import qualified Data.HashMap.Strict      as HM
 import           Data.List                (groupBy, singleton)
 import qualified Options.Applicative      as OP
 import qualified Text.Parsec              as P
@@ -224,7 +223,7 @@ parseSearchDepVarsPos = do
     let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
         grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
         permutations = sequenceA grouped
-    return $ map (DepVarsPos . HM.fromList) permutations
+    return $ map DepVarsPos permutations
 
 optParseOutFile :: OP.Parser FilePath
 optParseOutFile = OP.strOption (

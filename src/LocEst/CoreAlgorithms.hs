@@ -5,7 +5,6 @@ import           LocEst.MathUtils
 import           LocEst.Types
 import           LocEst.Utils
 
-import qualified Data.HashMap.Strict as HM
 import           Data.List           (unzip4)
 
 filterByDists :: Double -> Double -> [(Observation, Double, Double)] -> [(Observation, Double, Double)]
@@ -45,14 +44,14 @@ coreSearch
                 (\o d -> ObsWithDist o (IndepArbitraryDimDist d))
                 observations arbitraryDimDist
 
-    let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
+    let searchDepVarsCoords = getValues searchDepVarPos
 
     -- summarize obs information for each depVar
     perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition obsWithDist) depVarsOrdered
     let (means, errs, _, _) = unzip4 perDepVar
     return $ SearchResult {
            _srCorePermutation = searchSetting
-         , _srInterpolation = Just $ DepVarsUncertainPos $ HM.fromList $ zip depVarsOrdered perDepVar
+         , _srInterpolation = Just $ DepVarsUncertainPos $ zip depVarsOrdered perDepVar
          , _srProbability = calcDensity means errs searchDepVarsCoords
          }
     where
@@ -80,7 +79,7 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
     where
         getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
         getOneDepVarPos (ObsWithDist (Observation _ _ (HyperPos _ (DepVarsPos m))) _) =
-            case HM.lookup depVar m of
+            case lookup depVar m of
                 Nothing -> Left $ NormalException "Unknown variable"
                 Just x  -> Right x
         weightForOneObs :: Kernel -> ObsWithDist -> Double

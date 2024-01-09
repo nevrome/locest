@@ -11,7 +11,7 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (nub, sort, sortBy)
+import           Data.List             (nub, sortBy)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
@@ -334,39 +334,37 @@ instance Csv.ToRecord HyperPos where
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
 -- | A datatype for dependent vars with errors
-newtype DepVarsUncertainPos = DepVarsUncertainPos { _dvupGetHM :: HM.HashMap String (Double, Double, Double, Double) }
+newtype DepVarsUncertainPos = DepVarsUncertainPos [(String, (Double, Double, Double, Double))]
     deriving (Eq, Show, Generic)
 
 instance NFData DepVarsUncertainPos
 instance Csv.DefaultOrdered DepVarsUncertainPos where
-    headerOrder (DepVarsUncertainPos hm) =
-        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr", n ++ "Dens", n ++ "Neff"]) $ sort $ map fst $ HM.toList hm
+    headerOrder (DepVarsUncertainPos l) =
+        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr", n ++ "Dens", n ++ "Neff"]) $ map fst l
 instance Csv.ToRecord DepVarsUncertainPos where
-    toRecord (DepVarsUncertainPos hm) =
-        let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
-        in V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c,d) -> [a,b,c,d]) orderedValues
+    toRecord (DepVarsUncertainPos l) =
+        V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c,d) -> [a,b,c,d]) $ map snd l
 
 -- | A datatype for dependent vars
-newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }
+newtype DepVarsPos = DepVarsPos [(String, Double)]
     deriving (Eq, Show, Generic)
 
 instance NFData DepVarsPos
 instance Csv.FromNamedRecord DepVarsPos where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
-        let extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ extractedVarsBS
-        pure $ DepVarsPos extractedVarsStringDouble
+            extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
+            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
+        pure $ DepVarsPos sortedList
 instance Csv.DefaultOrdered DepVarsPos where
-    headerOrder (DepVarsPos hm) =
-        V.map Bchs.pack $ V.fromList $ sort $ map fst $ HM.toList hm
+    headerOrder (DepVarsPos l) =
+        V.map Bchs.pack $ V.fromList $ map fst l
 instance Csv.ToRecord DepVarsPos where
-    toRecord (DepVarsPos hm) =
-        let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
-        in V.map (Bchs.pack . show) $ V.fromList orderedValues
-
-depVarsExtractOrdered :: [String] -> DepVarsPos -> [Double]
-depVarsExtractOrdered orderedKeys (DepVarsPos hm) =
-    map (hm HM.!) orderedKeys
+    toRecord (DepVarsPos l) =
+        V.map (Bchs.pack . show) $ V.fromList $ map snd l
+instance PseudoMap DepVarsPos where
+    getKeys (DepVarsPos l) = map fst l
+    getValues (DepVarsPos l) = map snd l
 
 newtype ArbitraryDimPos = ArbitraryDimPos [(String, Double)]
     deriving (Eq, Show, Generic)
