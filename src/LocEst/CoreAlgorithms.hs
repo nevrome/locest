@@ -39,9 +39,7 @@ coreSearch
                 Nothing -> pure obs
             return filteredObsWithDists
         IndepArbitraryDimPos arbitraryDimPos -> do
-            let orderedIndepCoordsGrid = extractOrdered indepVarsOrdered arbitraryDimPos
-                orderedIndepCoordsObs  = undefined
-                arbitraryDimDist = undefined
+            let arbitraryDimDist = findArbitraryDimDistsObsGrid indepVarsOrdered observations arbitraryDimPos
             return $ zipWith
                 (\o d -> ObsWithDist o (IndepArbitraryDimDist d))
                 observations arbitraryDimDist
@@ -125,6 +123,15 @@ findSpatDistsObsGrid observations (Just spatDistMatrix) gridSpatTempPos =
         gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
     in map (lookUpDistance spatDistMatrix gridSpatPosIndex) obsIndizes
 
+findArbitraryDimDistsObsGrid :: [String] -> [Observation] -> ArbitraryDimPos -> [Double]
+findArbitraryDimDistsObsGrid indepVarsOrdered observations gridAbritryDimPos =
+    let gridPos = extractOrdered indepVarsOrdered gridAbritryDimPos
+    in map (euclideanDistance gridPos . (extractOrdered indepVarsOrdered) . extractArbitraryDimPos . _hyposIndepVarsPos . _obsPos) observations
+
 extractSpatTempPos :: IndepVarsPos -> SpatTempPos
 extractSpatTempPos (IndepSpatTempPos x) = x
 extractSpatTempPos _                    = error "this should never happen"
+
+extractArbitraryDimPos :: IndepVarsPos -> ArbitraryDimPos
+extractArbitraryDimPos (IndepArbitraryDimPos x) = x
+extractArbitraryDimPos _                        = error "this should never happen"

@@ -2,6 +2,11 @@ module LocEst.Distance where
 
 import           LocEst.Types
 
+euclideanDistance :: [Double] -> [Double] -> Double
+euclideanDistance list1 list2 =
+  let squaredDifferences = zipWith (\x y -> (x - y) ** 2) list1 list2
+  in sqrt $ sum squaredDifferences
+
 spatTempDistSpatTempPos :: SpatTempPos -> SpatTempPos -> SpatTempDist
 spatTempDistSpatTempPos p1 p2 =
     SpatTempDist (spatialDistSpatTempPos p1 p2) (temporalDistSpatTempPos p1 p2)
