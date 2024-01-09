@@ -94,13 +94,22 @@ optParseInObsTempSamplesFile = OP.option (Just <$> OP.str) (
     OP.value Nothing
     )
 
-optParseConcretePositionSettings :: OP.Parser ConcretePositionSettings
-optParseConcretePositionSettings =
-    ConcretePositionSettings
+optParseSearchGridSettings :: OP.Parser SearchGridSettings
+optParseSearchGridSettings =
+    SearchGridSettings
+        <$> optParseIndepVarsPredGridSettings
+        <*> optParseSearchDepVarsPos
+
+optParseIndepVarsPredGridSettings :: OP.Parser IndepVarsPredGridSettings
+optParseIndepVarsPredGridSettings =
+    (SpaceTimeGridSettings
         <$> optParseInSpatGridFile
         <*> optParseTempGridString
-        <*> optParseSearchDepVarsPos
+        <*> optParseSpaceTimeFilter
+        <*> optParseInObsTempSamplesFile
         <*> OP.optional optParseInSpatDistMapFile
+    ) OP.<|>
+    (ArbitraryDimGridSettings <$> optParseInSpatGridFile)
 
 optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
 optParseCrossvalidationSettings =
@@ -269,7 +278,7 @@ parseAlgorithmString = do
           temp <- parseDouble
           _ <- P.spaces
           _ <- P.char ')'
-          return $ Uniform spat temp
+          return $ Uniform [spat, temp]
         parseNormal = do
           _ <- P.string "Normal"
           _ <- P.char '('
@@ -279,7 +288,7 @@ parseAlgorithmString = do
           temp <- parseDouble
           _ <- P.spaces
           _ <- P.char ')'
-          return $ Normal spat temp
+          return $ Normal [spat, temp]
 
 -- general parsers
 

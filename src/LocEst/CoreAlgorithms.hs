@@ -29,7 +29,7 @@ coreSearch
             let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
                 spatDistsKM = map (/ 1000) spatDists
                 tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
-                obsRaw = zip3 observations spatDistsKM tempDists 
+                obsRaw = zip3 observations spatDistsKM tempDists
             -- filter by dist (for performance)
             filteredObsWithDists <- case spaceTimeFilter of
                 Just (spaceFilter,timeFilter) -> do

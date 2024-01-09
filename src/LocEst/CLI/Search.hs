@@ -50,10 +50,8 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
 
 readIndepVarsPredGrid :: IndepVarsPredGridSettings -> [Observation] -> IO IndepVarsPredGrid
 readIndepVarsPredGrid
-    (SpaceTimeGridSettings
-        inSpatGridFile inTempGrid inSpaceTimeFilter inSpatDistFile inObsTempSamplesFile
-    )
-    allObservations = do
+    (SpaceTimeGridSettings inSpatGridFile inTempGrid inSpaceTimeFilter inSpatDistFile inObsTempSamplesFile)
+    observations = do
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
     !inSpatDists <- case inSpatDistFile of
@@ -64,9 +62,9 @@ readIndepVarsPredGrid
             return $ Just dists
     !inObsTempSamples <- case inObsTempSamplesFile of
         Nothing   -> pure Nothing
-        Just path -> Just <$> readTempSamp False allObservations path
+        Just path -> Just <$> readTempSamp False observations path
     return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeFilter inSpatDists inObsTempSamples
-readIndepVarPredGrid
+readIndepVarsPredGrid
     (ArbitraryDimGridSettings inArbitraryDimGridFile)
     observations = do
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
@@ -125,7 +123,7 @@ createPermutations
         return permutations
 createPermutations
     algorithm
-    (ArbitraryDimGrid gridPos order)
+    (ArbitraryDimGrid gridPos _)
     (DepVarsPredGrid depVarPos _) = return $ Right replicateWithListMonad
         where
             replicateWithListMonad :: [CorePermutation]
