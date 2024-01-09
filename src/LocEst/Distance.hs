@@ -2,6 +2,9 @@ module LocEst.Distance where
 
 import           LocEst.Types
 
+allDistances :: [Double] -> [Double] -> [Double]
+allDistances = zipWith (\x y -> abs (x - y))
+
 euclideanDistance :: [Double] -> [Double] -> Double
 euclideanDistance list1 list2 =
   let squaredDifferences = zipWith (\x y -> (x - y) ** 2) list1 list2

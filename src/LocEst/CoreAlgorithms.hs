@@ -8,6 +8,9 @@ import           LocEst.Utils
 import qualified Data.HashMap.Strict as HM
 import           Data.List           (unzip4)
 
+filterByDists :: Double -> Double -> [(Observation, Double, Double)] -> [(Observation, Double, Double)]
+filterByDists fs ft = filter (\(_, ds, dt) -> ds <= fs && dt <= ft)
+
 coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> Either LOCESTException SearchResult
 coreSearch
     observations
@@ -20,29 +23,28 @@ coreSearch
         (AlgoKernSmooth kernelDefinition)
         tempSamplingIteration
     ) = do
-    -- determine general per-obs statistics
+    -- determine dist per obs to current point
     obsWithDist <- case searchIndepVarPos of
         IndepSpatTempPos gridSpatTempPos -> do
             let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
                 spatDistsKM = map (/ 1000) spatDists
                 tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
-                obs = zipWith3
-                    (\o s t -> ObsWithDist o (IndepSpatTempDist (SpatTempDist s t)))
-                    observations spatDistsKM tempDists
-                -- filter by dist (for performance)
+                obsRaw = zip3 observations spatDistsKM tempDists 
+            -- filter by dist (for performance)
             filteredObsWithDists <- case spaceTimeFilter of
                 Just (spaceFilter,timeFilter) -> do
-                    let res = filterByDists spaceFilter timeFilter obs
+                    let res = filterByDists spaceFilter timeFilter obsRaw
                     if length res < 3
                     then Left $ NormalException "Less than 3 individuals in subset."
                     else Right res
-                Nothing -> pure obs
-            return filteredObsWithDists
+                Nothing -> pure obsRaw
+            return $ map (\(o, s, t) -> ObsWithDist o (IndepSpatTempDist (SpatTempDist s t))) filteredObsWithDists
         IndepArbitraryDimPos arbitraryDimPos -> do
             let arbitraryDimDist = findArbitraryDimDistsObsGrid indepVarsOrdered observations arbitraryDimPos
             return $ zipWith
                 (\o d -> ObsWithDist o (IndepArbitraryDimDist d))
                 observations arbitraryDimDist
+
     let searchDepVarsCoords = depVarsExtractOrdered depVarsOrdered searchDepVarPos
 
     -- summarize obs information for each depVar
@@ -82,14 +84,19 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
                 Nothing -> Left $ NormalException "Unknown variable"
                 Just x  -> Right x
         weightForOneObs :: Kernel -> ObsWithDist -> Double
-        weightForOneObs (Uniform spatRadius tempRadius)
-                        (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
-            let spatWeight = if spatDist <= spatRadius then 1 else 0
-                tempWeight = if tempDist <= tempRadius then 1 else 0
-            in spatWeight * tempWeight
-        weightForOneObs (Normal spatSigma tempSigma)
+--        weightForOneObs (Uniform spatRadius tempRadius)
+--                        (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
+--            let spatWeight = if spatDist <= spatRadius then 1 else 0
+--                tempWeight = if tempDist <= tempRadius then 1 else 0
+--            in spatWeight * tempWeight
+        weightForOneObs (Normal [spatSigma, tempSigma])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
+        weightForOneObs (Normal sigmas)
+                        (ObsWithDist _ (IndepArbitraryDimDist ds)) =
+            dnormMulti (repeat 0) sigmas ds
+        weightForOneObs _ _ = error "this should never happen"
+
 
 getKernelForOneDepVar :: KernelDefinition -> String -> Either LOCESTException Kernel
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
@@ -97,9 +104,6 @@ getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
         []                    -> Left  $ NormalException "Variable not defined in kernel"
         [KernelOneDepVar _ k] -> Right $ k
         _                     -> Left  $ NormalException "Variable defined multiple times in kernel"
-
-filterByDists :: Double -> Double -> [ObsWithDist] -> [ObsWithDist]
-filterByDists fs ft = filter (\(ObsWithDist _ (IndepSpatTempDist (SpatTempDist ds dt))) -> ds <= fs && dt <= ft)
 
 findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> Int -> SpatTempPos -> [Double]
 -- calculate distances from mean ages
@@ -123,10 +127,10 @@ findSpatDistsObsGrid observations (Just spatDistMatrix) gridSpatTempPos =
         gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
     in map (lookUpDistance spatDistMatrix gridSpatPosIndex) obsIndizes
 
-findArbitraryDimDistsObsGrid :: [String] -> [Observation] -> ArbitraryDimPos -> [Double]
+findArbitraryDimDistsObsGrid :: [String] -> [Observation] -> ArbitraryDimPos -> [[Double]]
 findArbitraryDimDistsObsGrid indepVarsOrdered observations gridAbritryDimPos =
     let gridPos = extractOrdered indepVarsOrdered gridAbritryDimPos
-    in map (euclideanDistance gridPos . (extractOrdered indepVarsOrdered) . extractArbitraryDimPos . _hyposIndepVarsPos . _obsPos) observations
+    in map (allDistances gridPos . (extractOrdered indepVarsOrdered) . extractArbitraryDimPos . _hyposIndepVarsPos . _obsPos) observations
 
 extractSpatTempPos :: IndepVarsPos -> SpatTempPos
 extractSpatTempPos (IndepSpatTempPos x) = x

@@ -267,8 +267,8 @@ data KernelOneDepVar = KernelOneDepVar {
 instance NFData KernelOneDepVar
 
 data Kernel =
-      Uniform Double Double
-    | Normal Double Double
+      Uniform [Double]
+    | Normal [Double]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
@@ -278,7 +278,7 @@ data ObsWithDist = ObsWithDist {
     , _owdSpatTempDist :: IndepVarsDist
 }
 
-data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist Double
+data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist [Double]
 
 -- | A datatype for observations with id and position
 data Observation = Observation {
@@ -372,7 +372,7 @@ instance NFData ArbitraryDimPos
 instance Csv.FromNamedRecord ArbitraryDimPos where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k) m
-        let extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ extractedVarsBS
+        let extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
         pure $ ArbitraryDimPos extractedVarsStringDouble
 instance Csv.DefaultOrdered ArbitraryDimPos where
     headerOrder (ArbitraryDimPos hm) =
