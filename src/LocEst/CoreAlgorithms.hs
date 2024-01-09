@@ -13,10 +13,7 @@ filterByDists fs ft = filter (\(_, ds, dt) -> ds <= fs && dt <= ft)
 coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> Either LOCESTException SearchResult
 coreSearch
     observations
-    (CoreSupplement
-        depVarsOrdered
-        spaceTimeFilter maybeSpatDistMap maybeTempSamples
-    )
+    (CoreSupplement spaceTimeFilter maybeSpatDistMap maybeTempSamples)
     searchSetting@(CorePermutation
         (HyperPos searchIndepVarPos searchDepVarPos)
         (AlgoKernSmooth kernelDefinition)
@@ -44,12 +41,13 @@ coreSearch
                 (\o d -> ObsWithDist o (IndepArbitraryDimDist d))
                 observations arbitraryDimDist
     -- summarize obs information for each depVar
-    let searchDepVarsCoords = getValues searchDepVarPos
-    perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition obsWithDist) depVarsOrdered
+    let searchDepVarsNames  = getKeys searchDepVarPos
+        searchDepVarsCoords = getValues searchDepVarPos
+    perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition obsWithDist) searchDepVarsNames
     let (means, errs, _, _) = unzip4 perDepVar
     return $ SearchResult {
            _srCorePermutation = searchSetting
-         , _srInterpolation = Just $ DepVarsUncertainPos $ zip depVarsOrdered perDepVar
+         , _srInterpolation = Just $ DepVarsUncertainPos $ zip searchDepVarsNames perDepVar
          , _srProbability = calcDensity means errs searchDepVarsCoords
          }
     where

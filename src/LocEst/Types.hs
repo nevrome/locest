@@ -201,12 +201,10 @@ data IndepVarsPredGrid =
 
 data DepVarsPredGrid = DepVarsPredGrid {
       _depVarsGrid  :: [DepVarsPos]
-    , _depVarsOrder :: [String]
 }
 
 data CoreSupplement = CoreSupplement {
-      _csDepVarsOrder    :: [String]
-    , _csSpaceTimeFilter :: Maybe (Double, Double)
+      _csSpaceTimeFilter :: Maybe (Double, Double)
     , _csSpatDist        :: Maybe SpatDistMatrix
     , _csTempSamp        :: Maybe TempSampleMatrix
 }

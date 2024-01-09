@@ -80,15 +80,15 @@ readDepVarsPredGrid depVarsPos observations = do
         depVarsFromObsOrdered = getKeys $ (_hyposDepVarsPos . _obsPos) $ head observations
     OP.when (depVarsFromObsOrdered /= depVarsFromGridOrdered) $ do
         throw $ NormalException "dep vars in -? and -? not equal"
-    return $ DepVarsPredGrid depVarsPos depVarsFromObsOrdered
+    return $ DepVarsPredGrid depVarsPos
 
 createCoreSupplement :: SearchGrid -> CoreSupplement
-createCoreSupplement (SearchGrid indepVarsPredGrid (DepVarsPredGrid _ depVarsOrdered)) =
+createCoreSupplement (SearchGrid indepVarsPredGrid _) =
     case indepVarsPredGrid of
         SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples ->
-            CoreSupplement depVarsOrdered spaceTimeFilter maybeSpatDistMap maybeTempSamples
+            CoreSupplement spaceTimeFilter maybeSpatDistMap maybeTempSamples
         ArbitraryDimGrid _ ->
-            CoreSupplement depVarsOrdered Nothing Nothing Nothing
+            CoreSupplement Nothing Nothing Nothing
 
 createPermutations ::
        LocestAlgorithm
@@ -98,7 +98,7 @@ createPermutations ::
 createPermutations
     algorithm
     (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples)
-    (DepVarsPredGrid depVarPos _) = do
+    (DepVarsPredGrid depVarPos) = do
         let nrTempSamples = case inObsTempSamples of
                 Nothing                       -> 1
                 Just (TempSampleMatrix n _ _) -> n
@@ -122,7 +122,7 @@ createPermutations
 createPermutations
     algorithm
     (ArbitraryDimGrid gridPos)
-    (DepVarsPredGrid depVarPos _) = return $ Right replicateWithListMonad
+    (DepVarsPredGrid depVarPos) = return $ Right replicateWithListMonad
         where
             replicateWithListMonad :: [CorePermutation]
             replicateWithListMonad = do
