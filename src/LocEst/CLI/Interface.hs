@@ -89,7 +89,8 @@ optParseInObsTempSamplesFile :: OP.Parser (Maybe FilePath)
 optParseInObsTempSamplesFile = OP.option (Just <$> OP.str) (
     OP.long "tempSampFile" <>
     OP.metavar "FILE" <>
-    OP.help "Path to ..." <>
+    OP.help "Path to file with the random age permutations per sample, \
+            \e.g. produced with currycarbon." <>
     OP.value Nothing
     )
 
@@ -108,7 +109,7 @@ optParseIndepVarsPredGridSettings =
         <*> optParseInObsTempSamplesFile
         <*> OP.optional optParseInSpatDistMapFile
     ) OP.<|>
-    (ArbitraryDimGridSettings <$> optParseInSpatGridFile)
+    (ArbitraryDimGridSettings <$> optParseInArbitraryDimFile)
 
 optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
 optParseCrossvalidationSettings =
@@ -122,6 +123,12 @@ optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
     <> OP.metavar "..."
     <> OP.help    "..."
     )
+    where
+        readFraction :: String -> Either String Double
+        readFraction s =
+            case P.runParser parseFraction () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
 
 optParseCrossvalIterations :: OP.Parser Int
 optParseCrossvalIterations = OP.option OP.auto (
@@ -130,35 +137,26 @@ optParseCrossvalIterations = OP.option OP.auto (
     <> OP.help    "..."
     )
 
-readFraction :: String -> Either String Double
-readFraction s =
-    case P.runParser parseFraction () "" s of
-        Left err -> Left $ showParsecErr err
-        Right x  -> Right x
-
 optParseSpaceTimeFilter :: OP.Parser (Maybe (Double,Double))
 optParseSpaceTimeFilter = OP.option (Just <$> OP.eitherReader readSpaceTime) (
        OP.long    "spaceTimeFilter"
-    <> OP.metavar "SpaceTimeFilter(DOUBLE,DOUBLE)"
+    <> OP.metavar "filter(spatialRadius = DOUBLE, temporalRadius = DOUBLE)"
     <> OP.help    "Filter list of relevant observations for each prediction point by space and time. \
                    \ This can be set to speed up the calculation."
     <> OP.value Nothing
     )
     where
-        readSpaceTime :: String -> Either String (Double,Double)
+        readSpaceTime :: String -> Either String (Double, Double)
         readSpaceTime s =
             case P.runParser parseSpaceTime () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
+        parseSpaceTime :: P.Parser (Double, Double)
         parseSpaceTime = do
-          _ <- P.string "SpaceTimeFilter"
-          _ <- P.char '('
-          _ <- P.spaces
-          a <- parseDouble
-          consumeCommaSep
-          b <- parseDouble
-          _ <- P.char ')'
-          return (a,b)
+            parseRecordType "filter" $ do
+                a <- parseArgument "spatialRadius" parseDouble
+                b <- parseArgument "temporalRadius" parseDouble
+                return $ (a, b)
 
 optParseInSpatDistMapFile :: OP.Parser FilePath
 optParseInSpatDistMapFile = OP.strOption (
@@ -171,8 +169,15 @@ optParseInSpatDistMapFile = OP.strOption (
 optParseInSpatDistNoOrderCheck :: OP.Parser Bool
 optParseInSpatDistNoOrderCheck = OP.switch (
     OP.long "noOrderCheck" <>
-    OP.help "Don't validate the order of the spatDistFile to speed up the reading. \
+    OP.help "Don't validate the order of the spatDistFile and the tempSampFile to speed up the reading. \
              \Should only be set if the order is certainly correct."
+    )
+
+optParseInArbitraryDimFile :: OP.Parser FilePath
+optParseInArbitraryDimFile = OP.strOption (
+       OP.long    "anyGridFile"
+    <> OP.metavar "FILE"
+    <> OP.help    "Path to the .tsv file with the arbitrary dimension coordinates to be queried."
     )
 
 optParseInSpatGridFile :: OP.Parser FilePath
@@ -187,43 +192,47 @@ optParseTempGridString :: OP.Parser [Int]
 optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
        OP.long    "tempGrid"
     <> OP.short   't'
-    <> OP.metavar "[YEAR|c(YEAR1,YEAR2,...)]"
+    <> OP.metavar "YEAR|c(YEAR1,YEAR2,...)|START:STOP:BY"
     <> OP.help    "Temporal positions that should be queried."
     )
-
-readTempGridString :: String -> Either String [Int]
-readTempGridString s =
-    case P.runParser parseTempGridString () "" s of
-        Left err -> Left $ showParsecErr err
-        Right x  -> Right x
-
-parseTempGridString :: P.Parser [Int]
-parseTempGridString = do
-    P.try parseIntSequence P.<|> parseYearList
     where
-        parseYearList = parseVector parseInt
+        readTempGridString :: String -> Either String [Int]
+        readTempGridString s =
+            case P.runParser parseTempGridString () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseTempGridString :: P.Parser [Int]
+        parseTempGridString = do
+            P.try parseYearSequence P.<|> P.try parseYearList P.<|> parseSingleYear
+            where
+                parseYearSequence = parseIntSequence
+                parseYearList = parseVector parseInt
+                parseSingleYear = singleton <$> parseInt
 
 optParseSearchDepVarsPos :: OP.Parser [DepVarsPos]
 optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
        OP.long    "depVars"
     <> OP.short   'd'
-    <> OP.metavar "c(varX=DOUBLE,[varY=DOUBLE|varY=START:STOP:BY],...)"
+    <> OP.metavar "c(varX=DOUBLE,varY=c(DOUBLE,DOUBLE,...),varZ=START:STOP:BY,...)"
     <> OP.help    "Dependent variable positions that should be queried."
     )
-
-readSearchDepVarsPos :: String -> Either String [DepVarsPos]
-readSearchDepVarsPos s =
-    case P.runParser parseSearchDepVarsPos () "" s of
-        Left err -> Left $ showParsecErr err
-        Right x  -> Right x
-
-parseSearchDepVarsPos :: P.Parser [DepVarsPos]
-parseSearchDepVarsPos = do
-    res <- parseNamedVector parseVarName (P.try parseDoubleSequence P.<|> (singleton <$> parseDouble))
-    let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
-        grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
-        permutations = sequenceA grouped
-    return $ map DepVarsPos permutations
+    where
+        readSearchDepVarsPos :: String -> Either String [DepVarsPos]
+        readSearchDepVarsPos s =
+            case P.runParser parseSearchDepVarsPos () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseSearchDepVarsPos :: P.Parser [DepVarsPos]
+        parseSearchDepVarsPos = do
+            res <- parseNamedVector parseVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
+            let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
+                grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
+                permutations = sequenceA grouped
+            return $ map DepVarsPos permutations
+            where
+                parseSequence = parseDoubleSequence
+                parseList = parseVector parseDouble
+                parseSingle = singleton <$> parseDouble
 
 optParseOutFile :: OP.Parser FilePath
 optParseOutFile = OP.strOption (
@@ -248,42 +257,32 @@ optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
     <> OP.help    "Algorithm that should be applied for the interpolation and search, including \
                    \ kernel parameter settings."
     )
-
-readAlgorithmString :: String -> Either String LocestAlgorithm
-readAlgorithmString s =
-    case P.runParser parseAlgorithmString () "" s of
-        Left err -> Left $ showParsecErr err
-        Right x  -> Right x
-
-parseAlgorithmString :: P.Parser LocestAlgorithm
-parseAlgorithmString = do
-    P.try parseAlgoKernelSmooth -- P.<|> parseOtherAlgo
     where
-        parseAlgoKernelSmooth = do
-            _ <- P.string "KAS("
-            kernDef <- parseKernelDef
-            _ <- P.char ')'
-            return $ AlgoKernSmooth kernDef
-        parseKernelDef = do
-            kernelVec <- parseNamedVector parseVarName parseKernel
-            return $ KernelDefinition $ map (uncurry KernelOneDepVar) kernelVec
-        parseKernel = P.try parseUniform P.<|> parseNormal
-        parseUniform = do
-          _ <- P.string "Uniform"
-          _ <- P.char '('
-          _ <- P.spaces
-          res <- P.sepBy parseDouble consumeCommaSep
-          _ <- P.spaces
-          _ <- P.char ')'
-          return $ Uniform res
-        parseNormal = do
-          _ <- P.string "Normal"
-          _ <- P.char '('
-          _ <- P.spaces
-          res <- P.sepBy parseDouble consumeCommaSep
-          _ <- P.spaces
-          _ <- P.char ')'
-          return $ Normal res
+        readAlgorithmString :: String -> Either String LocestAlgorithm
+        readAlgorithmString s =
+            case P.runParser parseAlgorithmString () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseAlgorithmString :: P.Parser LocestAlgorithm
+        parseAlgorithmString = do
+            P.try parseAlgoKernelSmooth -- P.<|> parseOtherAlgo
+            where
+                parseAlgoKernelSmooth = do
+                    parseRecordType "kas" $ do
+                        a <- parseArgument "shapes" parseKernelDef
+                        return $ AlgoKernSmooth a
+                parseKernelDef = do
+                    kernelVec <- parseNamedVector parseVarName parseKernel
+                    return $ KernelDefinition $ map (uncurry KernelOneDepVar) kernelVec
+                parseKernel = P.try parseUniform P.<|> parseNormal
+                parseUniform = do
+                    _ <- P.string "uniform"
+                    radiusVec <- parseNamedVector parseVarName parseDouble
+                    return $ Uniform radiusVec
+                parseNormal = do
+                    _ <- P.string "normal"
+                    sigmaVec <- parseNamedVector parseVarName parseDouble
+                    return $ Uniform sigmaVec
 
 -- general parsers
 

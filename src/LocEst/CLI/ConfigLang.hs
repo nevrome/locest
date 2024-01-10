@@ -90,6 +90,15 @@ parseAnyString =
 
 -- * Sequence parsers
 
+parseIntSequence :: P.Parser [Int]
+parseIntSequence = do
+    start <- parseInt
+    _ <- P.oneOf ":"
+    stop <- parseInt
+    _ <- P.oneOf ":"
+    by <- fromIntegral <$> parsePositiveInt
+    return [start,(start+by)..stop]
+
 parseDoubleSequence :: P.Parser [Double]
 parseDoubleSequence = do
     start <- parseDouble
@@ -123,15 +132,6 @@ parsePositiveFloatNumber = do
     num <- parseNumber
     optionalMore <- P.option "" $ (:) <$> P.char '.' <*> parseNumber
     return $ read $ num ++ optionalMore
-
-parseIntSequence :: P.Parser [Int]
-parseIntSequence = do
-    start <- parseInt
-    _ <- P.oneOf ":"
-    stop <- parseInt
-    _ <- P.oneOf ":"
-    by <- fromIntegral <$> parsePositiveInt
-    return [start,(start+by)..stop]
 
 parseInt :: P.Parser Int
 parseInt = do
