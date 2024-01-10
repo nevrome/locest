@@ -46,26 +46,105 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
 }
 
+runSearch :: SearchOptions -> IO ()
+runSearch (
+    SearchOptions
+        inObsFile
+        (SearchGridSettings indepVarsPredGridSettings depVarsPredGridSettings)
+        algorithm
+        normalization
+        threads
+        outFile
+    ) = do
+    
+    -- number of threads
+    numThreads <- case threads of
+        SingleThread      -> pure 1
+        MultipleThreads n -> pure n
+        DetectThreads     -> do
+            detectedThreads <- getNumCapabilities
+            hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
+            return detectedThreads
+    hPutStrLn stderr $ "Working with threads: " ++ show numThreads
+    -- read observations
+    hPutStrLn stderr "Reading observations"
+    !observationsUnindexed <- readObservations inObsFile
+    let observations = zipWith setIndex observationsUnindexed [0..]
+    -- read and prepare prediction grids
+    hPutStrLn stderr "Preparing prediction grid"
+    indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings observations
+    depVarsPredGrid   <- readDepVarsPredGrid depVarsPredGridSettings observations
+    let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
+        supplement = createCoreSupplement searchGrid
+    -- prepare permutations
+    hPutStrLn stderr "Building permutation tree"
+    permutations <- createPermutations algorithm indepVarsPredGrid depVarsPredGrid
+
+    hPutStrLn stderr "All preparations ready"
+    -- run all permutations
+    case permutations of
+        Left e -> throw e
+        Right perms -> do
+            hPutStrLn stderr "Running analysis"
+            -- run analysis pipeline
+            Con.runConduitRes $
+                ConL.sourceList perms
+                -- main search algorithm
+                -- 1. sequential
+                -- .| ConL.map coreSearch
+                -- 2. normal parallel
+                .| ConAA.asyncMapC numThreads (coreSearch observations supplement)
+                -- 3. chunked parallel
+                -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
+                -- print progress information
+                .| progress 1000
+                -- split stream to report the error cases and write the good results to the file system
+                .| Con.getZipSink (
+                        Con.ZipSink (
+                               ConC.filter isLeft
+                            .| ConL.mapM_ printError
+                        ) *>
+                        Con.ZipSink (
+                               ConL.mapMaybe rightToJust
+                            .| normalize normalization -- this assumes the permutation order to be set accordingly!!
+                                                       -- otherwise sorting is necessary, which means everything has to go into memory
+                            .| sinkNamedCSV outFile
+                        )
+                   )
+            hPutStrLn stderr "Done"
+
 readIndepVarsPredGrid :: IndepVarsPredGridSettings -> [Observation] -> IO IndepVarsPredGrid
 readIndepVarsPredGrid
     (SpaceTimeGridSettings inSpatGridFile inTempGrid inSpaceTimeFilter inSpatDistFile inObsTempSamplesFile)
     observations = do
+    hPutStrLn stderr "Assuming a spatiotemporal system"
+    -- read spatial grid
+    hPutStrLn stderr "Reading spatial grid positions"
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
+    -- read spatial distances
     !inSpatDists <- case inSpatDistFile of
         Nothing   -> pure Nothing
         Just path -> do
             hPutStrLn stderr $ "Deserialising spatial distances from " ++ path
             dists <- S.readFileDeserialise path
             return $ Just dists
+    -- read temporal distances
     !inObsTempSamples <- case inObsTempSamplesFile of
         Nothing   -> pure Nothing
-        Just path -> Just <$> readTempSamp False observations path
+        Just path -> do
+            hPutStrLn stderr "Reading temporal resampling ages"
+            Just <$> readTempSamp False observations path
+    -- complete spatiotemporal grid
     return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeFilter inSpatDists inObsTempSamples
 readIndepVarsPredGrid
     (ArbitraryDimGridSettings inArbitraryDimGridFile)
     observations = do
+    hPutStrLn stderr "Assuming an arbitrary-dimension system"
+    -- read arbitrary-dimension grid
+    hPutStrLn stderr "Reading arbitrary-dimension grid positions"
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
+    -- input validation
     let indepVarsFromObsOrdered = case (head $ map (_hyposIndepVarsPos . _obsPos) observations) of
             IndepSpatTempPos _     -> []
             IndepArbitraryDimPos x -> getKeys x
@@ -76,6 +155,7 @@ readIndepVarsPredGrid
 
 readDepVarsPredGrid :: [DepVarsPos] -> [Observation] -> IO DepVarsPredGrid
 readDepVarsPredGrid depVarsPos observations = do
+    -- input validation
     let depVarsFromGridOrdered = getKeys $ head depVarsPos
         depVarsFromObsOrdered = getKeys $ (_hyposDepVarsPos . _obsPos) $ head observations
     OP.when (depVarsFromObsOrdered /= depVarsFromGridOrdered) $ do
@@ -129,69 +209,6 @@ createPermutations
                 indepPos <- gridPos
                 depPos <- depVarPos
                 return $ CorePermutation (HyperPos (IndepArbitraryDimPos indepPos) depPos) algorithm 1
-
-runSearch :: SearchOptions -> IO ()
-runSearch (
-    SearchOptions
-        inObsFile
-        (SearchGridSettings indepVarsPredGridSettings depVarsPredGridSettings)
-        algorithm
-        normalization
-        threads
-        outFile
-    ) = do
-    -- number of threads
-    numThreads <- case threads of
-        SingleThread      -> pure 1
-        MultipleThreads n -> pure n
-        DetectThreads     -> do
-            detectedThreads <- getNumCapabilities
-            hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
-            return detectedThreads
-    hPutStrLn stderr $ "Working with threads: " ++ show numThreads
-    -- read observations
-    !observationsUnindexed <- readObservations inObsFile
-    let observations = zipWith setIndex observationsUnindexed [0..]
-    -- read and prepare prediction grids
-    indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings observations
-    depVarsPredGrid   <- readDepVarsPredGrid depVarsPredGridSettings observations
-    let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
-        supplement = createCoreSupplement searchGrid
-    -- preparing permutations
-    hPutStrLn stderr "Building permutation tree"
-    permutations <- createPermutations algorithm indepVarsPredGrid depVarsPredGrid
-    hPutStrLn stderr "Done"
-    -- running all permutations
-    case permutations of
-        Left e -> throw e
-        Right perms -> do
-            hPutStrLn stderr "Running analysis"
-            -- run analysis pipeline
-            Con.runConduitRes $
-                ConL.sourceList perms
-                -- main search algorithm
-                -- 1. sequential
-                -- .| ConL.map coreSearch
-                -- 2. normal parallel
-                .| ConAA.asyncMapC numThreads (coreSearch observations supplement)
-                -- 3. chunked parallel
-                -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
-                -- print progress information
-                .| progress 1000
-                -- split stream to report the error cases and write the good results to the file system
-                .| Con.getZipSink (
-                        Con.ZipSink (
-                               ConC.filter isLeft
-                            .| ConL.mapM_ printError
-                        ) *>
-                        Con.ZipSink (
-                               ConL.mapMaybe rightToJust
-                            .| normalize normalization -- this assumes the permutation order to be set accordingly!!
-                                                       -- otherwise sorting is necessary, which means everything has to go into memory
-                            .| sinkNamedCSV outFile
-                        )
-                   )
-            hPutStrLn stderr "Done"
 
 normalize :: Monad m => Normalization -> Con.ConduitT SearchResult SearchResult m ()
 normalize NoNorm = ConC.map id
