@@ -5,7 +5,7 @@ import           LocEst.MathUtils
 import           LocEst.Types
 import           LocEst.Utils
 
-import           Data.List           (unzip4)
+import           Data.List        (unzip4)
 
 filterByDists :: Double -> Double -> [(Observation, Double, Double)] -> [(Observation, Double, Double)]
 filterByDists fs ft = filter (\(_, ds, dt) -> ds <= fs && dt <= ft)

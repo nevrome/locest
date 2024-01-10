@@ -11,12 +11,24 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (nub, sortBy)
+import           Data.List             (sortBy)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
-import           LocEst.Utils          (LOCESTException (..))
+
+-- typeclasses
+
+-- a typeclass for maps
+class PseudoMap a where
+    getKeys :: a -> [String]
+    getValues :: a -> [Double]
+
+-- a typeclass for things with ids
+class Identifiable a where
+    getID :: a -> String
+    getIndex :: a -> Int
+    setIndex :: a -> Int -> a
 
 -- helper functions
 
@@ -38,67 +50,6 @@ filterLookupMulti m names =
 
 filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
 filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
-
--- | A data type to represent setting permutations
-data PermutationTree =
-      PTLeaf PositionEntity
-    | PTFork PositionEntity [PermutationTree]
-    | PTRoot [PermutationTree]
-
-addPermutation :: [PositionEntity] -> PermutationTree -> PermutationTree
-addPermutation [] t             = t
-addPermutation xs (PTLeaf v)    = PTFork v (map PTLeaf xs)
-addPermutation xs (PTRoot [])   = PTRoot (map PTLeaf xs)
-addPermutation xs (PTRoot ts)   = PTRoot (map (\t -> addPermutation xs t) ts)
-addPermutation xs (PTFork v ts) = PTFork v (map (\t -> addPermutation xs t) ts)
-
-harvest :: PermutationTree -> Either LOCESTException [CorePermutation]
-harvest = harvestFlattened . flattenTree
-    where
-        flattenTree :: PermutationTree -> [[PositionEntity]]
-        flattenTree (PTRoot ts)   = concatMap flattenTree ts
-        flattenTree (PTFork v ts) = map (v:) (concatMap flattenTree ts)
-        flattenTree (PTLeaf v)    = [[v]]
-        harvestFlattened :: [[PositionEntity]] -> Either LOCESTException [CorePermutation]
-        harvestFlattened = mapM pluckOne
-            where
-                pluckOne :: [PositionEntity] -> Either LOCESTException CorePermutation
-                pluckOne xs = do
-                    spatPos    <- exactlyOnce [ v | PESpatPos v <- xs]
-                    tempPos    <- exactlyOnce [ v | PETempPos v <- xs]
-                    depVarsPos <- exactlyOnce [ v | PEDepVarsPos v <- xs]
-                    algorithm  <- exactlyOnce [ v | PEAlgorithm v <- xs]
-                    tempSamp   <- exactlyOnce [ v | PETempSampling v <- xs]
-                    return $
-                        CorePermutation
-                            (HyperPos (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) depVarsPos)
-                            algorithm
-                            tempSamp
-                    where
-                        exactlyOnce :: Eq a => [a] -> Either LOCESTException a
-                        exactlyOnce es =
-                            if length (nub es) == 1
-                            then Right $ head es
-                            else Left $ NormalException "Permutation tree inconsistent"
-
-data PositionEntity =
-      PESpatPos SpatPos
-    | PETempPos Int
-    | PEDepVarsPos DepVarsPos
-    | PEAlgorithm LocestAlgorithm
-    | PETempSampling Int
-    deriving (Eq)
-
--- a typeclass for maps
-class PseudoMap a where
-    getKeys :: a -> [String]
-    getValues :: a -> [Double]
-
--- a typeclass for things with ids
-class Identifiable a where
-    getID :: a -> String
-    getIndex :: a -> Int
-    setIndex :: a -> Int -> a
 
 -- | A datatype for normalization of the output
 data Normalization = NormBySpace | NoNorm

@@ -18,7 +18,6 @@ import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import           Data.Either                   (isLeft)
-import           Data.Function                 ((&))
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
 
@@ -56,7 +55,7 @@ runSearch (
         threads
         outFile
     ) = do
-    
+
     -- number of threads
     numThreads <- case threads of
         SingleThread      -> pure 1
@@ -77,10 +76,11 @@ runSearch (
     let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
         supplement = createCoreSupplement searchGrid
     -- prepare permutations
-    hPutStrLn stderr "Building permutation tree"
+    hPutStrLn stderr "Preparing permutations"
     permutations <- createPermutations algorithm indepVarsPredGrid depVarsPredGrid
 
     hPutStrLn stderr "All preparations ready"
+
     -- run all permutations
     case permutations of
         Left e -> throw e
@@ -179,17 +179,6 @@ createPermutations
     algorithm
     (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples)
     (DepVarsPredGrid depVarPos) = do
-        let nrTempSamples = case inObsTempSamples of
-                Nothing                       -> 1
-                Just (TempSampleMatrix n _ _) -> n
-            permutations = PTRoot [] &
-                -- the following elements can be ordered arbitrarily
-                addPermutation [PEAlgorithm algorithm] &
-                addPermutation (map PETempSampling [0..(nrTempSamples-1)]) &
-                addPermutation (map PEDepVarsPos depVarPos) &
-                addPermutation (map PETempPos inTempGrid) &
-                addPermutation (map PESpatPos inSpatGrid) &
-                harvest
         hPutStrLn stderr $ "Permutations: " ++
             "1 algorithm" ++ " * " ++
             show nrTempSamples ++ " time resampling iterations" ++ " * " ++
@@ -198,7 +187,21 @@ createPermutations
             show (length inSpatGrid) ++ " spatial positions"
         hPutStrLn stderr $ "Required iterations: " ++
             show (nrTempSamples * length depVarPos * length inTempGrid * length inSpatGrid)
-        return permutations
+        return $ Right replicateWithListMonad
+        where
+            nrTempSamples = case inObsTempSamples of
+                Nothing                       -> 1
+                Just (TempSampleMatrix n _ _) -> n
+            replicateWithListMonad :: [CorePermutation]
+            replicateWithListMonad = do
+                tempSamp <- [0..(nrTempSamples-1)]
+                depPos <- depVarPos
+                tempPos <- inTempGrid
+                spatPos <- inSpatGrid
+                return $ CorePermutation
+                            (HyperPos (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) depPos)
+                            algorithm
+                            tempSamp
 createPermutations
     algorithm
     (ArbitraryDimGrid gridPos)
@@ -208,7 +211,10 @@ createPermutations
             replicateWithListMonad = do
                 indepPos <- gridPos
                 depPos <- depVarPos
-                return $ CorePermutation (HyperPos (IndepArbitraryDimPos indepPos) depPos) algorithm 1
+                return $ CorePermutation
+                            (HyperPos (IndepArbitraryDimPos indepPos) depPos)
+                            algorithm
+                            0
 
 normalize :: Monad m => Normalization -> Con.ConduitT SearchResult SearchResult m ()
 normalize NoNorm = ConC.map id
