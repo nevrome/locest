@@ -22,9 +22,9 @@ coreSearch
     -- determine dist per obs to current point
     obsWithDist <- case searchIndepVarPos of
         IndepSpatTempPos gridSpatTempPos -> do
-            let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
-                spatDistsKM = map (/ 1000) spatDists
-                tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSampIteration gridSpatTempPos
+            spatDists <- findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
+            tempDists <- findTempDistsObsGrid observations maybeTempSamples tempSampIteration gridSpatTempPos
+            let spatDistsKM = map (/ 1000) spatDists
                 obsRaw = zip3 observations spatDistsKM tempDists
             -- filter by dist (for performance)
             filteredObsWithDists <- case spaceTimeFilter of
@@ -36,7 +36,7 @@ coreSearch
                 Nothing -> pure obsRaw
             return $ map (\(o, s, t) -> ObsWithDist o (IndepSpatTempDist (SpatTempDist s t))) filteredObsWithDists
         IndepArbitraryDimPos arbitraryDimPos -> do
-            let arbitraryDimDist = findArbitraryDimDistsObsGrid observations arbitraryDimPos
+            arbitraryDimDist <- findArbitraryDimDistsObsGrid observations arbitraryDimPos
             return $ zipWith
                 (\o d -> ObsWithDist o (IndepArbitraryDimDist d))
                 observations arbitraryDimDist
@@ -68,9 +68,9 @@ smoothedValueOneDepVar kernelDefinition obsWithDist depVar = do
 
 meanAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
-    kernel  <- getKernelForOneDepVar kernelDefinition depVar
-    mean    <- getOneDepVarPos oneObsWithDist
-    let weight = weightForOneObs kernel oneObsWithDist
+    kernel <- getKernelForOneDepVar kernelDefinition depVar
+    mean   <- getOneDepVarPos oneObsWithDist
+    weight <- weightForOneObs kernel oneObsWithDist
     return (mean, weight)
     where
         getOneDepVarPos :: ObsWithDist -> CoreLog Double
@@ -78,25 +78,27 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
             case lookup depVar m of
                 Nothing -> E.throwError $ NormalException "Unknown variable"
                 Just x  -> pure x
-        weightForOneObs :: Kernel -> ObsWithDist -> Double
+        weightForOneObs :: Kernel -> ObsWithDist -> CoreLog Double
         -- uniform kernel
         weightForOneObs (Uniform [spatRadius, tempRadius])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             let spatWeight = if spatDist <= spatRadius then 1 else 0
                 tempWeight = if tempDist <= tempRadius then 1 else 0
-            in spatWeight * tempWeight
+            in pure $ spatWeight * tempWeight
         weightForOneObs (Uniform radii)
-                        (ObsWithDist _ (IndepArbitraryDimDist ds)) =
+                        (ObsWithDist _ (IndepArbitraryDimDist ds)) = do
             let inRadii = zipWith (\radius d -> if d <= radius then 1 else 0) radii ds
-            in foldl' (*) 1 inRadii
+            pure $ foldl' (*) 1 inRadii
         -- gaussian kernel
         weightForOneObs (Normal [spatSigma, tempSigma])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
-            dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
+            pure $ dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
         weightForOneObs (Normal sigmas)
                         (ObsWithDist _ (IndepArbitraryDimDist ds)) =
-            dnormMulti (repeat 0) sigmas ds
-        weightForOneObs _ _ = error "this should never happen"
+            pure $ dnormMulti (repeat 0) sigmas ds
+        -- mismatch error case
+        weightForOneObs _ _ =
+            E.throwError $ NormalException "Illegal combination of kernel and grid data"
 
 getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog Kernel
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
@@ -105,37 +107,39 @@ getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
         [KernelOneDepVar _ k] -> pure k
         _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel"
 
-findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> Int -> SpatTempPos -> [Double]
+findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> Int -> SpatTempPos -> CoreLog [Double]
 -- calculate distances from mean ages
-findTempDistsObsGrid observations Nothing _ gridSpatTempPos =
-    let spatTempPos = map (extractSpatTempPos . _hyposIndepVarsPos . _obsPos) observations
-    in map (temporalDistSpatTempPos gridSpatTempPos) spatTempPos
+findTempDistsObsGrid observations Nothing _ gridSpatTempPos = do
+    spatTempPos <- mapM (extractSpatTempPos . _hyposIndepVarsPos . _obsPos) observations
+    return $ map (temporalDistSpatTempPos gridSpatTempPos) spatTempPos
 -- look up age samples and calculate distances from them
-findTempDistsObsGrid observations (Just tempSampleMatrix) iteration gridSpatTempPos =
+findTempDistsObsGrid observations (Just tempSampleMatrix) iteration gridSpatTempPos = do
     let obsIndizes = map getIndex observations
         obsAgeSamples = map (lookUpTempSample tempSampleMatrix iteration) obsIndizes
         (SpatTempPos _ (TempPos gridPointAge)) = gridSpatTempPos
-    in map (temporalDistYearBCAD gridPointAge) obsAgeSamples
+    return $ map (temporalDistYearBCAD gridPointAge) obsAgeSamples
 
-findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMatrix -> SpatTempPos -> [Double]
+findSpatDistsObsGrid :: [Observation] -> Maybe SpatDistMatrix -> SpatTempPos -> CoreLog [Double]
 -- calculate distances
-findSpatDistsObsGrid observations Nothing gridSpatTempPos =
-    map (spatialDistSpatTempPos gridSpatTempPos . extractSpatTempPos . _hyposIndepVarsPos . _obsPos) observations
+findSpatDistsObsGrid observations Nothing gridSpatTempPos = do
+    spatTempPos <- mapM (extractSpatTempPos . _hyposIndepVarsPos . _obsPos) observations
+    return $ map (spatialDistSpatTempPos gridSpatTempPos) spatTempPos
 -- look up distances
-findSpatDistsObsGrid observations (Just spatDistMatrix) gridSpatTempPos =
+findSpatDistsObsGrid observations (Just spatDistMatrix) gridSpatTempPos = do
     let obsIndizes = map getIndex observations
         gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
-    in map (lookUpDistance spatDistMatrix gridSpatPosIndex) obsIndizes
+    return $ map (lookUpDistance spatDistMatrix gridSpatPosIndex) obsIndizes
 
-findArbitraryDimDistsObsGrid :: [Observation] -> ArbitraryDimPos -> [[Double]]
-findArbitraryDimDistsObsGrid observations gridAbritryDimPos =
+findArbitraryDimDistsObsGrid :: [Observation] -> ArbitraryDimPos -> CoreLog [[Double]]
+findArbitraryDimDistsObsGrid observations gridAbritryDimPos = do
     let gridPos = getValues gridAbritryDimPos
-    in map (allDistances gridPos . getValues . extractArbitraryDimPos . _hyposIndepVarsPos . _obsPos) observations
+    arbitraryDimPos <- mapM (extractArbitraryDimPos . _hyposIndepVarsPos . _obsPos) observations
+    return $ map (allDistances gridPos . getValues) arbitraryDimPos
 
-extractSpatTempPos :: IndepVarsPos -> SpatTempPos
-extractSpatTempPos (IndepSpatTempPos x) = x
-extractSpatTempPos _                    = error "this should never happen"
+extractSpatTempPos :: IndepVarsPos -> CoreLog SpatTempPos
+extractSpatTempPos (IndepSpatTempPos x) = pure x
+extractSpatTempPos _                    = E.throwError $ NormalException "this should never happen"
 
-extractArbitraryDimPos :: IndepVarsPos -> ArbitraryDimPos
-extractArbitraryDimPos (IndepArbitraryDimPos x) = x
-extractArbitraryDimPos _                        = error "this should never happen"
+extractArbitraryDimPos :: IndepVarsPos -> CoreLog ArbitraryDimPos
+extractArbitraryDimPos (IndepArbitraryDimPos x) = pure x
+extractArbitraryDimPos _                        = E.throwError $ NormalException "this should never happen"
