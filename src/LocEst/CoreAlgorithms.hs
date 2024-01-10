@@ -5,7 +5,7 @@ import           LocEst.MathUtils
 import           LocEst.Types
 import           LocEst.Utils
 
-import           Data.List        (unzip4)
+import           Data.List        (unzip4, foldl')
 
 coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> Either LOCESTException SearchResult
 coreSearch
@@ -76,11 +76,16 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
                 Nothing -> Left $ NormalException "Unknown variable"
                 Just x  -> Right x
         weightForOneObs :: Kernel -> ObsWithDist -> Double
---        weightForOneObs (Uniform spatRadius tempRadius)
---                        (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
---            let spatWeight = if spatDist <= spatRadius then 1 else 0
---                tempWeight = if tempDist <= tempRadius then 1 else 0
---            in spatWeight * tempWeight
+        weightForOneObs (Uniform [spatRadius, tempRadius])
+                        (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
+            let spatWeight = if spatDist <= spatRadius then 1 else 0
+                tempWeight = if tempDist <= tempRadius then 1 else 0
+            in spatWeight * tempWeight
+        weightForOneObs (Uniform radii)
+                        (ObsWithDist _ (IndepArbitraryDimDist ds)) =
+            let inRadii = zipWith (\radius d -> if d <= radius then 1 else 0) radii ds
+            in foldl' (*) 1 inRadii
+
         weightForOneObs (Normal [spatSigma, tempSigma])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
