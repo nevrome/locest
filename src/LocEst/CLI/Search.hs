@@ -12,6 +12,7 @@ import qualified Codec.Serialise               as S
 import           Conduit                       (MonadIO, liftIO)
 import           Control.Exception             (throw)
 import qualified Control.Monad                 as OP
+import qualified Control.Monad.Except          as E
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
@@ -93,7 +94,7 @@ runSearch (
                 -- 1. sequential
                 -- .| ConL.map coreSearch
                 -- 2. normal parallel
-                .| ConAA.asyncMapC numThreads (coreSearch observations supplement)
+                .| ConAA.asyncMapC numThreads (E.runExcept . coreSearch observations supplement)
                 -- 3. chunked parallel
                 -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
                 -- print progress information

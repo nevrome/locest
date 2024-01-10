@@ -5,9 +5,12 @@ import           LocEst.MathUtils
 import           LocEst.Types
 import           LocEst.Utils
 
-import           Data.List        (unzip4, foldl')
+import qualified Control.Monad.Except as E
+import           Data.List            (foldl', unzip4)
 
-coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> Either LOCESTException SearchResult
+type CoreLog = E.Except LOCESTException
+
+coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> CoreLog SearchResult
 coreSearch
     observations
     (CoreSupplement spaceTimeFilter maybeSpatDistMap maybeTempSamples)
@@ -28,8 +31,8 @@ coreSearch
                 Just (spaceFilter,timeFilter) -> do
                     let res = filter (\(_, ds, dt) -> ds <= spaceFilter && dt <= timeFilter) obsRaw
                     if length res < 3
-                    then Left $ NormalException "Less than 3 individuals in subset."
-                    else Right res
+                    then E.throwError $ NormalException "Less than 3 individuals in subset."
+                    else pure res
                 Nothing -> pure obsRaw
             return $ map (\(o, s, t) -> ObsWithDist o (IndepSpatTempDist (SpatTempDist s t))) filteredObsWithDists
         IndepArbitraryDimPos arbitraryDimPos -> do
@@ -54,7 +57,7 @@ coreSearch
             | any isNaN errs  = 0/0
             | otherwise       = dnormMulti means (map sqrt errs) searchDepVarsCoords -- TODO: figure out, why the errs get too small without the sqrt
 
-smoothedValueOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> Either LOCESTException (Double, Double, Double, Double)
+smoothedValueOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> CoreLog (Double, Double, Double, Double)
 smoothedValueOneDepVar kernelDefinition obsWithDist depVar = do
     (means, weights) <- unzip <$> mapM (meanAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist
     let mean = weightedAvg means weights
@@ -63,19 +66,20 @@ smoothedValueOneDepVar kernelDefinition obsWithDist depVar = do
         effn = neff density weights
     return (mean, err, density, effn)
 
-meanAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> Either LOCESTException (Double, Double)
+meanAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
     kernel  <- getKernelForOneDepVar kernelDefinition depVar
-    mean <- getOneDepVarPos oneObsWithDist
+    mean    <- getOneDepVarPos oneObsWithDist
     let weight = weightForOneObs kernel oneObsWithDist
     return (mean, weight)
     where
-        getOneDepVarPos :: ObsWithDist -> Either LOCESTException Double
+        getOneDepVarPos :: ObsWithDist -> CoreLog Double
         getOneDepVarPos (ObsWithDist (Observation _ _ (HyperPos _ (DepVarsPos m))) _) =
             case lookup depVar m of
-                Nothing -> Left $ NormalException "Unknown variable"
-                Just x  -> Right x
+                Nothing -> E.throwError $ NormalException "Unknown variable"
+                Just x  -> pure x
         weightForOneObs :: Kernel -> ObsWithDist -> Double
+        -- uniform kernel
         weightForOneObs (Uniform [spatRadius, tempRadius])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             let spatWeight = if spatDist <= spatRadius then 1 else 0
@@ -85,7 +89,7 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
                         (ObsWithDist _ (IndepArbitraryDimDist ds)) =
             let inRadii = zipWith (\radius d -> if d <= radius then 1 else 0) radii ds
             in foldl' (*) 1 inRadii
-
+        -- gaussian kernel
         weightForOneObs (Normal [spatSigma, tempSigma])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
@@ -94,13 +98,12 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
             dnormMulti (repeat 0) sigmas ds
         weightForOneObs _ _ = error "this should never happen"
 
-
-getKernelForOneDepVar :: KernelDefinition -> String -> Either LOCESTException Kernel
+getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog Kernel
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
     case filter (\(KernelOneDepVar n _) -> n == depVar) kernelsPerDepVar of
-        []                    -> Left  $ NormalException "Variable not defined in kernel"
-        [KernelOneDepVar _ k] -> Right $ k
-        _                     -> Left  $ NormalException "Variable defined multiple times in kernel"
+        []                    -> E.throwError $ NormalException "Variable not defined in kernel"
+        [KernelOneDepVar _ k] -> pure k
+        _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel"
 
 findTempDistsObsGrid :: [Observation] -> Maybe TempSampleMatrix -> Int -> SpatTempPos -> [Double]
 -- calculate distances from mean ages
