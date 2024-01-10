@@ -7,9 +7,6 @@ import           LocEst.Utils
 
 import           Data.List        (unzip4)
 
-filterByDists :: Double -> Double -> [(Observation, Double, Double)] -> [(Observation, Double, Double)]
-filterByDists fs ft = filter (\(_, ds, dt) -> ds <= fs && dt <= ft)
-
 coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> Either LOCESTException SearchResult
 coreSearch
     observations
@@ -17,19 +14,19 @@ coreSearch
     searchSetting@(CorePermutation
         (HyperPos searchIndepVarPos searchDepVarPos)
         (AlgoKernSmooth kernelDefinition)
-        tempSamplingIteration
+        tempSampIteration
     ) = do
     -- determine dist per obs to current point
     obsWithDist <- case searchIndepVarPos of
         IndepSpatTempPos gridSpatTempPos -> do
             let spatDists = findSpatDistsObsGrid observations maybeSpatDistMap gridSpatTempPos
                 spatDistsKM = map (/ 1000) spatDists
-                tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSamplingIteration gridSpatTempPos
+                tempDists   = findTempDistsObsGrid observations maybeTempSamples tempSampIteration gridSpatTempPos
                 obsRaw = zip3 observations spatDistsKM tempDists
             -- filter by dist (for performance)
             filteredObsWithDists <- case spaceTimeFilter of
                 Just (spaceFilter,timeFilter) -> do
-                    let res = filterByDists spaceFilter timeFilter obsRaw
+                    let res = filter (\(_, ds, dt) -> ds <= spaceFilter && dt <= timeFilter) obsRaw
                     if length res < 3
                     then Left $ NormalException "Less than 3 individuals in subset."
                     else Right res
