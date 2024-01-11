@@ -278,11 +278,11 @@ optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
                 parseUniform = do
                     -- TODO: FIgure out if it would be better to make the kernels named vectors
                     radiusVec <- parseRecordType "uniform"
-                                 (parseInParens (P.sepBy parseDouble consumeCommaSep))
+                                 (P.sepBy parseDouble consumeCommaSep)
                     return $ Uniform radiusVec
                 parseNormal = do
                     sigmaVec  <- parseRecordType "normal"
-                                 (parseInParens (P.sepBy parseDouble consumeCommaSep))
+                                 (P.sepBy parseDouble consumeCommaSep)
                     return $ Normal sigmaVec
 
 -- general parsers
