@@ -277,13 +277,19 @@ optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
                 parseKernel = P.try parseUniform P.<|> parseNormal
                 parseUniform = do
                     -- TODO: FIgure out if it would be better to make the kernels named vectors
-                    radiusVec <- parseListType "uniform" parseDouble
+                    radiusVec <- parseNamedListType "uniform" parseIndepVarName parseDouble
                     return $ Uniform radiusVec
                 parseNormal = do
-                    sigmaVec  <- parseListType "normal" parseDouble
+                    sigmaVec  <- parseNamedListType "normal" parseIndepVarName parseDouble
                     return $ Normal sigmaVec
 
 -- general parsers
+
+parseIndepVarName :: P.Parser String
+parseIndepVarName = 
+          P.string "space"
+    P.<|> P.string "time"
+    P.<|> P.string "indep" <> P.many1 P.alphaNum
 
 parseDepVarName :: P.Parser String
 parseDepVarName = P.string "dep" <> P.many1 P.alphaNum

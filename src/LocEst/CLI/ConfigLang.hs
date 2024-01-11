@@ -6,14 +6,13 @@ import qualified Text.Parsec.String as P
 
 -- * High level building blocks
 
+parseNamedListType :: String -> P.Parser a -> P.Parser b -> P.Parser [(a,b)]
+parseNamedListType typeName parseKey parseValue = do
+    parseListType typeName (parseKeyValuePair parseKey parseValue)
+
 parseListType :: String -> P.Parser a -> P.Parser [a]
 parseListType typeName parser = do
-    parseRecordType typeName (P.sepBy parser consumeCommaSep)
-
-parseRecordType :: String -> P.Parser a -> P.Parser a
-parseRecordType typeName parser = do
-    _ <- P.string typeName
-    parseInParens parser
+    parseRecordType typeName (parseCommaSepList parser)
 
 parseNamedVector :: P.Parser a -> P.Parser b -> P.Parser [(a,b)]
 parseNamedVector parseKey parseValue =
@@ -22,7 +21,12 @@ parseNamedVector parseKey parseValue =
 parseVector :: P.Parser a -> P.Parser [a]
 parseVector parser = do
     _ <- P.char 'c'
-    parseInParens (P.sepBy parser consumeCommaSep)
+    parseInParens (parseCommaSepList parser)
+
+parseRecordType :: String -> P.Parser a -> P.Parser a
+parseRecordType typeName parser = do
+    _ <- P.string typeName
+    parseInParens parser
 
 parseArgumentWithDefault :: String -> P.Parser b -> b -> P.Parser b
 parseArgumentWithDefault argumentName parseValue defaultValue =
@@ -71,6 +75,10 @@ parseInParens parser = do
     _ <- P.spaces
     _ <- P.char ')'
     return res
+
+parseCommaSepList :: P.Parser a -> P.Parser [a]
+parseCommaSepList parser = do
+    P.sepBy parser consumeCommaSep
 
 consumeEqualSep :: P.Parser ()
 consumeEqualSep = do

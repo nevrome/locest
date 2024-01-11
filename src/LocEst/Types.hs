@@ -219,11 +219,16 @@ data KernelOneDepVar = KernelOneDepVar {
 instance NFData KernelOneDepVar
 
 data Kernel =
-      Uniform [Double]
-    | Normal [Double]
+      Uniform [(String, Double)]
+    | Normal [(String, Double)]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
+instance PseudoMap Kernel where
+    getKeys   (Uniform l) = map fst l
+    getKeys   (Normal l)  = map fst l
+    getValues (Uniform l) = map snd l
+    getValues (Normal l)  = map snd l
 
 data ObsWithDist = ObsWithDist {
       _owdObservation  :: Observation

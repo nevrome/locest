@@ -80,22 +80,22 @@ meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
                 Just x  -> pure x
         weightForOneObs :: Kernel -> ObsWithDist -> CoreLog Double
         -- uniform kernel
-        weightForOneObs (Uniform [spatRadius, tempRadius])
+        weightForOneObs (Uniform [(_,spatRadius), (_,tempRadius)])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             let spatWeight = if spatDist <= spatRadius then 1 else 0
                 tempWeight = if tempDist <= tempRadius then 1 else 0
             in pure $ spatWeight * tempWeight
-        weightForOneObs (Uniform radii)
+        weightForOneObs u@(Uniform _)
                         (ObsWithDist _ (IndepArbitraryDimDist ds)) = do
-            let inRadii = zipWith (\radius d -> if d <= radius then 1 else 0) radii ds
+            let inRadii = zipWith (\radius d -> if d <= radius then 1 else 0) (getValues u) ds
             pure $ foldl' (*) 1 inRadii
         -- gaussian kernel
-        weightForOneObs (Normal [spatSigma, tempSigma])
+        weightForOneObs (Normal [(_,spatSigma), (_,tempSigma)])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             pure $ dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
-        weightForOneObs (Normal sigmas)
+        weightForOneObs n@(Normal _)
                         (ObsWithDist _ (IndepArbitraryDimDist ds)) =
-            pure $ dnormMulti (repeat 0) sigmas ds
+            pure $ dnormMulti (repeat 0) (getValues n) ds
         -- mismatch error case
         weightForOneObs _ _ =
             E.throwError $ NormalException "Illegal combination of kernel and grid data"
