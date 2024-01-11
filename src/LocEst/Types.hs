@@ -209,6 +209,11 @@ newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelDefinition
+instance PseudoMap KernelDefinition where
+    getKeys   (KernelDefinition l) = map _kodvDepVarName l
+    getValues (KernelDefinition _) = undefined -- the typeclass expects a Double here
+                                               -- I failed to make it more flexible
+
 
 data KernelOneDepVar = KernelOneDepVar {
       _kodvDepVarName :: DepVarName
@@ -218,9 +223,11 @@ data KernelOneDepVar = KernelOneDepVar {
 
 instance NFData KernelOneDepVar
 
+type IndepVarName = String
+
 data Kernel =
-      Uniform [(String, Double)]
-    | Normal [(String, Double)]
+      Uniform [(IndepVarName, Double)]
+    | Normal [(IndepVarName, Double)]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
@@ -300,7 +307,7 @@ instance Csv.ToRecord DepVarsUncertainPos where
         V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c,d) -> [a,b,c,d]) $ map snd l
 
 -- | A datatype for dependent vars
-newtype DepVarsPos = DepVarsPos [(String, Double)]
+newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]
     deriving (Eq, Show, Generic)
 
 instance NFData DepVarsPos
@@ -320,7 +327,7 @@ instance PseudoMap DepVarsPos where
     getKeys (DepVarsPos l) = map fst l
     getValues (DepVarsPos l) = map snd l
 
-newtype ArbitraryDimPos = ArbitraryDimPos [(String, Double)]
+newtype ArbitraryDimPos = ArbitraryDimPos [(IndepVarName, Double)]
     deriving (Eq, Show, Generic)
 
 instance NFData ArbitraryDimPos

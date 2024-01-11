@@ -286,7 +286,7 @@ optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
 -- general parsers
 
 parseIndepVarName :: P.Parser String
-parseIndepVarName = 
+parseIndepVarName =
           P.string "space"
     P.<|> P.string "time"
     P.<|> P.string "indep" <> P.many1 P.alphaNum

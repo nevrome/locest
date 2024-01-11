@@ -74,8 +74,10 @@ runSearch (
     hPutStrLn stderr "Preparing prediction grid"
     indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings observations
     depVarsPredGrid   <- readDepVarsPredGrid depVarsPredGridSettings observations
+    validateAlgorithm algorithm indepVarsPredGrid depVarsPredGrid
     let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
         supplement = createCoreSupplement searchGrid
+    -- validate algorithm settings
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
     permutations <- createPermutations algorithm indepVarsPredGrid depVarsPredGrid
@@ -114,9 +116,18 @@ runSearch (
                    )
             hPutStrLn stderr "Done"
 
-readIndepVarsPredGrid :: IndepVarsPredGridSettings -> [Observation] -> IO IndepVarsPredGrid
+readIndepVarsPredGrid ::
+       IndepVarsPredGridSettings
+    -> [Observation]
+    -> IO IndepVarsPredGrid
 readIndepVarsPredGrid
-    (SpaceTimeGridSettings inSpatGridFile inTempGrid inSpaceTimeFilter inSpatDistFile inObsTempSamplesFile)
+    (SpaceTimeGridSettings
+        inSpatGridFile
+        inTempGrid
+        inSpaceTimeFilter
+        inSpatDistFile
+        inObsTempSamplesFile
+    )
     observations = do
     hPutStrLn stderr "Assuming a spatiotemporal system"
     -- read spatial grid
@@ -139,28 +150,35 @@ readIndepVarsPredGrid
     -- complete spatiotemporal grid
     return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeFilter inSpatDists inObsTempSamples
 readIndepVarsPredGrid
-    (ArbitraryDimGridSettings inArbitraryDimGridFile)
+    (ArbitraryDimGridSettings
+        inArbitraryDimGridFile
+    )
     observations = do
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     -- read arbitrary-dimension grid
     hPutStrLn stderr "Reading arbitrary-dimension grid positions"
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
     -- input validation
-    let indepVarsFromObsOrdered = case (head $ map (_hyposIndepVarsPos . _obsPos) observations) of
+    let varsFromObs = case (head $ map (_hyposIndepVarsPos . _obsPos) observations) of
             IndepSpatTempPos _     -> []
             IndepArbitraryDimPos x -> getKeys x
-    let indepVarsPosFromGridOrdered = getKeys $ head inArbitraryDimPos
-    OP.when (indepVarsFromObsOrdered /= indepVarsPosFromGridOrdered) $ do
-        throw $ NormalException "indep vars in -? and -? not equal"
+    let varsFromGrid = getKeys $ head inArbitraryDimPos
+    OP.when (varsFromObs /= varsFromGrid) $ do
+        throw $ NormalException "indep vars in --obsFile and --anyGridFile not equal"
     return $ ArbitraryDimGrid inArbitraryDimPos
 
-readDepVarsPredGrid :: [DepVarsPos] -> [Observation] -> IO DepVarsPredGrid
-readDepVarsPredGrid depVarsPos observations = do
+readDepVarsPredGrid ::
+       [DepVarsPos]
+    -> [Observation]
+    -> IO DepVarsPredGrid
+readDepVarsPredGrid
+    depVarsPos
+    observations = do
     -- input validation
-    let depVarsFromGridOrdered = getKeys $ head depVarsPos
-        depVarsFromObsOrdered = getKeys $ (_hyposDepVarsPos . _obsPos) $ head observations
-    OP.when (depVarsFromObsOrdered /= depVarsFromGridOrdered) $ do
-        throw $ NormalException "dep vars in -? and -? not equal"
+    let varsFromObs  = getKeys $ (_hyposDepVarsPos . _obsPos) $ head observations
+        varsFromGrid = getKeys $ head depVarsPos
+    OP.when (varsFromObs /= varsFromGrid) $ do
+        throw $ NormalException "dep vars in --obsFile and --depVars not equal"
     return $ DepVarsPredGrid depVarsPos
 
 createCoreSupplement :: SearchGrid -> CoreSupplement
@@ -171,6 +189,36 @@ createCoreSupplement (SearchGrid indepVarsPredGrid _) =
         ArbitraryDimGrid _ ->
             CoreSupplement Nothing Nothing Nothing
 
+validateAlgorithm :: LocestAlgorithm -> IndepVarsPredGrid -> DepVarsPredGrid -> IO ()
+validateAlgorithm
+    (AlgoKernSmooth kernelDef@(KernelDefinition kernelsPerDepVars))
+    (SpaceTimeGrid {})
+    (DepVarsPredGrid depVarsPos) = do
+        let depVarsFromAlg = getKeys kernelDef
+            allIndepVarsFromAlg = map (getKeys . _kodvKernel) kernelsPerDepVars
+            depVarsFromGrid = head $ map getKeys depVarsPos
+            indepVarsFromGrid = ["space", "time"]
+        OP.unless (allEqual allIndepVarsFromAlg) $
+            throw $ NormalException "indep var names not equal across kernel definitions"
+        OP.unless (depVarsFromAlg == depVarsFromGrid) $
+            throw $ NormalException "dep vars in --depVars and --algorithm not equal"
+        OP.unless (head allIndepVarsFromAlg == indepVarsFromGrid) $
+            throw $ NormalException "indep vars not equal to \"space\" and \"time\""
+validateAlgorithm
+    (AlgoKernSmooth kernelDef@(KernelDefinition kernelsPerDepVars))
+    (ArbitraryDimGrid arbitraryDimPos)
+    (DepVarsPredGrid depVarsPos) = do
+        let depVarsFromAlg = getKeys kernelDef
+            allIndepVarsFromAlg = map (getKeys . _kodvKernel) kernelsPerDepVars
+            depVarsFromGrid = head $ map getKeys depVarsPos
+            indepVarsFromGrid = head $ map getKeys arbitraryDimPos
+        OP.unless (allEqual allIndepVarsFromAlg) $
+            throw $ NormalException "indep var names not equal across kernel definitions"
+        OP.unless (depVarsFromAlg == depVarsFromGrid) $
+            throw $ NormalException "dep vars in --depVars and --algorithm not equal"
+        OP.unless (head allIndepVarsFromAlg == indepVarsFromGrid) $
+            throw $ NormalException "indep vars in --anyGridFile and --algorithm not equal"
+
 createPermutations ::
        LocestAlgorithm
     -> IndepVarsPredGrid
@@ -180,12 +228,12 @@ createPermutations
     algorithm
     (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples)
     (DepVarsPredGrid depVarPos) = do
-        hPutStrLn stderr $ "Permutations: " ++
-            "1 algorithm" ++ " * " ++
-            show nrTempSamples ++ " time resampling iterations" ++ " * " ++
-            show (length depVarPos) ++ " dependent variable positions" ++ " * " ++
-            show (length inTempGrid) ++ " time slices" ++ " * " ++
-            show (length inSpatGrid) ++ " spatial positions"
+        hPutStrLn stderr $ "Permutations: " ++ "\n" ++
+            "   1 algorithm" ++ "\n" ++
+            " * " ++ show nrTempSamples       ++ " time resampling iterations"   ++ "\n" ++
+            " * " ++ show (length depVarPos)  ++ " dependent variable positions" ++ "\n" ++
+            " * " ++ show (length inTempGrid) ++ " time slices"                  ++ "\n" ++
+            " * " ++ show (length inSpatGrid) ++ " spatial positions"
         hPutStrLn stderr $ "Required iterations: " ++
             show (nrTempSamples * length depVarPos * length inTempGrid * length inSpatGrid)
         return $ Right replicateWithListMonad
