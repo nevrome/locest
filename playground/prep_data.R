@@ -19,8 +19,8 @@ janno_final %>%
     obsID = Poseidon_ID,
     x, y,
     yearBCAD = Date_BC_AD_Median_Derived,
-    varC1 = C1_mds_u,
-    varC2 = C2_mds_u
+    depC1 = C1_mds_u,
+    depC2 = C2_mds_u
   )  %>%
   readr::write_tsv(file = "~/agora/locest/playground/test2Obs.tsv")
 

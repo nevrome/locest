@@ -213,7 +213,7 @@ optParseSearchDepVarsPos :: OP.Parser [DepVarsPos]
 optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
        OP.long    "depVars"
     <> OP.short   'd'
-    <> OP.metavar "c(varX=DOUBLE,varY=c(DOUBLE,DOUBLE,...),varZ=START:STOP:BY,...)"
+    <> OP.metavar "c(depX=DOUBLE,depY=c(DOUBLE,DOUBLE,...),depZ=START:STOP:BY,...)"
     <> OP.help    "Dependent variable positions that should be queried."
     )
     where
@@ -224,7 +224,7 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
                 Right x  -> Right x
         parseSearchDepVarsPos :: P.Parser [DepVarsPos]
         parseSearchDepVarsPos = do
-            res <- parseNamedVector parseVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
+            res <- parseNamedVector parseDepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
             let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
                 grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
                 permutations = sequenceA grouped
@@ -272,7 +272,7 @@ optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
                         a <- parseArgument "shapes" parseKernelDef
                         return $ AlgoKernSmooth a
                 parseKernelDef = do
-                    kernelVec <- parseNamedVector parseVarName parseKernel
+                    kernelVec <- parseNamedVector parseDepVarName parseKernel
                     return $ KernelDefinition $ map (uncurry KernelOneDepVar) kernelVec
                 parseKernel = P.try parseUniform P.<|> parseNormal
                 parseUniform = do
@@ -287,5 +287,5 @@ optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
 
 -- general parsers
 
-parseVarName :: P.Parser String
-parseVarName = P.string "var" <> P.many1 P.alphaNum
+parseDepVarName :: P.Parser String
+parseDepVarName = P.string "dep" <> P.many1 P.alphaNum

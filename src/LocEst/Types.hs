@@ -301,7 +301,7 @@ newtype DepVarsPos = DepVarsPos [(String, Double)]
 instance NFData DepVarsPos
 instance Csv.FromNamedRecord DepVarsPos where
     parseNamedRecord m = do
-        let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
+        let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "dep" k) m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
             sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
         pure $ DepVarsPos sortedList
