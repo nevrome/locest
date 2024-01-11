@@ -6,6 +6,10 @@ import qualified Text.Parsec.String as P
 
 -- * High level building blocks
 
+parseListType :: String -> P.Parser a -> P.Parser [a]
+parseListType typeName parser = do
+    parseRecordType typeName (P.sepBy parser consumeCommaSep)
+
 parseRecordType :: String -> P.Parser a -> P.Parser a
 parseRecordType typeName parser = do
     _ <- P.string typeName
