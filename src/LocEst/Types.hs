@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData        #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module LocEst.Types where
 
@@ -20,9 +21,9 @@ import           GHC.Generics          (Generic)
 -- typeclasses
 
 -- a typeclass for maps
-class PseudoMap a where
+class PseudoMap a b | a -> b where
     getKeys :: a -> [String]
-    getValues :: a -> [Double]
+    getValues :: a -> [b]
 
 -- a typeclass for things with ids
 class Identifiable a where
@@ -209,10 +210,9 @@ newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelDefinition
-instance PseudoMap KernelDefinition where
+instance PseudoMap KernelDefinition Kernel where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
-    getValues (KernelDefinition _) = undefined -- the typeclass expects a Double here
-                                               -- I failed to make it more flexible
+    getValues (KernelDefinition l) = map _kodvKernel l
 
 
 data KernelOneDepVar = KernelOneDepVar {
@@ -231,7 +231,7 @@ data Kernel =
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
-instance PseudoMap Kernel where
+instance PseudoMap Kernel Double where
     getKeys   (Uniform l) = map fst l
     getKeys   (Normal l)  = map fst l
     getValues (Uniform l) = map snd l
@@ -323,7 +323,7 @@ instance Csv.DefaultOrdered DepVarsPos where
 instance Csv.ToRecord DepVarsPos where
     toRecord (DepVarsPos l) =
         V.map (Bchs.pack . show) $ V.fromList $ map snd l
-instance PseudoMap DepVarsPos where
+instance PseudoMap DepVarsPos Double where
     getKeys (DepVarsPos l) = map fst l
     getValues (DepVarsPos l) = map snd l
 
@@ -343,7 +343,7 @@ instance Csv.DefaultOrdered ArbitraryDimPos where
 instance Csv.ToRecord ArbitraryDimPos where
     toRecord (ArbitraryDimPos l) =
         V.map (Bchs.pack . show) $ V.fromList $ map snd l
-instance PseudoMap ArbitraryDimPos where
+instance PseudoMap ArbitraryDimPos Double where
     getKeys (ArbitraryDimPos l) = map fst l
     getValues (ArbitraryDimPos l) = map snd l
 
