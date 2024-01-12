@@ -147,6 +147,12 @@ readIndepVarsPredGrid
         Just path -> do
             hPutStrLn stderr "Reading temporal resampling ages"
             Just <$> readTempSamp False observations path
+    -- input validation
+    case head $ map (_hyposIndepVarsPos . _obsPos) observations of
+            IndepSpatTempPos _     -> return ()
+            IndepArbitraryDimPos _ ->
+                throw $ NormalException "spatiotemporal positions in --obsFile not readable, \
+                                        \maybe wrong column names"
     -- complete spatiotemporal grid
     return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeFilter inSpatDists inObsTempSamples
 readIndepVarsPredGrid
@@ -159,7 +165,7 @@ readIndepVarsPredGrid
     hPutStrLn stderr "Reading arbitrary-dimension grid positions"
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
     -- input validation
-    let varsFromObs = case (head $ map (_hyposIndepVarsPos . _obsPos) observations) of
+    let varsFromObs = case head $ map (_hyposIndepVarsPos . _obsPos) observations of
             IndepSpatTempPos _     -> []
             IndepArbitraryDimPos x -> getKeys x
     let varsFromGrid = getKeys $ head inArbitraryDimPos

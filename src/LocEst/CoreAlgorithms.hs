@@ -140,8 +140,8 @@ findArbitraryDimDistsObsGrid observations gridAbritryDimPos = do
 
 extractSpatTempPos :: IndepVarsPos -> CoreLog SpatTempPos
 extractSpatTempPos (IndepSpatTempPos x) = pure x
-extractSpatTempPos _                    = E.throwError $ NormalException "this should never happen"
+extractSpatTempPos _                    = E.throwError $ NormalException "this should never happen 1"
 
 extractArbitraryDimPos :: IndepVarsPos -> CoreLog ArbitraryDimPos
 extractArbitraryDimPos (IndepArbitraryDimPos x) = pure x
-extractArbitraryDimPos _                        = E.throwError $ NormalException "this should never happen"
+extractArbitraryDimPos _                        = E.throwError $ NormalException "this should never happen 2"
