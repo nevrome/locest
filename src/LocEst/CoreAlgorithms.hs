@@ -44,11 +44,13 @@ coreSearch
     let searchDepVarsNames  = getKeys searchDepVarPos
         searchDepVarsCoords = getValues searchDepVarPos
     perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition obsWithDist) searchDepVarsNames
-    let (means, errs, _, _) = unzip4 perDepVar
+    let (means, errs, density, _) = unzip4 perDepVar
     return $ SearchResult {
            _srCorePermutation = searchSetting
          , _srInterpolation = Just $ DepVarsUncertainPos $ zip searchDepVarsNames perDepVar
-         , _srProbability = calcDensity means errs searchDepVarsCoords
+         --, _srProbability = calcDensity means errs searchDepVarsCoords
+         -- hacky rescaling of the probability with the density
+         , _srProbability = ((minimum density) ** (1/4)) * calcDensity means errs searchDepVarsCoords
          }
     where
         calcDensity :: [Double] -> [Double] -> [Double] -> Double

@@ -22,7 +22,7 @@ hu5 %>%
 hu5 %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
-  geom_raster(aes(x, y, fill = varC1Res)) +
+  geom_raster(aes(x, y, fill = depC1Res)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
@@ -36,7 +36,7 @@ hu5 %>%
   #   shape = 4, color = "red"
   # ) +
   geom_raster(
-    data = hu5 %>% dplyr::filter((varC1Dens+varC2Dens)/2 < 0.000001),
+    data = hu5 %>% dplyr::filter((depC1Dens+depC2Dens)/2 < 0.000001),
     aes(x,y),
     fill = "white", alpha = 0.5
   ) +
@@ -47,10 +47,10 @@ ggplot() +
   facet_wrap(~yearBCAD) +
   geom_raster(
     data = hu5 %>%
-      dplyr::filter(varC1ResErr != "Infinity" & varC1ResErr != "NaN") %>%
+      dplyr::filter(depC1ResErr != "Infinity" & depC1ResErr != "NaN") %>%
       dplyr::filter(yearBCAD == -5000) %>%
-      dplyr::mutate(varC1ResErr = log10(as.numeric(varC1ResErr))),
-    aes(x,y, fill = varC1ResErr)
+      dplyr::mutate(depC1ResErr = log10(as.numeric(depC1ResErr))),
+    aes(x,y, fill = depC1ResErr)
   ) +
   geom_point(
     data = obs %>%
