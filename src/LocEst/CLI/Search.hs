@@ -281,8 +281,8 @@ normalize NormBySpace =
     scaleProbs :: [SearchResult] -> [SearchResult]
     scaleProbs stps =
         let probs = map _srProbability stps
-            maxProb = maximum probs
-            rescaledProbs = map (/ maxProb) probs
+            totalProb = sum probs
+            rescaledProbs = map (/ totalProb) probs
         in zipWith setProb stps rescaledProbs
     setProb :: SearchResult -> Double -> SearchResult
     setProb stp p = stp {_srProbability = p}
