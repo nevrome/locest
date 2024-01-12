@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData        #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module LocEst.Types where
 
@@ -11,12 +12,24 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (nub, sort, sortBy)
+import           Data.List             (sortBy)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
-import           LocEst.Utils          (LOCESTException (..))
+
+-- typeclasses
+
+-- a typeclass for maps
+class PseudoMap a b | a -> b where
+    getKeys :: a -> [String]
+    getValues :: a -> [b]
+
+-- a typeclass for things with ids
+class Identifiable a where
+    getID :: a -> String
+    getIndex :: a -> Int
+    setIndex :: a -> Int -> a
 
 -- helper functions
 
@@ -38,62 +51,6 @@ filterLookupMulti m names =
 
 filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
 filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
-
--- | A data type to represent setting permutations
-data PermutationTree =
-      PTLeaf PositionEntity
-    | PTFork PositionEntity [PermutationTree]
-    | PTRoot [PermutationTree]
-
-addPermutation :: [PositionEntity] -> PermutationTree -> PermutationTree
-addPermutation [] t             = t
-addPermutation xs (PTLeaf v)    = PTFork v (map PTLeaf xs)
-addPermutation xs (PTRoot [])   = PTRoot (map PTLeaf xs)
-addPermutation xs (PTRoot ts)   = PTRoot (map (\t -> addPermutation xs t) ts)
-addPermutation xs (PTFork v ts) = PTFork v (map (\t -> addPermutation xs t) ts)
-
-harvest :: PermutationTree -> Either LOCESTException [CoreAlgorithmSettings]
-harvest = harvestFlattened . flattenTree
-    where
-        flattenTree :: PermutationTree -> [[PositionEntity]]
-        flattenTree (PTRoot ts)   = concatMap flattenTree ts
-        flattenTree (PTFork v ts) = map (v:) (concatMap flattenTree ts)
-        flattenTree (PTLeaf v)    = [[v]]
-        harvestFlattened :: [[PositionEntity]] -> Either LOCESTException [CoreAlgorithmSettings]
-        harvestFlattened = mapM pluckOne
-            where
-                pluckOne :: [PositionEntity] -> Either LOCESTException CoreAlgorithmSettings
-                pluckOne xs = do
-                    spatPos    <- exactlyOnce [ v | PESpatPos v <- xs]
-                    tempPos    <- exactlyOnce [ v | PETempPos v <- xs]
-                    depVarsPos <- exactlyOnce [ v | PEDepVarsPos v <- xs]
-                    algorithm  <- exactlyOnce [ v | PEAlgorithm v <- xs]
-                    tempSamp   <- exactlyOnce [ v | PETempSampling v <- xs]
-                    return $
-                        CoreAlgorithmSettings
-                            (SpatTempDepVarsPos (SpatTempPos spatPos (TempPos tempPos)) depVarsPos)
-                            algorithm
-                            tempSamp
-                    where
-                        exactlyOnce :: Eq a => [a] -> Either LOCESTException a
-                        exactlyOnce es =
-                            if length (nub es) == 1
-                            then Right $ head es
-                            else Left $ NormalException "Permutation tree inconsistent"
-
-data PositionEntity =
-      PESpatPos SpatPos
-    | PETempPos Int
-    | PEDepVarsPos DepVarsPos
-    | PEAlgorithm LocestAlgorithm
-    | PETempSampling Int
-    deriving (Eq)
-
--- a typeclass for things with ids
-class Identifiable a where
-    getID :: a -> String
-    getIndex :: a -> Int
-    setIndex :: a -> Int -> a
 
 -- | A datatype for normalization of the output
 data Normalization = NormBySpace | NoNorm
@@ -139,13 +96,13 @@ instance Csv.ToRecord CrossvalOutput where
 
 -- | A datatype for search result points in space and time
 data SearchResult = SearchResult {
-      _srCoreAlgorithmSettings :: CoreAlgorithmSettings
-    , _srInterpolation         :: Maybe DepVarsUncertainPos
-    , _srProbability           :: Double
+      _srCorePermutation :: CorePermutation
+    , _srInterpolation   :: Maybe DepVarsUncertainPos
+    , _srProbability     :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
-    -- Perhabs this could be implemented as a Maybe String for the Obs name?
+    -- Perhaps this could be implemented as a Maybe String for the Obs name?
 } deriving (Show, Generic)
 
 instance NFData SearchResult
@@ -161,8 +118,8 @@ instance Csv.ToRecord SearchResult where
         Csv.toRecord spatTempDepVarsPos <> Csv.toRecord depVarsUncertainPos <> Csv.record [Csv.toField prob]
 
 data SpatTempProb = SpatTempProb {
-      _stprCoreAlgorithmSettings :: CoreAlgorithmSettings
-    , _stprprobability           :: Double
+      _stprCorePermutation :: CorePermutation
+    , _stprprobability     :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
@@ -177,21 +134,48 @@ instance Csv.ToRecord SpatTempProb where
     toRecord (SpatTempProb spatTempDepVarsPos prob) =
         Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
 
+data SearchGrid = SearchGrid {
+      _searchPosIndepVarsGrid :: IndepVarsPredGrid
+    , _searchPosDepVarsGrid   :: DepVarsPredGrid
+}
+
+data IndepVarsPredGrid =
+    SpaceTimeGrid {
+      _stGridSpatPos         :: [SpatPos]
+    , _stGridTempPos         :: [Int]
+    , _stGridSpaceTimeFilter :: Maybe (Double, Double)
+    , _stGridSpatDist        :: Maybe SpatDistMatrix
+    , _stGridTempSamples     :: Maybe TempSampleMatrix
+    } |
+    ArbitraryDimGrid {
+      _adGridPos  :: [ArbitraryDimPos]
+    }
+
+data DepVarsPredGrid = DepVarsPredGrid {
+      _depVarsGrid  :: [DepVarsPos]
+}
+
+data CoreSupplement = CoreSupplement {
+      _csSpaceTimeFilter :: Maybe (Double, Double)
+    , _csSpatDist        :: Maybe SpatDistMatrix
+    , _csTempSamp        :: Maybe TempSampleMatrix
+}
+
 -- | A datatype with core-algorithm settings
-data CoreAlgorithmSettings = CoreAlgorithmSettings {
-      _casPosition              :: SpatTempDepVarsPos
+data CorePermutation = CorePermutation {
+      _casPosition              :: HyperPos
     , _casAlgorithm             :: LocestAlgorithm
     , _casTempSamplingIteration :: Int
 } deriving (Show, Generic)
 
-instance NFData CoreAlgorithmSettings
-instance Csv.DefaultOrdered CoreAlgorithmSettings where
-    headerOrder (CoreAlgorithmSettings spatTempDepVarsPos algorithm _) =
+instance NFData CorePermutation
+instance Csv.DefaultOrdered CorePermutation where
+    headerOrder (CorePermutation spatTempDepVarsPos algorithm _) =
            Csv.headerOrder spatTempDepVarsPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["tempSamplingIteration"]
-instance Csv.ToRecord CoreAlgorithmSettings where
-    toRecord (CoreAlgorithmSettings spatTempDepVarsPos algorithm tempSamplingIteration) =
+instance Csv.ToRecord CorePermutation where
+    toRecord (CorePermutation spatTempDepVarsPos algorithm tempSamplingIteration) =
            Csv.toRecord spatTempDepVarsPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
@@ -226,6 +210,10 @@ newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelDefinition
+instance PseudoMap KernelDefinition Kernel where
+    getKeys   (KernelDefinition l) = map _kodvDepVarName l
+    getValues (KernelDefinition l) = map _kodvKernel l
+
 
 data KernelOneDepVar = KernelOneDepVar {
       _kodvDepVarName :: DepVarName
@@ -235,26 +223,32 @@ data KernelOneDepVar = KernelOneDepVar {
 
 instance NFData KernelOneDepVar
 
+type IndepVarName = String
+
 data Kernel =
-      Uniform Double Double
-    | Normal Double Double
+      Uniform [(IndepVarName, Double)]
+    | Normal [(IndepVarName, Double)]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
+instance PseudoMap Kernel Double where
+    getKeys   (Uniform l) = map fst l
+    getKeys   (Normal l)  = map fst l
+    getValues (Uniform l) = map snd l
+    getValues (Normal l)  = map snd l
 
 data ObsWithDist = ObsWithDist {
       _owdObservation  :: Observation
-    , _owdSpatTempDist :: SpatTempDist
+    , _owdSpatTempDist :: IndepVarsDist
 }
 
-addDistsToObs :: Observation -> Double -> Double -> ObsWithDist
-addDistsToObs obs spatDist tempDist = ObsWithDist obs (SpatTempDist spatDist tempDist)
+data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist [Double]
 
 -- | A datatype for observations with id and position
 data Observation = Observation {
       _obsIndex :: Int
     , _obsID    :: String
-    , _obsPos   :: SpatTempDepVarsPos
+    , _obsPos   :: HyperPos
 } deriving (Show, Generic)
 
 instance NFData Observation
@@ -278,62 +272,95 @@ instance Identifiable Observation where
     getIndex (Observation index _ _) = index
     setIndex x i = x {_obsIndex = i}
 
--- | A datatype for positions in space, time and in dependent var space
-data SpatTempDepVarsPos = SpatTempDepVarsPos {
-      _stpoSpatTempPos :: SpatTempPos
-    , _stpoDepVarsPos  :: DepVarsPos
+-- | A datatype for positions in independent and dependent var space
+data HyperPos = HyperPos {
+      _hyposIndepVarsPos :: IndepVarsPos
+    , _hyposDepVarsPos   :: DepVarsPos
 } deriving (Show, Generic)
 
-instance NFData SpatTempDepVarsPos
-instance Csv.FromNamedRecord SpatTempDepVarsPos where
+instance NFData HyperPos
+instance Csv.FromNamedRecord HyperPos where
     parseNamedRecord m = do
-        spatTempPos <- Csv.parseNamedRecord m
+        indepVarsPos <- Csv.parseNamedRecord m
         depVarsPos <- Csv.parseNamedRecord m
-        pure $ SpatTempDepVarsPos {
-              _stpoSpatTempPos = spatTempPos
-            , _stpoDepVarsPos  = depVarsPos
+        pure $ HyperPos {
+              _hyposIndepVarsPos = indepVarsPos
+            , _hyposDepVarsPos   = depVarsPos
             }
-instance Csv.DefaultOrdered SpatTempDepVarsPos where
-    headerOrder (SpatTempDepVarsPos spatTempPos depVarsPos) =
-        Csv.headerOrder spatTempPos <> Csv.headerOrder depVarsPos
-instance Csv.ToRecord SpatTempDepVarsPos where
-    toRecord (SpatTempDepVarsPos spatTempPos depVarsPos) =
-        Csv.toRecord spatTempPos <> Csv.toRecord depVarsPos
+instance Csv.DefaultOrdered HyperPos where
+    headerOrder (HyperPos indepVarsPos depVarsPos) =
+        Csv.headerOrder indepVarsPos <> Csv.headerOrder depVarsPos
+instance Csv.ToRecord HyperPos where
+    toRecord (HyperPos indepVarsPos depVarsPos) =
+        Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
 -- | A datatype for dependent vars with errors
-newtype DepVarsUncertainPos = DepVarsUncertainPos { _dvupGetHM :: HM.HashMap String (Double, Double, Double, Double) }
+newtype DepVarsUncertainPos = DepVarsUncertainPos [(String, (Double, Double, Double, Double))]
     deriving (Eq, Show, Generic)
 
 instance NFData DepVarsUncertainPos
 instance Csv.DefaultOrdered DepVarsUncertainPos where
-    headerOrder (DepVarsUncertainPos hm) =
-        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr", n ++ "Dens", n ++ "Neff"]) $ sort $ map fst $ HM.toList hm
+    headerOrder (DepVarsUncertainPos l) =
+        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr", n ++ "Dens", n ++ "Neff"]) $ map fst l
 instance Csv.ToRecord DepVarsUncertainPos where
-    toRecord (DepVarsUncertainPos hm) =
-        let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
-        in V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c,d) -> [a,b,c,d]) orderedValues
+    toRecord (DepVarsUncertainPos l) =
+        V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c,d) -> [a,b,c,d]) $ map snd l
 
 -- | A datatype for dependent vars
-newtype DepVarsPos = DepVarsPos { getHM :: HM.HashMap String Double }
+newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]
     deriving (Eq, Show, Generic)
 
 instance NFData DepVarsPos
 instance Csv.FromNamedRecord DepVarsPos where
     parseNamedRecord m = do
-        let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "var" k) m
-        let extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) $ extractedVarsBS
-        pure $ DepVarsPos extractedVarsStringDouble
+        let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "dep" k) m
+            extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
+            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
+        pure $ DepVarsPos sortedList
 instance Csv.DefaultOrdered DepVarsPos where
-    headerOrder (DepVarsPos hm) =
-        V.map Bchs.pack $ V.fromList $ sort $ map fst $ HM.toList hm
+    headerOrder (DepVarsPos l) =
+        V.map Bchs.pack $ V.fromList $ map fst l
 instance Csv.ToRecord DepVarsPos where
-    toRecord (DepVarsPos hm) =
-        let orderedValues = map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList $ hm
-        in V.map (Bchs.pack . show) $ V.fromList orderedValues
+    toRecord (DepVarsPos l) =
+        V.map (Bchs.pack . show) $ V.fromList $ map snd l
+instance PseudoMap DepVarsPos Double where
+    getKeys (DepVarsPos l) = map fst l
+    getValues (DepVarsPos l) = map snd l
 
-depVarsExtractOrdered :: [String] -> DepVarsPos -> [Double]
-depVarsExtractOrdered orderedKeys (DepVarsPos hm) =
-    map (hm HM.!) orderedKeys
+newtype ArbitraryDimPos = ArbitraryDimPos [(IndepVarName, Double)]
+    deriving (Eq, Show, Generic)
+
+instance NFData ArbitraryDimPos
+instance Csv.FromNamedRecord ArbitraryDimPos where
+    parseNamedRecord m = do
+        let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k) m
+            extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
+            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
+        pure $ ArbitraryDimPos sortedList
+instance Csv.DefaultOrdered ArbitraryDimPos where
+    headerOrder (ArbitraryDimPos l) =
+        V.map Bchs.pack $ V.fromList $ map fst l
+instance Csv.ToRecord ArbitraryDimPos where
+    toRecord (ArbitraryDimPos l) =
+        V.map (Bchs.pack . show) $ V.fromList $ map snd l
+instance PseudoMap ArbitraryDimPos Double where
+    getKeys (ArbitraryDimPos l) = map fst l
+    getValues (ArbitraryDimPos l) = map snd l
+
+-- A datatype for positions in a spatiotemporal or an arbitrary space
+data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos
+    deriving (Eq, Show, Generic)
+
+instance NFData IndepVarsPos
+instance Csv.FromNamedRecord IndepVarsPos where
+    parseNamedRecord m = do
+        (IndepSpatTempPos <$> Csv.parseNamedRecord m) <|> (IndepArbitraryDimPos <$> Csv.parseNamedRecord m)
+instance Csv.DefaultOrdered IndepVarsPos where
+    headerOrder (IndepSpatTempPos x)     = Csv.headerOrder x
+    headerOrder (IndepArbitraryDimPos x) = Csv.headerOrder x
+instance Csv.ToRecord IndepVarsPos where
+    toRecord (IndepSpatTempPos x)     = Csv.toRecord x
+    toRecord (IndepArbitraryDimPos x) = Csv.toRecord x
 
 -- | A datatype for distances in space and time
 data SpatTempDist = SpatTempDist {
@@ -345,7 +372,7 @@ data SpatTempDist = SpatTempDist {
 data SpatTempPos = SpatTempPos {
       _spatialPos  :: SpatPos
     , _temporalPos :: TempPos
-} deriving (Show, Generic)
+} deriving (Eq, Show, Generic)
 
 instance NFData SpatTempPos
 instance Csv.FromNamedRecord SpatTempPos where

@@ -113,10 +113,8 @@ serialiseOptParser = SerialiseSpatDistFile <$> (
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$>
                             optParseInObservationFile
-                        <*> optParseInObsTempSamplesFile
-                        <*> optParseConcretePositionSettings
+                        <*> optParseSearchGridSettings
                         <*> optParseAlgorithmString
-                        <*> optParseSpaceTimeFilter
                         <*> optParseNormalization
                         <*> optParseNumberOfThreads
                         <*> optParseOutFile

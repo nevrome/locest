@@ -130,8 +130,10 @@ readSpatDist noOrderCheck obs spatGrid path = do
 
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
-readSpatTempDepVarsPos :: FilePath -> IO [SpatTempDepVarsPos]
-readSpatTempDepVarsPos = readCSVToList
+readHyperPos :: FilePath -> IO [HyperPos]
+readHyperPos = readCSVToList
+readArbitraryDimPos :: FilePath -> IO [ArbitraryDimPos]
+readArbitraryDimPos = readCSVToList
 readSpatPos :: FilePath -> IO [SpatPos]
 readSpatPos = readCSVToList
 
