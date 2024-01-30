@@ -10,10 +10,38 @@ import           Data.List            (foldl', unzip4)
 
 type CoreLog = E.Except LOCESTException
 
+getDist :: [Observation] -> CoreSupplement -> CorePermutation -> [ObsWithDist]
+getDist [] _ _ = []
+getDist
+    (obs@(Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) : rest)
+    s@(CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
+    searchSetting@(CorePermutation (HyperPos (IndepSpatTempPos gridSpatTempPos) _) _ tempSampIteration
+    ) = let tempDists = findTempDist maybeTempSamples
+            spatDists = findSpatDist maybeSpatDistMap
+            spatDistsKM = spatDists/1000
+        in ObsWithDist obs (IndepSpatTempDist (SpatTempDist spatDistsKM tempDists)) : getDist rest s searchSetting
+        where
+            findTempDist :: Maybe TempSampleMatrix -> Double
+            -- calculate distances from mean ages
+            findTempDist Nothing = temporalDistSpatTempPos gridSpatTempPos obsSpatTempPos
+            -- look up age samples and calculate distances from them
+            findTempDist (Just tempSampleMatrix) =
+                let (SpatTempPos _ (TempPos gridPointAge)) = gridSpatTempPos
+                    obsAgeSample = lookUpTempSample tempSampleMatrix tempSampIteration obsIndex
+                in temporalDistYearBCAD gridPointAge obsAgeSample
+            findSpatDist :: Maybe SpatDistMatrix -> Double
+            -- calculate distances
+            findSpatDist Nothing = spatialDistSpatTempPos gridSpatTempPos obsSpatTempPos
+            -- look up distances
+            findSpatDist (Just spatDistMatrix) =
+                let gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
+                in lookUpDistance spatDistMatrix gridSpatPosIndex obsIndex
+getDist (_ : rest) s searchSetting = getDist rest s searchSetting
+
 coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> CoreLog SearchResult
 coreSearch
     observations
-    (CoreSupplement spaceTimeFilter maybeSpatDistMap maybeTempSamples)
+    (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
     searchSetting@(CorePermutation
         (HyperPos searchIndepVarPos searchDepVarPos)
         (AlgoKernSmooth kernelDefinition)
@@ -27,7 +55,7 @@ coreSearch
             let spatDistsKM = map (/ 1000) spatDists
                 obsRaw = zip3 observations spatDistsKM tempDists
             -- filter by dist (for performance)
-            filteredObsWithDists <- case spaceTimeFilter of
+            filteredObsWithDists <- case maybeSpaceTimeFilter of
                 Just (spaceFilter,timeFilter) -> do
                     let res = filter (\(_, ds, dt) -> ds <= spaceFilter && dt <= timeFilter) obsRaw
                     if length res < 3
