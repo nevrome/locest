@@ -46,7 +46,7 @@ getDist
             spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
             filtered = case maybeSpaceTimeFilter of
-                Just (spaceFilter,timeFilter) -> spatDistsKM <= spaceFilter && tempDist <= timeFilter
+                Just (spaceFilter,timeFilter) -> spatDistsKM > spaceFilter || tempDist > timeFilter
                 Nothing -> False
         in if filtered
            then getDist rest supp sett
