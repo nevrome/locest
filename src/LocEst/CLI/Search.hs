@@ -73,7 +73,7 @@ runSearch (
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
     indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings observations
-    depVarsPredGrid   <- readDepVarsPredGrid depVarsPredGridSettings observations
+    depVarsPredGrid   <- readDepVarsPredGrid   depVarsPredGridSettings   observations
     validateAlgorithm algorithm indepVarsPredGrid depVarsPredGrid
     let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
         supplement = createCoreSupplement searchGrid
