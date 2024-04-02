@@ -1,6 +1,7 @@
 module LocEst.MathUtils where
 
 import           Data.List (foldl')
+import           Numeric.SpecFunctions (logBeta)
 
 -- https://statss.stackexchange.com/questions/6534/how-do-i-calculate-a-weighted-standard-deviation-in-excel
 -- http://seismo.berkeley.edu/~kirchner/Toolkits/Toolkit_12.pdf -> Case I !
@@ -50,6 +51,17 @@ integrate steps f start stop =
             | x1 <= 0 = []
             | otherwise = (x1*x2) : points (x1-1) x2
 
+-- | get the density of student's-t distribution at a point x
+-- dof: number of degrees of freedom
+dt :: Double -> Double -> Double
+dt dof x =
+    let logDensityUnscaled = log (dof / (dof + x*x)) * (0.5 * (1 + dof)) - logBeta 0.5 (0.5 * dof)
+    in exp logDensityUnscaled / sqrt dof
+    -- alternative implemenation with the statistics package:
+    -- import Statistics.Distribution.StudentT (studentT)
+    -- density (studentT dof) x
+
+-- | get the density of a normal distribution at a point x
 dnorm :: Double -> Double -> Double -> Double
 dnorm mu sigma x =
     let a = recip (sqrt (2 * pi * sigma2)) -- recip: returns 1 / argument

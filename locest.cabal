@@ -36,6 +36,7 @@ library
       , vector
       , optparse-applicative
       , parsec
+      , math-functions
       , mtl
       , random
       , serialise
