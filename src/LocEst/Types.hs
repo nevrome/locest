@@ -196,14 +196,6 @@ instance Csv.ToRecord LocestAlgorithm where
     toRecord (AlgoKernSmooth kernDef) =
         Csv.record [Csv.toField (show kernDef)]
 
-data DensitySummaryAlgorithm =
-      Maximum
-    | Mean
-    | DistanceWeightedMean
-    deriving (Show, Eq, Ord, Generic)
-
-instance NFData DensitySummaryAlgorithm
-
 type DepVarName = String
 
 newtype KernelDefinition = KernelDefinition [KernelOneDepVar]

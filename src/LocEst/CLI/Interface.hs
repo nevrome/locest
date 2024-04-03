@@ -268,20 +268,17 @@ optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
             P.try parseAlgoKernelSmooth -- P.<|> parseOtherAlgo
             where
                 parseAlgoKernelSmooth = do
-                    parseRecordType "kas" $ do
-                        a <- parseArgument "shapes" parseKernelDef
-                        return $ AlgoKernSmooth a
+                    parseRecordType "kas" $ AlgoKernSmooth <$> parseArgument "kernels" parseKernelDef
                 parseKernelDef = do
-                    kernelVec <- parseNamedVector parseDepVarName parseKernel
-                    return $ KernelDefinition $ map (uncurry KernelOneDepVar) kernelVec
-                parseKernel = P.try parseUniform P.<|> parseNormal
-                parseUniform = do
-                    -- TODO: FIgure out if it would be better to make the kernels named vectors
-                    radiusVec <- parseNamedListType "uniform" parseIndepVarName parseDouble
-                    return $ Uniform radiusVec
-                parseNormal = do
-                    sigmaVec  <- parseNamedListType "normal" parseIndepVarName parseDouble
-                    return $ Normal sigmaVec
+                    nested <- parseNamedVector parseDepVarName parseNuggetAndWidths
+                    return $ KernelDefinition $ map (\(name,(nugget,l)) -> KernelOneDepVar name nugget (SquaredExponential l)) nested
+                parseNuggetAndWidths = do
+                    parseRecordType "depVar" $ do
+                        a <- parseArgument "nugget" parseDouble
+                        b <- parseArgument "kernelWidths" parseKernelWidths
+                        return (a,b)
+                parseKernelWidths = do
+                    parseNamedVector parseIndepVarName parseDouble
 
 -- general parsers
 
