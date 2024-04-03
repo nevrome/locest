@@ -210,13 +210,13 @@ newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelDefinition
-instance PseudoMap KernelDefinition Kernel where
-    getKeys   (KernelDefinition l) = map _kodvDepVarName l
-    getValues (KernelDefinition l) = map _kodvKernel l
-
+--instance PseudoMap KernelDefinition Kernel where
+--    getKeys   (KernelDefinition l) = map _kodvDepVarName l
+--    getValues (KernelDefinition l) = map _kodvKernel l
 
 data KernelOneDepVar = KernelOneDepVar {
       _kodvDepVarName :: DepVarName
+    , _kodvNugget     :: Nugget
     , _kodvKernel     :: Kernel
     }
     deriving (Show, Eq, Ord, Generic)
@@ -224,18 +224,20 @@ data KernelOneDepVar = KernelOneDepVar {
 instance NFData KernelOneDepVar
 
 type IndepVarName = String
+type Nugget = Double
+type KernelWidth = Double
 
 data Kernel =
-      Uniform [(IndepVarName, Double)]
-    | Normal [(IndepVarName, Double)]
+        SquaredExponential [(
+            IndepVarName,
+            KernelWidth -- kernel width
+        )]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
 instance PseudoMap Kernel Double where
-    getKeys   (Uniform l) = map fst l
-    getKeys   (Normal l)  = map fst l
-    getValues (Uniform l) = map snd l
-    getValues (Normal l)  = map snd l
+    getKeys   (SquaredExponential l) = map fst l
+    getValues (SquaredExponential l) = map snd l
 
 data ObsWithDist = ObsWithDist {
       _owdObservation  :: Observation

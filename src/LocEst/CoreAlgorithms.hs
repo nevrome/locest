@@ -85,50 +85,42 @@ getDist (_ : rest) supp sett = getDist rest supp sett
 
 smoothedValueOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> CoreLog (Double, Double, Double, Double)
 smoothedValueOneDepVar kernelDefinition obsWithDist depVar = do
-    (means, weights) <- unzip <$> mapM (meanAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist
-    let mean = weightedAvg means weights
-        err  = weightedSEM means weights
+    (values, weights) <- unzip <$> mapM (valueAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist
+    let mean = weightedAvg values weights
+        err  = weightedSEM values weights
         density = sum weights
         effn = neff density weights
     return (mean, err, density, effn)
 
-meanAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
-meanAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
-    kernel <- getKernelForOneDepVar kernelDefinition depVar
-    mean   <- getOneDepVarPos oneObsWithDist
-    weight <- weightForOneObs kernel oneObsWithDist
-    return (mean, weight)
+valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
+valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
+    (nugget,kernel) <- getKernelForOneDepVar kernelDefinition depVar
+    value  <- getOneDepVarPos oneObsWithDist
+    weight <- weightForOneObs nugget kernel oneObsWithDist
+    return (value, weight)
     where
         getOneDepVarPos :: ObsWithDist -> CoreLog Double
         getOneDepVarPos (ObsWithDist (Observation _ _ (HyperPos _ (DepVarsPos m))) _) =
             case lookup depVar m of
                 Nothing -> E.throwError $ NormalException "Unknown variable"
                 Just x  -> pure x
-        weightForOneObs :: Kernel -> ObsWithDist -> CoreLog Double
-        -- uniform kernel
-        weightForOneObs (Uniform [(_,spatRadius), (_,tempRadius)])
+        weightForOneObs :: Nugget -> Kernel -> ObsWithDist -> CoreLog Double
+        -- squared-exponential kernel
+        weightForOneObs nugget
+                        (SquaredExponential [(_,spaceKernelWidth), (_,timeKernelWidth)])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
-            let spatWeight = if spatDist <= spatRadius then 1 else 0
-                tempWeight = if tempDist <= tempRadius then 1 else 0
-            in pure $ spatWeight * tempWeight
-        weightForOneObs u@(Uniform _)
-                        (ObsWithDist _ (IndepArbitraryDimDist ds)) = do
-            let inRadii = zipWith (\radius d -> if d <= radius then 1 else 0) (getValues u) ds
-            pure $ foldl' (*) 1 inRadii
-        -- gaussian kernel
-        weightForOneObs (Normal [(_,spatSigma), (_,tempSigma)])
-                        (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
-            pure $ dnormMulti [0, 0] [spatSigma, tempSigma] [spatDist, tempDist]
-        weightForOneObs n@(Normal _)
+            pure $ nugget / (nugget + exp ( (spatDist ** 2) / spaceKernelWidth + (tempDist ** 2) / timeKernelWidth ) - 1)
+        weightForOneObs nugget
+                        (SquaredExponential [(_,spaceKernelWidth), (_,timeKernelWidth)])
                         (ObsWithDist _ (IndepArbitraryDimDist ds)) =
-            pure $ dnormMulti (repeat 0) (getValues n) ds
+            error "not yet implemented"
         -- mismatch error case
-        weightForOneObs _ _ =
+        weightForOneObs _ _ _ =
             E.throwError $ NormalException "Illegal combination of kernel and grid data"
 
-getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog Kernel
+getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (Nugget, Kernel)
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
-    case filter (\(KernelOneDepVar n _) -> n == depVar) kernelsPerDepVar of
+    case filter (\(KernelOneDepVar name _ _) -> name == depVar) kernelsPerDepVar of
         []                    -> E.throwError $ NormalException "Variable not defined in kernel"
-        [KernelOneDepVar _ k] -> pure k
+        [KernelOneDepVar _ n k] -> pure (n, k)
         _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel"
