@@ -36,10 +36,10 @@ library
       , vector
       , optparse-applicative
       , parsec
-      , math-functions
       , mtl
       , random
       , serialise
+      , statistics
       , currycarbon
     default-language:
       Haskell2010

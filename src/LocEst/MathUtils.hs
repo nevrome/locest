@@ -1,7 +1,9 @@
 module LocEst.MathUtils where
 
 import           Data.List (foldl')
-import           Numeric.SpecFunctions (logBeta)
+import Statistics.Distribution.StudentT (studentTUnstandardized, StudentT)
+import Statistics.Distribution (quantile)
+import Statistics.Distribution.Transform (LinearTransform)
 
 -- should be slightly faster than sum, because sum is implemented with the lazy foldl
 -- GHC does this optimization automatically, but only with -O2
@@ -14,6 +16,8 @@ avg xs = foldSum xs / fromIntegral (length xs)
 sd :: [Double] -> Double
 sd xs = sqrt . avg . map ((**2) . (-) (avg xs)) $ xs
 
+-- the following functions are all independent now - they could be
+-- optimized by avoiding re-computation of shared values
 weightedAvg :: [Double] -> [Double] -> Double
 weightedAvg values weights =
     foldl' (\o (v,w) -> o + v * w) 0 (zip values weights) / foldSum weights
@@ -27,6 +31,10 @@ weightedVar values weights =
         neff1 = totalWeight - 1
         totalWeight = foldSum weights
 
+weightedSD :: [Double] -> [Double] -> Double
+weightedSD values weights =
+    sqrt $ weightedVar values weights
+
 weightedSEM :: [Double] -> [Double] -> Double
 weightedSEM values weights =
     sqrt (weightedVar values weights / neff1)
@@ -34,12 +42,44 @@ weightedSEM values weights =
         neff1 = totalWeight - 1
         totalWeight = foldSum weights
 
+quantileGeneralizedStudentT :: Double -> Double -> Double -> Double -> Double
+quantileGeneralizedStudentT mu scale dof =
+    quantile (studentTUnstandardized dof mu scale)
+
+posteriorMu :: [Double] -> [Double] -> LinearTransform StudentT
+posteriorMu values weights =
+    generalizedStudentT mu scale dof
+    where
+        mu = weightedAvg values weights
+        scale = weightedSD values weights / sqrt neff
+        dof = neff1
+        neff1 = neff - 1
+        neff = totalWeight
+        totalWeight = foldSum weights
+
+posteriorPredictive :: [Double] -> [Double] -> LinearTransform StudentT
+posteriorPredictive values weights =
+    generalizedStudentT mu scale dof
+    where
+        mu = weightedAvg values weights
+        scale = sqrt ((1 + 1/n) * weightedVar values weights)
+        n = fromIntegral $ length values
+        dof = neff1
+        neff1 = totalWeight - 1
+        totalWeight = foldSum weights
+
+-- mapping Mathematica's StudentTDistribution interface to the interface in the
+-- Haskell statistics package
+generalizedStudentT :: Double -> Double -> Double -> LinearTransform StudentT
+generalizedStudentT mu scale dof = studentTUnstandardized dof mu scale
+
 -- | get the density of student's-t distribution at a point x
 -- dof: number of degrees of freedom
-dt :: Double -> Double -> Double
-dt dof x =
-    let logDensityUnscaled = log (dof / (dof + x*x)) * (0.5 * (1 + dof)) - logBeta 0.5 (0.5 * dof)
-    in exp logDensityUnscaled / sqrt dof
+-- requires import Numeric.SpecFunctions (logBeta) from math-functions
+--dt :: Double -> Double -> Double
+--dt dof x =
+--    let logDensityUnscaled = log (dof / (dof + x*x)) * (0.5 * (1 + dof)) - logBeta 0.5 (0.5 * dof)
+--    in exp logDensityUnscaled / sqrt dof
     -- alternative implemenation with the statistics package:
     -- import Statistics.Distribution.StudentT (studentT)
     -- density (studentT dof) x
