@@ -3,53 +3,36 @@ module LocEst.MathUtils where
 import           Data.List (foldl')
 import           Numeric.SpecFunctions (logBeta)
 
--- https://statss.stackexchange.com/questions/6534/how-do-i-calculate-a-weighted-standard-deviation-in-excel
--- http://seismo.berkeley.edu/~kirchner/Toolkits/Toolkit_12.pdf -> Case I !
-weightedSEM :: [Double] -> [Double] -> Double
-weightedSEM values weights =
-    sqrt (weightedVar values weights / effn)
-    where
-        totalWeight = sum weights
-        effn = neff totalWeight weights
+-- should be slightly faster than sum, because sum is implemented with the lazy foldl
+-- GHC does this optimization automatically, but only with -O2
+foldSum :: [Double] -> Double
+foldSum = foldl' (+) 0
 
-neff :: Double -> [Double] -> Double
-neff totalWeight weights = (totalWeight ** 2) / sum (map (** 2) weights)
-
-weightedSD :: [Double] -> [Double] -> Double
-weightedSD values weights = sqrt (weightedVar values weights)
-
-weightedVar :: [Double] -> [Double] -> Double
-weightedVar values weights =
-    (numerator / totalWeight) * (effn / (effn - 1))
-    where
-        numerator = sum $ zipWith (\v w -> w * ((v - weightedMean) ** 2)) values weights
-        weightedMean = weightedAvg values weights
-        totalWeight = sum weights
-        effn = neff totalWeight weights
-
-weightedAvg :: [Double] -> [Double] -> Double
-weightedAvg values weights =
-    let sumWeightedVals = foldl' (\o (v,w) -> o + v * w) 0 $ zip values weights
-    in sumWeightedVals / sum weights
+avg :: [Double] -> Double
+avg xs = foldSum xs / fromIntegral (length xs)
 
 sd :: [Double] -> Double
 sd xs = sqrt . avg . map ((**2) . (-) (avg xs)) $ xs
 
-avg :: [Double] -> Double
-avg xs = sum xs / fromIntegral (length xs)
+weightedAvg :: [Double] -> [Double] -> Double
+weightedAvg values weights =
+    foldl' (\o (v,w) -> o + v * w) 0 (zip values weights) / foldSum weights
 
--- https://stackoverflow.com/questions/32978290/haskell-numerical-integration-via-trapezoidal-rule-results-in-wrong-sign
-integrate :: Double -> (Double -> Double) -> Double -> Double -> Double
-integrate steps f start stop =
-    h / 2 * (f start + f stop + 2 * partial_sum)
+weightedVar :: [Double] -> [Double] -> Double
+weightedVar values weights =
+    numerator / neff1
     where
-        h = (stop - start) / steps
-        myPoints = points (steps-1) h
-        partial_sum = foldl' (\o x -> o + f (x + start)) 0 myPoints
-        points  :: Double -> Double -> [Double]
-        points x1 x2
-            | x1 <= 0 = []
-            | otherwise = (x1*x2) : points (x1-1) x2
+        numerator = foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights)
+        weightedMean = weightedAvg values weights
+        neff1 = totalWeight - 1
+        totalWeight = foldSum weights
+
+weightedSEM :: [Double] -> [Double] -> Double
+weightedSEM values weights =
+    sqrt (weightedVar values weights / neff1)
+    where
+        neff1 = totalWeight - 1
+        totalWeight = foldSum weights
 
 -- | get the density of student's-t distribution at a point x
 -- dof: number of degrees of freedom
@@ -80,3 +63,16 @@ dnormMulti mus sigmas positions = constantFactor * exp (-0.5 * exponentTerm)
     sigmasSq = map (** 2) sigmas
     exponentTerm = foldl' (\acc (mu, sigma, x) -> acc + ((x - mu) / sigma) ** 2) 0 terms
     terms = zip3 mus sigmas positions
+
+-- https://stackoverflow.com/questions/32978290/haskell-numerical-integration-via-trapezoidal-rule-results-in-wrong-sign
+integrate :: Double -> (Double -> Double) -> Double -> Double -> Double
+integrate steps f start stop =
+    h / 2 * (f start + f stop + 2 * partial_sum)
+    where
+        h = (stop - start) / steps
+        myPoints = points (steps-1) h
+        partial_sum = foldl' (\o x -> o + f (x + start)) 0 myPoints
+        points  :: Double -> Double -> [Double]
+        points x1 x2
+            | x1 <= 0 = []
+            | otherwise = (x1*x2) : points (x1-1) x2
