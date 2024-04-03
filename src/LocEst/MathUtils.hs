@@ -2,7 +2,6 @@ module LocEst.MathUtils where
 
 import           Data.List (foldl')
 import Statistics.Distribution.StudentT (studentTUnstandardized, StudentT)
-import Statistics.Distribution (quantile)
 import Statistics.Distribution.Transform (LinearTransform)
 
 -- should be slightly faster than sum, because sum is implemented with the lazy foldl
@@ -41,10 +40,6 @@ weightedSEM values weights =
     where
         neff1 = totalWeight - 1
         totalWeight = foldSum weights
-
-quantileGeneralizedStudentT :: Double -> Double -> Double -> Double -> Double
-quantileGeneralizedStudentT mu scale dof =
-    quantile (studentTUnstandardized dof mu scale)
 
 posteriorMu :: [Double] -> [Double] -> LinearTransform StudentT
 posteriorMu values weights =

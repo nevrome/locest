@@ -210,9 +210,9 @@ newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelDefinition
---instance PseudoMap KernelDefinition Kernel where
---    getKeys   (KernelDefinition l) = map _kodvDepVarName l
---    getValues (KernelDefinition l) = map _kodvKernel l
+instance PseudoMap KernelDefinition Kernel where
+    getKeys   (KernelDefinition l) = map _kodvDepVarName l
+    getValues (KernelDefinition l) = map _kodvKernel l
 
 data KernelOneDepVar = KernelOneDepVar {
       _kodvDepVarName :: DepVarName
@@ -297,16 +297,16 @@ instance Csv.ToRecord HyperPos where
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
 -- | A datatype for dependent vars with errors
-newtype DepVarsUncertainPos = DepVarsUncertainPos [(String, (Double, Double, Double, Double))]
+newtype DepVarsUncertainPos = DepVarsUncertainPos [(String, (Double, Double))]
     deriving (Eq, Show, Generic)
 
 instance NFData DepVarsUncertainPos
 instance Csv.DefaultOrdered DepVarsUncertainPos where
     headerOrder (DepVarsUncertainPos l) =
-        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr", n ++ "Dens", n ++ "Neff"]) $ map fst l
+        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr"]) $ map fst l
 instance Csv.ToRecord DepVarsUncertainPos where
     toRecord (DepVarsUncertainPos l) =
-        V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c,d) -> [a,b,c,d]) $ map snd l
+        V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b) -> [a,b]) $ map snd l
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]

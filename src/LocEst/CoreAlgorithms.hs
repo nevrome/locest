@@ -6,7 +6,10 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import qualified Control.Monad.Except as E
-import           Data.List            (foldl', unzip4)
+--import           Data.List            (unzip4)
+--import Statistics.Distribution.StudentT (StudentT)
+import Statistics.Distribution (quantile)
+--import Statistics.Distribution.Transform (LinearTransform)
 
 type CoreLog = E.Except LOCESTException
 
@@ -17,23 +20,23 @@ coreSearch observations supp
     let obsWithDist = getDist observations supp sett
     -- summarize obs information for each depVar
     let searchDepVarsNames  = getKeys searchDepVarPos
-        searchDepVarsCoords = getValues searchDepVarPos
-    perDepVar <- mapM (smoothedValueOneDepVar kernelDefinition obsWithDist) searchDepVarsNames
-    let (means, errs, density, _) = unzip4 perDepVar
+        --searchDepVarsCoords = getValues searchDepVarPos
+    perDepVar <- mapM (interpolOneDepVar kernelDefinition obsWithDist) searchDepVarsNames
+    --let (means, sigma2) = unzip perDepVar
         -- probability = calcDensity means errs searchDepVarsCoords
         -- hacky rescaling of the probability with the density
-        probability = ((minimum density) ** (1/4)) * calcDensity means errs searchDepVarsCoords
+        -- probability = ((minimum density) ** (1/4)) * calcDensity means errs searchDepVarsCoords
     return $ SearchResult {
            _srCorePermutation = sett
          , _srInterpolation = Just $ DepVarsUncertainPos $ zip searchDepVarsNames perDepVar
-         , _srProbability = probability
+         , _srProbability = 0
          }
     where
-        calcDensity :: [Double] -> [Double] -> [Double] -> Double
-        calcDensity means errs searchDepVarsCoords
-            | any isNaN means = 0/0 -- creates NaN
-            | any isNaN errs  = 0/0
-            | otherwise       = dnormMulti means (map sqrt errs) searchDepVarsCoords -- TODO: figure out, why the errs get too small without the sqrt
+        --calcDensity :: [Double] -> [Double] -> [Double] -> Double
+        --calcDensity means errs searchDepVarsCoords
+        --    | any isNaN means = 0/0 -- creates NaN
+        --    | any isNaN errs  = 0/0
+        --    | otherwise       = dnormMulti means (map sqrt errs) searchDepVarsCoords -- TODO: figure out, why the errs get too small without the sqrt
 
 getDist :: [Observation] -> CoreSupplement -> CorePermutation -> [ObsWithDist]
 getDist [] _ _ = []
@@ -83,14 +86,13 @@ getDist
 -- wrong input, so skip
 getDist (_ : rest) supp sett = getDist rest supp sett
 
-smoothedValueOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> CoreLog (Double, Double, Double, Double)
-smoothedValueOneDepVar kernelDefinition obsWithDist depVar = do
+interpolOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> CoreLog (Double, Double)--, LinearTransform StudentT)
+interpolOneDepVar kernelDefinition obsWithDist depVar = do
     (values, weights) <- unzip <$> mapM (valueAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist
-    let mean = weightedAvg values weights
-        err  = weightedSEM values weights
-        density = sum weights
-        effn = neff density weights
-    return (mean, err, density, effn)
+    let mean     = weightedAvg values weights
+        sigma2   = mean - quantile postPred 0.025
+        postPred = posteriorPredictive values weights
+    return (mean, sigma2)--, postPred)
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
@@ -111,9 +113,9 @@ valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             pure $ nugget / (nugget + exp ( (spatDist ** 2) / spaceKernelWidth + (tempDist ** 2) / timeKernelWidth ) - 1)
         weightForOneObs nugget
-                        (SquaredExponential [(_,spaceKernelWidth), (_,timeKernelWidth)])
+                        kernel
                         (ObsWithDist _ (IndepArbitraryDimDist ds)) =
-            error "not yet implemented"
+            pure $ nugget / (nugget + exp ( foldSum (zipWith (\d t -> d ** 2 / t) ds (getValues kernel)) ) - 1)
         -- mismatch error case
         weightForOneObs _ _ _ =
             E.throwError $ NormalException "Illegal combination of kernel and grid data"
