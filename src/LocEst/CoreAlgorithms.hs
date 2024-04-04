@@ -6,11 +6,9 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import qualified Control.Monad.Except as E
---import           Data.List            (unzip4)
 import Statistics.Distribution.StudentT (StudentT)
-import Statistics.Distribution (quantile)
+import Statistics.Distribution (quantile, density)
 import Statistics.Distribution.Transform (LinearTransform)
-import Data.Functor ((<&>))
 
 type CoreLog = E.Except LOCESTException
 
@@ -20,31 +18,27 @@ coreSearch observations supp
     -- determine distances per observation to the current position of interest
     let obsWithDist = getDist observations supp sett
     -- determine (interpolated) posterior predictive distributions per depVar for this position
-    let searchDepVarsNames  = getKeys searchDepVarPos
+    let searchDepVarsNames = getKeys searchDepVarPos
     interpolDistributionPerDepVar <- mapM (interpolOneDepVar kernelDefinition obsWithDist) searchDepVarsNames
-    -- determine output quantities of interpolation for each depVar
-    let interpolDerived = interpolDistributionPerDepVar <&> \distribution ->
+    -- determine interpolation output quantities of interpolation for each depVar
+    let interpolDerived = map summarizeInterpol interpolDistributionPerDepVar
+        interpolRes = InterpolationResult $ zip searchDepVarsNames interpolDerived
+    -- perform search
+    let searchDepVarsValues = getValues searchDepVarPos
+        probability = foldSum $ zipWith density interpolDistributionPerDepVar searchDepVarsValues
+    -- compile output object
+    return $ SearchResult {
+           _srCorePermutation = sett
+         , _srInterpolation   = Just interpolRes
+         , _srProbability     = probability
+         }
+    where
+        summarizeInterpol :: LinearTransform StudentT -> (Double, Double, Double)
+        summarizeInterpol distribution =
             let lower  = quantile distribution 0.025
                 median = quantile distribution 0.5
                 upper  = quantile distribution 0.975
             in (lower, median, upper)
-    let interpolRes = InterpolationResult $ zip searchDepVarsNames interpolDerived
-
-    --let (means, sigma2) = unzip perDepVar
-        -- probability = calcDensity means errs searchDepVarsCoords
-        -- hacky rescaling of the probability with the density
-        -- probability = ((minimum density) ** (1/4)) * calcDensity means errs searchDepVarsCoords
-    return $ SearchResult {
-           _srCorePermutation = sett
-         , _srInterpolation = Just $ interpolRes
-         , _srProbability = 0
-         }
-    where
-        --calcDensity :: [Double] -> [Double] -> [Double] -> Double
-        --calcDensity means errs searchDepVarsCoords
-        --    | any isNaN means = 0/0 -- creates NaN
-        --    | any isNaN errs  = 0/0
-        --    | otherwise       = dnormMulti means (map sqrt errs) searchDepVarsCoords -- TODO: figure out, why the errs get too small without the sqrt
 
 getDist :: [Observation] -> CoreSupplement -> CorePermutation -> [ObsWithDist]
 getDist [] _ _ = []
