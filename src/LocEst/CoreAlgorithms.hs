@@ -7,28 +7,36 @@ import           LocEst.Utils
 
 import qualified Control.Monad.Except as E
 --import           Data.List            (unzip4)
---import Statistics.Distribution.StudentT (StudentT)
+import Statistics.Distribution.StudentT (StudentT)
 import Statistics.Distribution (quantile)
---import Statistics.Distribution.Transform (LinearTransform)
+import Statistics.Distribution.Transform (LinearTransform)
+import Data.Functor ((<&>))
 
 type CoreLog = E.Except LOCESTException
 
 coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> CoreLog SearchResult
 coreSearch observations supp
     sett@(CorePermutation (HyperPos _ searchDepVarPos) (AlgoKernSmooth kernelDefinition) _) = do
-    -- determine dist per obs to current point
+    -- determine distances per observation to the current position of interest
     let obsWithDist = getDist observations supp sett
-    -- summarize obs information for each depVar
+    -- determine (interpolated) posterior predictive distributions per depVar for this position
     let searchDepVarsNames  = getKeys searchDepVarPos
-        --searchDepVarsCoords = getValues searchDepVarPos
-    perDepVar <- mapM (interpolOneDepVar kernelDefinition obsWithDist) searchDepVarsNames
+    interpolDistributionPerDepVar <- mapM (interpolOneDepVar kernelDefinition obsWithDist) searchDepVarsNames
+    -- determine output quantities of interpolation for each depVar
+    let interpolDerived = interpolDistributionPerDepVar <&> \distribution ->
+            let lower  = quantile distribution 0.025
+                median = quantile distribution 0.5
+                upper  = quantile distribution 0.975
+            in (lower, median, upper)
+    let interpolRes = InterpolationResult $ zip searchDepVarsNames interpolDerived
+
     --let (means, sigma2) = unzip perDepVar
         -- probability = calcDensity means errs searchDepVarsCoords
         -- hacky rescaling of the probability with the density
         -- probability = ((minimum density) ** (1/4)) * calcDensity means errs searchDepVarsCoords
     return $ SearchResult {
            _srCorePermutation = sett
-         , _srInterpolation = Just $ DepVarsUncertainPos $ zip searchDepVarsNames perDepVar
+         , _srInterpolation = Just $ interpolRes
          , _srProbability = 0
          }
     where
@@ -86,13 +94,10 @@ getDist
 -- wrong input, so skip
 getDist (_ : rest) supp sett = getDist rest supp sett
 
-interpolOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> CoreLog (Double, Double)--, LinearTransform StudentT)
+interpolOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> CoreLog (LinearTransform StudentT)
 interpolOneDepVar kernelDefinition obsWithDist depVar = do
     (values, weights) <- unzip <$> mapM (valueAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist
-    let mean     = weightedAvg values weights
-        sigma2   = mean - quantile postPred 0.025
-        postPred = posteriorPredictive values weights
-    return (mean, sigma2)--, postPred)
+    return $ posteriorPredictive values weights
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do

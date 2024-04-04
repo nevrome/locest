@@ -97,7 +97,7 @@ instance Csv.ToRecord CrossvalOutput where
 -- | A datatype for search result points in space and time
 data SearchResult = SearchResult {
       _srCorePermutation :: CorePermutation
-    , _srInterpolation   :: Maybe DepVarsUncertainPos
+    , _srInterpolation   :: Maybe InterpolationResult
     , _srProbability     :: Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
@@ -109,13 +109,13 @@ instance NFData SearchResult
 instance Csv.DefaultOrdered SearchResult where
     headerOrder (SearchResult spatTempDepVarsPos Nothing _) =
         Csv.headerOrder spatTempDepVarsPos <> Csv.header ["probability"]
-    headerOrder (SearchResult spatTempDepVarsPos (Just depVarsUncertainPos) _) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder depVarsUncertainPos <> Csv.header ["probability"]
+    headerOrder (SearchResult spatTempDepVarsPos (Just interpolationResult) _) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult <> Csv.header ["probability"]
 instance Csv.ToRecord SearchResult where
     toRecord (SearchResult spatTempDepVarsPos Nothing prob) =
         Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
-    toRecord (SearchResult spatTempDepVarsPos (Just depVarsUncertainPos) prob) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord depVarsUncertainPos <> Csv.record [Csv.toField prob]
+    toRecord (SearchResult spatTempDepVarsPos (Just interpolationResult) prob) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult <> Csv.record [Csv.toField prob]
 
 data SpatTempProb = SpatTempProb {
       _stprCorePermutation :: CorePermutation
@@ -288,17 +288,24 @@ instance Csv.ToRecord HyperPos where
     toRecord (HyperPos indepVarsPos depVarsPos) =
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
--- | A datatype for dependent vars with errors
-newtype DepVarsUncertainPos = DepVarsUncertainPos [(String, (Double, Double))]
+-- | A datatype for the interpolation output
+newtype InterpolationResult = InterpolationResult [
+        (DepVarName, -- name of the dependent variable
+            (Double, -- lower boundary of the 95% interval
+             Double, -- median
+             Double  -- upper boundary of the 95% interval
+            )
+        )
+    ]
     deriving (Eq, Show, Generic)
 
-instance NFData DepVarsUncertainPos
-instance Csv.DefaultOrdered DepVarsUncertainPos where
-    headerOrder (DepVarsUncertainPos l) =
-        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr"]) $ map fst l
-instance Csv.ToRecord DepVarsUncertainPos where
-    toRecord (DepVarsUncertainPos l) =
-        V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b) -> [a,b]) $ map snd l
+instance NFData InterpolationResult
+instance Csv.DefaultOrdered InterpolationResult where
+    headerOrder (InterpolationResult l) =
+        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Low", n ++ "Median", n ++ "Up"]) $ map fst l
+instance Csv.ToRecord InterpolationResult where
+    toRecord (InterpolationResult l) =
+        V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c) -> [a,b,c]) $ map snd l
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]
