@@ -91,7 +91,10 @@ getDist (_ : rest) supp sett = getDist rest supp sett
 interpolOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> CoreLog (LinearTransform StudentT)
 interpolOneDepVar kernelDefinition obsWithDist depVar = do
     (values, weights) <- unzip <$> mapM (valueAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist
-    return $ posteriorPredictive values weights
+    --_ <- error $ show weights
+    case posteriorPredictive values weights of
+        Right x -> return x
+        Left e  -> E.throwError $ NormalException e
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
@@ -110,7 +113,8 @@ valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
         weightForOneObs nugget
                         (SquaredExponential [(_,spaceKernelWidth), (_,timeKernelWidth)])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
-            pure $ nugget / (nugget + exp ( (spatDist ** 2) / spaceKernelWidth + (tempDist ** 2) / timeKernelWidth ) - 1)
+            --error $ show (nugget, spatDist, spaceKernelWidth, tempDist, timeKernelWidth)
+            pure $ nugget / (nugget + exp ( ((spatDist ** 2) / spaceKernelWidth ** 2) + ((tempDist ** 2) / timeKernelWidth ** 2)) - 1)
         weightForOneObs nugget
                         kernel
                         (ObsWithDist _ (IndepArbitraryDimDist ds)) =
