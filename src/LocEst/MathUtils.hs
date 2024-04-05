@@ -59,11 +59,9 @@ posteriorPredictive values weights =
     else Left "sigma must be > 0"
     where
         mu = weightedAvg values weights
-        scale = sqrt ((1 + 1/n) * weightedVar values weights)
-        n = fromIntegral $ length values
-        dof = neff1
-        neff1 = totalWeight - 1
-        totalWeight = foldSum weights
+        scale = sqrt ((1 + 1/neff) * weightedVar values weights)
+        dof = neff - 1
+        neff = foldSum weights
 
 -- mapping Mathematica's StudentTDistribution interface to the interface in the
 -- Haskell statistics package
