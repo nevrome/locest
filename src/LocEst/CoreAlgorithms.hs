@@ -8,23 +8,29 @@ import           LocEst.Utils
 import qualified Control.Monad.Except as E
 import Statistics.Distribution (quantile, density)
 import Control.Monad (mapAndUnzipM)
+import Data.Maybe (mapMaybe)
 
 type CoreLog = E.Except LOCESTException
 
 coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> CoreLog SearchResult
 coreSearch observations supp
-    sett@(CorePermutation (HyperPos _ searchDepVarPos) (AlgoKernSmooth kernelDefinition) _) = do
+    sett@(CorePermutation _ searchDepVarPos (AlgoKernSmooth kernelDefinition) _) = do
     -- determine distances per observation to the current position of interest
     let obsWithDist = getDist observations supp sett
-    -- determine (interpolated) posterior predictive distributions per depVar for this position
-    let namePerDepVar  = getKeys searchDepVarPos
-        valuePerDepVar = getValues searchDepVarPos
+    -- determine (interpolated) posterior predictive distributions per depVar for this position,
+    -- derive summary statistics and maybe perform the search for a specific search depVar value
+    let namePerDepVar  = getKeys kernelDefinition
+        valuePerDepVar = case searchDepVarPos of
+            Just x  -> Just <$> getValues x
+            Nothing -> replicate (length namePerDepVar) Nothing
     interpolPerDepVar <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithDist) $ zip namePerDepVar valuePerDepVar
     -- compile output object
     return $ SearchResult {
            _srCorePermutation = sett
-         , _srInterpolation   = Just $ InterpolationResult interpolPerDepVar
-         , _srProbability     = foldSum $ map _irodvProbability interpolPerDepVar
+         , _srInterpolation   = InterpolationResult interpolPerDepVar
+         , _srProbability     = case mapMaybe _irodvProbability interpolPerDepVar of
+            [] -> Nothing
+            xs -> Just $ foldSum xs
          }
 
 getDist :: [Observation] -> CoreSupplement -> CorePermutation -> [ObsWithDist]
@@ -33,7 +39,7 @@ getDist [] _ _ = []
 getDist
     (obs@(Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) : rest)
     supp@(CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
-    sett@(CorePermutation (HyperPos (IndepSpatTempPos gridSpatTempPos) _) _ tempSampIteration) =
+    sett@(CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration) =
         let tempDist = findTempDist maybeTempSamples
             spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
@@ -63,7 +69,7 @@ getDist
 getDist
     (obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) : rest)
     supp
-    sett@(CorePermutation (HyperPos (IndepArbitraryDimPos gridAbritryDimPos) _) _ _) =
+    sett@(CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _) =
         let arbitraryDimDist = findArbitraryDimDistsObsGrid
         in ObsWithDist obs (IndepArbitraryDimDist arbitraryDimDist) : getDist rest supp sett
         where
@@ -75,8 +81,8 @@ getDist
 -- wrong input, so skip
 getDist (_ : rest) supp sett = getDist rest supp sett
 
-interpolAndSearchOneDepVar :: KernelDefinition -> [ObsWithDist] -> (DepVarName, Double) -> CoreLog InterpolationResultOneDepVar
-interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,valueDepVar) = do
+interpolAndSearchOneDepVar :: KernelDefinition -> [ObsWithDist] -> (DepVarName, Maybe Double) -> CoreLog InterpolationResultOneDepVar
+interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDepVar) = do
     (values, weights) <- mapAndUnzipM (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
     let totalWeight = foldSum weights
         neff        = totalWeight
@@ -87,7 +93,7 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,valueDepVar)
             let lower  = quantile distribution 0.025
                 median = quantile distribution 0.5
                 upper  = quantile distribution 0.975
-                prob   = density distribution valueDepVar
+                prob   = fmap (density distribution) maybeValueDepVar
             return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV lower median upper prob
         Left e -> do
             -- probably doesn't work because of normalization:

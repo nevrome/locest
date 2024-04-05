@@ -98,7 +98,7 @@ optParseSearchGridSettings :: OP.Parser SearchGridSettings
 optParseSearchGridSettings =
     SearchGridSettings
         <$> optParseIndepVarsPredGridSettings
-        <*> optParseSearchDepVarsPos
+        <*> OP.optional optParseSearchDepVarsPos
 
 optParseIndepVarsPredGridSettings :: OP.Parser IndepVarsPredGridSettings
 optParseIndepVarsPredGridSettings =
