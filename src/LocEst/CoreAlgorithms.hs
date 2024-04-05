@@ -9,6 +9,7 @@ import qualified Control.Monad.Except as E
 import Statistics.Distribution.StudentT (StudentT)
 import Statistics.Distribution (quantile, density)
 import Statistics.Distribution.Transform (LinearTransform)
+import Control.Monad (mapAndUnzipM)
 
 type CoreLog = E.Except LOCESTException
 
@@ -18,27 +19,25 @@ coreSearch observations supp
     -- determine distances per observation to the current position of interest
     let obsWithDist = getDist observations supp sett
     -- determine (interpolated) posterior predictive distributions per depVar for this position
-    let searchDepVarsNames = getKeys searchDepVarPos
-    interpolDistributionPerDepVar <- mapM (interpolOneDepVar kernelDefinition obsWithDist) searchDepVarsNames
-    -- determine interpolation output quantities of interpolation for each depVar
-    let interpolDerived = map summarizeInterpol interpolDistributionPerDepVar
-        interpolRes = InterpolationResult $ zip searchDepVarsNames interpolDerived
-    -- perform search
-    let searchDepVarsValues = getValues searchDepVarPos
-        probability = foldSum $ zipWith density interpolDistributionPerDepVar searchDepVarsValues
+    let namePerDepVar  = getKeys searchDepVarPos
+        valuePerDepVar = getValues searchDepVarPos
+    interpolPerDepVar <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithDist) $ zip namePerDepVar valuePerDepVar
     -- compile output object
     return $ SearchResult {
            _srCorePermutation = sett
-         , _srInterpolation   = Just interpolRes
-         , _srProbability     = probability
+         , _srInterpolation   = Just $ InterpolationResult interpolPerDepVar
+         , _srProbability     = foldSum $ map _irodvProbability interpolPerDepVar
          }
     where
-        summarizeInterpol :: LinearTransform StudentT -> (Double, Double, Double)
-        summarizeInterpol distribution =
-            let lower  = quantile distribution 0.025
-                median = quantile distribution 0.5
-                upper  = quantile distribution 0.975
-            in (lower, median, upper)
+        search :: InterpolationResultOneDepVar -> Double -> CoreLog Double
+        search interpol searchValue = do
+            let neff = _irodvEffN interpol
+                avg  = _irodvWeightedAvg interpol
+                var  = _irodvWeightedVar interpol
+            case posteriorPredictive_ neff avg var of
+                Right distribution -> do
+                    return $ density distribution searchValue
+                Left e  -> E.throwError $ NormalException e
 
 getDist :: [Observation] -> CoreSupplement -> CorePermutation -> [ObsWithDist]
 getDist [] _ _ = []
@@ -88,12 +87,20 @@ getDist
 -- wrong input, so skip
 getDist (_ : rest) supp sett = getDist rest supp sett
 
-interpolOneDepVar :: KernelDefinition -> [ObsWithDist] -> DepVarName -> CoreLog (LinearTransform StudentT)
-interpolOneDepVar kernelDefinition obsWithDist depVar = do
-    (values, weights) <- unzip <$> mapM (valueAndWeightOneDepVarOneObs kernelDefinition depVar) obsWithDist
-    --_ <- error $ show weights
-    case posteriorPredictive values weights of
-        Right x -> return x
+interpolAndSearchOneDepVar :: KernelDefinition -> [ObsWithDist] -> (DepVarName, Double) -> CoreLog InterpolationResultOneDepVar
+interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,valueDepVar) = do
+    (values, weights) <- mapAndUnzipM (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
+    let totalWeight = foldSum weights
+        neff        = totalWeight
+        weightedAvg = weightedAvg_ totalWeight values weights
+        weightedVar = weightedVar_ totalWeight weightedAvg values weights
+    case posteriorPredictive_ totalWeight weightedAvg weightedVar of
+        Right distribution -> do
+            let lower  = quantile distribution 0.025
+                median = quantile distribution 0.5
+                upper  = quantile distribution 0.975
+                prob   = density distribution valueDepVar
+            return $ InterpolationResultOneDepVar nameDepVar neff weightedAvg weightedVar lower median upper prob
         Left e  -> E.throwError $ NormalException e
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
@@ -113,7 +120,6 @@ valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
         weightForOneObs nugget
                         (SquaredExponential [(_,spaceKernelWidth), (_,timeKernelWidth)])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
-            --error $ show (nugget, spatDist, spaceKernelWidth, tempDist, timeKernelWidth)
             pure $ nugget / (nugget + exp ( (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2) - 1)
         weightForOneObs nugget
                         kernel

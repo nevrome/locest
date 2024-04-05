@@ -15,11 +15,15 @@ avg xs = foldSum xs / fromIntegral (length xs)
 sd :: [Double] -> Double
 sd xs = sqrt . avg . map ((**2) . (-) (avg xs)) $ xs
 
--- the following functions are all independent now - they could be
--- optimized by avoiding re-computation of shared values
+-- the following functions are available in independent versions and some also
+-- in versions with a _ suffix that try to avoid re-computation of shared values
 weightedAvg :: [Double] -> [Double] -> Double
 weightedAvg values weights =
     foldl' (\o (v,w) -> o + v * w) 0 (zip values weights) / foldSum weights
+
+weightedAvg_ :: Double -> [Double] -> [Double] -> Double
+weightedAvg_ totalWeight values weights =
+    foldl' (\o (v,w) -> o + v * w) 0 (zip values weights) / totalWeight
 
 weightedVar :: [Double] -> [Double] -> Double
 weightedVar values weights =
@@ -29,6 +33,13 @@ weightedVar values weights =
         weightedMean = weightedAvg values weights
         neff1 = totalWeight - 1
         totalWeight = foldSum weights
+
+weightedVar_ :: Double -> Double -> [Double] -> [Double] -> Double
+weightedVar_ totalWeight weightedMean values weights =
+    numerator / neff1
+    where
+        numerator = foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights)
+        neff1 = totalWeight - 1
 
 weightedSD :: [Double] -> [Double] -> Double
 weightedSD values weights =
@@ -62,6 +73,17 @@ posteriorPredictive values weights =
         scale = sqrt ((1 + 1/neff) * weightedVar values weights)
         dof = neff - 1
         neff = foldSum weights
+
+posteriorPredictive_ :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
+posteriorPredictive_ totalWeight weightedAvg weightedVar =
+    if scale > 0
+    then Right $ generalizedStudentT mu scale dof
+    else Left "sigma must be > 0"
+    where
+        mu = weightedAvg
+        scale = sqrt ((1 + 1/neff) * weightedVar)
+        dof = neff - 1
+        neff = totalWeight
 
 -- mapping Mathematica's StudentTDistribution interface to the interface in the
 -- Haskell statistics package

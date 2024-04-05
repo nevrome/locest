@@ -17,6 +17,8 @@ import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
+import Statistics.Distribution.Transform (LinearTransform)
+import Statistics.Distribution.StudentT (StudentT)
 
 -- typeclasses
 
@@ -289,23 +291,38 @@ instance Csv.ToRecord HyperPos where
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
 -- | A datatype for the interpolation output
-newtype InterpolationResult = InterpolationResult [
-        (DepVarName, -- name of the dependent variable
-            (Double, -- lower boundary of the 95% interval
-             Double, -- median
-             Double  -- upper boundary of the 95% interval
-            )
-        )
-    ]
+newtype InterpolationResult = InterpolationResult [InterpolationResultOneDepVar]
     deriving (Eq, Show, Generic)
 
 instance NFData InterpolationResult
 instance Csv.DefaultOrdered InterpolationResult where
-    headerOrder (InterpolationResult l) =
-        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Low", n ++ "Median", n ++ "Up"]) $ map fst l
+    headerOrder (InterpolationResult l) = V.concat $ map Csv.headerOrder l
 instance Csv.ToRecord InterpolationResult where
     toRecord (InterpolationResult l) =
-        V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c) -> [a,b,c]) $ map snd l
+        V.concat $ map Csv.toRecord l
+
+data InterpolationResultOneDepVar = InterpolationResultOneDepVar {
+          _irodvDepVarName   :: DepVarName -- name of the dependent variable
+        , _irodvEffN         :: Double     -- effective number of samples
+        , _irodvWeightedAvg  :: Double     -- weighted average
+        , _irodvWeightedVar  :: Double     -- weighted variance
+        , _irodvLowerBound   :: Double     -- lower boundary of the 95% interval
+        , _irodvMedian       :: Double     -- median
+        , _irodvUpperBound   :: Double     -- upper boundary of the 95% interval
+        , _irodvProbability  :: Double     -- Probability for search value
+    } deriving (Eq, Show, Generic)
+
+instance NFData InterpolationResultOneDepVar
+instance Csv.DefaultOrdered InterpolationResultOneDepVar where
+    headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ _) =
+        Csv.header $ map Bchs.pack [
+            n ++ "EffN", n ++ "Avg", n ++ "Var", n ++ "Low", n ++ "Median", n ++ "Up", n ++ "Prob"
+        ]
+instance Csv.ToRecord InterpolationResultOneDepVar where
+    toRecord (InterpolationResultOneDepVar _ neff a v lb m ub p) =
+        Csv.record [
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField p
+        ]
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]

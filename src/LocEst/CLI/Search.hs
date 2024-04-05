@@ -107,8 +107,6 @@ runSearch (
                                ConL.mapMaybe leftToJust
                             .| ConL.groupOn id
                             .| ConL.mapM_ printErrors
-                            --    ConC.filter isLeft
-                            -- .| ConL.mapM_ printError
                         ) *>
                         Con.ZipSink (
                                ConL.mapMaybe rightToJust
