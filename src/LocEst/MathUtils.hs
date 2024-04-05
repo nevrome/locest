@@ -75,13 +75,13 @@ posteriorPredictive values weights =
         neff = foldSum weights
 
 posteriorPredictive_ :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
-posteriorPredictive_ totalWeight weightedAvg weightedVar =
+posteriorPredictive_ totalWeight weightedM weightedV =
     if scale > 0
     then Right $ generalizedStudentT mu scale dof
     else Left "sigma must be > 0"
     where
-        mu = weightedAvg
-        scale = sqrt ((1 + 1/neff) * weightedVar)
+        mu = weightedM
+        scale = sqrt ((1 + 1/neff) * weightedV)
         dof = neff - 1
         neff = totalWeight
 

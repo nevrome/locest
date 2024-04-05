@@ -6,9 +6,7 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import qualified Control.Monad.Except as E
-import Statistics.Distribution.StudentT (StudentT)
 import Statistics.Distribution (quantile, density)
-import Statistics.Distribution.Transform (LinearTransform)
 import Control.Monad (mapAndUnzipM)
 
 type CoreLog = E.Except LOCESTException
@@ -28,16 +26,6 @@ coreSearch observations supp
          , _srInterpolation   = Just $ InterpolationResult interpolPerDepVar
          , _srProbability     = foldSum $ map _irodvProbability interpolPerDepVar
          }
-    where
-        search :: InterpolationResultOneDepVar -> Double -> CoreLog Double
-        search interpol searchValue = do
-            let neff = _irodvEffN interpol
-                avg  = _irodvWeightedAvg interpol
-                var  = _irodvWeightedVar interpol
-            case posteriorPredictive_ neff avg var of
-                Right distribution -> do
-                    return $ density distribution searchValue
-                Left e  -> E.throwError $ NormalException e
 
 getDist :: [Observation] -> CoreSupplement -> CorePermutation -> [ObsWithDist]
 getDist [] _ _ = []
@@ -92,16 +80,19 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,valueDepVar)
     (values, weights) <- mapAndUnzipM (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
     let totalWeight = foldSum weights
         neff        = totalWeight
-        weightedAvg = weightedAvg_ totalWeight values weights
-        weightedVar = weightedVar_ totalWeight weightedAvg values weights
-    case posteriorPredictive_ totalWeight weightedAvg weightedVar of
+        weightedA   = weightedAvg_ totalWeight values weights
+        weightedV   = weightedVar_ totalWeight weightedA values weights
+    case posteriorPredictive_ totalWeight weightedA weightedV of
         Right distribution -> do
             let lower  = quantile distribution 0.025
                 median = quantile distribution 0.5
                 upper  = quantile distribution 0.975
                 prob   = density distribution valueDepVar
-            return $ InterpolationResultOneDepVar nameDepVar neff weightedAvg weightedVar lower median upper prob
-        Left e  -> E.throwError $ NormalException e
+            return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV lower median upper prob
+        Left e -> do
+            -- probably doesn't work because of normalization:
+            --return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (0/0) (0/0) (0/0) (0/0)
+            E.throwError $ NormalException e
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do

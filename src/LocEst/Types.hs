@@ -17,8 +17,6 @@ import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
-import Statistics.Distribution.Transform (LinearTransform)
-import Statistics.Distribution.StudentT (StudentT)
 
 -- typeclasses
 
