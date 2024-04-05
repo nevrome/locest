@@ -18,9 +18,9 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import           Data.Either                   (isLeft)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO                     (hPutStrLn, stderr)
+import qualified Data.List.NonEmpty            as NE
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
@@ -104,8 +104,11 @@ runSearch (
                 -- split stream to report the error cases and write the good results to the file system
                 .| Con.getZipSink (
                         Con.ZipSink (
-                               ConC.filter isLeft
-                            .| ConL.mapM_ printError
+                               ConL.mapMaybe leftToJust
+                            .| ConL.groupOn id
+                            .| ConL.mapM_ printErrors
+                            --    ConC.filter isLeft
+                            -- .| ConL.mapM_ printError
                         ) *>
                         Con.ZipSink (
                                ConL.mapMaybe rightToJust
@@ -115,6 +118,9 @@ runSearch (
                         )
                    )
             hPutStrLn stderr "Done"
+
+printErrors :: MonadIO m => NE.NonEmpty LOCESTException -> m ()
+printErrors errMsg = liftIO $ hPutStrLn stderr (show (length errMsg) ++ " * " ++ renderLOCESTException (NE.head errMsg))
 
 readIndepVarsPredGrid ::
        IndepVarsPredGridSettings
@@ -296,7 +302,3 @@ normalize NormBySpace =
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
-
-printError :: MonadIO m => Either LOCESTException a -> m ()
-printError (Left errMsg) = liftIO $ hPutStrLn stderr (renderLOCESTException errMsg ++ "\n")
-printError (Right _) = error "this should never happen"
