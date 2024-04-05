@@ -114,11 +114,11 @@ valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
                         (SquaredExponential [(_,spaceKernelWidth), (_,timeKernelWidth)])
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             --error $ show (nugget, spatDist, spaceKernelWidth, tempDist, timeKernelWidth)
-            pure $ nugget / (nugget + exp ( ((spatDist ** 2) / spaceKernelWidth ** 2) + ((tempDist ** 2) / timeKernelWidth ** 2)) - 1)
+            pure $ nugget / (nugget + exp ( (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2) - 1)
         weightForOneObs nugget
                         kernel
                         (ObsWithDist _ (IndepArbitraryDimDist ds)) =
-            pure $ nugget / (nugget + exp ( foldSum (zipWith (\d t -> d ** 2 / t) ds (getValues kernel)) ) - 1)
+            pure $ nugget / (nugget + exp ( foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues kernel)) ) - 1)
         -- mismatch error case
         weightForOneObs _ _ _ =
             E.throwError $ NormalException "Illegal combination of kernel and grid data"
