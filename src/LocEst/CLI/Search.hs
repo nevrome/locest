@@ -232,87 +232,26 @@ validateAlgorithmSearch
         OP.unless (depVarsFromAlg == depVarsFromGrid) $
             throw $ NormalException "dep vars in --depVars and --algorithm not equal"
 
-createPermutations ::
-       LocestAlgorithm
-    -> IndepVarsPredGrid
-    -> Maybe DepVarsPredGrid
-    -> IO [CorePermutation]
-createPermutations
-    algorithm
-    (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples)
-    (Just (DepVarsPredGrid depVarPos)) = do
-        let permutations = replicateWithListMonad
-        hPutStrLn stderr $ "Nr permutations: " ++ show (length permutations)
-        return permutations
-        where
-            nrTempSamples = case inObsTempSamples of
-                Nothing                       -> 1
-                Just (TempSampleMatrix n _ _) -> n
-            replicateWithListMonad :: [CorePermutation]
-            replicateWithListMonad = do
-                tempSamp <- [0..(nrTempSamples-1)]
-                depPos   <- depVarPos
-                tempPos  <- inTempGrid
-                spatPos  <- inSpatGrid
-                return $ CorePermutation
-                            (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos)))
-                            (Just depPos)
-                            algorithm
-                            tempSamp
-createPermutations
-    algorithm
-    (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples)
-    Nothing = do
-        let permutations = replicateWithListMonad
-        hPutStrLn stderr $ "Nr permutations: " ++ show (length permutations)
-        return permutations
-        where
-            nrTempSamples = case inObsTempSamples of
-                Nothing                       -> 1
-                Just (TempSampleMatrix n _ _) -> n
-            replicateWithListMonad :: [CorePermutation]
-            replicateWithListMonad = do
-                tempSamp <- [0..(nrTempSamples-1)]
-                tempPos  <- inTempGrid
-                spatPos  <- inSpatGrid
-                return $ CorePermutation
-                            (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos)))
-                            Nothing
-                            algorithm
-                            tempSamp
-createPermutations
-    algorithm
-    (ArbitraryDimGrid gridPos)
-    (Just (DepVarsPredGrid depVarPos)) = do
-        let permutations = replicateWithListMonad
-        hPutStrLn stderr $ "Nr permutations: " ++ show (length permutations)
-        return permutations
-        where
-            replicateWithListMonad :: [CorePermutation]
-            replicateWithListMonad = do
-                indepPos <- gridPos
-                depPos   <- depVarPos
-                return $ CorePermutation
-                            (IndepArbitraryDimPos indepPos)
-                            (Just depPos)
-                            algorithm
-                            0
-createPermutations
-    algorithm
-    (ArbitraryDimGrid gridPos)
-    Nothing = do
-        let permutations = replicateWithListMonad
-        hPutStrLn stderr $ "Nr permutations: " ++ show (length permutations)
-        return permutations
-        where
-            replicateWithListMonad :: [CorePermutation]
-            replicateWithListMonad = do
-                indepPos <- gridPos
-                return $ CorePermutation
-                            (IndepArbitraryDimPos indepPos)
-                            Nothing
-                            algorithm
-                            0
+createPermutations :: LocestAlgorithm -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> IO [CorePermutation]
+createPermutations algorithm (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
+    permOut [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) algorithm tempSamp
+            | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+createPermutations algorithm (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
+    permOut [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing algorithm tempSamp
+            | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+createPermutations algorithm (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
+    permOut [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) algorithm 0
+            | indepPos <- gridPos, depPos <- depVarPos]
+createPermutations algorithm (ArbitraryDimGrid gridPos) Nothing =
+    permOut [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing algorithm 0
+            | indepPos <- gridPos]
+nrTempSamples :: Maybe TempSampleMatrix -> Int
+nrTempSamples Nothing                         = 1
+nrTempSamples (Just (TempSampleMatrix n _ _)) = n
+permOut :: [CorePermutation] -> IO [CorePermutation]
+permOut outPermutations = do
+    hPutStrLn stderr $ "Nr permutations: " ++ show (length outPermutations)
+    return outPermutations
 
 normalize :: Monad m => Normalization -> Con.ConduitT SearchResult SearchResult m ()
 normalize NoNorm = ConC.map id
