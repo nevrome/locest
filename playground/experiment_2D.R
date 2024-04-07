@@ -35,7 +35,7 @@ prediction_points <- tibble::tibble(
 readr::write_tsv(observations, "data/experiments/2D/obs.tsv")
 readr::write_tsv(prediction_points, "data/experiments/2D/grid.tsv")
 
-system('locest search -i data/experiments/2D/obs.tsv --anyGridFile data/experiments/2D/grid.tsv -a "kas(c(depV1 = depVar(5, c(indepV1 = 0.5))))" -o data/experiments/2D/interpol.tsv')
+system('locest search --configFile experiment_2D.config')
 
 res <- readr::read_tsv(file = "data/experiments/2D/interpol.tsv")
 
