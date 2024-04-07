@@ -7,39 +7,53 @@ import           LocEst.CLI.Crossvalidate
 import           LocEst.CLI.Search
 import           LocEst.Types
 
-import           Data.Char                (isSpace)
-import           Data.Function            ((&))
+import           Data.Char                (isSpace, toLower)
 import           Data.List                (groupBy, singleton)
 import qualified Options.Applicative      as OP
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.String       as P
 import           Text.Read                (readMaybe)
+import LocEst.Utils
+import Control.Exception (throw)
 
 -- config file that uses the optparse interface
 
 parseConfigFile :: FilePath -> IO [String]
 parseConfigFile configFile = do
     contents <- readFile configFile
-    let optparseInput = configFileToCLIInput contents
-    --hPutStrLn stderr $ show optparseInput
-    return optparseInput
+    case P.parse parseFile configFile contents of
+        Left err -> throw $ ConfigFileParsingException $ show err
+        Right x -> return x
     where
-    configFileToCLIInput :: String -> [String]
-    configFileToCLIInput conf =
-        lines conf &
-        map removeComments &
-        filter (not . null) &
-        concatMap splitOnFirstColon
-    removeComments :: String -> String
-    removeComments = takeWhile (/= '#')
-    splitOnFirstColon :: String -> [String]
-    splitOnFirstColon s = case break (==':') s of (a,b) -> [dash (trim a), trim (tail b)]
-    trim :: String -> String
-    trim = let f = reverse . dropWhile isSpace in f . f
+    parseFile :: P.Parser [String]
+    parseFile = concat <$> P.sepEndBy (P.try parseEmptyLine P.<|> P.try parseComment P.<|> parseOneArgument) P.newline
+    parseComment :: P.Parser [String]
+    parseComment = do
+        _ <- P.string "#"
+        _ <- P.manyTill P.anyChar (P.lookAhead P.newline)
+        return []
+    parseEmptyLine :: P.Parser [String]
+    parseEmptyLine = do
+        _ <- P.manyTill P.space (P.lookAhead (P.char '#' P.<|> P.newline))
+        _ <- P.optional parseComment
+        return []
+    parseOneArgument :: P.Parser [String]
+    parseOneArgument = do
+        _ <- P.spaces
+        argumentName <- P.manyTill (P.noneOf "\n") (P.lookAhead (P.char ':'))
+        _ <- P.char ':'
+        _ <- P.spaces
+        argumentValue <- P.manyTill P.anyChar (P.lookAhead (P.char '#' P.<|> P.newline))
+        _ <- P.optional parseComment
+        if map toLower argumentValue == "true"
+        then return [dash argumentName]
+        else return [dash argumentName, trim argumentValue]
     dash :: String -> String
     dash s
       | length s == 1 = '-'  :  s
       | otherwise     = "--" ++ s
+    trim :: String -> String
+    trim = let f = reverse . dropWhile isSpace in f . f
 
 -- optparse-applicative interface
 
