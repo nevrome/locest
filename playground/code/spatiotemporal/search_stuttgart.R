@@ -4,93 +4,57 @@ library(ggplot2)
 obs <- readr::read_tsv("test2Obs.tsv")
 
 # normal search test
-system('time locest search --configFile "normalSearch.conf"')
+system('time locest search --configFile code/spatiotemporal/basic.conf')
 
-hu5 <- readr::read_tsv("test_res/test2Search.tsv")
+hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
 hu5 %>%
   dplyr::filter(tempSamplingIteration == 0) %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
   geom_raster(aes(x, y, fill = probability)) +
-  scale_fill_viridis_c() +
-  coord_fixed()
-
-#plot(-1000:1000, dnorm(-1000:1000,0,400), ylim = c(0,0.01))
-#mvtnorm::dmvnorm(c(700,700), c(0,0), diag(c(500^2,500^2)))
-
-hu5 %>%
-  ggplot() +
-  facet_wrap(~yearBCAD) +
-  geom_raster(aes(x, y, fill = depC1Res)) +
-  scale_fill_viridis_c() +
-  coord_fixed()
-
-hu5 %>%
-  ggplot() +
-  facet_wrap(~yearBCAD) +
-  geom_raster(aes(x, y, fill = probability)) +
-  # geom_point(
-  #   data = hu5 %>% dplyr::filter((varC1Dens+varC2Dens)/2 < 0.000001),
-  #   aes(x,y),
-  #   shape = 4, color = "red"
-  # ) +
-  geom_raster(
-    data = hu5 %>% dplyr::filter((depC1Dens+depC2Dens)/2 < 0.000001),
-    aes(x,y),
-    fill = "white", alpha = 0.5
-  ) +
-  scale_fill_viridis_c() +
-  coord_fixed()
-
-ggplot() +
-  facet_wrap(~yearBCAD) +
-  geom_raster(
-    data = hu5 %>%
-      dplyr::filter(depC1ResErr != "Infinity" & depC1ResErr != "NaN") %>%
-      dplyr::filter(yearBCAD == -5000) %>%
-      dplyr::mutate(depC1ResErr = log10(as.numeric(depC1ResErr))),
-    aes(x,y, fill = depC1ResErr)
-  ) +
   geom_point(
     data = obs %>%
       dplyr::filter(yearBCAD > -7500 & yearBCAD < -4500) %>%
-      dplyr::mutate(yearBCAD = round(yearBCAD, -3)) %>%
-      dplyr::filter(yearBCAD == -5000),
+      dplyr::mutate(yearBCAD = round(yearBCAD, -3)),
     aes(x,y),
     shape = 4, color = "red"
   ) +
   scale_fill_viridis_c() +
   coord_fixed()
 
-# one position test
-system('time locest search -i test2Obs.tsv -g test2GridOnePoint.tsv -t "c(-5750, -5500,-5250, -5000, -4750)" -d "c(varC1=-0.0885337:0.0570383:0.01,varC2=-0.0669435:0.1100580:0.01)" -a "SepIDW(c(varC1 = LinearSum(0.00001, 0.00001), varC2 = LinearSum(0.00001, 0.00001)), DistanceWeightedMean)" -o test_res/test2Interpolate.tsv')
-
-hu <- readr::read_tsv("test_res/test2Interpolate.tsv")
-
-hu %>%
+hu5 %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
-  geom_raster(aes(varC1, varC2, fill = probability)) +
+  geom_raster(aes(x, y, fill = depC1Median)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
-
-# crossvalidation position test
-system('time locest crossvalidate -i test2Obs.tsv --testFraction 0.1 --iterations 5 -o test_res/test2Crossvalidate.tsv')
-
-# test with own distance matrix
-
-system('time locest search -i distMatrixObs.tsv -g distMatrixGrid.tsv --spatDistFile distMatrixDists.tsv -t "c(0)" -d "c(varC1 = 0,varC2 = 0)" -a "KAS(c(varC1 = Normal(200, 200), varC2 = Normal(200, 200)))" -o test_res/distMatrixTestSearch.tsv')
-
-hu <- readr::read_tsv("test_res/distMatrixTestSearch.tsv")
-
-hu %>%
-  ggplot() +
-  geom_raster(aes(x, y, fill = probability)) +
-  scale_fill_viridis_c() +
-  coord_fixed()
-
-# temporal resampling test
+# # one position test
+# system('time locest search -i test2Obs.tsv -g test2GridOnePoint.tsv -t "c(-5750, -5500,-5250, -5000, -4750)" -d "c(varC1=-0.0885337:0.0570383:0.01,varC2=-0.0669435:0.1100580:0.01)" -a "SepIDW(c(varC1 = LinearSum(0.00001, 0.00001), varC2 = LinearSum(0.00001, 0.00001)), DistanceWeightedMean)" -o test_res/test2Interpolate.tsv')
+# 
+# hu <- readr::read_tsv("test_res/test2Interpolate.tsv")
+# 
+# hu %>%
+#   ggplot() +
+#   facet_wrap(~yearBCAD) +
+#   geom_raster(aes(varC1, varC2, fill = probability)) +
+#   scale_fill_viridis_c() +
+#   coord_fixed()
+# 
+# 
+# # test with own distance matrix
+# 
+# system('time locest search -i distMatrixObs.tsv -g distMatrixGrid.tsv --spatDistFile distMatrixDists.tsv -t "c(0)" -d "c(varC1 = 0,varC2 = 0)" -a "KAS(c(varC1 = Normal(200, 200), varC2 = Normal(200, 200)))" -o test_res/distMatrixTestSearch.tsv')
+# 
+# hu <- readr::read_tsv("test_res/distMatrixTestSearch.tsv")
+# 
+# hu %>%
+#   ggplot() +
+#   geom_raster(aes(x, y, fill = probability)) +
+#   scale_fill_viridis_c() +
+#   coord_fixed()
+# 
+# # temporal resampling test
 
 
