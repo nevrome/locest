@@ -195,6 +195,9 @@ newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelDefinition
+-- the following two instances differ and don't use the KernelOneDepVar instance definitions:
+-- there is a conceptual difference between looking at the complete KernelDefinition, which typically exists
+-- in one row of the output, and the KernelOneDepVar values, which can form an own table for input and output
 instance Csv.DefaultOrdered KernelDefinition where
     headerOrder (KernelDefinition l) =
         Csv.header $ map (\x -> Bchs.pack $ "kernel" ++ x) $ concatMap oneColSet l
