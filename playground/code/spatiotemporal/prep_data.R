@@ -1,7 +1,7 @@
 library(magrittr)
 
-load("../../mobest.analysis.2022/data/genotype_data/janno_final.RData")
-load("../../mobest.analysis.2022/data/spatial/extended_area.RData")
+load("~/agora/mobest.analysis.2022/data/genotype_data/janno_final.RData")
+load("~/agora/mobest.analysis.2022/data/spatial/extended_area.RData")
 
 hu <- mobest::create_prediction_grid(
   extended_area,
@@ -12,7 +12,7 @@ hu %>%
   dplyr::select(
     id, x, y
   ) %>%
-  readr::write_tsv(file = "~/agora/locest/playground/test2Grid.tsv")
+  readr::write_tsv(file = "data/spatiotemporal/spatial_grid.tsv")
 
 janno_final %>%
   dplyr::select(
@@ -22,7 +22,7 @@ janno_final %>%
     depC1 = C1_mds_u,
     depC2 = C2_mds_u
   )  %>%
-  readr::write_tsv(file = "~/agora/locest/playground/test2Obs.tsv")
+  readr::write_tsv(file = "data/spatiotemporal/obs.tsv")
 
 janno_final %>%
   dplyr::select(
@@ -50,22 +50,22 @@ janno_final %>%
       )
   ) %$%
   currycarbon_expression %>%
-  writeLines(con = "test2CurrycarbonInput.txt")
+  writeLines(con = "data/spatiotemporal/currycarbon_input.txt")
 
-system("currycarbon -i test2CurrycarbonInput.txt -q --samplesFile test2CurrycarbonSamples.tsv -n 5 --seed 123")
+system("currycarbon -i data/spatiotemporal/currycarbon_input.txt -q --samplesFile data/spatiotemporal/currycarbon_result.tsv -n 5 --seed 123")
 
 janno_final %>%
   dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
   dplyr::select(Poseidon_ID, C1_mds_u, C2_mds_u) %>%
   as.matrix
 
-janno_final %>%
-  dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
-  dplyr::select(
-    obsID = Poseidon_ID,
-    x, y
-  )  %>%
-  readr::write_tsv(file = "~/agora/locest/playground/test2GridOnePoint.tsv")
+# janno_final %>%
+#   dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
+#   dplyr::select(
+#     obsID = Poseidon_ID,
+#     x, y
+#   )  %>%
+#   readr::write_tsv(file = "~/agora/locest/playground/test2GridOnePoint.tsv")
 
 range(janno_final$C1_mds_u)
 range(janno_final$C2_mds_u)
