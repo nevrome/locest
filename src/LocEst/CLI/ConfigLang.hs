@@ -70,9 +70,7 @@ parseKeyValuePair parseKey parseValue = do
 parseInParens :: P.Parser b -> P.Parser b
 parseInParens parser = do
     _ <- P.char '('
-    _ <- P.spaces
-    res <- parser
-    _ <- P.spaces
+    res <- parseBetweenSpaces parser
     _ <- P.char ')'
     return res
 
@@ -82,15 +80,15 @@ parseCommaSepList parser = do
 
 consumeEqualSep :: P.Parser ()
 consumeEqualSep = do
-    _ <- P.spaces *> P.char '=' <* P.spaces
+    _ <- parseBetweenSpaces (P.char '=')
     return ()
 consumeCommaSep :: P.Parser ()
 consumeCommaSep = do
-    _ <- P.spaces *> P.char ',' <* P.spaces
+    _ <- parseBetweenSpaces (P.char ',')
     return ()
 
-parseCharInSpace :: Char -> P.Parser Char
-parseCharInSpace c = P.between P.spaces P.spaces (P.char c)
+parseBetweenSpaces :: P.Parser a -> P.Parser a
+parseBetweenSpaces = P.between P.spaces P.spaces
 
 parseAnyString :: P.Parser String
 parseAnyString =
