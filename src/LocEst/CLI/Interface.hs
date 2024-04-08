@@ -3,7 +3,6 @@
 module LocEst.CLI.Interface where
 
 import           LocEst.CLI.ConfigLang
-import           LocEst.CLI.Crossvalidate
 import           LocEst.CLI.Search
 import           LocEst.Types
 
@@ -124,32 +123,6 @@ optParseIndepVarsPredGridSettings =
         <*> optParseInObsTempSamplesFile
     ) OP.<|>
     (ArbitraryDimGridSettings <$> optParseInArbitraryDimFile)
-
-optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
-optParseCrossvalidationSettings =
-    CrossvalidationSettings
-        <$> optParseTestTrainingFraction
-        <*> optParseCrossvalIterations
-
-optParseTestTrainingFraction :: OP.Parser Double
-optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
-       OP.long    "testFraction"
-    <> OP.metavar "..."
-    <> OP.help    "..."
-    )
-    where
-        readFraction :: String -> Either String Double
-        readFraction s =
-            case P.runParser parseFraction () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-
-optParseCrossvalIterations :: OP.Parser Int
-optParseCrossvalIterations = OP.option OP.auto (
-       OP.long    "iterations"
-    <> OP.metavar "..."
-    <> OP.help    "..."
-    )
 
 optParseSpaceTimeFilter :: OP.Parser (Maybe (Double,Double))
 optParseSpaceTimeFilter = OP.option (Just <$> OP.eitherReader readSpaceTime) (

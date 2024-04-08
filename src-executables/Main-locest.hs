@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           LocEst.CLI.Crossvalidate (CrossvalidateOptions (..),
-                                           runCrossvalidate)
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise     (SerialiseOptions (..),
@@ -25,7 +23,6 @@ data Options = Options { _subcommand :: Subcommand }
 data Subcommand =
       CmdSerialise SerialiseOptions
     | CmdSearch SearchOptions
-    | CmdCrossvalidate CrossvalidateOptions
 
 -- CLI interface configuration
 main :: IO ()
@@ -73,7 +70,6 @@ runCmd :: Subcommand -> IO ()
 runCmd o = case o of
     CmdSerialise opts     -> runSerialise opts
     CmdSearch opts        -> runSearch opts
-    CmdCrossvalidate opts -> runCrossvalidate opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (
@@ -88,7 +84,6 @@ subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
            OP.command "serialise" serialiseOptInfo
         <> OP.command "search" searchOptInfo
-        <> OP.command "crossvalidate" crossvalidateOptInfo
     )
     where
         serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
@@ -96,8 +91,6 @@ subcommandParser = OP.subparser (
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
             (OP.progDesc "Interpolate dependent variables in space and time to determine areas of \
                           \ increased similarity to specific observations.")
-        crossvalidateOptInfo = OP.info (OP.helper <*> (CmdCrossvalidate <$> crossvalidateOptParser))
-            (OP.progDesc "Compare hyperparameter settings for the interpolation through crossvalidation.")
 
 serialiseOptParser :: OP.Parser SerialiseOptions
 serialiseOptParser = SerialiseSpatDistFile <$> (
@@ -117,11 +110,3 @@ searchOptParser = SearchOptions <$>
                         <*> optParseNormalization
                         <*> optParseNumberOfThreads
                         <*> optParseOutFile
-
-crossvalidateOptParser :: OP.Parser CrossvalidateOptions
-crossvalidateOptParser = CrossvalidateOptions <$>
-                            optParseInObservationFile
-                        <*> optParseCrossvalidationSettings
-                        <*> optParseOutFile
-
-
