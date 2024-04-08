@@ -11,7 +11,7 @@ observations <- tibble::tibble(
     runif(round((0.3/total_density) * n), 10, 15),
     runif(round((7  /total_density) * n), 15, 20)
   )
-) %>% $ ArbitraryDimPos l)) nested
+) %>%
   dplyr::rowwise() %>%
   dplyr::mutate(
     depV1 = dplyr::case_when(

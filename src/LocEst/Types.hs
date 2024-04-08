@@ -196,10 +196,22 @@ newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
 
 instance NFData KernelDefinition
 instance Csv.DefaultOrdered KernelDefinition where
-    headerOrder (KernelDefinition l) = Csv.headerOrder $ head l
+    headerOrder (KernelDefinition l) =
+        Csv.header $ map (\x -> Bchs.pack $ "kernel" ++ x) $ concatMap oneColSet l
+        where
+            oneColSet :: KernelOneDepVar -> [String]
+            oneColSet (KernelOneDepVar name _ kernel) =
+                let nuggetCol  = "Nugget"
+                    kernelCols = getKeys kernel
+                in map (name ++) $ nuggetCol:kernelCols
 instance Csv.ToRecord KernelDefinition where
-    toRecord (KernelDefinition kernDef) =
-        V.concatMap Csv.toRecord $ V.fromList kernDef
+    toRecord (KernelDefinition l) =
+        V.concatMap oneColSet $ V.fromList l
+        where
+            oneColSet :: KernelOneDepVar -> Csv.Record
+            oneColSet (KernelOneDepVar _ nugget kernel) =
+                Csv.record [Csv.toField nugget] <> Csv.toRecord kernel
+        
 instance PseudoMap KernelDefinition Kernel where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = map _kodvKernel l
