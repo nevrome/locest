@@ -128,10 +128,8 @@ readSpatDist noOrderCheck obs spatGrid path = do
                     Nothing -> return ()
             loop [] = return ()
 
-readKernelDefinition :: FilePath -> IO KernelDefinition
-readKernelDefinition p = do
-    kernelOneDepVarList <- readCSVToList p
-    return $ KernelDefinition kernelOneDepVarList
+readKernel :: FilePath -> IO [KernelOneDepVar]
+readKernel = readCSVToList
 readObservations :: FilePath -> IO [Observation]
 readObservations = readCSVToList
 readHyperPos :: FilePath -> IO [HyperPos]
