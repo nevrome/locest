@@ -32,12 +32,12 @@ prediction_points <- tibble::tibble(
   indepV1 = seq(0, 20, length.out = 1000)
 )
 
-readr::write_tsv(observations, "data/experiments/2D/obs.tsv")
-readr::write_tsv(prediction_points, "data/experiments/2D/grid.tsv")
+readr::write_tsv(observations, "data/2D/obs.tsv")
+readr::write_tsv(prediction_points, "data/2D/grid.tsv")
 
-system('locest search --configFile experiment_2D.config')
+system('locest search --configFile code/2D/experiment_2D.conf')
 
-res <- readr::read_tsv(file = "data/experiments/2D/interpol.tsv")
+res <- readr::read_tsv(file = "data/2D/interpol.tsv")
 
 ggplot() +
   geom_point(
@@ -66,3 +66,4 @@ ggplot() +
     mapping = aes(x = indepV1, y = depV1Var),
     color = "red"
   )
+
