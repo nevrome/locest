@@ -177,20 +177,17 @@ instance Csv.ToRecord CorePermutation where
         <> Csv.record [Csv.toField tempSamplingIteration]
 
 -- Data types for core algorithm specification
-data LocestAlgorithm =
+newtype LocestAlgorithm =
     AlgoKernSmooth {
         _aksKernelDefinition :: KernelDefinition
     }
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData LocestAlgorithm
--- these instances are just placeholders
 instance Csv.DefaultOrdered LocestAlgorithm where
-    headerOrder (AlgoKernSmooth _) =
-        Csv.header ["kernDef"]
+    headerOrder (AlgoKernSmooth kernDef) = Csv.headerOrder kernDef
 instance Csv.ToRecord LocestAlgorithm where
-    toRecord (AlgoKernSmooth kernDef) =
-        Csv.record [Csv.toField (show kernDef)]
+    toRecord (AlgoKernSmooth kernDef) = Csv.toRecord kernDef
 
 type DepVarName = String
 
@@ -198,6 +195,11 @@ newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelDefinition
+instance Csv.DefaultOrdered KernelDefinition where
+    headerOrder (KernelDefinition l) = Csv.headerOrder $ head l
+instance Csv.ToRecord KernelDefinition where
+    toRecord (KernelDefinition kernDef) =
+        V.concatMap Csv.toRecord $ V.fromList kernDef
 instance PseudoMap KernelDefinition Kernel where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = map _kodvKernel l
@@ -210,22 +212,41 @@ data KernelOneDepVar = KernelOneDepVar {
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelOneDepVar
+instance Csv.FromNamedRecord KernelOneDepVar where
+    parseNamedRecord m = do
+        depVarName <- filterLookup m "depVar"
+        nugget     <- filterLookup m "nugget"
+        kernel     <- Csv.parseNamedRecord m
+        pure $ KernelOneDepVar {
+              _kodvDepVarName = depVarName
+            , _kodvNugget     = nugget
+            , _kodvKernel     = kernel
+            }
+instance Csv.DefaultOrdered KernelOneDepVar where
+    headerOrder (KernelOneDepVar _ _ kernel) =
+        Csv.header ["depVar"] <> Csv.header ["nugget"] <> Csv.headerOrder kernel
+instance Csv.ToRecord KernelOneDepVar where
+    toRecord (KernelOneDepVar name nugget kernel) =
+        Csv.toRecord name <> Csv.record [Csv.toField nugget] <> Csv.toRecord kernel
 
 type IndepVarName = String
 type Nugget = Double
 type KernelWidth = Double
 
 data Kernel =
-        SquaredExponential [(
-            IndepVarName,
-            KernelWidth -- kernel width
-        )]
+        SquaredExponential ArbitraryDimPos
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
+instance Csv.FromNamedRecord Kernel where
+    parseNamedRecord = Csv.parseNamedRecord
+instance Csv.DefaultOrdered Kernel where
+    headerOrder (SquaredExponential arbitraryDimPos) = Csv.headerOrder arbitraryDimPos
+instance Csv.ToRecord Kernel where
+    toRecord (SquaredExponential arbitraryDimPos) = Csv.toRecord arbitraryDimPos
 instance PseudoMap Kernel Double where
-    getKeys   (SquaredExponential l) = map fst l
-    getValues (SquaredExponential l) = map snd l
+    getKeys   (SquaredExponential arbitraryDimPos) = getKeys arbitraryDimPos
+    getValues (SquaredExponential arbitraryDimPos) = getValues arbitraryDimPos
 
 data ObsWithDist = ObsWithDist {
       _owdObservation  :: Observation
@@ -344,7 +365,7 @@ instance PseudoMap DepVarsPos Double where
     getValues (DepVarsPos l) = map snd l
 
 newtype ArbitraryDimPos = ArbitraryDimPos [(IndepVarName, Double)]
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Ord, Generic)
 
 instance NFData ArbitraryDimPos
 instance Csv.FromNamedRecord ArbitraryDimPos where

@@ -258,7 +258,7 @@ optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
                     parseRecordType "kas" $ AlgoKernSmooth <$> parseArgument "kernels" parseKernelDef
                 parseKernelDef = do
                     nested <- parseNamedVector parseDepVarName parseNuggetAndWidths
-                    return $ KernelDefinition $ map (\(name,(nugget,l)) -> KernelOneDepVar name nugget (SquaredExponential l)) nested
+                    return $ KernelDefinition $ map (\(name,(nugget,l)) -> KernelOneDepVar name nugget (SquaredExponential $ ArbitraryDimPos l)) nested
                 parseNuggetAndWidths = do
                     parseRecordType "depVar" $ do
                         a <- parseArgument "nugget" parseDouble
