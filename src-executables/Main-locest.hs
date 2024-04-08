@@ -40,8 +40,7 @@ main = do
             return cmdArgs
         Just configFilePath -> do
             let cmdArgs = removeConfigFileArg rawCmdArgs
-            configFileArgs <- parseConfigFile configFilePath
-            --hPutStrLn stderr $ show $ cmdArgs ++ configFileArgs
+            configFileArgs <- catch (parseConfigFile configFilePath) handler
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
     (Options subcommand) <-
@@ -59,13 +58,13 @@ main = do
         removeConfigFileArg [] = []
         removeConfigFileArg (x : xs)
           | "--configFile" `isInfixOf` x = dropNextElement xs
-          | otherwise                  = x : removeConfigFileArg xs
+          | otherwise                    = x : removeConfigFileArg xs
           where
             dropNextElement []       = []
             dropNextElement [_]      = []
             dropNextElement (_ : ys) = removeConfigFileArg ys
         -- exception handler
-        handler :: LOCESTException -> IO ()
+        handler :: LOCESTException -> IO a
         handler e = do
             hPutStrLn stderr $ renderLOCESTException e
             exitFailure

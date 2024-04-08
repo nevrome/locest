@@ -97,8 +97,8 @@ instance Csv.ToRecord CrossvalOutput where
 -- | A datatype for search result points in space and time
 data SearchResult = SearchResult {
       _srCorePermutation :: CorePermutation
-    , _srInterpolation   :: Maybe DepVarsUncertainPos
-    , _srProbability     :: Double
+    , _srInterpolation   :: InterpolationResult
+    , _srProbability     :: Maybe Double
     -- to model the different densities per input point
     -- (which will certainly be necessary for debugging)
     -- SpatTempProb must somehow include also the source Observation
@@ -107,15 +107,15 @@ data SearchResult = SearchResult {
 
 instance NFData SearchResult
 instance Csv.DefaultOrdered SearchResult where
-    headerOrder (SearchResult spatTempDepVarsPos Nothing _) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.header ["probability"]
-    headerOrder (SearchResult spatTempDepVarsPos (Just depVarsUncertainPos) _) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder depVarsUncertainPos <> Csv.header ["probability"]
+    headerOrder (SearchResult spatTempDepVarsPos interpolationResult Nothing) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult
+    headerOrder (SearchResult spatTempDepVarsPos interpolationResult (Just _)) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult <> Csv.header ["probability"]
 instance Csv.ToRecord SearchResult where
-    toRecord (SearchResult spatTempDepVarsPos Nothing prob) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
-    toRecord (SearchResult spatTempDepVarsPos (Just depVarsUncertainPos) prob) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord depVarsUncertainPos <> Csv.record [Csv.toField prob]
+    toRecord (SearchResult spatTempDepVarsPos interpolationResult Nothing) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult
+    toRecord (SearchResult spatTempDepVarsPos interpolationResult (Just prob)) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult <> Csv.record [Csv.toField prob]
 
 data SpatTempProb = SpatTempProb {
       _stprCorePermutation :: CorePermutation
@@ -136,7 +136,7 @@ instance Csv.ToRecord SpatTempProb where
 
 data SearchGrid = SearchGrid {
       _searchPosIndepVarsGrid :: IndepVarsPredGrid
-    , _searchPosDepVarsGrid   :: DepVarsPredGrid
+    , _searchPosDepVarsGrid   :: Maybe DepVarsPredGrid
 }
 
 data IndepVarsPredGrid =
@@ -163,20 +163,31 @@ data CoreSupplement = CoreSupplement {
 
 -- | A datatype with core-algorithm settings
 data CorePermutation = CorePermutation {
-      _casPosition              :: HyperPos
+      _casIndepVarsPos          :: IndepVarsPos
+    , _casDepVarsPos            :: Maybe DepVarsPos
     , _casAlgorithm             :: LocestAlgorithm
     , _casTempSamplingIteration :: Int
 } deriving (Show, Generic)
 
 instance NFData CorePermutation
 instance Csv.DefaultOrdered CorePermutation where
-    headerOrder (CorePermutation spatTempDepVarsPos algorithm _) =
-           Csv.headerOrder spatTempDepVarsPos
+    headerOrder (CorePermutation indepVarsPos (Just depVarsPos) algorithm _) =
+           Csv.headerOrder indepVarsPos
+        <> Csv.headerOrder depVarsPos
+        <> Csv.headerOrder algorithm
+        <> Csv.header ["tempSamplingIteration"]
+    headerOrder (CorePermutation indepVarsPos Nothing algorithm _) =
+           Csv.headerOrder indepVarsPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["tempSamplingIteration"]
 instance Csv.ToRecord CorePermutation where
-    toRecord (CorePermutation spatTempDepVarsPos algorithm tempSamplingIteration) =
-           Csv.toRecord spatTempDepVarsPos
+    toRecord (CorePermutation indepVarsPos (Just depVarsPos) algorithm tempSamplingIteration) =
+           Csv.toRecord indepVarsPos
+        <> Csv.toRecord depVarsPos
+        <> Csv.toRecord algorithm
+        <> Csv.record [Csv.toField tempSamplingIteration]
+    toRecord (CorePermutation indepVarsPos Nothing algorithm tempSamplingIteration) =
+           Csv.toRecord indepVarsPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
 
@@ -196,14 +207,6 @@ instance Csv.ToRecord LocestAlgorithm where
     toRecord (AlgoKernSmooth kernDef) =
         Csv.record [Csv.toField (show kernDef)]
 
-data DensitySummaryAlgorithm =
-      Maximum
-    | Mean
-    | DistanceWeightedMean
-    deriving (Show, Eq, Ord, Generic)
-
-instance NFData DensitySummaryAlgorithm
-
 type DepVarName = String
 
 newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
@@ -214,9 +217,9 @@ instance PseudoMap KernelDefinition Kernel where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = map _kodvKernel l
 
-
 data KernelOneDepVar = KernelOneDepVar {
       _kodvDepVarName :: DepVarName
+    , _kodvNugget     :: Nugget
     , _kodvKernel     :: Kernel
     }
     deriving (Show, Eq, Ord, Generic)
@@ -224,18 +227,20 @@ data KernelOneDepVar = KernelOneDepVar {
 instance NFData KernelOneDepVar
 
 type IndepVarName = String
+type Nugget = Double
+type KernelWidth = Double
 
 data Kernel =
-      Uniform [(IndepVarName, Double)]
-    | Normal [(IndepVarName, Double)]
+        SquaredExponential [(
+            IndepVarName,
+            KernelWidth -- kernel width
+        )]
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData Kernel
 instance PseudoMap Kernel Double where
-    getKeys   (Uniform l) = map fst l
-    getKeys   (Normal l)  = map fst l
-    getValues (Uniform l) = map snd l
-    getValues (Normal l)  = map snd l
+    getKeys   (SquaredExponential l) = map fst l
+    getValues (SquaredExponential l) = map snd l
 
 data ObsWithDist = ObsWithDist {
       _owdObservation  :: Observation
@@ -294,17 +299,43 @@ instance Csv.ToRecord HyperPos where
     toRecord (HyperPos indepVarsPos depVarsPos) =
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
--- | A datatype for dependent vars with errors
-newtype DepVarsUncertainPos = DepVarsUncertainPos [(String, (Double, Double, Double, Double))]
+-- | A datatype for the interpolation output
+newtype InterpolationResult = InterpolationResult [InterpolationResultOneDepVar]
     deriving (Eq, Show, Generic)
 
-instance NFData DepVarsUncertainPos
-instance Csv.DefaultOrdered DepVarsUncertainPos where
-    headerOrder (DepVarsUncertainPos l) =
-        V.map Bchs.pack $ V.fromList $ concatMap (\n -> [n ++ "Res", n ++ "ResErr", n ++ "Dens", n ++ "Neff"]) $ map fst l
-instance Csv.ToRecord DepVarsUncertainPos where
-    toRecord (DepVarsUncertainPos l) =
-        V.map (Bchs.pack . show) $ V.fromList $ concatMap (\(a,b,c,d) -> [a,b,c,d]) $ map snd l
+instance NFData InterpolationResult
+instance Csv.DefaultOrdered InterpolationResult where
+    headerOrder (InterpolationResult l) = V.concat $ map Csv.headerOrder l
+instance Csv.ToRecord InterpolationResult where
+    toRecord (InterpolationResult l) =
+        V.concat $ map Csv.toRecord l
+
+data InterpolationResultOneDepVar = InterpolationResultOneDepVar {
+          _irodvDepVarName   :: DepVarName -- name of the dependent variable
+        , _irodvEffN         :: Double     -- effective number of samples
+        , _irodvWeightedAvg  :: Double     -- weighted average
+        , _irodvWeightedVar  :: Double     -- weighted variance
+        , _irodvLowerBound   :: Double     -- lower boundary of the 95% interval
+        , _irodvMedian       :: Double     -- median
+        , _irodvUpperBound   :: Double     -- upper boundary of the 95% interval
+        , _irodvProbability  :: Maybe Double  -- Probability for search value
+    } deriving (Eq, Show, Generic)
+
+instance NFData InterpolationResultOneDepVar
+instance Csv.DefaultOrdered InterpolationResultOneDepVar where
+    headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ (Just _)) =
+        Csv.header $ map Bchs.pack [n ++ "EffN", n ++ "Avg", n ++ "Var", n ++ "Low", n ++ "Median", n ++ "Up", n ++ "Prob"]
+    headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ Nothing) =
+        Csv.header $ map Bchs.pack [n ++ "EffN", n ++ "Avg", n ++ "Var", n ++ "Low", n ++ "Median", n ++ "Up"]
+instance Csv.ToRecord InterpolationResultOneDepVar where
+    toRecord (InterpolationResultOneDepVar _ neff a v lb m ub (Just p)) =
+        Csv.record [
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField p
+        ]
+    toRecord (InterpolationResultOneDepVar _ neff a v lb m ub Nothing) =
+        Csv.record [
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField lb, Csv.toField m, Csv.toField ub
+        ]
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]
