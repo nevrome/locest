@@ -229,6 +229,13 @@ optParseOutFile = OP.strOption (
     <> OP.help  "Path to the output file."
     )
 
+optParseVariogramOutFile :: OP.Parser (Maybe FilePath)
+optParseVariogramOutFile = OP.optional $ OP.strOption (
+       OP.long  "variogramOutFile"
+    <> OP.metavar "FILE"
+    <> OP.help  "Path to the variogram output file."
+    )
+
 --optParseQuiet :: OP.Parser Bool
 --optParseQuiet = OP.switch (
 --    OP.long "quiet" <>
