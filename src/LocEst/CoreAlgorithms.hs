@@ -115,7 +115,7 @@ valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
         weightForOneObs :: Nugget -> Kernel -> ObsWithDist -> CoreLog Double
         -- squared-exponential kernel
         weightForOneObs nugget
-                        (SquaredExponential [(_,spaceKernelWidth), (_,timeKernelWidth)])
+                        (SquaredExponential (ArbitraryDimPos [(_,spaceKernelWidth), (_,timeKernelWidth)]))
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             pure $ nugget / (nugget + exp ( (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2) - 1)
         weightForOneObs nugget

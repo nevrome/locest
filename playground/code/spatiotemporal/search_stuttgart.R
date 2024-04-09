@@ -9,7 +9,7 @@ system('time locest search --configFile code/spatiotemporal/basic.conf')
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
 hu5 %>%
-  dplyr::filter(tempSamplingIteration == 0) %>%
+  dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
   geom_raster(aes(x, y, fill = probability)) +
@@ -26,7 +26,7 @@ hu5 %>%
 hu5 %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
-  geom_raster(aes(x, y, fill = depC1Median)) +
+  geom_raster(aes(x, y, fill = interpol_depC1_median)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
