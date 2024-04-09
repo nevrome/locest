@@ -46,7 +46,7 @@ ggplot() +
   ) +
   geom_ribbon(
     data = res,
-    mapping = aes(x = indepV1, ymin = depV1Low, ymax = depV1Up),
+    mapping = aes(x = indepV1, ymin = interpol_depV1_low, ymax = interpol_depV1_up),
     color = "red",
     fill = "red",
     alpha = 0.2
@@ -56,14 +56,14 @@ ggplot() +
 ggplot() +
   geom_line(
     data = res,
-    mapping = aes(x = indepV1, y = depV1EffN),
+    mapping = aes(x = indepV1, y = interpol_depV1_neff),
     color = "red"
   )
 
 ggplot() +
   geom_line(
     data = res,
-    mapping = aes(x = indepV1, y = depV1Var),
+    mapping = aes(x = indepV1, y = interpol_depV1_var),
     color = "red"
   )
 

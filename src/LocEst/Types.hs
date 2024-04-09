@@ -158,13 +158,13 @@ instance NFData CorePermutation
 instance Csv.DefaultOrdered CorePermutation where
     headerOrder (CorePermutation indepVarsPos (Just depVarsPos) algorithm _) =
            Csv.headerOrder indepVarsPos
-        <> Csv.headerOrder depVarsPos
+        <> V.map ("search_" <>) (Csv.headerOrder depVarsPos)
         <> Csv.headerOrder algorithm
-        <> Csv.header ["tempSamplingIteration"]
+        <> Csv.header ["temp_sampling_iteration"]
     headerOrder (CorePermutation indepVarsPos Nothing algorithm _) =
            Csv.headerOrder indepVarsPos
         <> Csv.headerOrder algorithm
-        <> Csv.header ["tempSamplingIteration"]
+        <> Csv.header ["temp_sampling_iteration"]
 instance Csv.ToRecord CorePermutation where
     toRecord (CorePermutation indepVarsPos (Just depVarsPos) algorithm tempSamplingIteration) =
            Csv.toRecord indepVarsPos
@@ -200,13 +200,13 @@ instance NFData KernelDefinition
 -- in one row of the output, and the KernelOneDepVar values, which can form an own table for input and output
 instance Csv.DefaultOrdered KernelDefinition where
     headerOrder (KernelDefinition l) =
-        Csv.header $ map (\x -> Bchs.pack $ "kernel" ++ x) $ concatMap oneColSet l
+        Csv.header $ map (\x -> Bchs.pack $ "kernel_" ++ x) $ concatMap oneColSet l
         where
             oneColSet :: KernelOneDepVar -> [String]
             oneColSet (KernelOneDepVar name _ kernel) =
-                let nuggetCol  = "Nugget"
-                    kernelCols = getKeys kernel
-                in map (name ++) $ nuggetCol:kernelCols
+                let nuggetCol       = "nugget"
+                    lengthscaleCols = map (++ "_lengthscale") $ getKeys kernel
+                in map (\x -> name ++ "_" ++ x) $ nuggetCol:lengthscaleCols
 instance Csv.ToRecord KernelDefinition where
     toRecord (KernelDefinition l) =
         V.concatMap oneColSet $ V.fromList l
@@ -345,9 +345,9 @@ data InterpolationResultOneDepVar = InterpolationResultOneDepVar {
 instance NFData InterpolationResultOneDepVar
 instance Csv.DefaultOrdered InterpolationResultOneDepVar where
     headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ (Just _)) =
-        Csv.header $ map Bchs.pack [n ++ "EffN", n ++ "Avg", n ++ "Var", n ++ "Low", n ++ "Median", n ++ "Up", n ++ "Prob"]
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "low", "median", "up", "prob"]
     headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ Nothing) =
-        Csv.header $ map Bchs.pack [n ++ "EffN", n ++ "Avg", n ++ "Var", n ++ "Low", n ++ "Median", n ++ "Up"]
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "low", "median", "up"]
 instance Csv.ToRecord InterpolationResultOneDepVar where
     toRecord (InterpolationResultOneDepVar _ neff a v lb m ub (Just p)) =
         Csv.record [
