@@ -5,9 +5,10 @@ module LocEst.CLI.Vario where
 import LocEst.Parsers
 import LocEst.Types
 import LocEst.Distance
+import LocEst.MathUtils
 
 import           System.IO       (hPutStrLn, stderr)
-import Data.List (tails)
+import Data.List (tails, foldl')
 import qualified Data.Vector.Unboxed as VU
 
 data VarioOptions = VarioOptions {
@@ -21,17 +22,38 @@ runVario (VarioOptions inObsFile _) = do
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
     let observations = zipWith setIndex observationsUnindexed [0..]
-    -- pairwise distances
-    hPutStrLn stderr "Calculating pairwise distances"
-    let distsPerIndepVar = calculatePairwiseDistances observations
+    -- calculate pairwise distances for all idependent variables
+    hPutStrLn stderr "Calculating pairwise distances for all independent variables"
+    let distsPerIndepVar = calcPairwiseDistances observations
+    -- continue per independent variable
     -- huhu
     hPutStrLn stderr "wip"
 
-calculatePairwiseDistances :: [Observation] -> [(IndepVarName, SUDistMatrix)]
-calculatePairwiseDistances obs = reshape distList
+binAndFitPerIndepVar :: IndepVarName -> SUDistMatrix -> IO ()
+binAndFitPerIndepVar indepVarName (SUDistMatrix _ _ distVec) = do
+    hPutStrLn stderr $ "Working on: " ++ indepVarName
+    -- prepare bins
+    let minValue = VU.minimum distVec
+        maxValue = VU.maximum distVec
+        stepWidth = (maxValue - minValue)/20
+        stepsSingle = [minValue,minValue+stepWidth..maxValue]
+        steps = zip (init stepsSingle) (tail stepsSingle)
+    -- realize bins and calculate semi-variance per bin
+        --hu = VA.sort distVec
+
+    hPutStrLn stderr "wip"
+
+calcMatheron :: [Double] -> Double
+calcMatheron xs = (1 / (2 * n)) * foldl' (\acc x -> acc + ((x - mean)^2)) 0 xs
+    where
+        n = fromIntegral $ length xs
+        mean = foldSum xs / n
+
+calcPairwiseDistances :: [Observation] -> [(IndepVarName, SUDistMatrix)]
+calcPairwiseDistances obs = reshape distList
     where
         n = length obs
-        distList = [obsobsDist x y | (x:_) <- tails obs, y <- obs]
+        distList = [obsobsDist x y | y <- obs, (x:_) <- tails obs]
         reshape :: [[(IndepVarName, Double)]] -> [(IndepVarName, SUDistMatrix)]
         reshape = map (\x -> (fst $ head x, SUDistMatrix n n $ VU.fromList $ map snd x))
 
