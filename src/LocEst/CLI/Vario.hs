@@ -1,4 +1,9 @@
+{-# LANGUAGE BangPatterns        #-}
+
 module LocEst.CLI.Vario where
+
+import LocEst.Parsers
+import LocEst.Types
 
 import           System.IO       (hPutStrLn, stderr)
 
@@ -8,4 +13,18 @@ data VarioOptions = VarioOptions {
 }
 
 runVario :: VarioOptions -> IO ()
-runVario _ = hPutStrLn stderr "todo"
+runVario (VarioOptions inObsFile _) = do
+    -- read observations
+    hPutStrLn stderr "Reading observations"
+    !observationsUnindexed <- readObservations inObsFile
+    let observations = zipWith setIndex observationsUnindexed [0..]
+    -- pairwise distances
+    hPutStrLn stderr "Calculating pairwise distances"
+
+    -- huhu
+    hPutStrLn stderr "wip"
+
+calculatePairwiseDistances :: [Observation] -> SUDistMatrix
+calculatePairwiseDistances obs =
+    undefined
+    

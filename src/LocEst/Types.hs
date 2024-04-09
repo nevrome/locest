@@ -56,17 +56,47 @@ filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup na
 data Normalization = NormBySpace | NoNorm
     deriving (Show)
 
--- | A datatype for an unidirectional distance matrix
-data SpatDistMatrix = SpatDistMatrix {
-      _sDMNrGridPoints :: Int -- column number
-    , _sDMNrObs        :: Int -- row number
-    , _sDMMatrix       :: VU.Vector Double
+-- | A datatype for a symmetric, unidirectional distance matrix
+-- this matrix has (n*n)/2 - n entries and a triangular shape
+data SUDistMatrix = SUDistMatrix {
+      _sudmNrCols :: Int -- column number
+    , _sudmNrRows :: Int -- row number
+    , _sudmMatrix :: VU.Vector Double
 } deriving (Generic)
 
-instance S.Serialise SpatDistMatrix
+-- | This lookup function must consider that the triangular matrix packs 
+-- its values in a certain order. In the case of a lower triangular matrix,
+-- where every element above the principal diagonal is zero, we can count
+-- by rows to get the right index for each value:
+-- The first row contains 0 elements (as "a distance to itself" is not present),
+-- The second row contains 1 element,
+-- The third row contains 2 elements,
+-- and so forth.
+-- see https://math.stackexchange.com/questions/646117/how-to-find-a-function-mapping-matrix-indices
+-- for the lookup algorithm
+lookUpDistanceSU :: SUDistMatrix -> Int -> Int -> Double
+lookUpDistanceSU (SUDistMatrix _ _ vec) col row 
+    | col == row = 0
+    | col < row  = vec VU.! (nodesInTriangle (row - 1) + col)
+    | col > row  = vec VU.! (nodesInTriangle (col - 1) + row)
+    | otherwise  = error "Impossible state in lookUpDistanceSU"
+    where
+        nodesInTriangle n = n * (n+1) `div` 2
 
-lookUpDistance :: SpatDistMatrix -> Int -> Int -> Double
-lookUpDistance (SpatDistMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
+-- | A datatype for an asymmetric, unidirectional distance matrix
+-- this matrix has m*n different entries and a rectangular shape
+data AUDistMatrix = AUDistMatrix {
+      _audmNrCols :: Int -- column number
+    , _audmNrRows :: Int -- row number
+    , _audmMatrix :: VU.Vector Double
+} deriving (Generic)
+
+instance S.Serialise AUDistMatrix
+
+lookUpDistanceAU :: AUDistMatrix -> Int -> Int -> Double
+lookUpDistanceAU (AUDistMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
+
+type SpatDistMatrix = AUDistMatrix
 
 data SpatDistObsGrid = SpatDistObsGrid {
       _spatDistObsGridObsID    :: String

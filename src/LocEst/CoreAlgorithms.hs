@@ -64,7 +64,7 @@ getDist
             -- look up distances
             findSpatDist (Just spatDistMatrix) =
                 let gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
-                in lookUpDistance spatDistMatrix gridSpatPosIndex obsIndex
+                in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
 -- arbitrary dim distances
 getDist
     (obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) : rest)

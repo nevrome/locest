@@ -102,7 +102,7 @@ readSpatDist noOrderCheck obs spatGrid path = do
         ) .|
         ConC.sinkVectorN (nObs * nGridPoints)
     hPutStrLn stderr "Done"
-    return $ SpatDistMatrix nGridPoints nObs distVec
+    return $ AUDistMatrix nGridPoints nObs distVec
     where
     checkOrder :: (MonadIO m) => ConduitT SpatDistObsGrid Double m ()
     checkOrder = do
