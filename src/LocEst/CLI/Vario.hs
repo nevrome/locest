@@ -7,6 +7,8 @@ import LocEst.Types
 import LocEst.Distance
 
 import           System.IO       (hPutStrLn, stderr)
+import Data.List (tails)
+import qualified Data.Vector.Unboxed as VU
 
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,
@@ -21,15 +23,19 @@ runVario (VarioOptions inObsFile _) = do
     let observations = zipWith setIndex observationsUnindexed [0..]
     -- pairwise distances
     hPutStrLn stderr "Calculating pairwise distances"
-    let hu = calculatePairwiseDistances observations
+    let distsPerIndepVar = calculatePairwiseDistances observations
     -- huhu
     hPutStrLn stderr "wip"
 
-calculatePairwiseDistances :: [Observation] -> SUDistMatrix
-calculatePairwiseDistances obs =
-    undefined
+calculatePairwiseDistances :: [Observation] -> [(IndepVarName, SUDistMatrix)]
+calculatePairwiseDistances obs = reshape distList
+    where
+        n = length obs
+        distList = [obsobsDist x y | (x:_) <- tails obs, y <- obs]
+        reshape :: [[(IndepVarName, Double)]] -> [(IndepVarName, SUDistMatrix)]
+        reshape = map (\x -> (fst $ head x, SUDistMatrix n n $ VU.fromList $ map snd x))
 
-obsobsDist :: Observation -> Observation -> [(String, Double)]
+obsobsDist :: Observation -> Observation -> [(IndepVarName, Double)]
 obsobsDist
     (Observation _ _ (HyperPos (IndepSpatTempPos p1) _))
     (Observation _ _ (HyperPos (IndepSpatTempPos p2) _)) =
