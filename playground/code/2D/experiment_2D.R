@@ -35,6 +35,8 @@ prediction_points <- tibble::tibble(
 readr::write_tsv(observations, "data/2D/obs.tsv")
 readr::write_tsv(prediction_points, "data/2D/grid.tsv")
 
+system('locest vario -i data/2D/obs.tsv')
+
 system('locest search --configFile code/2D/experiment_2D.conf')
 
 res <- readr::read_tsv(file = "data/2D/interpol.tsv")

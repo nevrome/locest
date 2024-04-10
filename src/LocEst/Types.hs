@@ -60,7 +60,7 @@ data Normalization = NormBySpace | NoNorm
 -- this matrix has (n*n)/2 - n entries and a triangular shape
 newtype SUDistMatrix = SUDistMatrix {
     _sudmMatrix     :: VU.Vector Double
-} deriving (Generic)
+} deriving (Generic, Show)
 
 -- | This lookup function must consider that the triangular matrix packs 
 -- its values in a certain order. In the case of a lower triangular matrix,

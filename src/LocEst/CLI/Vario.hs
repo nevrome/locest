@@ -7,7 +7,7 @@ import LocEst.Types
 import LocEst.Distance
 
 import           System.IO       (hPutStrLn, stderr)
-import Data.List (tails)
+import Data.List (tails, transpose)
 import qualified Data.Vector.Unboxed as VU
 
 data VarioOptions = VarioOptions {
@@ -28,8 +28,9 @@ runVario (VarioOptions inObsFile _) = do
     let distsPerDepVar   = calcDepVarPairwiseDistances observations
     -- determine bins
     hPutStrLn stderr "Determine bins for independent variables"
+    --error $ show distsPerIndepVar
     let perIndepVar  = map binIndepVar distsPerIndepVar
-    -- iterate over all permutations of indepVars and depVars
+    -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
     hPutStrLn stderr "Calculate empirical variograms"
     let empiricalVariograms = concat $
             for perIndepVar $ \(indepVarName, SUDistMatrix indepDists, steps) ->
@@ -40,15 +41,14 @@ runVario (VarioOptions inObsFile _) = do
                                     semivariance = calcMatheron depVarVals
                                 in (mid, semivariance)
                     in (indepVarName, depVarName, dots)
+    print empiricalVariograms
+    -- fit theoretical variograms
 
     -- huhu
     hPutStrLn stderr "wip"
 
 for :: (Functor f) => f a -> (a -> b) -> f b
 for = flip fmap
-
---groupByBins :: SUDistMatrix -> [(Double, Double)] -> [Int]
-
 
 findIndicesForBin :: VU.Vector Double -> (Double, Double, Double) -> (Double, VU.Vector Int)
 findIndicesForBin vec (lo, mid, hi) = (mid, VU.findIndices (\x -> lo <= x && x < hi) vec)
@@ -59,7 +59,7 @@ binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
         maxValue = VU.maximum distVec
         stepWidth = (maxValue - minValue)/20
         stepsSingle = [minValue,minValue+stepWidth..maxValue]
-        steps = zipWith (\lo hi -> (lo,(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
+        steps = zipWith (\lo hi -> (lo,lo+(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
     in (indepVarName, dist, steps)
 
 calcMatheron :: VU.Vector Double -> Double
@@ -94,4 +94,10 @@ calcDepVarPairwiseDistances obs = reshape [dist x y | y <- obs, (x:_) <- tails o
             zip (getKeys p1) (allDistances (getValues p1) (getValues p2))
 
 reshape :: [[(String, Double)]] -> [(String, SUDistMatrix)]
-reshape = map (\x -> (fst $ head x, SUDistMatrix $ VU.fromList $ map snd x))
+reshape xs = map reshapeOne $ transpose xs
+    where
+        reshapeOne :: [(String, Double)] -> (String, SUDistMatrix)
+        reshapeOne xs =
+            let name = fst $ head xs
+                matrix = SUDistMatrix $ VU.fromList $ map snd xs
+            in (name, matrix)
