@@ -58,10 +58,8 @@ data Normalization = NormBySpace | NoNorm
 
 -- | A datatype for a symmetric, unidirectional distance matrix
 -- this matrix has (n*n)/2 - n entries and a triangular shape
-data SUDistMatrix = SUDistMatrix {
-      _sudmNrCols :: Int -- column number
-    , _sudmNrRows :: Int -- row number
-    , _sudmMatrix :: VU.Vector Double
+newtype SUDistMatrix = SUDistMatrix {
+    _sudmMatrix     :: VU.Vector Double
 } deriving (Generic)
 
 -- | This lookup function must consider that the triangular matrix packs 
@@ -75,7 +73,7 @@ data SUDistMatrix = SUDistMatrix {
 -- see https://math.stackexchange.com/questions/646117/how-to-find-a-function-mapping-matrix-indices
 -- for the lookup algorithm
 lookUpDistanceSU :: SUDistMatrix -> Int -> Int -> Double
-lookUpDistanceSU (SUDistMatrix _ _ vec) col row 
+lookUpDistanceSU (SUDistMatrix vec) col row
     | col == row = 0
     | col < row  = vec VU.! (nodesInTriangle (row - 1) + col)
     | col > row  = vec VU.! (nodesInTriangle (col - 1) + row)
