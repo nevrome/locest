@@ -5,10 +5,9 @@ module LocEst.CLI.Vario where
 import LocEst.Parsers
 import LocEst.Types
 import LocEst.Distance
-import LocEst.MathUtils
 
 import           System.IO       (hPutStrLn, stderr)
-import Data.List (tails, foldl')
+import Data.List (tails)
 import qualified Data.Vector.Unboxed as VU
 
 data VarioOptions = VarioOptions {
@@ -23,36 +22,54 @@ runVario (VarioOptions inObsFile _) = do
     !observationsUnindexed <- readObservations inObsFile
     let observations = zipWith setIndex observationsUnindexed [0..]
     -- calculate pairwise distances
-    hPutStrLn stderr "Calculating pairwise distances for all independent variables"
-    let distsPerIndepVar = calcPairwiseDistances observations
-    hPutStrLn stderr "Calculating pairwise distances for all dependent variables"
-    --let distsPerDepVar   = calcPairwiseDistances observations
-    -- continue per independent variable
+    hPutStrLn stderr "Calculating pairwise distances for independent variables"
+    let distsPerIndepVar = calcIndepVarPairwiseDistances observations
+    hPutStrLn stderr "Calculating pairwise distances for dependent variables"
+    let distsPerDepVar   = calcDepVarPairwiseDistances observations
+    -- determine bins
+    hPutStrLn stderr "Determine bins for independent variables"
+    let perIndepVar  = map binIndepVar distsPerIndepVar
+    -- iterate over all permutations of indepVars and depVars
+    hPutStrLn stderr "Calculate empirical variograms"
+    let empiricalVariograms = concat $
+            for perIndepVar $ \(indepVarName, SUDistMatrix indepDists, steps) ->
+                let indicesPerBin = map (findIndicesForBin indepDists) steps
+                in for distsPerDepVar $ \(depVarName, SUDistMatrix depDists) ->
+                        let dots = for indicesPerBin $ \(mid, indicesForOneBin) ->
+                                let depVarVals = VU.map (depDists VU.!) indicesForOneBin
+                                    semivariance = calcMatheron depVarVals
+                                in (mid, semivariance)
+                    in (indepVarName, depVarName, dots)
+
     -- huhu
     hPutStrLn stderr "wip"
 
-binAndFitPerIndepVar :: IndepVarName -> SUDistMatrix -> IO ()
-binAndFitPerIndepVar indepVarName (SUDistMatrix _ _ distVec) = do
-    hPutStrLn stderr $ "Working on: " ++ indepVarName
-    -- prepare bins
+for :: (Functor f) => f a -> (a -> b) -> f b
+for = flip fmap
+
+--groupByBins :: SUDistMatrix -> [(Double, Double)] -> [Int]
+
+
+findIndicesForBin :: VU.Vector Double -> (Double, Double, Double) -> (Double, VU.Vector Int)
+findIndicesForBin vec (lo, mid, hi) = (mid, VU.findIndices (\x -> lo <= x && x < hi) vec)
+
+binIndepVar :: (IndepVarName, SUDistMatrix) -> (IndepVarName, SUDistMatrix, [(Double, Double, Double)])
+binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
     let minValue = VU.minimum distVec
         maxValue = VU.maximum distVec
         stepWidth = (maxValue - minValue)/20
         stepsSingle = [minValue,minValue+stepWidth..maxValue]
-        steps = zip (init stepsSingle) (tail stepsSingle)
-    -- realize bins and calculate semi-variance per bin
-        --hu = VA.sort distVec
+        steps = zipWith (\lo hi -> (lo,(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
+    in (indepVarName, dist, steps)
 
-    hPutStrLn stderr "wip"
-
-calcMatheron :: [Double] -> Double
-calcMatheron xs = (1 / (2 * n)) * foldl' (\acc x -> acc + ((x - mean)^2)) 0 xs
+calcMatheron :: VU.Vector Double -> Double
+calcMatheron xs = (1 / (2 * n)) * VU.foldl' (\acc x -> acc + ((x - mean) ** 2)) 0 xs
     where
-        n = fromIntegral $ length xs
-        mean = foldSum xs / n
+        n = fromIntegral $ VU.length xs
+        mean = VU.sum xs / n
 
 calcIndepVarPairwiseDistances :: [Observation] -> [(IndepVarName, SUDistMatrix)]
-calcIndepVarPairwiseDistances obs = reshape [obsobsDist x y | y <- obs, (x:_) <- tails obs]
+calcIndepVarPairwiseDistances obs = reshape [dist x y | y <- obs, (x:_) <- tails obs]
     where
         dist :: Observation -> Observation -> [(IndepVarName, Double)]
         dist
@@ -65,6 +82,16 @@ calcIndepVarPairwiseDistances obs = reshape [obsobsDist x y | y <- obs, (x:_) <-
             -- this assumes that p1 and p2 have the same order of indep variables
             zip (getKeys p1) (allDistances (getValues p1) (getValues p2))
         dist _ _ = error "Impossible state in indep distance calculation"
+
+calcDepVarPairwiseDistances :: [Observation] -> [(DepVarName, SUDistMatrix)]
+calcDepVarPairwiseDistances obs = reshape [dist x y | y <- obs, (x:_) <- tails obs]
+    where
+        dist :: Observation -> Observation -> [(DepVarName, Double)]
+        dist
+            (Observation _ _ (HyperPos _ p1))
+            (Observation _ _ (HyperPos _ p2)) =
+            -- this assumes that p1 and p2 have the same order of dep variables
+            zip (getKeys p1) (allDistances (getValues p1) (getValues p2))
 
 reshape :: [[(String, Double)]] -> [(String, SUDistMatrix)]
 reshape = map (\x -> (fst $ head x, SUDistMatrix $ VU.fromList $ map snd x))
