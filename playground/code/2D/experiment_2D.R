@@ -8,8 +8,8 @@ observations <- tibble::tibble(
   obsID = 1:n,
   indepV1 = c(
     runif(round((10 /total_density) * n), 0,  10),
-    runif(round((0.3/total_density) * n), 10, 15),
-    runif(round((7  /total_density) * n), 15, 20)
+    runif(round((0.3/total_density) * n), 10, 13),
+    runif(round((7  /total_density) * n), 13, 20)
   )
 ) %>%
   dplyr::rowwise() %>%
