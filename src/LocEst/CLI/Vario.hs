@@ -47,6 +47,12 @@ runVario (VarioOptions inObsFile _) = do
     -- huhu
     hPutStrLn stderr "wip"
 
+-- half mean squared distance within one bin
+calcMatheron :: VU.Vector Double -> Double
+calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
+    where
+        n = fromIntegral $ VU.length dists
+
 for :: (Functor f) => f a -> (a -> b) -> f b
 for = flip fmap
 
@@ -61,12 +67,6 @@ binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
         stepsSingle = [minValue,minValue+stepWidth..maxValue]
         steps = zipWith (\lo hi -> (lo,lo+(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
     in (indepVarName, dist, steps)
-
-calcMatheron :: VU.Vector Double -> Double
-calcMatheron xs = (1 / (2 * n)) * VU.foldl' (\acc x -> acc + ((x - mean) ** 2)) 0 xs
-    where
-        n = fromIntegral $ VU.length xs
-        mean = VU.sum xs / n
 
 calcIndepVarPairwiseDistances :: [Observation] -> [(IndepVarName, SUDistMatrix)]
 calcIndepVarPairwiseDistances obs = reshape [dist x y | y <- obs, (x:_) <- tails obs]
@@ -94,7 +94,7 @@ calcDepVarPairwiseDistances obs = reshape [dist x y | y <- obs, (x:_) <- tails o
             zip (getKeys p1) (allDistances (getValues p1) (getValues p2))
 
 reshape :: [[(String, Double)]] -> [(String, SUDistMatrix)]
-reshape xs = map reshapeOne $ transpose xs
+reshape xss = map reshapeOne $ transpose xss
     where
         reshapeOne :: [(String, Double)] -> (String, SUDistMatrix)
         reshapeOne xs =
