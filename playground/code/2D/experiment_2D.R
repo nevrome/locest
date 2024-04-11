@@ -35,7 +35,13 @@ prediction_points <- tibble::tibble(
 readr::write_tsv(observations, "data/2D/obs.tsv")
 readr::write_tsv(prediction_points, "data/2D/grid.tsv")
 
-system('locest vario -i data/2D/obs.tsv')
+system('locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv')
+
+vario <- readr::read_tsv("data/2D/vario.tsv")
+
+vario %>%
+  ggplot() +
+  geom_point(aes(bin, semivariance))
 
 system('locest search --configFile code/2D/experiment_2D.conf')
 
