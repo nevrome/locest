@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns        #-}
+-- {-# LANGUAGE Strict        #-}
 
 module LocEst.CLI.Vario where
 
@@ -26,9 +27,9 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     let observations = zipWith setIndex observationsUnindexed [0..]
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
-    let distsPerIndepVar = calcIndepVarPairwiseDistances observations
+    let !distsPerIndepVar = calcIndepVarPairwiseDistances observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
-    let distsPerDepVar   = calcDepVarPairwiseDistances observations
+    let !distsPerDepVar   = calcDepVarPairwiseDistances observations
     -- determine bins
     hPutStrLn stderr "Determining bins for independent variables"
     --error $ show distsPerIndepVar
@@ -41,7 +42,7 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
             let indicesPerBin = map (findIndicesForBin indepDists) steps
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 hPutStrLn stderr ("-> " ++ depVarName)
-                let semivariancesPerBin = for indicesPerBin $ \(mid, indicesForOneBin) ->
+                let !semivariancesPerBin = for indicesPerBin $ \(mid, indicesForOneBin) ->
                         let depDistsPerBin = VU.map (depDists VU.!) indicesForOneBin
                             semivariance = calcMatheron depDistsPerBin
                         in (mid, semivariance)
