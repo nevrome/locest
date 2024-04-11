@@ -52,6 +52,22 @@ filterLookupMulti m names =
 filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
 filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
 
+-- | A datatype for an empirical variogram
+newtype EmpiricalVariogram = EmpiricalVariogram [(Double, Double)]
+    deriving Show
+
+data EmpiricalVariogramOneVarCombination = EmpiricalVariogramOneVarCombination IndepVarName DepVarName EmpiricalVariogram
+    deriving Show
+
+data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin IndepVarName DepVarName Double Double
+    deriving Show
+
+instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
+    headerOrder _ = Csv.header ["indepVar", "depVar", "bin", "semivariance"]
+instance Csv.ToRecord EmpiricalVariogramSingleBin where
+    toRecord (EmpiricalVariogramSingleBin i d iv dv) =
+        Csv.record [Csv.toField i, Csv.toField d, Csv.toField iv, Csv.toField dv]
+
 -- | A datatype for normalization of the output
 data Normalization = NormBySpace | NoNorm
     deriving (Show)

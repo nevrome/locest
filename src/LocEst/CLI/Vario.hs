@@ -9,6 +9,9 @@ import LocEst.Distance
 import           System.IO       (hPutStrLn, stderr)
 import Data.List (tails, transpose)
 import qualified Data.Vector.Unboxed as VU
+import qualified Data.Conduit.List as ConL
+import Conduit ((.|))
+import qualified Data.Conduit as Con
 
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,
@@ -16,7 +19,7 @@ data VarioOptions = VarioOptions {
 }
 
 runVario :: VarioOptions -> IO ()
-runVario (VarioOptions inObsFile _) = do
+runVario (VarioOptions inObsFile outVariogramFile) = do
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
@@ -40,12 +43,21 @@ runVario (VarioOptions inObsFile _) = do
                                 let depVarVals = VU.map (depDists VU.!) indicesForOneBin
                                     semivariance = calcMatheron depVarVals
                                 in (mid, semivariance)
-                    in (indepVarName, depVarName, dots)
-    print empiricalVariograms
+                    in EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram dots)
+    writeVariograms empiricalVariograms outVariogramFile
+
     -- fit theoretical variograms
 
     -- huhu
     hPutStrLn stderr "wip"
+
+writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
+writeVariograms _ Nothing        = return ()
+writeVariograms vars (Just path) = Con.runConduitRes $ ConL.sourceList (concatMap varToLong vars) .| sinkNamedCSV path
+
+varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]
+varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
+    map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
 
 -- half mean squared distance within one bin
 calcMatheron :: VU.Vector Double -> Double
