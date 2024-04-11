@@ -40,8 +40,8 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
                 let indicesPerBin = map (findIndicesForBin indepDists) steps
                 in for distsPerDepVar $ \(depVarName, SUDistMatrix depDists) ->
                         let dots = for indicesPerBin $ \(mid, indicesForOneBin) ->
-                                let depVarVals = VU.map (depDists VU.!) indicesForOneBin
-                                    semivariance = calcMatheron depVarVals
+                                let depDistsPerBin = VU.map (depDists VU.!) indicesForOneBin
+                                    semivariance = calcMatheron depDistsPerBin
                                 in (mid, semivariance)
                     in EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram dots)
     writeVariograms empiricalVariograms outVariogramFile
@@ -75,8 +75,9 @@ binIndepVar :: (IndepVarName, SUDistMatrix) -> (IndepVarName, SUDistMatrix, [(Do
 binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
     let minValue = VU.minimum distVec
         maxValue = VU.maximum distVec
-        stepWidth = (maxValue - minValue)/20
-        stepsSingle = [minValue,minValue+stepWidth..maxValue]
+        endVario = minValue + (maxValue - minValue)/3
+        stepWidth = (endVario - minValue)/1000
+        stepsSingle = [minValue,minValue+stepWidth..endVario]
         steps = zipWith (\lo hi -> (lo,lo+(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
     in (indepVarName, dist, steps)
 
