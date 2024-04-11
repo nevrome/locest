@@ -1,7 +1,20 @@
 library(magrittr)
 library(ggplot2)
 
-obs <- readr::read_tsv("test2Obs.tsv")
+obs <- readr::read_tsv("data/spatiotemporal/obs.tsv")
+
+system('time locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv')
+
+vario <- readr::read_tsv("data/spatiotemporal/vario.tsv")
+
+vario %>%
+  ggplot() +
+  geom_point(aes(bin, semivariance)) +
+  facet_grid(
+    rows = dplyr::vars(depVar),
+    cols = dplyr::vars(indepVar),
+    scales = "free"
+  )
 
 # normal search test
 system('time locest search --configFile code/spatiotemporal/basic.conf')
