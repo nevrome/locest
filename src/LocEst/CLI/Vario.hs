@@ -6,7 +6,7 @@ import LocEst.Parsers
 import LocEst.Types
 import LocEst.Distance
 
-import           System.IO       (hPutStrLn, stderr)
+import           System.IO       (hPutStrLn, stderr, hPutStr)
 import Data.List (tails, transpose)
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Conduit.List as ConL
@@ -30,26 +30,25 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
     let distsPerDepVar   = calcDepVarPairwiseDistances observations
     -- determine bins
-    hPutStrLn stderr "Determine bins for independent variables"
+    hPutStrLn stderr "Determining bins for independent variables"
     --error $ show distsPerIndepVar
     let perIndepVar  = map binIndepVar distsPerIndepVar
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
-    hPutStrLn stderr "Calculate empirical variograms"
-    let empiricalVariograms = concat $
-            for perIndepVar $ \(indepVarName, SUDistMatrix indepDists, steps) ->
-                let indicesPerBin = map (findIndicesForBin indepDists) steps
-                in for distsPerDepVar $ \(depVarName, SUDistMatrix depDists) ->
-                        let dots = for indicesPerBin $ \(mid, indicesForOneBin) ->
-                                let depDistsPerBin = VU.map (depDists VU.!) indicesForOneBin
-                                    semivariance = calcMatheron depDistsPerBin
-                                in (mid, semivariance)
-                    in EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram dots)
+    hPutStrLn stderr "Calculating empirical variograms"
+    empiricalVariograms <- fmap concat $
+        forM perIndepVar $ \(indepVarName, SUDistMatrix indepDists, steps) -> do
+            hPutStrLn stderr ("Working on " ++ indepVarName)
+            let indicesPerBin = map (findIndicesForBin indepDists) steps
+            hPutStr stderr "Working on "
+            forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
+                hPutStr stderr (depVarName ++ " ")
+                let semivariancesPerBin = for indicesPerBin $ \(mid, indicesForOneBin) ->
+                        let depDistsPerBin = VU.map (depDists VU.!) indicesForOneBin
+                            semivariance = calcMatheron depDistsPerBin
+                        in (mid, semivariance)
+                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
+    -- write variograms to the file system
     writeVariograms empiricalVariograms outVariogramFile
-
-    -- fit theoretical variograms
-
-    -- huhu
-    hPutStrLn stderr "wip"
 
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
 writeVariograms _ Nothing        = return ()
@@ -65,8 +64,11 @@ calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dist
     where
         n = fromIntegral $ VU.length dists
 
-for :: (Functor f) => f a -> (a -> b) -> f b
-for = flip fmap
+forM :: Monad m => [a] -> (a -> m b) -> m [b]
+forM = flip mapM
+
+for :: [a] -> (a -> b) -> [b]
+for = flip map
 
 findIndicesForBin :: VU.Vector Double -> (Double, Double, Double) -> (Double, VU.Vector Int)
 findIndicesForBin vec (lo, mid, hi) = (mid, VU.findIndices (\x -> lo <= x && x < hi) vec)
