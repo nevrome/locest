@@ -35,7 +35,7 @@ spatialDistSpatPos _ _ = error "Can not be calculated"
 
 spatialDistCartesianPos :: CartesianPos -> CartesianPos -> Double
 spatialDistCartesianPos (CartesianPos _ _ x1 y1) (CartesianPos _ _ x2 y2) =
-    sqrt (((x1 - x2)^(2 :: Int)) + ((y1 - y2)^(2 :: Int)))
+    sqrt (((x1 - x2) ** 2) + ((y1 - y2) ** 2))
 
 -- Haversine distance
 spatialDistLongLatPos :: LongLatPos -> LongLatPos -> Double

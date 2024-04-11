@@ -6,7 +6,7 @@ import LocEst.Parsers
 import LocEst.Types
 import LocEst.Distance
 
-import           System.IO       (hPutStrLn, stderr, hPutStr)
+import           System.IO       (hPutStrLn, stderr)
 import Data.List (tails, transpose)
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Conduit.List as ConL
@@ -39,9 +39,8 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
         forM perIndepVar $ \(indepVarName, SUDistMatrix indepDists, steps) -> do
             hPutStrLn stderr ("Working on " ++ indepVarName)
             let indicesPerBin = map (findIndicesForBin indepDists) steps
-            hPutStr stderr "Working on "
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
-                hPutStr stderr (depVarName ++ " ")
+                hPutStrLn stderr ("-> " ++ depVarName)
                 let semivariancesPerBin = for indicesPerBin $ \(mid, indicesForOneBin) ->
                         let depDistsPerBin = VU.map (depDists VU.!) indicesForOneBin
                             semivariance = calcMatheron depDistsPerBin
@@ -90,7 +89,7 @@ calcIndepVarPairwiseDistances obs = reshape [dist x y | y <- obs, (x:_) <- tails
         dist
             (Observation _ _ (HyperPos (IndepSpatTempPos p1) _))
             (Observation _ _ (HyperPos (IndepSpatTempPos p2) _)) =
-            [("space", spatialDistSpatTempPos p1 p2), ("time", temporalDistSpatTempPos p1 p2)]
+            [("space", (spatialDistSpatTempPos p1 p2) / 1000), ("time", temporalDistSpatTempPos p1 p2)] -- scaling meters to kilometres
         dist
             (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _))
             (Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _)) =
