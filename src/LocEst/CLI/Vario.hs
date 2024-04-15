@@ -11,10 +11,12 @@ import           System.IO       (hPutStrLn, stderr)
 import Data.List (tails)
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector.Unboxed as VU
+import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Conduit.List as ConL
 import Conduit ((.|))
 import qualified Data.Conduit as Con
 import Control.Monad (zipWithM_, replicateM)
+import Data.Function (on)
 
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,
@@ -39,9 +41,13 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
     hPutStrLn stderr "Calculating empirical variograms"
     empiricalVariograms <- fmap concat $
-        forM perIndepVar $ \(indepVarName, SUDistMatrix indepDists, steps) -> do
+        forM perIndepVar $ \(indepVarName, SUDistMatrix indepDists, bins) -> do
             hPutStrLn stderr ("Working on " ++ indepVarName)
-            let indicesPerBin = map (findIndicesForBin indepDists) steps
+            -- remove dists that are not binnable
+            sortedIndepDists <- sortWithIndices indepDists
+            let (_,_,lastHi) = last bins
+                (binnableIndepDists,_) = VU.span (\(i,v) -> v <= lastHi) sortedIndepDists
+            let indicesPerBin = map (findIndicesForBin binnableIndepDists) bins
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 hPutStrLn stderr ("-> " ++ depVarName)
                 let !semivariancesPerBin = for indicesPerBin $ \(mid, indicesForOneBin) ->
@@ -51,6 +57,16 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outVariogramFile
+
+findIndicesForBin :: VU.Vector (Int, Double) -> (Double, Double, Double) -> (Double, VU.Vector Int)
+findIndicesForBin vec (lo, mid, hi) = (mid, VU.map fst $ VU.filter (\(_,v) -> lo <= v && v < hi) vec)
+
+sortWithIndices :: VU.Vector Double -> IO (VU.Vector (Int, Double))
+sortWithIndices v = do
+  let v' = VU.indexed v  -- Pair each element with its index
+  mv <- VU.thaw v'       -- Create a mutable copy
+  VA.sortBy (compare `on` snd) mv  -- Sort it in-place
+  VU.unsafeFreeze mv     -- Convert back to a pure vector
 
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
 writeVariograms _ Nothing        = return ()
@@ -71,9 +87,6 @@ forM = flip mapM
 
 for :: [a] -> (a -> b) -> [b]
 for = flip map
-
-findIndicesForBin :: VU.Vector Double -> (Double, Double, Double) -> (Double, VU.Vector Int)
-findIndicesForBin vec (lo, mid, hi) = (mid, VU.findIndices (\x -> lo <= x && x < hi) vec)
 
 binIndepVar :: (IndepVarName, SUDistMatrix) -> (IndepVarName, SUDistMatrix, [(Double, Double, Double)])
 binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
