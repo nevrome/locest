@@ -9,10 +9,13 @@ import LocEst.Distance
 
 import           System.IO       (hPutStrLn, stderr)
 import Data.List (tails, transpose)
+import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Conduit.List as ConL
 import Conduit ((.|))
 import qualified Data.Conduit as Con
+import Control.Monad (zipWithM_, replicateM)
+import qualified Data.Vector.Generic as V
 
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,
@@ -27,9 +30,9 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     let observations = zipWith setIndex observationsUnindexed [0..]
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
-    let !distsPerIndepVar = calcIndepVarPairwiseDistances observations
+    distsPerIndepVar <- calcIndepVarPairwiseDistances observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
-    let !distsPerDepVar   = calcDepVarPairwiseDistances observations
+    distsPerDepVar   <- calcDepVarPairwiseDistances observations
     -- determine bins
     hPutStrLn stderr "Determining bins for independent variables"
     --error $ show distsPerIndepVar
@@ -42,10 +45,10 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
             let indicesPerBin = map (findIndicesForBin indepDists) steps
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 hPutStrLn stderr ("-> " ++ depVarName)
-                let !semivariancesPerBin = for indicesPerBin $ \(mid, indicesForOneBin) ->
-                        let depDistsPerBin = VU.map (depDists VU.!) indicesForOneBin
-                            semivariance = calcMatheron depDistsPerBin
-                        in (mid, semivariance)
+                semivariancesPerBin <- forM indicesPerBin $ \(mid, indicesForOneBin) -> do
+                        depDistsPerBin <- V.mapM (\i -> VUM.read depDists i) indicesForOneBin
+                        semivariance <- calcMatheron depDistsPerBin
+                        return (mid, semivariance)
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outVariogramFile
@@ -59,10 +62,12 @@ varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
     map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
 
 -- half mean squared distance within one bin
-calcMatheron :: VU.Vector Double -> Double
-calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
-    where
-        n = fromIntegral $ VU.length dists
+calcMatheron :: VUM.IOVector Double -> IO Double
+calcMatheron dists = do
+    let n = fromIntegral $ VUM.length dists
+    distSum <- VUM.foldl' (\acc d -> acc + (d ** 2)) 0 dists
+    return $ (1 / (2 * n)) * distSum
+        
 
 forM :: Monad m => [a] -> (a -> m b) -> m [b]
 forM = flip mapM
@@ -70,49 +75,75 @@ forM = flip mapM
 for :: [a] -> (a -> b) -> [b]
 for = flip map
 
-findIndicesForBin :: VU.Vector Double -> (Double, Double, Double) -> (Double, VU.Vector Int)
-findIndicesForBin vec (lo, mid, hi) = (mid, VU.findIndices (\x -> lo <= x && x < hi) vec)
+findIndicesForBin :: VUM.IOVector Double -> (Double, Double, Double) -> (Double, VUM.IOVector Int)
+findIndicesForBin vec (lo, mid, hi) = (mid, V.findIndices (\x -> lo <= x && x < hi) vec)
 
 binIndepVar :: (IndepVarName, SUDistMatrix) -> (IndepVarName, SUDistMatrix, [(Double, Double, Double)])
 binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
-    let minValue = VU.minimum distVec
-        maxValue = VU.maximum distVec
+    let minValue = V.minimum distVec
+        maxValue = V.maximum distVec
         endVario = minValue + (maxValue - minValue)/3
         stepWidth = (endVario - minValue)/1000
         stepsSingle = [minValue,minValue+stepWidth..endVario]
         steps = zipWith (\lo hi -> (lo,lo+(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
     in (indepVarName, dist, steps)
 
-calcIndepVarPairwiseDistances :: [Observation] -> [(IndepVarName, SUDistMatrix)]
-calcIndepVarPairwiseDistances obs = reshape [dist x y | y <- obs, (x:_) <- tails obs]
+calcIndepVarPairwiseDistances :: [Observation] -> IO [(IndepVarName, SUDistMatrix)]
+calcIndepVarPairwiseDistances obs = do
+    let indexPairs = zip [0..] [ (x,y) | y <- obs, (x:_) <- tails obs]
+        nrPairs = length indexPairs
+        (Observation _ _ (HyperPos indepPos _)) = head obs
+    case indepPos of
+        IndepSpatTempPos _ -> do
+            spaceVec <- VUM.new nrPairs
+            timeVec  <- VUM.new nrPairs
+            mapM_ (distSpaceTime spaceVec timeVec) indexPairs
+            return [("space", SUDistMatrix spaceVec), ("time", SUDistMatrix timeVec)]
+        IndepArbitraryDimPos pos@(ArbitraryDimPos l) -> do
+            arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
+            mapM_ (distArbitrary arbitraryVecs) indexPairs
+            return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecs
     where
-        dist :: Observation -> Observation -> [(IndepVarName, Double)]
-        dist
-            (Observation _ _ (HyperPos (IndepSpatTempPos p1) _))
-            (Observation _ _ (HyperPos (IndepSpatTempPos p2) _)) =
-            [("space", (spatialDistSpatTempPos p1 p2) / 1000), ("time", temporalDistSpatTempPos p1 p2)] -- scaling meters to kilometres
-        dist
-            (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _))
-            (Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _)) =
+        distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
+        distSpaceTime
+            spaceVec timeVec
+            (i,
+            (Observation _ _ (HyperPos (IndepSpatTempPos p1) _),
+            Observation _ _ (HyperPos (IndepSpatTempPos p2) _))
+            ) = do
+            let spaceDist = spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
+                timeDist  = temporalDistSpatTempPos p1 p2
+            VUM.write spaceVec i spaceDist
+            VUM.write timeVec  i timeDist
+        distSpaceTime _ _ _ = error "Impossible state in indep distance calculation"
+        distArbitrary :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
+        distArbitrary
+            arbitraryVecs
+            (i,
+            (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _),
+            Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _))
+            ) = do
             -- this assumes that p1 and p2 have the same order of indep variables
-            zip (getKeys p1) (allDistances (getValues p1) (getValues p2))
-        dist _ _ = error "Impossible state in indep distance calculation"
+            let arbitraryDists = allDistances (getValues p1) (getValues p2)
+            zipWithM_ (`VUM.write` i) arbitraryVecs arbitraryDists
+        distArbitrary _ _ = error "Impossible state in indep distance calculation"
 
-calcDepVarPairwiseDistances :: [Observation] -> [(DepVarName, SUDistMatrix)]
-calcDepVarPairwiseDistances obs = reshape [dist x y | y <- obs, (x:_) <- tails obs]
+calcDepVarPairwiseDistances :: [Observation] -> IO [(DepVarName, SUDistMatrix)]
+calcDepVarPairwiseDistances obs = do
+    let indexPairs = zip [0..] [ (x,y) | y <- obs, (x:_) <- tails obs]
+        nrPairs = length indexPairs
+        (Observation _ _ (HyperPos _ pos@(DepVarsPos l))) = head obs
+    depVecs <- replicateM (length l) (VUM.new nrPairs)
+    mapM_ (distDep depVecs) indexPairs
+    return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecs
     where
-        dist :: Observation -> Observation -> [(DepVarName, Double)]
-        dist
-            (Observation _ _ (HyperPos _ p1))
-            (Observation _ _ (HyperPos _ p2)) =
+        distDep :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
+        distDep
+            depVecs
+            (i,
+            (Observation _ _ (HyperPos _ p1),
+            Observation _ _ (HyperPos _ p2))
+            ) = do
             -- this assumes that p1 and p2 have the same order of dep variables
-            zip (getKeys p1) (allDistances (getValues p1) (getValues p2))
-
-reshape :: [[(String, Double)]] -> [(String, SUDistMatrix)]
-reshape xss = map reshapeOne $ transpose xss
-    where
-        reshapeOne :: [(String, Double)] -> (String, SUDistMatrix)
-        reshapeOne xs =
-            let name = fst $ head xs
-                matrix = SUDistMatrix $ VU.fromList $ map snd xs
-            in (name, matrix)
+            let depDists = allDistances (getValues p1) (getValues p2)
+            zipWithM_ (`VUM.write` i) depVecs depDists
