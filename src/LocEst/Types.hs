@@ -16,7 +16,6 @@ import           Data.List             (sortBy)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
-import qualified Data.Vector.Unboxed.Mutable as VUM
 import           GHC.Generics          (Generic)
 
 -- typeclasses
@@ -76,8 +75,8 @@ data Normalization = NormBySpace | NoNorm
 -- | A datatype for a symmetric, unidirectional distance matrix
 -- this matrix has (n*n)/2 - n entries and a triangular shape
 newtype SUDistMatrix = SUDistMatrix {
-    _sudmMatrix     :: VUM.IOVector Double
-} deriving (Generic)
+    _sudmMatrix     :: VU.Vector Double
+} deriving (Generic, Show)
 
 -- | This lookup function must consider that the triangular matrix packs 
 -- its values in a certain order. In the case of a lower triangular matrix,
@@ -89,11 +88,11 @@ newtype SUDistMatrix = SUDistMatrix {
 -- and so forth.
 -- see https://math.stackexchange.com/questions/646117/how-to-find-a-function-mapping-matrix-indices
 -- for the lookup algorithm
-lookUpDistanceSU :: SUDistMatrix -> Int -> Int -> IO Double
+lookUpDistanceSU :: SUDistMatrix -> Int -> Int -> Double
 lookUpDistanceSU (SUDistMatrix vec) col row
-    | col == row = pure 0
-    | col < row  = VUM.read vec (nodesInTriangle (row - 1) + col)
-    | col > row  = VUM.read vec (nodesInTriangle (col - 1) + row)
+    | col == row = 0
+    | col < row  = vec VU.! (nodesInTriangle (row - 1) + col)
+    | col > row  = vec VU.! (nodesInTriangle (col - 1) + row)
     | otherwise  = error "Impossible state in lookUpDistanceSU"
     where
         nodesInTriangle n = n * (n+1) `div` 2

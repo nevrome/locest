@@ -8,14 +8,13 @@ import LocEst.Types
 import LocEst.Distance
 
 import           System.IO       (hPutStrLn, stderr)
-import Data.List (tails, transpose)
+import Data.List (tails)
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Conduit.List as ConL
 import Conduit ((.|))
 import qualified Data.Conduit as Con
 import Control.Monad (zipWithM_, replicateM)
-import qualified Data.Vector.Generic as V
 
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,
@@ -45,10 +44,10 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
             let indicesPerBin = map (findIndicesForBin indepDists) steps
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 hPutStrLn stderr ("-> " ++ depVarName)
-                semivariancesPerBin <- forM indicesPerBin $ \(mid, indicesForOneBin) -> do
-                        depDistsPerBin <- V.mapM (\i -> VUM.read depDists i) indicesForOneBin
-                        semivariance <- calcMatheron depDistsPerBin
-                        return (mid, semivariance)
+                let !semivariancesPerBin = for indicesPerBin $ \(mid, indicesForOneBin) ->
+                        let depDistsPerBin = VU.map (depDists VU.!) indicesForOneBin
+                            semivariance = calcMatheron depDistsPerBin
+                        in (mid, semivariance)
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outVariogramFile
@@ -62,12 +61,10 @@ varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
     map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
 
 -- half mean squared distance within one bin
-calcMatheron :: VUM.IOVector Double -> IO Double
-calcMatheron dists = do
-    let n = fromIntegral $ VUM.length dists
-    distSum <- VUM.foldl' (\acc d -> acc + (d ** 2)) 0 dists
-    return $ (1 / (2 * n)) * distSum
-        
+calcMatheron :: VU.Vector Double -> Double
+calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
+    where
+        n = fromIntegral $ VU.length dists
 
 forM :: Monad m => [a] -> (a -> m b) -> m [b]
 forM = flip mapM
@@ -75,13 +72,13 @@ forM = flip mapM
 for :: [a] -> (a -> b) -> [b]
 for = flip map
 
-findIndicesForBin :: VUM.IOVector Double -> (Double, Double, Double) -> (Double, VUM.IOVector Int)
-findIndicesForBin vec (lo, mid, hi) = (mid, V.findIndices (\x -> lo <= x && x < hi) vec)
+findIndicesForBin :: VU.Vector Double -> (Double, Double, Double) -> (Double, VU.Vector Int)
+findIndicesForBin vec (lo, mid, hi) = (mid, VU.findIndices (\x -> lo <= x && x < hi) vec)
 
 binIndepVar :: (IndepVarName, SUDistMatrix) -> (IndepVarName, SUDistMatrix, [(Double, Double, Double)])
 binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
-    let minValue = V.minimum distVec
-        maxValue = V.maximum distVec
+    let minValue = VU.minimum distVec
+        maxValue = VU.maximum distVec
         endVario = minValue + (maxValue - minValue)/3
         stepWidth = (endVario - minValue)/1000
         stepsSingle = [minValue,minValue+stepWidth..endVario]
@@ -98,11 +95,14 @@ calcIndepVarPairwiseDistances obs = do
             spaceVec <- VUM.new nrPairs
             timeVec  <- VUM.new nrPairs
             mapM_ (distSpaceTime spaceVec timeVec) indexPairs
-            return [("space", SUDistMatrix spaceVec), ("time", SUDistMatrix timeVec)]
+            spaceVecNonMut <- VU.freeze spaceVec
+            timeVecNonMut  <- VU.freeze timeVec
+            return [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
         IndepArbitraryDimPos pos@(ArbitraryDimPos l) -> do
             arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
             mapM_ (distArbitrary arbitraryVecs) indexPairs
-            return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecs
+            arbitraryVecsNonMut <- mapM VU.freeze arbitraryVecs
+            return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
     where
         distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distSpaceTime
@@ -135,7 +135,8 @@ calcDepVarPairwiseDistances obs = do
         (Observation _ _ (HyperPos _ pos@(DepVarsPos l))) = head obs
     depVecs <- replicateM (length l) (VUM.new nrPairs)
     mapM_ (distDep depVecs) indexPairs
-    return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecs
+    depVecsNonMut <- mapM VU.freeze depVecs
+    return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
     where
         distDep :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
         distDep
