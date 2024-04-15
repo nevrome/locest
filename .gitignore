@@ -6,3 +6,4 @@ docs/_build/
 dist-newstyle/
 playground/test_res
 playground/data
+*eventlog*

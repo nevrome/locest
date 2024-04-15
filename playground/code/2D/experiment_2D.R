@@ -35,6 +35,10 @@ prediction_points <- tibble::tibble(
 readr::write_tsv(observations, "data/2D/obs.tsv")
 readr::write_tsv(prediction_points, "data/2D/grid.tsv")
 
+# stack install --profile
+# stack exec --profile -- locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv +RTS -hc -l
+# eventlog2html locest.eventlog
+
 system('locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv')
 
 vario <- readr::read_tsv("data/2D/vario.tsv")

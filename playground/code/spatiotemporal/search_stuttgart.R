@@ -3,6 +3,10 @@ library(ggplot2)
 
 obs <- readr::read_tsv("data/spatiotemporal/obs.tsv")
 
+# stack install --profile
+# stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -hc -l
+# eventlog2html locest.eventlog
+
 system('time locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv')
 
 vario <- readr::read_tsv("data/spatiotemporal/vario.tsv")
