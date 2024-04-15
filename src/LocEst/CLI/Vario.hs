@@ -31,9 +31,9 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     let observations = zipWith setIndex observationsUnindexed [0..]
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
-    distsPerIndepVar <- calcIndepVarPairwiseDistances observations
+    !distsPerIndepVar <- calcIndepVarPairwiseDistances observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
-    distsPerDepVar   <- calcDepVarPairwiseDistances observations
+    !distsPerDepVar   <- calcDepVarPairwiseDistances observations
     -- determine bins
     hPutStrLn stderr "Determining bins for independent variables"
     --error $ show distsPerIndepVar
@@ -46,7 +46,7 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
             -- remove dists that are not binnable
             sortedIndepDists <- sortWithIndices indepDists
             let (_,_,lastHi) = last bins
-                (binnableIndepDists,_) = VU.span (\(i,v) -> v <= lastHi) sortedIndepDists
+                (binnableIndepDists,_) = VU.span (\(_,v) -> v <= lastHi) sortedIndepDists
             let indicesPerBin = map (findIndicesForBin binnableIndepDists) bins
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 hPutStrLn stderr ("-> " ++ depVarName)
