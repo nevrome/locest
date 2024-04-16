@@ -36,6 +36,7 @@ library
       , vector
       , vector-algorithms
       , optparse-applicative
+      , parallel
       , parsec
       , mtl
       , random

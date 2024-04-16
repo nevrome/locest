@@ -18,6 +18,8 @@ import qualified Data.Conduit as Con
 import Control.Monad (zipWithM_, replicateM)
 import Data.Function (on)
 import Data.Maybe (fromJust)
+import qualified Control.Parallel.Strategies as PS
+import           Control.DeepSeq (NFData)
 
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,
@@ -45,13 +47,14 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
         forM perIndepVar $ \(indepVarName, SUDistMatrix indepDists, bins) -> do
             hPutStrLn stderr ("Working on " ++ indepVarName)
             -- remove dists that are not binnable
+            -- sorting this long vector is a extremely time-consuming
             sortedIndepDists <- sortWithIndices indepDists
             let (_,_,lastHi) = last bins
                 (binnableIndepDists,_) = VU.span (\(_,v) -> v <= lastHi) sortedIndepDists
             let startLenPerBin = map (getStartAndStopForBin binnableIndepDists) bins
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 hPutStrLn stderr ("-> " ++ depVarName)
-                let !semivariancesPerBin = for startLenPerBin $ \(mid, startSorted, lenSorted) ->
+                let !semivariancesPerBin = parFor startLenPerBin $ \(mid, startSorted, lenSorted) ->
                         let indicesForThisBin = getIndicesForBin binnableIndepDists startSorted lenSorted
                             depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
                             semivariance = calcMatheron depDistsPerBin
@@ -96,6 +99,9 @@ forM = flip mapM
 
 for :: [a] -> (a -> b) -> [b]
 for = flip map
+
+parFor :: NFData b => [a] -> (a -> b) -> [b]
+parFor l f = PS.parMap PS.rdeepseq f l
 
 binIndepVar :: (IndepVarName, SUDistMatrix) -> (IndepVarName, SUDistMatrix, [(Double, Double, Double)])
 binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
