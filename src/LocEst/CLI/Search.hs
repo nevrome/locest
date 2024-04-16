@@ -18,11 +18,11 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import           GHC.Conc                      (getNumCapabilities)
-import           System.IO                     (hPutStrLn, stderr)
 import qualified Data.List.NonEmpty            as NE
-import Data.Maybe (catMaybes)
-import LocEst.MathUtils
+import           Data.Maybe                    (catMaybes)
+import           GHC.Conc                      (getNumCapabilities)
+import           LocEst.MathUtils
+import           System.IO                     (hPutStrLn, stderr)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath

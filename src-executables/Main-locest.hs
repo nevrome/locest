@@ -1,21 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           LocEst.CLI.Interface
-import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
-import           LocEst.CLI.Serialise     (SerialiseOptions (..),
-                                           SpatDistFileSettings (..),
-                                           runSerialise)
+import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
+import           LocEst.CLI.Serialise (SerialiseOptions (..),
+                                       SpatDistFileSettings (..), runSerialise)
+import           LocEst.CLI.Vario     (VarioOptions (VarioOptions), runVario)
 import           LocEst.Utils
-import LocEst.CLI.Vario (VarioOptions (VarioOptions), runVario)
 
-import           Control.Exception        (catch)
-import           Data.List                (isInfixOf)
-import           Data.Version             (showVersion)
-import qualified Options.Applicative      as OP
-import           Paths_locest             (version)
-import           System.Environment       (getArgs)
-import           System.Exit              (exitFailure)
-import           System.IO                (hPutStrLn, stderr)
+import           Control.Exception    (catch)
+import           Data.List            (isInfixOf)
+import           Data.Version         (showVersion)
+import qualified Options.Applicative  as OP
+import           Paths_locest         (version)
+import           System.Environment   (getArgs)
+import           System.Exit          (exitFailure)
+import           System.IO            (hPutStrLn, stderr)
 
 -- data types
 data Options = Options { _subcommand :: Subcommand }
@@ -69,9 +68,9 @@ main = do
 
 runCmd :: Subcommand -> IO ()
 runCmd o = case o of
-    CmdSerialise opts     -> runSerialise opts
-    CmdSearch opts        -> runSearch opts
-    CmdVario opts         -> runVario opts
+    CmdSerialise opts -> runSerialise opts
+    CmdSearch opts    -> runSearch opts
+    CmdVario opts     -> runVario opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (

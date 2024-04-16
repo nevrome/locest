@@ -5,10 +5,10 @@ import           LocEst.MathUtils
 import           LocEst.Types
 import           LocEst.Utils
 
-import qualified Control.Monad.Except as E
-import Statistics.Distribution (quantile, density)
-import Control.Monad (mapAndUnzipM)
-import Data.Maybe (mapMaybe)
+import           Control.Monad           (mapAndUnzipM)
+import qualified Control.Monad.Except    as E
+import           Data.Maybe              (mapMaybe)
+import           Statistics.Distribution (density, quantile)
 
 type CoreLog = E.Except LOCESTException
 

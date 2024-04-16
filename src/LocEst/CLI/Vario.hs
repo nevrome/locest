@@ -2,23 +2,23 @@
 
 module LocEst.CLI.Vario where
 
-import LocEst.Parsers
-import LocEst.Types
-import LocEst.Distance
+import           LocEst.Distance
+import           LocEst.Parsers
+import           LocEst.Types
 
-import           System.IO       (hPutStrLn, stderr)
-import Data.List (tails)
-import qualified Data.Vector.Unboxed.Mutable as VUM
-import qualified Data.Vector.Unboxed as VU
+import           Conduit                      ((.|))
+import           Control.DeepSeq              (NFData)
+import           Control.Monad                (replicateM, zipWithM_)
+import qualified Control.Parallel.Strategies  as PS
+import qualified Data.Conduit                 as Con
+import qualified Data.Conduit.List            as ConL
+import           Data.Function                (on)
+import           Data.List                    (tails)
+import           Data.Maybe                   (fromJust)
 import qualified Data.Vector.Algorithms.Intro as VA
-import qualified Data.Conduit.List as ConL
-import Conduit ((.|))
-import qualified Data.Conduit as Con
-import Control.Monad (zipWithM_, replicateM)
-import Data.Function (on)
-import Data.Maybe (fromJust)
-import qualified Control.Parallel.Strategies as PS
-import           Control.DeepSeq (NFData)
+import qualified Data.Vector.Unboxed          as VU
+import qualified Data.Vector.Unboxed.Mutable  as VUM
+import           System.IO                    (hPutStrLn, stderr)
 
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,

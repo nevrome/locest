@@ -6,14 +6,14 @@ import           LocEst.CLI.ConfigLang
 import           LocEst.CLI.Search
 import           LocEst.Types
 
-import           Data.Char                (isSpace, toLower)
-import           Data.List                (groupBy, singleton)
-import qualified Options.Applicative      as OP
-import qualified Text.Parsec              as P
-import qualified Text.Parsec.String       as P
-import           Text.Read                (readMaybe)
-import LocEst.Utils
-import Control.Exception (throw)
+import           Control.Exception     (throw)
+import           Data.Char             (isSpace, toLower)
+import           Data.List             (groupBy, singleton)
+import           LocEst.Utils
+import qualified Options.Applicative   as OP
+import qualified Text.Parsec           as P
+import qualified Text.Parsec.String    as P
+import           Text.Read             (readMaybe)
 
 -- config file that uses the optparse interface
 
@@ -22,7 +22,7 @@ parseConfigFile configFile = do
     contents <- readFile configFile
     case P.parse parseFile configFile contents of
         Left err -> throw $ ConfigFileParsingException $ show err
-        Right x -> return x
+        Right x  -> return x
     where
     parseFile :: P.Parser [String]
     parseFile = concat <$> P.sepEndBy (P.try parseEmptyLine P.<|> P.try parseComment P.<|> parseOneArgument) P.newline

@@ -1,8 +1,9 @@
 module LocEst.MathUtils where
 
-import           Data.List (foldl')
-import Statistics.Distribution.StudentT (studentTUnstandardized, StudentT)
-import Statistics.Distribution.Transform (LinearTransform)
+import           Data.List                         (foldl')
+import           Statistics.Distribution.StudentT  (StudentT,
+                                                    studentTUnstandardized)
+import           Statistics.Distribution.Transform (LinearTransform)
 
 -- should be slightly faster than sum, because sum is implemented with the lazy foldl
 -- GHC does this optimization automatically, but only with -O2

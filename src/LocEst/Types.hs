@@ -1,8 +1,8 @@
-{-# LANGUAGE ApplicativeDo     #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StrictData        #-}
+{-# LANGUAGE ApplicativeDo          #-}
+{-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE StrictData             #-}
 
 module LocEst.Types where
 
@@ -78,7 +78,7 @@ newtype SUDistMatrix = SUDistMatrix {
     _sudmMatrix     :: VU.Vector Double
 } deriving (Generic, Show)
 
--- | This lookup function must consider that the triangular matrix packs 
+-- | This lookup function must consider that the triangular matrix packs
 -- its values in a certain order. In the case of a lower triangular matrix,
 -- where every element above the principal diagonal is zero, we can count
 -- by rows to get the right index for each value:
@@ -258,7 +258,7 @@ instance Csv.ToRecord KernelDefinition where
             oneColSet :: KernelOneDepVar -> Csv.Record
             oneColSet (KernelOneDepVar _ nugget kernel) =
                 Csv.record [Csv.toField nugget] <> Csv.toRecord kernel
-        
+
 instance PseudoMap KernelDefinition Kernel where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = map _kodvKernel l
@@ -376,14 +376,14 @@ instance Csv.ToRecord InterpolationResult where
         V.concat $ map Csv.toRecord l
 
 data InterpolationResultOneDepVar = InterpolationResultOneDepVar {
-          _irodvDepVarName   :: DepVarName -- name of the dependent variable
-        , _irodvEffN         :: Double     -- effective number of samples
-        , _irodvWeightedAvg  :: Double     -- weighted average
-        , _irodvWeightedVar  :: Double     -- weighted variance
-        , _irodvLowerBound   :: Double     -- lower boundary of the 95% interval
-        , _irodvMedian       :: Double     -- median
-        , _irodvUpperBound   :: Double     -- upper boundary of the 95% interval
-        , _irodvProbability  :: Maybe Double  -- Probability for search value
+          _irodvDepVarName  :: DepVarName -- name of the dependent variable
+        , _irodvEffN        :: Double     -- effective number of samples
+        , _irodvWeightedAvg :: Double     -- weighted average
+        , _irodvWeightedVar :: Double     -- weighted variance
+        , _irodvLowerBound  :: Double     -- lower boundary of the 95% interval
+        , _irodvMedian      :: Double     -- median
+        , _irodvUpperBound  :: Double     -- upper boundary of the 95% interval
+        , _irodvProbability :: Maybe Double  -- Probability for search value
     } deriving (Eq, Show, Generic)
 
 instance NFData InterpolationResultOneDepVar
