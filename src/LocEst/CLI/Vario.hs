@@ -47,15 +47,17 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
             hPutStrLn stderr ("Working on " ++ indepVarName)
             let (_,_,lastHi) = last bins
                 -- remove dists that are not to be binned
-                binnableIndepDists = VU.filter (<= lastHi) indepDists
+                indepDistsIndexed = VU.indexed indepDists
+                binnableIndepDists = VU.filter (\(_,v) -> v <= lastHi) indepDistsIndexed
             -- sort indep distance vector for easy binning
             sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
-            -- get start index and length for each bin in the sorted indep vector
+            -- get start index and stop index for each bin in the sorted indep vector
             let startLenPerBin = map (getStartAndStopForBin sortedIndepDists) bins
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
-                let !semivariancesPerBin = parFor startLenPerBin $ \(mid, startSorted, lenSorted) ->
-                        let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted lenSorted
+                -- loop over bins
+                let !semivariancesPerBin = parFor startLenPerBin $ \(mid, startSorted, stopSorted) ->
+                        let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
                             depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
                             semivariance = calcMatheron depDistsPerBin
                         in (mid, semivariance)
@@ -66,7 +68,6 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
 
 getStartAndStopForBin :: VU.Vector (Int, Double) -> (Double, Double, Double) -> (Double, Int, Int)
 getStartAndStopForBin sortedVec (lo,mid,hi) =
-    -- fromJust is unsafe; must be replaced eventually
     let startIndex = fromJust (VU.findIndex (\(_,v) -> v >= lo) sortedVec)
         stopIndex  = fromJust (VU.findIndexR (\(_,v) -> v <= hi) sortedVec)
     in (mid, startIndex, stopIndex)
@@ -74,12 +75,11 @@ getStartAndStopForBin sortedVec (lo,mid,hi) =
 getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
 getIndicesForBin sortedVec i1 i2 = VU.map fst $ VU.slice i1 (i2 - i1) sortedVec
 
-sortWithIndices :: VU.Vector Double -> IO (VU.Vector (Int, Double))
+sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
 sortWithIndices v = do
-  let v' = VU.indexed v  -- Pair each element with its index
-  mv <- VU.thaw v'       -- Create a mutable copy
-  VA.sortBy (compare `on` snd) mv  -- Sort it in-place
-  VU.unsafeFreeze mv     -- Convert back to a pure vector
+  mv <- VU.thaw v    -- Create a mutable copy
+  VA.sortBy (compare `on` snd) mv -- Sort it in-place
+  VU.unsafeFreeze mv -- Convert back to a pure vector
 
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
 writeVariograms _ Nothing        = return ()
