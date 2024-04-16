@@ -25,6 +25,14 @@ data VarioOptions = VarioOptions {
     _voVariogramOutFile  :: Maybe FilePath
 }
 
+-- helper functions for nested loops
+forM :: Monad m => [a] -> (a -> m b) -> m [b]
+forM = flip mapM
+for :: [a] -> (a -> b) -> [b]
+for = flip map
+parFor :: NFData b => [a] -> (a -> b) -> [b]
+parFor l f = PS.parMap PS.rdeepseq f l
+
 runVario :: VarioOptions -> IO ()
 runVario (VarioOptions inObsFile outVariogramFile) = do
     -- read observations
@@ -57,8 +65,10 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
                 let !semivariancesPerBin = parFor startLenPerBin $ \(mid, startSorted, stopSorted) ->
+                            -- recover depVar values through bin indices
                         let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
                             depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
+                            -- calculate semivariance per bin
                             semivariance = calcMatheron depDistsPerBin
                         in (mid, semivariance)
                 hPutStrLn stderr ("-> " ++ depVarName)
@@ -66,46 +76,10 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     -- write variograms to the file system
     writeVariograms empiricalVariograms outVariogramFile
 
-getStartAndStopForBin :: VU.Vector (Int, Double) -> (Double, Double, Double) -> (Double, Int, Int)
-getStartAndStopForBin sortedVec (lo,mid,hi) =
-    let startIndex = fromJust (VU.findIndex (\(_,v) -> v >= lo) sortedVec)
-        stopIndex  = fromJust (VU.findIndexR (\(_,v) -> v <= hi) sortedVec)
-    in (mid, startIndex, stopIndex)
-
-getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
-getIndicesForBin sortedVec i1 i2 = VU.map fst $ VU.slice i1 (i2 - i1) sortedVec
-
-sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
-sortWithIndices v = do
-  mv <- VU.thaw v    -- Create a mutable copy
-  VA.sortBy (compare `on` snd) mv -- Sort it in-place
-  VU.unsafeFreeze mv -- Convert back to a pure vector
-
-writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
-writeVariograms _ Nothing        = return ()
-writeVariograms vars (Just path) = Con.runConduitRes $ ConL.sourceList (concatMap varToLong vars) .| sinkNamedCSV path
-
-varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]
-varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
-    map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
-
--- half mean squared distance within one bin
-calcMatheron :: VU.Vector Double -> Double
-calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
-    where
-        n = fromIntegral $ VU.length dists
-
-forM :: Monad m => [a] -> (a -> m b) -> m [b]
-forM = flip mapM
-
-for :: [a] -> (a -> b) -> [b]
-for = flip map
-
-parFor :: NFData b => [a] -> (a -> b) -> [b]
-parFor l f = PS.parMap PS.rdeepseq f l
-
+-- perform binning of an indepVar
 binIndepVar :: (IndepVarName, SUDistMatrix) -> (IndepVarName, SUDistMatrix, [(Double, Double, Double)])
 binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
+    -- currently only supports even distance bins
     let minValue = VU.minimum distVec
         maxValue = VU.maximum distVec
         endVario = minValue + (maxValue - minValue)/3
@@ -114,19 +88,54 @@ binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
         steps = zipWith (\lo hi -> (lo,lo+(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
     in (indepVarName, dist, steps)
 
+-- half mean squared distance within one bin
+calcMatheron :: VU.Vector Double -> Double
+calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
+    where
+        n = fromIntegral $ VU.length dists
+
+-- functions to find the depVar values for indepVar bins as fast as possible
+getStartAndStopForBin :: VU.Vector (Int, Double) -> (Double, Double, Double) -> (Double, Int, Int)
+getStartAndStopForBin sortedVec (lo,mid,hi) =
+    let startIndex = fromJust (VU.findIndex (\(_,v) -> v >= lo) sortedVec)
+        stopIndex  = fromJust (VU.findIndexR (\(_,v) -> v <= hi) sortedVec)
+    in (mid, startIndex, stopIndex)
+sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
+sortWithIndices v = do
+  mv <- VU.thaw v    -- Create a mutable copy
+  VA.sortBy (compare `on` snd) mv -- Sort it in-place
+  VU.unsafeFreeze mv -- Convert back to a pure vector
+getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
+getIndicesForBin sortedVec i1 i2 = VU.map fst $ VU.slice i1 (i2 - i1) sortedVec
+
+-- write variograms to the file system
+writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
+writeVariograms _ Nothing        = return ()
+writeVariograms vars (Just path) = Con.runConduitRes $ ConL.sourceList (concatMap varToLong vars) .| sinkNamedCSV path
+    where
+        varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]
+        varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
+            map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
+
+-- distance calculation functions
 calcIndepVarPairwiseDistances :: [Observation] -> IO [(IndepVarName, SUDistMatrix)]
 calcIndepVarPairwiseDistances obs = do
     let indexPairs = zip [0..] [ (x,y) | y <- obs, (x:_) <- tails obs]
         nrPairs = length indexPairs
         (Observation _ _ (HyperPos indepPos _)) = head obs
     case indepPos of
+        -- spatiotemporal system
         IndepSpatTempPos _ -> do
+            -- create mutable vectors to write distances directly
             spaceVec <- VUM.new nrPairs
             timeVec  <- VUM.new nrPairs
+            -- calculate and write distances to mutable memory
             mapM_ (distSpaceTime spaceVec timeVec) indexPairs
+            -- make result vectors immutable for easier handling
             spaceVecNonMut <- VU.freeze spaceVec
             timeVecNonMut  <- VU.freeze timeVec
             return [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
+        -- arbitrary dimension system
         IndepArbitraryDimPos pos@(ArbitraryDimPos l) -> do
             arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
             mapM_ (distArbitrary arbitraryVecs) indexPairs
@@ -142,6 +151,7 @@ calcIndepVarPairwiseDistances obs = do
             ) = do
             let spaceDist = spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
                 timeDist  = temporalDistSpatTempPos p1 p2
+            -- write distances to mutable vector
             VUM.write spaceVec i spaceDist
             VUM.write timeVec  i timeDist
         distSpaceTime _ _ _ = error "Impossible state in indep distance calculation"
@@ -162,6 +172,7 @@ calcDepVarPairwiseDistances obs = do
     let indexPairs = zip [0..] [ (x,y) | y <- obs, (x:_) <- tails obs]
         nrPairs = length indexPairs
         (Observation _ _ (HyperPos _ pos@(DepVarsPos l))) = head obs
+    -- writing distances to mutable vectors
     depVecs <- replicateM (length l) (VUM.new nrPairs)
     mapM_ (distDep depVecs) indexPairs
     depVecsNonMut <- mapM VU.freeze depVecs
