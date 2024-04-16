@@ -1,5 +1,4 @@
-{-# LANGUAGE BangPatterns        #-}
--- {-# LANGUAGE Strict        #-}
+{-# LANGUAGE BangPatterns #-}
 
 module LocEst.CLI.Vario where
 
@@ -39,26 +38,28 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     !distsPerDepVar   <- calcDepVarPairwiseDistances observations
     -- determine bins
     hPutStrLn stderr "Determining bins for independent variables"
-    --error $ show distsPerIndepVar
     let perIndepVar  = map binIndepVar distsPerIndepVar
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
     hPutStrLn stderr "Calculating empirical variograms"
     empiricalVariograms <- fmap concat $
+        -- loop over indepVars
         forM perIndepVar $ \(indepVarName, SUDistMatrix indepDists, bins) -> do
             hPutStrLn stderr ("Working on " ++ indepVarName)
-            -- remove dists that are not binnable
-            -- sorting this long vector is a extremely time-consuming
-            sortedIndepDists <- sortWithIndices indepDists
             let (_,_,lastHi) = last bins
-                (binnableIndepDists,_) = VU.span (\(_,v) -> v <= lastHi) sortedIndepDists
-            let startLenPerBin = map (getStartAndStopForBin binnableIndepDists) bins
+                -- remove dists that are not to be binned
+                binnableIndepDists = VU.filter (<= lastHi) indepDists
+            -- sort indep distance vector for easy binning
+            sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
+            -- get start index and length for each bin in the sorted indep vector
+            let startLenPerBin = map (getStartAndStopForBin sortedIndepDists) bins
+            -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
-                hPutStrLn stderr ("-> " ++ depVarName)
                 let !semivariancesPerBin = parFor startLenPerBin $ \(mid, startSorted, lenSorted) ->
-                        let indicesForThisBin = getIndicesForBin binnableIndepDists startSorted lenSorted
+                        let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted lenSorted
                             depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
                             semivariance = calcMatheron depDistsPerBin
                         in (mid, semivariance)
+                hPutStrLn stderr ("-> " ++ depVarName)
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outVariogramFile
