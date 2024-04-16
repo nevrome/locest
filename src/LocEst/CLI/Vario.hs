@@ -132,14 +132,14 @@ calcIndepVarPairwiseDistances obs = do
             -- calculate and write distances to mutable memory
             mapM_ (distSpaceTime spaceVec timeVec) indexPairs
             -- make result vectors immutable for easier handling
-            spaceVecNonMut <- VU.freeze spaceVec
-            timeVecNonMut  <- VU.freeze timeVec
+            spaceVecNonMut <- VU.unsafeFreeze spaceVec
+            timeVecNonMut  <- VU.unsafeFreeze timeVec
             return [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
         -- arbitrary dimension system
         IndepArbitraryDimPos pos@(ArbitraryDimPos l) -> do
             arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
             mapM_ (distArbitrary arbitraryVecs) indexPairs
-            arbitraryVecsNonMut <- mapM VU.freeze arbitraryVecs
+            arbitraryVecsNonMut <- mapM VU.unsafeFreeze arbitraryVecs
             return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
     where
         distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
@@ -175,7 +175,7 @@ calcDepVarPairwiseDistances obs = do
     -- writing distances to mutable vectors
     depVecs <- replicateM (length l) (VUM.new nrPairs)
     mapM_ (distDep depVecs) indexPairs
-    depVecsNonMut <- mapM VU.freeze depVecs
+    depVecsNonMut <- mapM VU.unsafeFreeze depVecs
     return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
     where
         distDep :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
