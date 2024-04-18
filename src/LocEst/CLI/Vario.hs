@@ -14,7 +14,7 @@ import qualified Data.Conduit                 as Con
 import qualified Data.Conduit.List            as ConL
 import           Data.Function                (on)
 import           Data.List                    (tails)
-import           Data.Maybe                   (fromJust, mapMaybe)
+import           Data.Maybe                   (fromJust)
 import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
@@ -60,7 +60,7 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
             -- sort indep distance vector for easy binning
             sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
             -- get start index and stop index for each bin in the sorted indep vector
-            let startLenPerBin = mapMaybe (getStartAndStopForBin sortedIndepDists) bins
+            let startLenPerBin = map (getStartAndStopForBin sortedIndepDists) bins
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
@@ -86,8 +86,7 @@ binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
         stepWidth = (endVario - minValue)/1000
         stepsSingle = [minValue,minValue+stepWidth..endVario]
         steps = zipWith (\lo hi -> (lo,lo+(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
-    in --error $ show steps
-       (indepVarName, dist, steps)
+    in (indepVarName, dist, steps)
 
 -- half mean squared distance within one bin
 calcMatheron :: VU.Vector Double -> Double
@@ -96,13 +95,11 @@ calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dist
         n = fromIntegral $ VU.length dists
 
 -- functions to find the depVar values for indepVar bins as fast as possible
-getStartAndStopForBin :: VU.Vector (Int, Double) -> (Double, Double, Double) -> Maybe (Double, Int, Int)
-getStartAndStopForBin sortedVec (lo,mid,hi) = do
-    startIndex <- VU.findIndex  (\(_,v) -> v >= lo) sortedVec
-    stopIndex  <- VU.findIndexR (\(_,v) -> v <= hi) sortedVec
-    if stopIndex < startIndex
-    then Nothing
-    else Just (mid, startIndex, stopIndex)
+getStartAndStopForBin :: VU.Vector (Int, Double) -> (Double, Double, Double) -> (Double, Int, Int)
+getStartAndStopForBin sortedVec (lo,mid,hi) =
+    let startIndex = fromJust (VU.findIndex (\(_,v) -> v >= lo) sortedVec)
+        stopIndex  = fromJust (VU.findIndexR (\(_,v) -> v <= hi) sortedVec)
+    in (mid, startIndex, stopIndex)
 sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
 sortWithIndices v = do
   mv <- VU.thaw v    -- Create a mutable copy
