@@ -14,7 +14,7 @@ import qualified Data.Conduit                 as Con
 import qualified Data.Conduit.List            as ConL
 import           Data.Function                (on)
 import           Data.List                    (tails)
-import           Data.Maybe                   (fromJust)
+import           Data.Maybe                   (fromJust, mapMaybe)
 import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
@@ -60,7 +60,7 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
             -- sort indep distance vector for easy binning
             sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
             -- get start index and stop index for each bin in the sorted indep vector
-            let startLenPerBin = map (getStartAndStopForBin sortedIndepDists) bins
+            let startLenPerBin = mapMaybe (getStartAndStopForBin sortedIndepDists) bins
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
@@ -86,7 +86,8 @@ binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
         stepWidth = (endVario - minValue)/1000
         stepsSingle = [minValue,minValue+stepWidth..endVario]
         steps = zipWith (\lo hi -> (lo,lo+(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
-    in (indepVarName, dist, steps)
+    in --error $ show steps
+       (indepVarName, dist, steps)
 
 -- half mean squared distance within one bin
 calcMatheron :: VU.Vector Double -> Double
@@ -95,18 +96,22 @@ calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dist
         n = fromIntegral $ VU.length dists
 
 -- functions to find the depVar values for indepVar bins as fast as possible
-getStartAndStopForBin :: VU.Vector (Int, Double) -> (Double, Double, Double) -> (Double, Int, Int)
-getStartAndStopForBin sortedVec (lo,mid,hi) =
-    let startIndex = fromJust (VU.findIndex (\(_,v) -> v >= lo) sortedVec)
-        stopIndex  = fromJust (VU.findIndexR (\(_,v) -> v <= hi) sortedVec)
-    in (mid, startIndex, stopIndex)
+getStartAndStopForBin :: VU.Vector (Int, Double) -> (Double, Double, Double) -> Maybe (Double, Int, Int)
+getStartAndStopForBin sortedVec (lo,mid,hi) = do
+    startIndex <- VU.findIndex  (\(_,v) -> v >= lo) sortedVec
+    stopIndex  <- VU.findIndexR (\(_,v) -> v <= hi) sortedVec
+    if stopIndex < startIndex
+    then Nothing
+    else Just (mid, startIndex, stopIndex)
 sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
 sortWithIndices v = do
   mv <- VU.thaw v    -- Create a mutable copy
   VA.sortBy (compare `on` snd) mv -- Sort it in-place
   VU.unsafeFreeze mv -- Convert back to a pure vector
 getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
-getIndicesForBin sortedVec i1 i2 = VU.map fst $ VU.slice i1 (i2 - i1) sortedVec
+getIndicesForBin sortedVec i1 i2 =
+    --let !_ = unsafePerformIO $ putStrLn (show i1 ++ " " ++ show (i2 - i1))
+    VU.map fst $ VU.slice i1 (i2 - i1) sortedVec
 
 -- write variograms to the file system
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
