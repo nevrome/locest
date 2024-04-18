@@ -44,23 +44,22 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     !distsPerIndepVar <- calcIndepVarPairwiseDistances observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
     !distsPerDepVar   <- calcDepVarPairwiseDistances observations
-    -- determine bins
-    hPutStrLn stderr "Determining bins for independent variables"
-    let perIndepVar  = map binIndepVar distsPerIndepVar
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
     hPutStrLn stderr "Calculating empirical variograms"
     empiricalVariograms <- fmap concat $
         -- loop over indepVars
-        forM perIndepVar $ \(indepVarName, SUDistMatrix indepDists, bins) -> do
+        forM distsPerIndepVar $ \(indepVarName, SUDistMatrix indepDists) -> do
             hPutStrLn stderr ("Working on " ++ indepVarName)
-            let (_,_,lastHi) = last bins
-                -- remove dists that are not to be binned
+            -- remove dists that are not to be binned
+            let minDist = VU.minimum indepDists
+                maxDist = VU.maximum indepDists
+                endVario = minDist + (maxDist - minDist)/3
                 indepDistsIndexed = VU.indexed indepDists
-                binnableIndepDists = VU.filter (\(_,v) -> v <= lastHi) indepDistsIndexed
+                binnableIndepDists = VU.filter (\(_,v) -> v <= endVario) indepDistsIndexed
             -- sort indep distance vector for easy binning
             sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
             -- get start index and stop index for each bin in the sorted indep vector
-            let startLenPerBin = map (getStartAndStopForBin sortedIndepDists) bins
+            let startLenPerBin = binIndepVar sortedIndepDists
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
@@ -77,16 +76,19 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     writeVariograms empiricalVariograms outVariogramFile
 
 -- perform binning of an indepVar
-binIndepVar :: (IndepVarName, SUDistMatrix) -> (IndepVarName, SUDistMatrix, [(Double, Double, Double)])
-binIndepVar (indepVarName, dist@(SUDistMatrix distVec)) =
-    -- currently only supports even distance bins
-    let minValue = VU.minimum distVec
-        maxValue = VU.maximum distVec
-        endVario = minValue + (maxValue - minValue)/3
-        stepWidth = (endVario - minValue)/1000
-        stepsSingle = [minValue,minValue+stepWidth..endVario]
-        steps = zipWith (\lo hi -> (lo,lo+(hi-lo)/2,hi)) (init stepsSingle) (tail stepsSingle)
-    in (indepVarName, dist, steps)
+binIndepVar :: VU.Vector (Int, Double) -> [(Double, Int, Int)]
+binIndepVar sortedVec =
+    let len = VU.length sortedVec
+        stepWidth = len `div` 1000 -- in nr of distances
+        starts = [0,stepWidth..(len - stepWidth)]
+        stops = map (\x -> x-1) [stepWidth,2*stepWidth..len]
+    in zipWith (\start stop -> (calcMean start stop, start, stop)) starts stops
+    where
+        calcMean :: Int -> Int -> Double
+        calcMean start stop =
+            let (_,lo) = sortedVec VU.! start
+                (_,hi) = sortedVec VU.! stop
+            in (lo+hi)/2
 
 -- half mean squared distance within one bin
 calcMatheron :: VU.Vector Double -> Double
@@ -94,12 +96,6 @@ calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dist
     where
         n = fromIntegral $ VU.length dists
 
--- functions to find the depVar values for indepVar bins as fast as possible
-getStartAndStopForBin :: VU.Vector (Int, Double) -> (Double, Double, Double) -> (Double, Int, Int)
-getStartAndStopForBin sortedVec (lo,mid,hi) =
-    let startIndex = fromJust (VU.findIndex (\(_,v) -> v >= lo) sortedVec)
-        stopIndex  = fromJust (VU.findIndexR (\(_,v) -> v <= hi) sortedVec)
-    in (mid, startIndex, stopIndex)
 sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
 sortWithIndices v = do
   mv <- VU.thaw v    -- Create a mutable copy
