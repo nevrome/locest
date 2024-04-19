@@ -62,6 +62,10 @@ parseUnnamedArgument parseValue = parseValue
 
 parseKeyValuePair :: P.Parser a -> P.Parser b -> P.Parser (a,b)
 parseKeyValuePair parseKey parseValue = do
+    parseBetweenSpaces (parseKeyValuePairInner parseKey parseValue)
+
+parseKeyValuePairInner :: P.Parser a -> P.Parser b -> P.Parser (a,b)
+parseKeyValuePairInner parseKey parseValue = do
     key <- parseKey
     consumeEqualSep
     value <- parseValue

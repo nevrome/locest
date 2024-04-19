@@ -25,16 +25,15 @@ parseConfigFile configFile = do
         Right x  -> return x
     where
     parseFile :: P.Parser [String]
-    parseFile = concat <$> P.sepEndBy (P.try parseEmptyLine P.<|> P.try parseComment P.<|> parseOneArgument) P.newline
+    parseFile = concat <$> P.many1 (P.try parseEmptyLine P.<|> P.try parseComment P.<|> parseOneArgument)
     parseComment :: P.Parser [String]
     parseComment = do
-        _ <- P.string "#"
-        _ <- P.manyTill P.anyChar (P.lookAhead P.newline)
+        _ <- P.manyTill P.space (P.char '#')
+        _ <- P.manyTill P.anyChar P.newline
         return []
     parseEmptyLine :: P.Parser [String]
     parseEmptyLine = do
-        _ <- P.manyTill P.space (P.lookAhead (P.char '#' P.<|> P.newline))
-        _ <- P.optional parseComment
+        _ <- P.manyTill P.space P.newline
         return []
     parseOneArgument :: P.Parser [String]
     parseOneArgument = do
@@ -42,8 +41,9 @@ parseConfigFile configFile = do
         argumentName <- P.manyTill (P.noneOf "\n") (P.lookAhead (P.char ':'))
         _ <- P.char ':'
         _ <- P.spaces
-        argumentValue <- P.manyTill P.anyChar (P.lookAhead (P.char '#' P.<|> P.newline))
-        _ <- P.optional parseComment
+        argumentValue <- P.manyTill (P.noneOf ";") (P.lookAhead (P.char ';'))
+        _ <- P.char ';'
+        _ <- P.try parseComment P.<|> parseEmptyLine
         if map toLower argumentValue == "true"
         then return [dash argumentName]
         else return [dash argumentName, trim argumentValue]
