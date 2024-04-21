@@ -5,6 +5,12 @@ import           Statistics.Distribution.StudentT  (StudentT,
                                                     studentTUnstandardized)
 import           Statistics.Distribution.Transform (LinearTransform)
 
+infinity :: Fractional a => a
+infinity = 1/0
+
+nan :: Fractional a => a
+nan = 0/0
+
 -- should be slightly faster than sum, because sum is implemented with the lazy foldl
 -- GHC does this optimization automatically, but only with -O2
 foldSum :: [Double] -> Double

@@ -91,14 +91,14 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDe
     case posteriorPredictive_ totalWeight weightedA weightedV of
         Right distribution -> do
             let lower  = quantile distribution 0.025
-                median = quantile distribution 0.5
+                median = quantile distribution 0.5 -- I'm sure now this is identical to weightedA
                 upper  = quantile distribution 0.975
                 prob   = fmap (density distribution) maybeValueDepVar
             return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV lower median upper prob
-        Left e -> do
-            -- probably doesn't work because of normalization:
-            --return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (0/0) (0/0) (0/0) (0/0)
-            E.throwError $ NormalException e
+        Left _ -> do
+            -- is setting the probability to 0 a good idea?
+            return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (-infinity) weightedA infinity (Just 0)
+            --E.throwError $ NormalException e
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
