@@ -13,9 +13,8 @@ import qualified Control.Parallel.Strategies  as PS
 import qualified Data.Conduit                 as Con
 import qualified Data.Conduit.List            as ConL
 import           Data.Function                (on)
-import           Data.List                    (tails)
-import           Data.Maybe                   (fromJust)
 import qualified Data.Vector.Algorithms.Intro as VA
+import qualified Data.Vector                  as V
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import           System.IO                    (hPutStrLn, stderr)
@@ -38,7 +37,8 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
-    let observations = zipWith setIndex observationsUnindexed [0..]
+    let observationsUnindexedVector = V.fromList observationsUnindexed
+    let observations = V.zipWith setIndex observationsUnindexedVector (V.fromList [0..])
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
     !distsPerIndepVar <- calcIndepVarPairwiseDistances observations
@@ -115,12 +115,18 @@ writeVariograms vars (Just path) = Con.runConduitRes $ ConL.sourceList (concatMa
         varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
             map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
 
+makeObsPairs :: V.Vector Observation -> [(Int, (Observation, Observation))]
+makeObsPairs obs =
+    let obsIndexMax = V.length obs - 1
+        obsPairs = [(obs V.! x, obs V.! y) | x <- [0..obsIndexMax], y <- [0..obsIndexMax], x > y]
+    in zip [0..] obsPairs
+
 -- distance calculation functions
-calcIndepVarPairwiseDistances :: [Observation] -> IO [(IndepVarName, SUDistMatrix)]
+calcIndepVarPairwiseDistances :: V.Vector Observation -> IO [(IndepVarName, SUDistMatrix)]
 calcIndepVarPairwiseDistances obs = do
-    let indexPairs = zip [0..] [ (x,y) | y <- obs, (x:_) <- tails obs]
-        nrPairs = length indexPairs
-        (Observation _ _ (HyperPos indepPos _)) = head obs
+    let obsPairs = makeObsPairs obs
+        nrPairs = length obsPairs
+        (Observation _ _ (HyperPos indepPos _)) = V.head obs
     case indepPos of
         -- spatiotemporal system
         IndepSpatTempPos _ -> do
@@ -128,7 +134,7 @@ calcIndepVarPairwiseDistances obs = do
             spaceVec <- VUM.new nrPairs
             timeVec  <- VUM.new nrPairs
             -- calculate and write distances to mutable memory
-            mapM_ (distSpaceTime spaceVec timeVec) indexPairs
+            mapM_ (distSpaceTime spaceVec timeVec) obsPairs
             -- make result vectors immutable for easier handling
             spaceVecNonMut <- VU.unsafeFreeze spaceVec
             timeVecNonMut  <- VU.unsafeFreeze timeVec
@@ -136,7 +142,7 @@ calcIndepVarPairwiseDistances obs = do
         -- arbitrary dimension system
         IndepArbitraryDimPos pos@(ArbitraryDimPos l) -> do
             arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
-            mapM_ (distArbitrary arbitraryVecs) indexPairs
+            mapM_ (distArbitrary arbitraryVecs) obsPairs
             arbitraryVecsNonMut <- mapM VU.unsafeFreeze arbitraryVecs
             return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
     where
@@ -165,14 +171,14 @@ calcIndepVarPairwiseDistances obs = do
             zipWithM_ (`VUM.write` i) arbitraryVecs arbitraryDists
         distArbitrary _ _ = error "Impossible state in indep distance calculation"
 
-calcDepVarPairwiseDistances :: [Observation] -> IO [(DepVarName, SUDistMatrix)]
+calcDepVarPairwiseDistances :: V.Vector Observation -> IO [(DepVarName, SUDistMatrix)]
 calcDepVarPairwiseDistances obs = do
-    let indexPairs = zip [0..] [ (x,y) | y <- obs, (x:_) <- tails obs]
-        nrPairs = length indexPairs
-        (Observation _ _ (HyperPos _ pos@(DepVarsPos l))) = head obs
+    let obsPairs = makeObsPairs obs
+        nrPairs = length obsPairs
+        (Observation _ _ (HyperPos _ pos@(DepVarsPos l))) = V.head obs
     -- writing distances to mutable vectors
     depVecs <- replicateM (length l) (VUM.new nrPairs)
-    mapM_ (distDep depVecs) indexPairs
+    mapM_ (distDep depVecs) obsPairs
     depVecsNonMut <- mapM VU.unsafeFreeze depVecs
     return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
     where
