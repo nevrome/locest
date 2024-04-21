@@ -38,6 +38,10 @@ hu5 %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
   geom_raster(aes(x, y, fill = probability)) +
+  geom_raster(
+    data = hu5 %>% dplyr::filter(!interpol_depC1_post),
+    aes(x, y), fill = "white", alpha = 0.3
+  ) +
   geom_point(
     data = obs %>%
       dplyr::filter(yearBCAD > -7500 & yearBCAD < -4500) %>%

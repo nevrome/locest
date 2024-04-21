@@ -380,6 +380,7 @@ data InterpolationResultOneDepVar = InterpolationResultOneDepVar {
         , _irodvEffN        :: Double     -- effective number of samples
         , _irodvWeightedAvg :: Double     -- weighted average
         , _irodvWeightedVar :: Double     -- weighted variance
+        , _irodvPosterior   :: OutBool       -- could a posterior distribution be calculated?
         , _irodvLowerBound  :: Double     -- lower boundary of the 95% interval
         , _irodvMedian      :: Double     -- median
         , _irodvUpperBound  :: Double     -- upper boundary of the 95% interval
@@ -388,19 +389,28 @@ data InterpolationResultOneDepVar = InterpolationResultOneDepVar {
 
 instance NFData InterpolationResultOneDepVar
 instance Csv.DefaultOrdered InterpolationResultOneDepVar where
-    headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ (Just _)) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "low", "median", "up", "prob"]
-    headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ Nothing) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "low", "median", "up"]
+    headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ _ (Just _)) =
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "post", "low", "median", "up", "prob"]
+    headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ _ Nothing) =
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "post", "low", "median", "up"]
 instance Csv.ToRecord InterpolationResultOneDepVar where
-    toRecord (InterpolationResultOneDepVar _ neff a v lb m ub (Just p)) =
+    toRecord (InterpolationResultOneDepVar _ neff a v po lb m ub (Just p)) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField p
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField p
         ]
-    toRecord (InterpolationResultOneDepVar _ neff a v lb m ub Nothing) =
+    toRecord (InterpolationResultOneDepVar _ neff a v po lb m ub Nothing) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField lb, Csv.toField m, Csv.toField ub
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub
         ]
+
+instance NFData OutBool
+
+newtype OutBool = OutBool Bool
+    deriving (Eq, Show, Generic)
+
+instance Csv.ToField OutBool where
+    toField (OutBool True)  = "TRUE"
+    toField (OutBool False) = "FALSE"
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]
