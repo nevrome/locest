@@ -96,8 +96,12 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDe
                 prob   = fmap (density distribution) maybeValueDepVar
             return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (OutBool True) lower median upper prob
         Left _ -> do
-            -- is setting the probability to 0 a good idea?
-            return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity (Just 0)
+            case maybeValueDepVar of
+                Just _ ->
+                    -- is setting the probability to 0 a good idea?
+                    return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity (Just 0)
+                Nothing ->
+                    return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity Nothing
             --E.throwError $ NormalException e
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
