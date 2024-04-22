@@ -18,7 +18,7 @@ import qualified Data.Vector                  as V
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import           System.IO                    (hPutStrLn, stderr)
-import Data.List (groupBy)
+--import Data.List (groupBy)
 
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,
@@ -75,20 +75,20 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outVariogramFile
-    -- analyse variograms
-    let kernels = map suggestKernel $ groupBy (\(EmpiricalVariogramOneVarCombination _ d1 _) (EmpiricalVariogramOneVarCombination _ d2 _) -> d1 == d2) empiricalVariograms
-    writeKernelDefinition kernels (Just "/dev/null")
+--     -- analyse variograms
+--     let kernels = map suggestKernel $ groupBy (\(EmpiricalVariogramOneVarCombination _ d1 _) (EmpiricalVariogramOneVarCombination _ d2 _) -> d1 == d2) empiricalVariograms
+--     writeKernelDefinition kernels (Just "/dev/null")
 
 
-suggestKernel :: [EmpiricalVariogramOneVarCombination] -> KernelOneDepVar
-suggestKernel xs =
-    undefined
-    --KernelOneDepVar depVarName 0.1 (SquaredExponential $ ArbitraryDimPos [(indepVarName, 100)])
+-- suggestKernel :: [EmpiricalVariogramOneVarCombination] -> KernelOneDepVar
+-- suggestKernel xs =
+--     undefined
+--     --KernelOneDepVar depVarName 0.1 (SquaredExponential $ ArbitraryDimPos [(indepVarName, 100)])
 
--- write variograms to the file system
-writeKernelDefinition :: [KernelOneDepVar] -> Maybe FilePath -> IO ()
-writeKernelDefinition _ Nothing        = return ()
-writeKernelDefinition k (Just path) = Con.runConduitRes $ ConL.sourceList k .| sinkNamedCSV path
+-- -- write variograms to the file system
+-- writeKernelDefinition :: [KernelOneDepVar] -> Maybe FilePath -> IO ()
+-- writeKernelDefinition _ Nothing        = return ()
+-- writeKernelDefinition k (Just path) = Con.runConduitRes $ ConL.sourceList k .| sinkNamedCSV path
 
 
 -- perform binning of an indepVar
