@@ -22,6 +22,7 @@ import           System.IO                    (hPutStrLn, stderr)
 
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,
+    _voInNrBins          :: Maybe Int,
     _voVariogramOutFile  :: Maybe FilePath
 }
 
@@ -34,7 +35,7 @@ parFor :: NFData b => [a] -> (a -> b) -> [b]
 parFor l f = PS.parMap PS.rdeepseq f l
 
 runVario :: VarioOptions -> IO ()
-runVario (VarioOptions inObsFile outVariogramFile) = do
+runVario (VarioOptions inObsFile maybeNrBins outVariogramFile) = do
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
@@ -60,7 +61,9 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
             -- sort indep distance vector for easy binning
             sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
             -- get start index and stop index for each bin in the sorted indep vector
-            let startLenPerBin = binIndepVar sortedIndepDists
+            let startLenPerBin = case maybeNrBins of
+                    Just b -> binIndepVar sortedIndepDists b
+                    Nothing -> binIndepVar sortedIndepDists 100
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
@@ -92,10 +95,10 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
 
 
 -- perform binning of an indepVar
-binIndepVar :: VU.Vector (Int, Double) -> [(Double, Int, Int)]
-binIndepVar sortedVec =
+binIndepVar :: VU.Vector (Int, Double) -> Int -> [(Double, Int, Int)]
+binIndepVar sortedVec nrBins =
     let len = VU.length sortedVec
-        stepWidth = len `div` 100 -- in nr of distances
+        stepWidth = len `div` nrBins -- in nr of distances
         starts = [0,stepWidth..(len - stepWidth)]
         stops = map (\x -> x-1) [stepWidth,2*stepWidth..len]
     in zipWith (\start stop -> (calcMean start stop, start, stop)) starts stops

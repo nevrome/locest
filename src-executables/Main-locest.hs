@@ -118,4 +118,5 @@ searchOptParser = SearchOptions <$>
 varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions <$>
                             optParseInObservationFile
+                        <*> optParseInNrBins
                         <*> optParseVariogramOutFile

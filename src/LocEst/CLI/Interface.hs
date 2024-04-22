@@ -236,6 +236,13 @@ optParseVariogramOutFile = OP.optional $ OP.strOption (
     <> OP.help  "Path to the variogram output file."
     )
 
+optParseInNrBins :: OP.Parser (Maybe Int)
+optParseInNrBins = OP.optional $ OP.option OP.auto (
+       OP.long  "nrBins"
+    <> OP.metavar "b"
+    <> OP.help  "..."
+    )
+
 --optParseQuiet :: OP.Parser Bool
 --optParseQuiet = OP.switch (
 --    OP.long "quiet" <>
