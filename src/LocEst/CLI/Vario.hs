@@ -95,7 +95,7 @@ runVario (VarioOptions inObsFile outVariogramFile) = do
 binIndepVar :: VU.Vector (Int, Double) -> [(Double, Int, Int)]
 binIndepVar sortedVec =
     let len = VU.length sortedVec
-        stepWidth = len `div` 1000 -- in nr of distances
+        stepWidth = len `div` 100 -- in nr of distances
         starts = [0,stepWidth..(len - stepWidth)]
         stops = map (\x -> x-1) [stepWidth,2*stepWidth..len]
     in zipWith (\start stop -> (calcMean start stop, start, stop)) starts stops
