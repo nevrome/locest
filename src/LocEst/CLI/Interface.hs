@@ -239,7 +239,8 @@ optParseVariogramOutFile = OP.optional $ OP.strOption (
 optParseInNrBins :: OP.Parser (Maybe Int)
 optParseInNrBins = OP.optional $ OP.option OP.auto (
        OP.long  "nrBins"
-    <> OP.metavar "b"
+    <> OP.short 'b'
+    <> OP.metavar "INT"
     <> OP.help  "..."
     )
 
