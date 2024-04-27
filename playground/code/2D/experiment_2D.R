@@ -4,12 +4,13 @@ library(magrittr)
 n = 1000
 total_density = 10+0.3+7
 
+set.seed(123)
 observations <- tibble::tibble(
   obsID = 1:n,
   indepV1 = c(
     runif(round((10 /total_density) * n), 0,  10),
-    runif(round((0.3/total_density) * n), 10, 13),
-    runif(round((7  /total_density) * n), 13, 20)
+    runif(round((0.3/total_density) * n), 10, 15),
+    runif(round((7  /total_density) * n), 15, 20)
   )
 ) %>%
   dplyr::rowwise() %>%
@@ -41,31 +42,93 @@ readr::write_tsv(prediction_points, "data/2D/grid.tsv")
 # stack exec --profile -- locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv +RTS -p
 # profiteur locest.prof
 
-system('locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv')
-
-vario <- readr::read_tsv("data/2D/vario.tsv")
-
-vario %>%
-  ggplot() +
-  geom_point(aes(bin, semivariance))
+# system('locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv')
+# 
+# vario <- readr::read_tsv("data/2D/vario.tsv")
+# 
+# vario %>%
+#   ggplot() +
+#   geom_point(aes(bin, semivariance))
 
 system('locest search --configFile code/2D/experiment_2D.conf')
 
-res <- readr::read_tsv(file = "data/2D/interpol.tsv")
+#res <- readr::read_tsv(file = "data/2D/interpol.tsv")
 
-ggplot() +
+res <- readr::read_tsv("data/2D/interpol.tsv") %>%
+  dplyr::mutate(
+    dplyr::across(
+      tidyselect::ends_with(c("low", "up")),
+      \(x) { stringr::str_replace(x, "Infinity", "Inf") %>% as.numeric() }
+    )
+  )
+
+p <- ggplot() +
   geom_point(
     data = observations,
-    mapping = aes(indepV1, depV1)
+    mapping = aes(indepV1, depV1),
+    size = 0.7
+  ) +
+  geom_line(
+    data = res,
+    mapping = aes(x = indepV1, y = interpol_depV1_avg),
+    color = "red",
+    linewidth = 1
+  ) +
+  coord_cartesian(ylim = c(0,21)) +
+  theme_bw()
+
+ggsave(
+  filename = "plots/2D_2.png",
+  plot = p,
+  device = "png",
+  scale = 0.4,
+  dpi = 300,
+  width = 500, height = 200, units = "mm",
+  limitsize = F,
+  bg = "white"
+)
+
+p <- ggplot() +
+  geom_point(
+    data = observations,
+    mapping = aes(indepV1, depV1),
+    size = 0.7
+  ) +
+  geom_line(
+    data = res,
+    mapping = aes(x = indepV1, y = interpol_depV1_avg),
+    color = "red",
+    linewidth = 1
   ) +
   geom_ribbon(
     data = res,
-    mapping = aes(x = indepV1, ymin = interpol_depV1_low, ymax = interpol_depV1_up),
+    mapping = aes(
+      x = indepV1,
+      ymin = interpol_depV1_avg - 2*sqrt(interpol_depV1_var),
+      ymax = interpol_depV1_avg + 2*sqrt(interpol_depV1_var)
+    ),
+    # mapping = aes(
+    #     x = indepV1,
+    #     ymin = interpol_depV1_low,
+    #     ymax = interpol_depV1_up
+    # ),
     color = "red",
     fill = "red",
     alpha = 0.2
   ) +
-  coord_cartesian(ylim = c(0,20))
+  coord_cartesian(ylim = c(0,21)) +
+  theme_bw()
+
+ggsave(
+  filename = "plots/2D_4.png",
+  plot = p,
+  device = "png",
+  scale = 0.4,
+  dpi = 300,
+  width = 500, height = 200, units = "mm",
+  limitsize = F,
+  bg = "white"
+)
 
 ggplot() +
   geom_line(
