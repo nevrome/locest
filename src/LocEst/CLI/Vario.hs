@@ -23,6 +23,8 @@ import           System.IO                    (hPutStrLn, stderr)
 data VarioOptions = VarioOptions {
     _voInObservationFile :: FilePath,
     _voInNrBins          :: Maybe Int,
+    _voInAcrossIndepVars :: Bool,
+    _voInAcrossDepVars   :: Bool,
     _voVariogramOutFile  :: Maybe FilePath
 }
 
@@ -35,7 +37,7 @@ parFor :: NFData b => [a] -> (a -> b) -> [b]
 parFor l f = PS.parMap PS.rdeepseq f l
 
 runVario :: VarioOptions -> IO ()
-runVario (VarioOptions inObsFile maybeNrBins outVariogramFile) = do
+runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars outVariogramFile) = do
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
@@ -43,9 +45,9 @@ runVario (VarioOptions inObsFile maybeNrBins outVariogramFile) = do
     let observations = V.zipWith setIndex observationsUnindexedVector (V.fromList [0..])
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
-    !distsPerIndepVar <- calcIndepVarPairwiseDistances True observations
+    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
-    !distsPerDepVar   <- calcDepVarPairwiseDistances True observations
+    !distsPerDepVar   <- calcDepVarPairwiseDistances acrossDepVars observations
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
     hPutStrLn stderr "Calculating empirical variograms"
     empiricalVariograms <- fmap concat $

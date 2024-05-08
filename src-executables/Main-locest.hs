@@ -2,9 +2,8 @@
 
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
-import           LocEst.CLI.Serialise (SerialiseOptions (..),
-                                       SpatDistFileSettings (..), runSerialise)
-import           LocEst.CLI.Vario     (VarioOptions (VarioOptions), runVario)
+import           LocEst.CLI.Serialise (SerialiseOptions (..), runSerialise)
+import           LocEst.CLI.Vario     (VarioOptions (..), runVario)
 import           LocEst.Utils
 
 import           Control.Exception    (catch)
@@ -95,28 +94,3 @@ subcommandParser = OP.subparser (
                           \ increased similarity to specific observations.")
         varioOptInfo = OP.info (OP.helper <*> (CmdVario <$> varioOptParser))
             (OP.progDesc "...")
-
-serialiseOptParser :: OP.Parser SerialiseOptions
-serialiseOptParser = SerialiseSpatDistFile <$> (
-                        SpatDistFileSettings <$>
-                            optParseInSpatDistMapFile
-                        <*> optParseInObservationFile
-                        <*> optParseInSpatGridFile
-                        <*> optParseInSpatDistNoOrderCheck
-                        <*> optParseOutFile
-                        )
-
-searchOptParser :: OP.Parser SearchOptions
-searchOptParser = SearchOptions <$>
-                            optParseInObservationFile
-                        <*> optParseSearchGridSettings
-                        <*> optParseAlgorithmString
-                        <*> optParseNormalization
-                        <*> optParseNumberOfThreads
-                        <*> optParseOutFile
-
-varioOptParser :: OP.Parser VarioOptions
-varioOptParser = VarioOptions <$>
-                            optParseInObservationFile
-                        <*> optParseInNrBins
-                        <*> optParseVariogramOutFile

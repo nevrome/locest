@@ -3,8 +3,10 @@
 module LocEst.CLI.Interface where
 
 import           LocEst.CLI.ConfigLang
-import           LocEst.CLI.Search
 import           LocEst.Types
+import           LocEst.CLI.Search
+import           LocEst.CLI.Serialise
+import           LocEst.CLI.Vario
 
 import           Control.Exception     (throw)
 import           Data.Char             (isSpace, toLower)
@@ -55,6 +57,46 @@ parseConfigFile configFile = do
     trim = let f = reverse . dropWhile isSpace in f . f
 
 -- optparse-applicative interface
+
+serialiseOptParser :: OP.Parser SerialiseOptions
+serialiseOptParser = SerialiseSpatDistFile <$> (
+                        SpatDistFileSettings <$>
+                            optParseInSpatDistMapFile
+                        <*> optParseInObservationFile
+                        <*> optParseInSpatGridFile
+                        <*> optParseInSpatDistNoOrderCheck
+                        <*> optParseOutFile
+                        )
+
+searchOptParser :: OP.Parser SearchOptions
+searchOptParser = SearchOptions <$>
+                            optParseInObservationFile
+                        <*> optParseSearchGridSettings
+                        <*> optParseAlgorithmString
+                        <*> optParseNormalization
+                        <*> optParseNumberOfThreads
+                        <*> optParseOutFile
+
+varioOptParser :: OP.Parser VarioOptions
+varioOptParser = VarioOptions <$>
+                            optParseInObservationFile
+                        <*> optParseInNrBins
+                        <*> optParseAcrossIndepVars
+                        <*> optParseAcrossDepVars
+                        <*> optParseVariogramOutFile
+
+optParseAcrossIndepVars :: OP.Parser Bool
+optParseAcrossIndepVars = OP.switch (
+    OP.long "acrossIndepVars" <>
+    OP.help "Calculate the variogram for Euclidean distances across all independent variables.\
+             \ Only applies for the arbitrary dimension setting, not the spatiotemporal setting."
+    )
+
+optParseAcrossDepVars :: OP.Parser Bool
+optParseAcrossDepVars = OP.switch (
+    OP.long "acrossDepVars" <>
+    OP.help "Calculate the variogram for Euclidean distances across all dependent variables."
+    )
 
 optParseNormalization :: OP.Parser Normalization
 optParseNormalization = OP.option (OP.eitherReader readNormalization) (
