@@ -45,7 +45,7 @@ runVario (VarioOptions inObsFile maybeNrBins outVariogramFile) = do
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
     !distsPerIndepVar <- calcIndepVarPairwiseDistances True observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
-    !distsPerDepVar   <- calcDepVarPairwiseDistances observations
+    !distsPerDepVar   <- calcDepVarPairwiseDistances True observations
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
     hPutStrLn stderr "Calculating empirical variograms"
     empiricalVariograms <- fmap concat $
@@ -169,7 +169,7 @@ calcIndepVarPairwiseDistances merge obs = do
             distVec <- VUM.new nrPairs
             mapM_ (distArbitraryMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
-            return [("euclideanAcrossIndepVars", SUDistMatrix distVecNonMut)]
+            return [("all", SUDistMatrix distVecNonMut)]
     where
         distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distSpaceTime
@@ -207,16 +207,23 @@ calcIndepVarPairwiseDistances merge obs = do
             VUM.write distVec i arbitraryDistEuclidean
         distArbitraryMerged _ _ = error "Impossible state in indep distance calculation"
 
-calcDepVarPairwiseDistances :: V.Vector Observation -> IO [(DepVarName, SUDistMatrix)]
-calcDepVarPairwiseDistances obs = do
+calcDepVarPairwiseDistances :: Bool -> V.Vector Observation -> IO [(DepVarName, SUDistMatrix)]
+calcDepVarPairwiseDistances merge obs = do
     let obsPairs = makeObsPairs obs
         nrPairs = length obsPairs
         (Observation _ _ (HyperPos _ pos@(DepVarsPos l))) = V.head obs
     -- writing distances to mutable vectors
-    depVecs <- replicateM (length l) (VUM.new nrPairs)
-    mapM_ (distDep depVecs) obsPairs
-    depVecsNonMut <- mapM VU.unsafeFreeze depVecs
-    return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
+    case merge of
+        False -> do
+            depVecs <- replicateM (length l) (VUM.new nrPairs)
+            mapM_ (distDep depVecs) obsPairs
+            depVecsNonMut <- mapM VU.unsafeFreeze depVecs
+            return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
+        True -> do
+            distVec <- VUM.new nrPairs
+            mapM_ (distDepMerged distVec) obsPairs
+            distVecNonMut <- VU.unsafeFreeze distVec
+            return [("all", SUDistMatrix distVecNonMut)]
     where
         distDep :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
         distDep
@@ -228,3 +235,13 @@ calcDepVarPairwiseDistances obs = do
             -- this assumes that p1 and p2 have the same order of dep variables
             let depDists = allDistances (getValues p1) (getValues p2)
             zipWithM_ (`VUM.write` i) depVecs depDists
+        distDepMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
+        distDepMerged
+            distVec
+            (i,
+            (Observation _ _ (HyperPos _ p1),
+            Observation _ _ (HyperPos _ p2))
+            ) = do
+            -- this assumes that p1 and p2 have the same order of dep variables
+            let depDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
+            VUM.write distVec i depDistEuclidean
