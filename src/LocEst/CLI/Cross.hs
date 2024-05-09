@@ -20,6 +20,7 @@ import           Data.List                     (sort, sortBy)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO (hPutStrLn, stderr)
 import           System.Random                 (randomRIO)
+import LocEst.CLI.Search (printErrors)
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile :: FilePath
@@ -67,8 +68,9 @@ runCross (
         -- split stream to report the error cases and add the good ones to the result list
         .| Con.getZipSink (
                 Con.ZipSink (
-                       ConC.filter isLeft
-                    .| ConL.mapM_ printError
+                       ConL.mapMaybe leftToJust
+                    .| ConL.groupOn id
+                    .| ConL.mapM_ printErrors
                 ) *>
                 Con.ZipSink (
                        ConL.mapMaybe rightToJust
@@ -84,14 +86,17 @@ runCross (
         .| sinkNamedCSV outFile
 
     where
-        oneIterationConduit :: Int -> [String] -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SpatTempProb) (ResourceT IO) ()
+        oneIterationConduit :: Int -> [String] -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SearchResult) (ResourceT IO) ()
         oneIterationConduit maxNumThreads varsOrdered (testData,trainingData) = do
             ConL.sourceList testData
                 -- multiply multidimensional positions by algorithms
-                .| ConL.concatMap (multiplySpatTempDepVarsPosByAlgorithms myAlgos . _obsPos)
+                .| ConL.concatMap (multiplyByAlgorithms myAlgos)
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (coreSearch varsOrdered trainingData Nothing)
                    -- distance grid input option not yet implemented here: Nothing
+
+myAlgos :: [LocestAlgorithm]
+myAlgos = undefined
 
 summarizeFunc :: [SpatTempProb] -> CrossvalOutput
 summarizeFunc xs =
@@ -127,11 +132,11 @@ shuffle xs = do
   rest <- shuffle (left ++ tail right)
   return (head right : rest)
 
-multiplySpatTempDepVarsPosByAlgorithms ::
+multiplyByAlgorithms ::
        [LocestAlgorithm]
-    -> IndepVarsPos
+    -> Observation
     -> [CorePermutation]
-multiplySpatTempDepVarsPosByAlgorithms
+multiplyByAlgorithms
     algorithms
-    spatTempDepVarsPos =
-    map (\a -> CorePermutation spatTempDepVarsPos Nothing a 0) algorithms
+    obs =
+    map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ _hyposDepVarsPos $ _obsPos obs) a 0) algorithms
