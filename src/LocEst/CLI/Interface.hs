@@ -90,6 +90,7 @@ crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions <$>
                             optParseInObservationFile
                         <*> optParseCrossvalidationSettings
+                        <*> optParseNumberOfThreads
                         <*> optParseOutFile
 
 optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
