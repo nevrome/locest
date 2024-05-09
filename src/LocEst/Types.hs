@@ -52,6 +52,23 @@ filterLookupMulti m names =
 filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
 filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
 
+-- data types
+
+-- | A datatype for crossvalidation output
+data CrossvalOutput = CrossvalOutput {
+      _crossoutAlgorithm :: LocestAlgorithm
+    , _crossoutProbSum   :: Double
+} deriving (Show, Generic)
+
+instance NFData CrossvalOutput
+-- these instances are a quick hack - should actually be defined down to the algo types:
+instance Csv.DefaultOrdered CrossvalOutput where
+    headerOrder (CrossvalOutput algo _) =
+        Csv.headerOrder algo <> Csv.header ["probability"]
+instance Csv.ToRecord CrossvalOutput where
+    toRecord (CrossvalOutput algo sumProb) =
+        Csv.toRecord algo <> Csv.record [Csv.toField sumProb]
+
 -- | A datatype for an empirical variogram
 newtype EmpiricalVariogram = EmpiricalVariogram [(Double, Double)]
     deriving Show

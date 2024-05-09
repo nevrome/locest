@@ -7,6 +7,7 @@ import           LocEst.Types
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
+import Locest.CLI.Cross
 
 import           Control.Exception     (throw)
 import           Data.Char             (isSpace, toLower)
@@ -84,6 +85,38 @@ varioOptParser = VarioOptions <$>
                         <*> optParseAcrossIndepVars
                         <*> optParseAcrossDepVars
                         <*> optParseVariogramOutFile
+
+crossOptParser :: OP.Parser CrossOptions
+crossOptParser = CrossOptions <$>
+                            optParseInObservationFile
+                        <*> optParseCrossvalidationSettings
+                        <*> optParseOutFile
+
+optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
+optParseCrossvalidationSettings =
+    CrossvalidationSettings
+        <$> optParseTestTrainingFraction
+        <*> optParseCrossvalIterations
+
+optParseTestTrainingFraction :: OP.Parser Double
+optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
+       OP.long    "testFraction"
+    <> OP.metavar "..."
+    <> OP.help    "..."
+    )
+    where
+        readFraction :: String -> Either String Double
+        readFraction s =
+            case P.runParser parseFraction () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+
+optParseCrossvalIterations :: OP.Parser Int
+optParseCrossvalIterations = OP.option OP.auto (
+       OP.long    "iterations"
+    <> OP.metavar "..."
+    <> OP.help    "..."
+    )
 
 optParseAcrossIndepVars :: OP.Parser Bool
 optParseAcrossIndepVars = OP.switch (

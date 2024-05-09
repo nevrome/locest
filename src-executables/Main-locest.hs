@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           LocEst.CLI.Interface
+import           LocEst.CLI.Crossvalidate (CrossOptions (..), runCross)
 import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise (SerialiseOptions (..), runSerialise)
 import           LocEst.CLI.Vario     (VarioOptions (..), runVario)
@@ -22,6 +23,7 @@ data Subcommand =
       CmdSerialise SerialiseOptions
     | CmdSearch SearchOptions
     | CmdVario VarioOptions
+    | CmdCross CrossOptions
 
 -- CLI interface configuration
 main :: IO ()
@@ -70,6 +72,7 @@ runCmd o = case o of
     CmdSerialise opts -> runSerialise opts
     CmdSearch opts    -> runSearch opts
     CmdVario opts     -> runVario opts
+    CmdCross opts     -> runCross opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (
@@ -85,6 +88,7 @@ subcommandParser = OP.subparser (
            OP.command "serialise" serialiseOptInfo
         <> OP.command "search" searchOptInfo
         <> OP.command "vario" varioOptInfo
+         <> OP.command "cross" crossOptInfo
     )
     where
         serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
@@ -94,3 +98,5 @@ subcommandParser = OP.subparser (
                           \ increased similarity to specific observations.")
         varioOptInfo = OP.info (OP.helper <*> (CmdVario <$> varioOptParser))
             (OP.progDesc "...")
+        crossOptInfo = OP.info (OP.helper <*> (CmdCross <$> crossOptParser))
+            (OP.progDesc "Compare hyperparameter settings for the interpolation through crossvalidation.")
