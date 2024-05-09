@@ -7,7 +7,7 @@ import           LocEst.Types
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
-import Locest.CLI.Cross
+import           LocEst.CLI.Cross
 
 import           Control.Exception     (throw)
 import           Data.Char             (isSpace, toLower)
@@ -89,13 +89,13 @@ varioOptParser = VarioOptions <$>
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions <$>
                             optParseInObservationFile
-                        <*> optParseCrossvalidationSettings
+                        <*> optParseCrossSettings
                         <*> optParseNumberOfThreads
                         <*> optParseOutFile
 
-optParseCrossvalidationSettings :: OP.Parser CrossvalidationSettings
-optParseCrossvalidationSettings =
-    CrossvalidationSettings
+optParseCrossSettings :: OP.Parser CrossSettings
+optParseCrossSettings =
+    CrossSettings
         <$> optParseTestTrainingFraction
         <*> optParseCrossvalIterations
 

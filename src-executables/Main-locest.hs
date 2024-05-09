@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           LocEst.CLI.Interface
-import           LocEst.CLI.Crossvalidate (CrossOptions (..), runCross)
+import           LocEst.CLI.Cross     (CrossOptions (..), runCross)
 import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise (SerialiseOptions (..), runSerialise)
 import           LocEst.CLI.Vario     (VarioOptions (..), runVario)

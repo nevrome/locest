@@ -7,20 +7,21 @@ import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
+import LocEst.MathUtils (foldSum)
+import LocEst.CLI.Search (printErrors)
 
 import           Conduit                       (ResourceT)
 import           Data.Conduit                  (ConduitT, (.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
-import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import           Data.Either                   (isLeft)
-import qualified Data.HashMap.Strict           as HM
-import           Data.List                     (sort, sortBy)
+import           Data.List                     (sortBy)
 import           GHC.Conc                      (getNumCapabilities)
 import           System.IO (hPutStrLn, stderr)
 import           System.Random                 (randomRIO)
-import LocEst.CLI.Search (printErrors)
+import Data.Maybe (mapMaybe)
+import qualified Control.Monad.Except as E
+
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile :: FilePath
@@ -52,8 +53,6 @@ runCross (
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
     let observations = zipWith setIndex observationsUnindexed [0..]
-    -- determine dependent variables
-    let depVars = getKeys $ head $ map (_hyposDepVarsPos . _obsPos) observations
 
     testTrainingIterations <- mapM (\_ -> splitTestTraining testFraction observations) [1..iterations] -- iterations could be used as seeds?
 
@@ -62,7 +61,7 @@ runCross (
         -- begin to stream iterations
            ConL.sourceList testTrainingIterations
         -- run per-iteration conduit until no iterations left
-        .| Con.awaitForever (oneIterationConduit numThreads depVars)
+        .| Con.awaitForever (oneIterationConduit numThreads)
         -- print progress information
         .| progress 1000
         -- split stream to report the error cases and add the good ones to the result list
@@ -86,33 +85,32 @@ runCross (
         .| sinkNamedCSV outFile
 
     where
-        oneIterationConduit :: Int -> [String] -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SearchResult) (ResourceT IO) ()
-        oneIterationConduit maxNumThreads varsOrdered (testData,trainingData) = do
+        oneIterationConduit :: Int -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SearchResult) (ResourceT IO) ()
+        oneIterationConduit maxNumThreads (testData,trainingData) = do
             ConL.sourceList testData
                 -- multiply multidimensional positions by algorithms
                 .| ConL.concatMap (multiplyByAlgorithms myAlgos)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (coreSearch varsOrdered trainingData Nothing)
-                   -- distance grid input option not yet implemented here: Nothing
+                .| ConAA.asyncMapC maxNumThreads (E.runExcept . coreSearch trainingData (CoreSupplement Nothing Nothing Nothing))
 
 myAlgos :: [LocestAlgorithm]
 myAlgos = undefined
 
-summarizeFunc :: [SpatTempProb] -> CrossvalOutput
+summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =
-    let oneProb  = _stprSpatTempDepVarsPosWithAlgos $ head xs
-        algo     = _powialgAlgorithm oneProb
-        sumProbs = sum $ map _stprprobability xs
+    let oneProb  = _srCorePermutation $ head xs
+        algo     = _casAlgorithm oneProb
+        sumProbs = foldSum $ mapMaybe _srProbability xs
     in CrossvalOutput algo sumProbs
 
-groupFunc :: SpatTempProb -> SpatTempProb -> Bool
-groupFunc (SpatTempProb (CorePermutation _ _ algoA _) _)
-          (SpatTempProb (CorePermutation _ _ algoB _) _) =
+groupFunc :: SearchResult -> SearchResult -> Bool
+groupFunc (SearchResult (CorePermutation _ _ algoA _) _ _)
+          (SearchResult (CorePermutation _ _ algoB _) _ _) =
     algoA == algoB
 
-sortFunc :: SpatTempProb -> SpatTempProb -> Ordering
-sortFunc (SpatTempProb (CorePermutation _ _ algoA _) _)
-         (SpatTempProb (CorePermutation _ _ algoB _) _) =
+sortFunc :: SearchResult -> SearchResult -> Ordering
+sortFunc (SearchResult (CorePermutation _ _ algoA _) _ _)
+         (SearchResult (CorePermutation _ _ algoB _) _ _) =
     compare algoA algoB
 
 splitTestTraining :: Double -> [a] -> IO ([a], [a])
