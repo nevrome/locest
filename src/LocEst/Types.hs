@@ -252,7 +252,7 @@ instance Csv.DefaultOrdered KernelDefinition where
         where
             oneColSet :: KernelOneDepVar -> [String]
             oneColSet (KernelOneDepVar name _ _ lengths) =
-                let lengthscaleCols = map (++ "_lengthscale") $ getKeys lengths
+                let lengthscaleCols = map (++ "_length") $ getKeys lengths
                 in map (\x -> name ++ "_" ++ x) $ "nugget":"shape":lengthscaleCols
 instance Csv.ToRecord KernelDefinition where
     toRecord (KernelDefinition l) =
@@ -320,11 +320,11 @@ instance NFData KernelShape
 instance Csv.FromField KernelShape where
     parseField x = Csv.parseField x >>= makeKernelShape
 instance Csv.ToField KernelShape where
-    toField SquaredExponential = "SquaredExponential"
+    toField SquaredExponential = "SqEx"
     toField Linear             = "Linear"
 
 makeKernelShape :: MonadFail m => String -> m KernelShape
-makeKernelShape "SquaredExponential" = pure SquaredExponential
+makeKernelShape "SqEx" = pure SquaredExponential
 makeKernelShape "Linear"             = pure Linear
 makeKernelShape x                    = fail $ "Kernel shape " ++ show x ++ " not recognized"
 

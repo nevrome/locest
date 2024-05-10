@@ -348,7 +348,7 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
                 n <- parseArgument "nugget" parseDouble
-                l <- parseArgument "kernelWidths" parseKernelLengths
+                l <- parseArgument "lengths" parseKernelLengths
                 return (s,n,l)
         parseKernelShapes = do
             shape <- parseAnyString
