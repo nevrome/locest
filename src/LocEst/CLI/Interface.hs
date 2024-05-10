@@ -327,36 +327,33 @@ optParseInNrBins = OP.optional $ OP.option OP.auto (
 --    OP.help "Suppress the printing of ..."
 --    )
 
-optParseAlgorithmString :: OP.Parser LocestAlgorithm
-optParseAlgorithmString = OP.option (OP.eitherReader readAlgorithmString) (
-       OP.long    "algorithm"
+optParseAlgorithmString :: OP.Parser KernelDefinition
+optParseAlgorithmString = OP.option (OP.eitherReader readKernDefString) (
+       OP.long    "kerndef"
     <> OP.short   'a'
     <> OP.metavar "DSL"
-    <> OP.help    "Algorithm that should be applied for the interpolation and search, including \
-                   \ kernel parameter settings."
+    <> OP.help    "Kernel parameter settings that should be applied for the interpolation"
     )
     where
-        readAlgorithmString :: String -> Either String LocestAlgorithm
-        readAlgorithmString s =
-            case P.runParser parseAlgorithmString () "" s of
+        readKernDefString :: String -> Either String KernelDefinition
+        readKernDefString s =
+            case P.runParser parseAKernDefString () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
-        parseAlgorithmString :: P.Parser LocestAlgorithm
-        parseAlgorithmString = do
-            P.try parseAlgoKernelSmooth -- P.<|> parseOtherAlgo
-            where
-                parseAlgoKernelSmooth = do
-                    parseRecordType "kas" $ AlgoKernSmooth <$> parseArgument "kernels" parseKernelDef
-                parseKernelDef = do
-                    nested <- parseNamedVector parseDepVarName parseNuggetAndWidths
-                    return $ KernelDefinition $ map (\(name,(nugget,l)) -> KernelOneDepVar name nugget (SquaredExponential $ ArbitraryDimPos l)) nested
-                parseNuggetAndWidths = do
-                    parseRecordType "depVar" $ do
-                        a <- parseArgument "nugget" parseDouble
-                        b <- parseArgument "kernelWidths" parseKernelWidths
-                        return (a,b)
-                parseKernelWidths = do
-                    parseNamedVector parseIndepVarName parseDouble
+        parseAKernDefString :: P.Parser KernelDefinition
+        parseAKernDefString = do
+                    nested <- parseNamedVector parseDepVarName parseShapeNuggetLengths
+                    return $ KernelDefinition $ map (\(name,(s,n,l)) -> KernelOneDepVar name s n l) nested
+        parseShapeNuggetLengths = do
+            parseRecordType "k" $ do
+                s <- parseArgument "shape" parseKernelShapes
+                n <- parseArgument "nugget" parseDouble
+                l <- parseArgument "kernelWidths" parseKernelLengths
+                return (s,n,l)
+        parseKernelShapes = do
+            shape <- parseAnyString
+            makeKernelShape shape
+        parseKernelLengths = KernelLengths . ArbitraryDimPos <$> parseNamedVector parseIndepVarName parseDouble
 
 -- general parsers
 
