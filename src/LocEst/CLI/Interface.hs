@@ -362,7 +362,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
        OP.long    "kerndef"
     <> OP.short   'k'
     <> OP.metavar "DSL"
-    <> OP.help    "Kernel parameter settings that should be test with the crossvalidation."
+    <> OP.help    "Kernel parameter settings that should be tested with the crossvalidation."
     )
     where
         readKernDefString :: String -> Either String [KernelDefinition]
@@ -372,8 +372,10 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
                 Right x  -> Right x
         parseAKernDefString :: P.Parser [KernelDefinition]
         parseAKernDefString = do
-                    nested <- parseNamedVector parseDepVarName parseShapeNuggetLengths
-                    return $ map (\(name,(s,n,ls)) -> KernelDefinition $ map (KernelOneDepVar name s n) ls) nested
+                    perDepVar <- parseNamedVector parseDepVarName parseShapeNuggetLengths
+                    let flattened = map (\(name,(s,n,ls)) -> map (\l -> KernelOneDepVar name s n l) ls) perDepVar
+                        permutations = sequenceA flattened
+                    return $ map KernelDefinition permutations
         parseShapeNuggetLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
@@ -383,6 +385,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
+        parseKernelLengths ::  P.Parser [KernelLengths]
         parseKernelLengths = do
             res <- parseNamedVector parseIndepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
             let flattened = map (\(name,vs) -> map (name,) vs) res

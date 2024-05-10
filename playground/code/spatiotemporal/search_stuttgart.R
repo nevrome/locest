@@ -22,6 +22,12 @@ vario %>%
     scales = "free"
   )
 
+# crossvalidation
+
+system('locest cross --configFile code/spatiotemporal/cross.conf')
+
+readr::read_tsv("data/spatiotemporal/cross.tsv") %>% View()
+
 # normal search test
 system('time locest search --configFile code/spatiotemporal/basic.conf')
 
