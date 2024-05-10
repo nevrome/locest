@@ -9,6 +9,7 @@ import           LocEst.Types
 import           LocEst.Utils
 import LocEst.MathUtils (foldSum)
 import LocEst.CLI.Search (printErrors)
+import           LocEst.CLI.Utils
 
 import           Conduit                       (ResourceT)
 import           Data.Conduit                  (ConduitT, (.|))
@@ -16,7 +17,6 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.List             as ConL
 import           Data.List                     (sortBy)
-import           GHC.Conc                      (getNumCapabilities)
 import           System.IO (hPutStrLn, stderr)
 import           System.Random                 (randomRIO)
 import Data.Maybe (mapMaybe)
@@ -42,13 +42,7 @@ runCross (
     ) = do
 
     -- number of threads
-    numThreads <- case threads of
-        SingleThread      -> pure 1
-        MultipleThreads n -> pure n
-        DetectThreads     -> do
-            detectedThreads <- getNumCapabilities
-            hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
-            return detectedThreads
+    numThreads <- setNumberOfThreads threads
     hPutStrLn stderr $ "Working with threads: " ++ show numThreads
     -- read observations
     hPutStrLn stderr "Reading observations"

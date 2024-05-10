@@ -7,6 +7,7 @@ import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
+import           LocEst.CLI.Utils
 
 import qualified Codec.Serialise               as S
 import           Conduit                       (MonadIO, liftIO)
@@ -20,7 +21,6 @@ import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (catMaybes)
-import           GHC.Conc                      (getNumCapabilities)
 import           LocEst.MathUtils
 import           System.IO                     (hPutStrLn, stderr)
 
@@ -60,13 +60,7 @@ runSearch (
     ) = do
 
     -- number of threads
-    numThreads <- case threads of
-        SingleThread      -> pure 1
-        MultipleThreads n -> pure n
-        DetectThreads     -> do
-            detectedThreads <- getNumCapabilities
-            hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
-            return detectedThreads
+    numThreads <- setNumberOfThreads threads
     hPutStrLn stderr $ "Working with threads: " ++ show numThreads
     -- read observations
     hPutStrLn stderr "Reading observations"
