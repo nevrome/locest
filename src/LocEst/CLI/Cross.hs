@@ -47,6 +47,8 @@ runCross (
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
     let observations = zipWith setIndex observationsUnindexed [0..]
+    -- prepare permutations
+    hPutStrLn stderr "Preparing permutations"
     -- split test and training data
     -- this involves random shuffling of the observation list: TODO add seed
     let numObs = fromIntegral $ length observations
@@ -56,6 +58,8 @@ runCross (
     let numKernDefs = length kernDefs
         numPerms = iterations * numTestObs * numKernDefs
     -- run crossvalidation pipeline
+    hPutStrLn stderr "All preparations ready"
+    hPutStrLn stderr "Running analysis"
     perPointRes <- Con.runConduitRes $
         -- begin to stream iterations
            ConL.sourceList testTrainingIterations
@@ -75,15 +79,13 @@ runCross (
                     .| ConL.consume
                 )
            )
-
-    -- summary
+    -- summarize crossvalidation result per kernel parameter setting
     Con.runConduitRes $
            ConL.sourceList (sortBy sortFunc perPointRes)
         .| ConL.groupBy groupFunc
         .| ConL.map summarizeFunc
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
-
     where
         oneIterationConduit :: Int -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SearchResult) (ResourceT IO) ()
         oneIterationConduit maxNumThreads (testData,trainingData) = do

@@ -81,12 +81,10 @@ runSearch (
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
     permutations <- createPermutations algorithm indepVarsPredGrid depVarsPredGrid
-
-    hPutStrLn stderr "All preparations ready"
-
-    -- run all permutations
-    hPutStrLn stderr "Running analysis"
+    let numPerms = length permutations
     -- run analysis pipeline
+    hPutStrLn stderr "All preparations ready"
+    hPutStrLn stderr "Running analysis"
     Con.runConduitRes $
         ConL.sourceList permutations
         -- main search algorithm
@@ -97,7 +95,7 @@ runSearch (
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
         -- print progress information
-        .| progress 1000 Nothing
+        .| progress 1000 (Just numPerms)
         -- split stream to report the error cases and write the good results to the file system
         .| Con.getZipSink (
                 Con.ZipSink (
@@ -227,24 +225,20 @@ validateAlgorithmSearch
 
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> IO [CorePermutation]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
-    permOut [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp
-            | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+    return [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp
+           | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos  <- inSpatGrid]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
-    permOut [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp
-            | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+    return [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp
+           | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- inSpatGrid]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
-    permOut [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0
-            | indepPos <- gridPos, depPos <- depVarPos]
+    return [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0
+           | indepPos <- gridPos, depPos <- depVarPos]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
-    permOut [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
-            | indepPos <- gridPos]
+    return [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
+           | indepPos <- gridPos]
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
-permOut :: [CorePermutation] -> IO [CorePermutation]
-permOut outPermutations = do
-    hPutStrLn stderr $ "Nr permutations: " ++ show (length outPermutations)
-    return outPermutations
 
 normalize :: Monad m => Normalization -> Con.ConduitT SearchResult SearchResult m ()
 normalize NoNorm = ConC.map id
