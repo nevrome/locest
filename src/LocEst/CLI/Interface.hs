@@ -12,7 +12,7 @@ import           LocEst.CLI.Cross
 
 import           Control.Exception     (throw)
 import           Data.Char             (isSpace, toLower)
-import           Data.List
+import           Data.List             (singleton, groupBy)
 import           LocEst.Utils
 import qualified Options.Applicative   as OP
 import qualified Text.Parsec           as P

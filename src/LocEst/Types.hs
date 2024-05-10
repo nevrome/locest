@@ -12,12 +12,11 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (sortBy, groupBy, find)
-import           Data.Maybe            (catMaybes, fromJust)
+import           Data.List             (sortBy)
+import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
-import LocEst.Utils (splitBy)
 
 -- typeclasses
 
@@ -247,20 +246,6 @@ instance NFData KernelDefinition
 -- the following instances differ and don't use the KernelOneDepVar instance definitions:
 -- there is a conceptual difference between looking at the complete KernelDefinition, which typically exists
 -- in one row, and the KernelOneDepVar values, which can form an own table for input and output
--- instance Csv.FromNamedRecord KernelDefinition where
---     parseNamedRecord m = do
---         let kernelVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "kernel" k) m
---             kernelVarsString = HM.toList $ HM.mapKeys Bchs.unpack $ HM.map Bchs.unpack kernelVarsBS
---             kernelVarsSplit = map (\(k,v) -> (splitBy '_' k,v)) kernelVarsString
---             kernelVarsPerDepVar = groupBy (\(k1,_) (k2,v) -> k1 !! 1 == k2 !! 1) kernelVarsSplit
---         pure $ KernelDefinition $ map constructKernelOneDepVar kernelVarsPerDepVar
---         where
---             constructKernelOneDepVar :: [([String], String)] -> KernelOneDepVar
---             constructKernelOneDepVar xs =
---                 let (_,shape) = fromJust $ find (\(k,_) -> k !! 2 == "shape") xs
---                     (_,nugget) = fromJust $ find (\(k,_) -> k !! 2 == "nugget") xs
---                     lengthVars = filter (\(k,_) -> k !! 4 == "length") xs
---                 in undefined
 instance Csv.DefaultOrdered KernelDefinition where
     headerOrder (KernelDefinition l) =
         Csv.header $ map (\x -> Bchs.pack $ "kernel_" ++ x) $ concatMap oneColSet l
