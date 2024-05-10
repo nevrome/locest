@@ -14,7 +14,7 @@ type CoreLog = E.Except LOCESTException
 
 coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> CoreLog SearchResult
 coreSearch observations supp
-    sett@(CorePermutation _ searchDepVarPos (AlgoKernSmooth kernelDefinition) _) = do
+    sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
     let obsWithDist = getDist observations supp sett
     -- determine (interpolated) posterior predictive distributions per depVar for this position,
@@ -106,9 +106,9 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDe
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
-    (nugget,kernel) <- getKernelForOneDepVar kernelDefinition depVar
+    (shape,nugget,kernel) <- getKernelForOneDepVar kernelDefinition depVar
     value  <- getOneDepVarPos oneObsWithDist
-    weight <- weightForOneObs nugget kernel oneObsWithDist
+    weight <- weightForOneObs shape nugget kernel oneObsWithDist
     return (value, weight)
     where
         getOneDepVarPos :: ObsWithDist -> CoreLog Double
@@ -116,23 +116,25 @@ valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
             case lookup depVar m of
                 Nothing -> E.throwError $ NormalException "Unknown variable"
                 Just x  -> pure x
-        weightForOneObs :: Nugget -> Kernel -> ObsWithDist -> CoreLog Double
+        weightForOneObs :: KernelShape -> KernelNugget -> KernelLengths -> ObsWithDist -> CoreLog Double
         -- squared-exponential kernel
-        weightForOneObs nugget
-                        (SquaredExponential (ArbitraryDimPos [(_,spaceKernelWidth), (_,timeKernelWidth)]))
+        weightForOneObs SquaredExponential
+                        nugget
+                        (KernelLengths (ArbitraryDimPos [(_,spaceKernelWidth), (_,timeKernelWidth)]))
                         (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
             pure $ nugget / (nugget + exp ( (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2) - 1)
-        weightForOneObs nugget
-                        kernel
+        weightForOneObs SquaredExponential
+                        nugget
+                        lengths
                         (ObsWithDist _ (IndepArbitraryDimDist ds)) =
-            pure $ nugget / (nugget + exp ( foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues kernel)) ) - 1)
+            pure $ nugget / (nugget + exp ( foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths)) ) - 1)
         -- mismatch error case
-        weightForOneObs _ _ _ =
+        weightForOneObs _ _ _ _ =
             E.throwError $ NormalException "Illegal combination of kernel and grid data"
 
-getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (Nugget, Kernel)
+getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (KernelShape, KernelNugget, KernelLengths)
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
-    case filter (\(KernelOneDepVar name _ _) -> name == depVar) kernelsPerDepVar of
-        []                    -> E.throwError $ NormalException "Variable not defined in kernel"
-        [KernelOneDepVar _ n k] -> pure (n, k)
-        _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel"
+    case filter (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
+        []                    -> E.throwError $ NormalException "Variable not defined in kernel definition"
+        [KernelOneDepVar _ s n k] -> pure (s, n, k)
+        _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel definition"
