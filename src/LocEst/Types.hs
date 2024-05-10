@@ -56,8 +56,8 @@ filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup na
 
 -- | A datatype for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
-      _crossoutAlgorithm :: LocestAlgorithm
-    , _crossoutProbSum   :: Double
+      _crossoutKernelDefinition :: KernelDefinition
+    , _crossoutProbSum          :: Double
 } deriving (Show, Generic)
 
 instance NFData CrossvalOutput
@@ -211,7 +211,7 @@ data CoreSupplement = CoreSupplement {
 data CorePermutation = CorePermutation {
       _casIndepVarsPos          :: IndepVarsPos
     , _casDepVarsPos            :: Maybe DepVarsPos
-    , _casAlgorithm             :: LocestAlgorithm
+    , _casKernelDefinition      :: KernelDefinition
     , _casTempSamplingIteration :: Int
 } deriving (Show, Generic)
 
@@ -237,19 +237,6 @@ instance Csv.ToRecord CorePermutation where
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
 
--- Data types for core algorithm specification
-newtype LocestAlgorithm =
-    AlgoKernSmooth {
-        _aksKernelDefinition :: KernelDefinition
-    }
-    deriving (Show, Eq, Ord, Generic)
-
-instance NFData LocestAlgorithm
-instance Csv.DefaultOrdered LocestAlgorithm where
-    headerOrder (AlgoKernSmooth kernDef) = Csv.headerOrder kernDef
-instance Csv.ToRecord LocestAlgorithm where
-    toRecord (AlgoKernSmooth kernDef) = Csv.toRecord kernDef
-
 type DepVarName = String
 
 newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
@@ -264,26 +251,25 @@ instance Csv.DefaultOrdered KernelDefinition where
         Csv.header $ map (\x -> Bchs.pack $ "kernel_" ++ x) $ concatMap oneColSet l
         where
             oneColSet :: KernelOneDepVar -> [String]
-            oneColSet (KernelOneDepVar name _ kernel) =
-                let nuggetCol       = "nugget"
-                    lengthscaleCols = map (++ "_lengthscale") $ getKeys kernel
-                in map (\x -> name ++ "_" ++ x) $ nuggetCol:lengthscaleCols
+            oneColSet (KernelOneDepVar name _ _ lengths) =
+                let lengthscaleCols = map (++ "_lengthscale") $ getKeys lengths
+                in map (\x -> name ++ "_" ++ x) $ "nugget":"shape":lengthscaleCols
 instance Csv.ToRecord KernelDefinition where
     toRecord (KernelDefinition l) =
         V.concatMap oneColSet $ V.fromList l
         where
             oneColSet :: KernelOneDepVar -> Csv.Record
-            oneColSet (KernelOneDepVar _ nugget kernel) =
-                Csv.record [Csv.toField nugget] <> Csv.toRecord kernel
-
-instance PseudoMap KernelDefinition Kernel where
+            oneColSet (KernelOneDepVar _ shape nugget lengths) =
+                Csv.record [Csv.toField shape] <> Csv.record [Csv.toField nugget] <> Csv.toRecord lengths
+instance PseudoMap KernelDefinition KernelLengths where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
-    getValues (KernelDefinition l) = map _kodvKernel l
+    getValues (KernelDefinition l) = map _kodvLengths l
 
 data KernelOneDepVar = KernelOneDepVar {
       _kodvDepVarName :: DepVarName
-    , _kodvNugget     :: Nugget
-    , _kodvKernel     :: Kernel
+    , _kodvShape      :: KernelShape
+    , _kodvNugget     :: KernelNugget
+    , _kodvLengths    :: KernelLengths
     }
     deriving (Show, Eq, Ord, Generic)
 
@@ -291,38 +277,56 @@ instance NFData KernelOneDepVar
 instance Csv.FromNamedRecord KernelOneDepVar where
     parseNamedRecord m = do
         depVarName <- filterLookup m "depVar"
+        shape      <- filterLookup m "shape"
         nugget     <- filterLookup m "nugget"
-        kernel     <- Csv.parseNamedRecord m
+        lengths    <- Csv.parseNamedRecord m
         pure $ KernelOneDepVar {
               _kodvDepVarName = depVarName
+            , _kodvShape      = shape
             , _kodvNugget     = nugget
-            , _kodvKernel     = kernel
+            , _kodvLengths    = lengths
             }
 instance Csv.DefaultOrdered KernelOneDepVar where
-    headerOrder (KernelOneDepVar _ _ kernel) =
-        Csv.header ["depVar"] <> Csv.header ["nugget"] <> Csv.headerOrder kernel
+    headerOrder (KernelOneDepVar _ _ _ lengths) =
+        Csv.header ["depVar"] <>  Csv.header ["shape"] <> Csv.header ["nugget"] <> Csv.headerOrder lengths
 instance Csv.ToRecord KernelOneDepVar where
-    toRecord (KernelOneDepVar name nugget kernel) =
-        Csv.toRecord name <> Csv.record [Csv.toField nugget] <> Csv.toRecord kernel
+    toRecord (KernelOneDepVar name shape nugget lengths) =
+        Csv.toRecord name <> Csv.toRecord [Csv.toField shape] <> Csv.record [Csv.toField nugget] <> Csv.toRecord lengths
 
 type IndepVarName = String
-type Nugget = Double
-type KernelWidth = Double
+type KernelNugget = Double
 
-data Kernel =
-        SquaredExponential ArbitraryDimPos
+data KernelLengths = KernelLengths ArbitraryDimPos
     deriving (Show, Eq, Ord, Generic)
 
-instance NFData Kernel
-instance Csv.FromNamedRecord Kernel where
+instance NFData KernelLengths
+instance Csv.FromNamedRecord KernelLengths where
     parseNamedRecord = Csv.parseNamedRecord
-instance Csv.DefaultOrdered Kernel where
-    headerOrder (SquaredExponential arbitraryDimPos) = Csv.headerOrder arbitraryDimPos
-instance Csv.ToRecord Kernel where
-    toRecord (SquaredExponential arbitraryDimPos) = Csv.toRecord arbitraryDimPos
-instance PseudoMap Kernel Double where
-    getKeys   (SquaredExponential arbitraryDimPos) = getKeys arbitraryDimPos
-    getValues (SquaredExponential arbitraryDimPos) = getValues arbitraryDimPos
+instance Csv.DefaultOrdered KernelLengths where
+    headerOrder (KernelLengths arbitraryDimPos) = Csv.headerOrder arbitraryDimPos
+instance Csv.ToRecord KernelLengths where
+    toRecord (KernelLengths arbitraryDimPos) = Csv.toRecord arbitraryDimPos
+instance PseudoMap KernelLengths Double where
+    getKeys   (KernelLengths arbitraryDimPos) = getKeys arbitraryDimPos
+    getValues (KernelLengths arbitraryDimPos) = getValues arbitraryDimPos
+
+-- Data types for core algorithm specification
+data KernelShape =
+      SquaredExponential
+    | Linear
+    deriving (Show, Eq, Ord, Generic)
+
+instance NFData KernelShape
+instance Csv.FromField KernelShape where
+    parseField x = Csv.parseField x >>= makeKernelShape
+instance Csv.ToField KernelShape where
+    toField SquaredExponential = "SquaredExponential"
+    toField Linear             = "Linear"
+
+makeKernelShape :: MonadFail m => String -> m KernelShape
+makeKernelShape "SquaredExponential" = pure SquaredExponential
+makeKernelShape "Linear"             = pure Linear
+makeKernelShape x                    = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
 data ObsWithDist = ObsWithDist {
       _owdObservation  :: Observation
