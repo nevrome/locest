@@ -93,15 +93,15 @@ runCross (
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (E.runExcept . coreSearch trainingData (CoreSupplement Nothing Nothing Nothing))
 
-myAlgos :: [LocestAlgorithm]
+myAlgos :: [KernelDefinition]
 myAlgos = undefined
 
 summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =
     let oneProb  = _srCorePermutation $ head xs
-        algo     = _casAlgorithm oneProb
+        kerndef  = _casKernelDefinition oneProb
         sumProbs = foldSum $ mapMaybe _srProbability xs
-    in CrossvalOutput algo sumProbs
+    in CrossvalOutput kerndef sumProbs
 
 groupFunc :: SearchResult -> SearchResult -> Bool
 groupFunc (SearchResult (CorePermutation _ _ algoA _) _ _)
@@ -131,10 +131,10 @@ shuffle xs = do
   return (head right : rest)
 
 multiplyByAlgorithms ::
-       [LocestAlgorithm]
+       [KernelDefinition]
     -> Observation
     -> [CorePermutation]
 multiplyByAlgorithms
-    algorithms
+    kernelDefs
     obs =
-    map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ _hyposDepVarsPos $ _obsPos obs) a 0) algorithms
+    map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ _hyposDepVarsPos $ _obsPos obs) a 0) kernelDefs

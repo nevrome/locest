@@ -27,7 +27,7 @@ import           System.IO                     (hPutStrLn, stderr)
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
     , _searchSearchGridSettings :: SearchGridSettings
-    , _searchAlgorithm          :: LocestAlgorithm
+    , _searchAlgorithm          :: KernelDefinition
     , _normalize                :: Normalization
     , _numThreads               :: NumberOfThreads
     , _searchOutFile            :: FilePath
@@ -203,47 +203,47 @@ createCoreSupplement (SearchGrid indepVarsPredGrid _) =
         ArbitraryDimGrid _ ->
             CoreSupplement Nothing Nothing Nothing
 
-validateAlgorithmInterpol :: LocestAlgorithm -> IndepVarsPredGrid -> IO ()
+validateAlgorithmInterpol :: KernelDefinition -> IndepVarsPredGrid -> IO ()
 validateAlgorithmInterpol
-    (AlgoKernSmooth (KernelDefinition kernelsPerDepVars))
+    (KernelDefinition kernelsPerDepVars)
     (SpaceTimeGrid {}) = do
-        let allIndepVarsFromAlg = map (getKeys . _kodvKernel) kernelsPerDepVars
+        let allIndepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
             indepVarsFromGrid = ["space", "time"]
         OP.unless (allEqual allIndepVarsFromAlg) $
             throw $ NormalException "indep var names not equal across kernel definitions"
         OP.unless (head allIndepVarsFromAlg == indepVarsFromGrid) $
             throw $ NormalException "indep vars not equal to \"space\" and \"time\""
 validateAlgorithmInterpol
-    (AlgoKernSmooth (KernelDefinition kernelsPerDepVars))
+    (KernelDefinition kernelsPerDepVars)
     (ArbitraryDimGrid arbitraryDimPos) = do
-        let allIndepVarsFromAlg = map (getKeys . _kodvKernel) kernelsPerDepVars
+        let allIndepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
             indepVarsFromGrid = head $ map getKeys arbitraryDimPos
         OP.unless (allEqual allIndepVarsFromAlg) $
             throw $ NormalException "indep var names not equal across kernel definitions"
         OP.unless (head allIndepVarsFromAlg == indepVarsFromGrid) $
             throw $ NormalException "indep vars in --anyGridFile and --algorithm not equal"
 
-validateAlgorithmSearch :: LocestAlgorithm -> DepVarsPredGrid -> IO ()
+validateAlgorithmSearch :: KernelDefinition -> DepVarsPredGrid -> IO ()
 validateAlgorithmSearch
-    (AlgoKernSmooth kernelDef)
+    kernelDef
     (DepVarsPredGrid depVarsPos) = do
         let depVarsFromAlg = getKeys kernelDef
             depVarsFromGrid = head $ map getKeys depVarsPos
         OP.unless (depVarsFromAlg == depVarsFromGrid) $
             throw $ NormalException "dep vars in --depVars and --algorithm not equal"
 
-createPermutations :: LocestAlgorithm -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> IO [CorePermutation]
-createPermutations algorithm (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
-    permOut [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) algorithm tempSamp
+createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> IO [CorePermutation]
+createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
+    permOut [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp
             | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos  <- inSpatGrid]
-createPermutations algorithm (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
-    permOut [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing algorithm tempSamp
+createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
+    permOut [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp
             | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- inSpatGrid]
-createPermutations algorithm (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
-    permOut [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) algorithm 0
+createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
+    permOut [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0
             | indepPos <- gridPos, depPos <- depVarPos]
-createPermutations algorithm (ArbitraryDimGrid gridPos) Nothing =
-    permOut [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing algorithm 0
+createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
+    permOut [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
             | indepPos <- gridPos]
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
