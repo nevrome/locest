@@ -73,7 +73,7 @@ searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions <$>
                             optParseInObservationFile
                         <*> optParseSearchGridSettings
-                        <*> optParseAlgorithmString
+                        <*> optParseKernDefString
                         <*> optParseNormalization
                         <*> optParseNumberOfThreads
                         <*> optParseOutFile
@@ -327,10 +327,10 @@ optParseInNrBins = OP.optional $ OP.option OP.auto (
 --    OP.help "Suppress the printing of ..."
 --    )
 
-optParseAlgorithmString :: OP.Parser KernelDefinition
-optParseAlgorithmString = OP.option (OP.eitherReader readKernDefString) (
+optParseKernDefString :: OP.Parser KernelDefinition
+optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
        OP.long    "kerndef"
-    <> OP.short   'a'
+    <> OP.short   'k'
     <> OP.metavar "DSL"
     <> OP.help    "Kernel parameter settings that should be applied for the interpolation"
     )
