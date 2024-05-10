@@ -4,6 +4,7 @@
 module LocEst.Parsers where
 
 import           LocEst.Types
+import LocEst.CLI.Utils
 
 import           Conduit                   (MonadIO, MonadResource, liftIO)
 import           Control.Exception         (throwIO)
@@ -159,7 +160,7 @@ sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) =>
 sourceCSV path =
        ConC.sourceFile path
     .| ConCsv.fromNamedCsvStreamErrorNoThrow decodingOptions
-    .| progress 1000000
+    .| progress 1000000 Nothing
 
 sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => FilePath -> ConduitT a Void m ()
 sinkNamedCSV path =
@@ -184,23 +185,3 @@ sinkCSV :: (MonadResource m, Csv.ToRecord a) => FilePath -> ConduitT a Void m ()
 sinkCSV path =
        ConCsv.toCsv encodingOptions
     .| ConC.sinkFile path
-
-progress :: (MonadIO m) => Int -> ConduitT i i m ()
-progress reportNum = do
-    counterRef <- liftIO $ newIORef (0 :: Int)
-    ConL.mapM $ \val -> do
-        n <- liftIO $ readIORef counterRef
-        liftIO $ logProgress n
-        liftIO $ modifyIORef counterRef (+1)
-        return val
-    where
-        logProgress :: Int -> IO ()
-        logProgress c
-            |  c /= 0 && c `rem` reportNum == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 9 (show c)
-            | otherwise = return ()
-
-padLeft :: Int -> String -> String
-padLeft n s
-    | length s >= n = reverse (take n (reverse s))
-    | length s < n = replicate (n - length s) ' ' ++ s
-    | otherwise    = s

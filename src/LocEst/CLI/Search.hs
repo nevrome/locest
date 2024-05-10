@@ -58,7 +58,6 @@ runSearch (
         threads
         outFile
     ) = do
-
     -- number of threads
     numThreads <- setNumberOfThreads threads
     hPutStrLn stderr $ "Working with threads: " ++ show numThreads
@@ -98,7 +97,7 @@ runSearch (
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
         -- print progress information
-        .| progress 1000
+        .| progress 1000 Nothing
         -- split stream to report the error cases and write the good results to the file system
         .| Con.getZipSink (
                 Con.ZipSink (

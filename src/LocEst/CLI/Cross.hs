@@ -40,7 +40,6 @@ runCross :: CrossOptions -> IO ()
 runCross (
     CrossOptions inObsFile (CrossSettings kernDefs testFraction iterations) threads outFile
     ) = do
-
     -- number of threads
     numThreads <- setNumberOfThreads threads
     hPutStrLn stderr $ "Working with threads: " ++ show numThreads
@@ -48,9 +47,14 @@ runCross (
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
     let observations = zipWith setIndex observationsUnindexed [0..]
-
-    testTrainingIterations <- mapM (\_ -> splitTestTraining testFraction observations) [1..iterations] -- iterations could be used as seeds?
-
+    -- split test and training data
+    -- this involves random shuffling of the observation list: TODO add seed
+    let numObs = fromIntegral $ length observations
+        numTestObs = round $ testFraction * numObs
+    testTrainingIterations <- mapM (\_ -> splitTestTraining numTestObs observations) [1..iterations]
+    -- determine nr of permutations
+    let numKernDefs = length kernDefs
+        numPerms = iterations * numTestObs * numKernDefs
     -- run crossvalidation pipeline
     perPointRes <- Con.runConduitRes $
         -- begin to stream iterations
@@ -58,7 +62,7 @@ runCross (
         -- run per-iteration conduit until no iterations left
         .| Con.awaitForever (oneIterationConduit numThreads)
         -- print progress information
-        .| progress 1000
+        .| progress 1000 (Just numPerms)
         -- split stream to report the error cases and add the good ones to the result list
         .| Con.getZipSink (
                 Con.ZipSink (
@@ -78,6 +82,7 @@ runCross (
         .| ConL.groupBy groupFunc
         .| ConL.map summarizeFunc
         .| sinkNamedCSV outFile
+    hPutStrLn stderr "Done"
 
     where
         oneIterationConduit :: Int -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SearchResult) (ResourceT IO) ()
@@ -105,12 +110,10 @@ sortFunc (SearchResult (CorePermutation _ _ kernDefA _) _ _)
          (SearchResult (CorePermutation _ _ kernDefB _) _ _) =
     compare kernDefA kernDefB
 
-splitTestTraining :: Double -> [a] -> IO ([a], [a])
-splitTestTraining testFraction observations = do
-    let numObs = fromIntegral $ length observations
-    let numSamples = round $ testFraction * numObs
+splitTestTraining :: Int -> [a] -> IO ([a], [a])
+splitTestTraining numTestObs observations = do
     observationsShuffled <- shuffle observations
-    return $ splitAt numSamples observationsShuffled
+    return $ splitAt numTestObs observationsShuffled
 
 -- this was written by ChatGPT after I wasted a very sad hour with the random-fu package
 -- should probably be replaced with sth more reliable and faster
