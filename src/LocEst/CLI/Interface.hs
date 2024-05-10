@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TupleSections #-}
 
 module LocEst.CLI.Interface where
 
@@ -11,7 +12,7 @@ import           LocEst.CLI.Cross
 
 import           Control.Exception     (throw)
 import           Data.Char             (isSpace, toLower)
-import           Data.List             (groupBy, singleton)
+import           Data.List
 import           LocEst.Utils
 import qualified Options.Applicative   as OP
 import qualified Text.Parsec           as P
@@ -96,7 +97,8 @@ crossOptParser = CrossOptions <$>
 optParseCrossSettings :: OP.Parser CrossSettings
 optParseCrossSettings =
     CrossSettings
-        <$> optParseTestTrainingFraction
+        <$> optParseKernDefStringPermutations
+        <*> optParseTestTrainingFraction
         <*> optParseCrossvalIterations
 
 optParseTestTrainingFraction :: OP.Parser Double
@@ -354,6 +356,42 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
             shape <- parseAnyString
             makeKernelShape shape
         parseKernelLengths = KernelLengths . ArbitraryDimPos <$> parseNamedVector parseIndepVarName parseDouble
+
+optParseKernDefStringPermutations :: OP.Parser [KernelDefinition]
+optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString) (
+       OP.long    "kerndef"
+    <> OP.short   'k'
+    <> OP.metavar "DSL"
+    <> OP.help    "Kernel parameter settings that should be test with the crossvalidation."
+    )
+    where
+        readKernDefString :: String -> Either String [KernelDefinition]
+        readKernDefString s =
+            case P.runParser parseAKernDefString () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseAKernDefString :: P.Parser [KernelDefinition]
+        parseAKernDefString = do
+                    nested <- parseNamedVector parseDepVarName parseShapeNuggetLengths
+                    return $ map (\(name,(s,n,ls)) -> KernelDefinition $ map (KernelOneDepVar name s n) ls) nested
+        parseShapeNuggetLengths = do
+            parseRecordType "k" $ do
+                s <- parseArgument "shape" parseKernelShapes
+                ns <- parseArgument "nugget" parseDouble
+                ls <- parseArgument "lengths" parseKernelLengths
+                return (s,ns,ls)
+        parseKernelShapes = do
+            shape <- parseAnyString
+            makeKernelShape shape
+        parseKernelLengths = do
+            res <- parseNamedVector parseIndepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
+            let flattened = map (\(name,vs) -> map (name,) vs) res
+                permutations = sequenceA flattened
+            return $ map (KernelLengths . ArbitraryDimPos) permutations
+            where
+                parseSequence = parseDoubleSequence
+                parseList = parseVector parseDouble
+                parseSingle = singleton <$> parseDouble
 
 -- general parsers
 

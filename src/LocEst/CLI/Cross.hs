@@ -31,13 +31,14 @@ data CrossOptions = CrossOptions
     }
 
 data CrossSettings = CrossSettings {
-      _crossvalTestFraction :: Double
-    , _crossvalIterations   :: Int
+      _crossvalInKernDef     :: [KernelDefinition]
+    , _crossvalTestFraction  :: Double
+    , _crossvalIterations    :: Int
 }
 
 runCross :: CrossOptions -> IO ()
 runCross (
-    CrossOptions inObsFile (CrossSettings testFraction iterations) threads outFile
+    CrossOptions inObsFile (CrossSettings kernDefs testFraction iterations) threads outFile
     ) = do
 
     -- number of threads
@@ -89,12 +90,9 @@ runCross (
         oneIterationConduit maxNumThreads (testData,trainingData) = do
             ConL.sourceList testData
                 -- multiply multidimensional positions by algorithms
-                .| ConL.concatMap (multiplyByAlgorithms myAlgos)
+                .| ConL.concatMap (multiplyByAlgorithms kernDefs)
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (E.runExcept . coreSearch trainingData (CoreSupplement Nothing Nothing Nothing))
-
-myAlgos :: [KernelDefinition]
-myAlgos = undefined
 
 summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =
@@ -104,14 +102,14 @@ summarizeFunc xs =
     in CrossvalOutput kerndef sumProbs
 
 groupFunc :: SearchResult -> SearchResult -> Bool
-groupFunc (SearchResult (CorePermutation _ _ algoA _) _ _)
-          (SearchResult (CorePermutation _ _ algoB _) _ _) =
-    algoA == algoB
+groupFunc (SearchResult (CorePermutation _ _ kernDefA _) _ _)
+          (SearchResult (CorePermutation _ _ kernDefB _) _ _) =
+    kernDefA == kernDefB
 
 sortFunc :: SearchResult -> SearchResult -> Ordering
-sortFunc (SearchResult (CorePermutation _ _ algoA _) _ _)
-         (SearchResult (CorePermutation _ _ algoB _) _ _) =
-    compare algoA algoB
+sortFunc (SearchResult (CorePermutation _ _ kernDefA _) _ _)
+         (SearchResult (CorePermutation _ _ kernDefB _) _ _) =
+    compare kernDefA kernDefB
 
 splitTestTraining :: Double -> [a] -> IO ([a], [a])
 splitTestTraining testFraction observations = do

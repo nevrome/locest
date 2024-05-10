@@ -31,3 +31,8 @@ rightToJust _         = Nothing
 leftToJust :: Either a b -> Maybe a
 leftToJust (Left x) = Just x
 leftToJust _        = Nothing
+
+splitBy :: Eq a => a -> [a] -> [[a]]
+splitBy delimiter = foldr f [[]] 
+    where f c l@(x:xs) | c == delimiter = []:l
+                       | otherwise = (c:x):xs
