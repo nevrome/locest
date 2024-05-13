@@ -42,8 +42,7 @@ runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars threa
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
-    let observationsUnindexedVector = V.fromList observationsUnindexed
-    let observations = V.zipWith setIndex observationsUnindexedVector (V.fromList [0..])
+    let observations = V.zipWith setIndex observationsUnindexed (V.generate (V.length observationsUnindexed) id)
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
     !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars observations

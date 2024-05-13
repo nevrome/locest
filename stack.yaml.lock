@@ -11,6 +11,13 @@ packages:
       size: 655
   original:
     hackage: cassava-conduit-0.6.2
+- completed:
+    hackage: perfect-vector-shuffle-0.1.1.1@sha256:3c034b313e0b81147860bd40d1f8f84f1ca191beba76476abbecbbeb2edcf752,3681
+    pantry-tree:
+      sha256: 73b0edf95d907bbb42c30dd21bede6a3697dbec23fec25b1affefcb99dbddc44
+      size: 422
+  original:
+    hackage: perfect-vector-shuffle-0.1.1.1@sha256:3c034b313e0b81147860bd40d1f8f84f1ca191beba76476abbecbbeb2edcf752,3681
 snapshots:
 - completed:
     sha256: 85d2382958c178491d3fe50d770a624621f5ab456beef7d31ac7521f780c9bc7

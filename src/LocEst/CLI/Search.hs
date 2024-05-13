@@ -64,7 +64,7 @@ runSearch (
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
-    let observations = zipWith setIndex observationsUnindexed [0..]
+    let observations = V.zipWith setIndex observationsUnindexed (V.generate (V.length observationsUnindexed) id)
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
     indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings observations
@@ -91,7 +91,7 @@ runSearch (
         -- 1. sequential
         -- .| ConL.map coreSearch
         -- 2. normal parallel
-        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (coreSearch supplement (V.fromList observations) x))
+        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (coreSearch supplement observations x))
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
         -- print progress information
@@ -117,7 +117,7 @@ printErrors errMsg = liftIO $ hPutStrLn stderr (show (length errMsg) ++ " * " ++
 
 readIndepVarsPredGrid ::
        IndepVarsPredGridSettings
-    -> [Observation]
+    -> V.Vector Observation
     -> IO IndepVarsPredGrid
 readIndepVarsPredGrid
     (SpaceTimeGridSettings
@@ -147,7 +147,7 @@ readIndepVarsPredGrid
             hPutStrLn stderr "Reading temporal resampling ages"
             Just <$> readTempSamp False observations path
     -- input validation
-    case head $ map (_hyposIndepVarsPos . _obsPos) observations of
+    case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> return ()
             IndepArbitraryDimPos _ ->
                 throw $ NormalException "spatiotemporal positions in --obsFile not readable, \
@@ -164,7 +164,7 @@ readIndepVarsPredGrid
     hPutStrLn stderr "Reading arbitrary-dimension grid positions"
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
     -- input validation
-    let varsFromObs = case head $ map (_hyposIndepVarsPos . _obsPos) observations of
+    let varsFromObs = case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> []
             IndepArbitraryDimPos x -> getKeys x
     let varsFromGrid = getKeys $ head inArbitraryDimPos
@@ -174,13 +174,13 @@ readIndepVarsPredGrid
 
 readDepVarsPredGrid ::
        [DepVarsPos]
-    -> [Observation]
+    -> V.Vector Observation
     -> IO DepVarsPredGrid
 readDepVarsPredGrid
     depVarsPos
     observations = do
     -- input validation
-    let varsFromObs  = getKeys $ (_hyposDepVarsPos . _obsPos) $ head observations
+    let varsFromObs  = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
         varsFromGrid = getKeys $ head depVarsPos
     OP.when (varsFromObs /= varsFromGrid) $ do
         throw $ NormalException "dep vars in --obsFile and --depVars not equal"
