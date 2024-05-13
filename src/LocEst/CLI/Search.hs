@@ -3,11 +3,11 @@
 
 module LocEst.CLI.Search where
 
+import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
-import           LocEst.CLI.Utils
 
 import qualified Codec.Serialise               as S
 import           Conduit                       (MonadIO, liftIO)

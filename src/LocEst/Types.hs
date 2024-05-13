@@ -324,9 +324,9 @@ instance Csv.ToField KernelShape where
     toField Linear             = "Linear"
 
 makeKernelShape :: MonadFail m => String -> m KernelShape
-makeKernelShape "SqEx" = pure SquaredExponential
-makeKernelShape "Linear"             = pure Linear
-makeKernelShape x                    = fail $ "Kernel shape " ++ show x ++ " not recognized"
+makeKernelShape "SqEx"   = pure SquaredExponential
+makeKernelShape "Linear" = pure Linear
+makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
 data ObsWithDist = ObsWithDist {
       _owdObservation  :: Observation

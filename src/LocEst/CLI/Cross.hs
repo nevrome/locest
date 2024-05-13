@@ -3,24 +3,24 @@
 
 module LocEst.CLI.Cross where
 
+import           LocEst.CLI.Search             (printErrors)
+import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
+import           LocEst.MathUtils              (foldSum)
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
-import LocEst.MathUtils (foldSum)
-import LocEst.CLI.Search (printErrors)
-import           LocEst.CLI.Utils
 
 import           Conduit                       (ResourceT)
+import qualified Control.Monad.Except          as E
 import           Data.Conduit                  (ConduitT, (.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.List             as ConL
 import           Data.List                     (sortBy)
-import           System.IO (hPutStrLn, stderr)
-import           System.Random as R
-import Data.Maybe (mapMaybe)
-import qualified Control.Monad.Except as E
+import           Data.Maybe                    (mapMaybe)
+import           System.IO                     (hPutStrLn, stderr)
+import           System.Random                 as R
 
 
 data CrossOptions = CrossOptions
@@ -31,10 +31,10 @@ data CrossOptions = CrossOptions
     }
 
 data CrossSettings = CrossSettings {
-      _crossvalInKernDef     :: [KernelDefinition]
-    , _crossvalTestFraction  :: Double
-    , _crossvalIterations    :: Int
-    , _crossvalMaybeSeed     :: Maybe Int
+      _crossvalInKernDef    :: [KernelDefinition]
+    , _crossvalTestFraction :: Double
+    , _crossvalIterations   :: Int
+    , _crossvalMaybeSeed    :: Maybe Int
 }
 
 runCross :: CrossOptions -> IO ()

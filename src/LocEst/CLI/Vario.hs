@@ -13,8 +13,8 @@ import qualified Control.Parallel.Strategies  as PS
 import qualified Data.Conduit                 as Con
 import qualified Data.Conduit.List            as ConL
 import           Data.Function                (on)
-import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector                  as V
+import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import           System.IO                    (hPutStrLn, stderr)
@@ -64,7 +64,7 @@ runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars outVa
             sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
             -- get start index and stop index for each bin in the sorted indep vector
             let startLenPerBin = case maybeNrBins of
-                    Just b -> binIndepVar sortedIndepDists b
+                    Just b  -> binIndepVar sortedIndepDists b
                     Nothing -> binIndepVar sortedIndepDists 100
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do

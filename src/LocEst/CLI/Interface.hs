@@ -1,18 +1,18 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections    #-}
 
 module LocEst.CLI.Interface where
 
 import           LocEst.CLI.ConfigLang
-import           LocEst.Types
+import           LocEst.CLI.Cross
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
-import           LocEst.CLI.Cross
+import           LocEst.Types
 
 import           Control.Exception     (throw)
 import           Data.Char             (isSpace, toLower)
-import           Data.List             (singleton, groupBy)
+import           Data.List             (groupBy, singleton)
 import           LocEst.Utils
 import qualified Options.Applicative   as OP
 import qualified Text.Parsec           as P

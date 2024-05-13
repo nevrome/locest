@@ -2,12 +2,12 @@ module LocEst.CLI.Utils where
 
 import           LocEst.Types
 
-import           GHC.Conc                      (getNumCapabilities)
-import           System.IO (hPutStrLn, stderr)
-import           Data.IORef                (modifyIORef, newIORef, readIORef)
-import           Conduit                   (MonadIO, liftIO)
-import           Data.Conduit              (ConduitT)
-import qualified Data.Conduit.List         as ConL
+import           Conduit           (MonadIO, liftIO)
+import           Data.Conduit      (ConduitT)
+import qualified Data.Conduit.List as ConL
+import           Data.IORef        (modifyIORef, newIORef, readIORef)
+import           GHC.Conc          (getNumCapabilities)
+import           System.IO         (hPutStrLn, stderr)
 
 setNumberOfThreads :: NumberOfThreads -> IO Int
 setNumberOfThreads SingleThread        = pure 1

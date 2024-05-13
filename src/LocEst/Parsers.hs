@@ -3,8 +3,8 @@
 
 module LocEst.Parsers where
 
+import           LocEst.CLI.Utils
 import           LocEst.Types
-import LocEst.CLI.Utils
 
 import           Conduit                   (MonadIO, MonadResource, liftIO)
 import           Control.Exception         (throwIO)
