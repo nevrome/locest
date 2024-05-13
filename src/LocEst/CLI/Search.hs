@@ -225,16 +225,16 @@ validateAlgorithmSearch
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
     [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp
-           | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos  <- inSpatGrid]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
     [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp
-           | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- inSpatGrid]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
     [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0
-           | indepPos <- gridPos, depPos <- depVarPos]
+    | indepPos <- gridPos, depPos <- depVarPos]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
     [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
-           | indepPos <- gridPos]
+    | indepPos <- gridPos]
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
