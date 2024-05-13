@@ -39,7 +39,6 @@ runVario :: VarioOptions -> IO ()
 runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars threads outVariogramFile) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
-    hPutStrLn stderr $ "Working with threads: " ++ show numThreads
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile

@@ -44,7 +44,6 @@ runCross (
     ) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
-    hPutStrLn stderr $ "Working with threads: " ++ show numThreads
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile

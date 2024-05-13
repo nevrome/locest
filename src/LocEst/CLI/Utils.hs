@@ -9,13 +9,21 @@ import           Data.IORef        (modifyIORef, newIORef, readIORef)
 import           GHC.Conc          (getNumCapabilities)
 import           System.IO         (hPutStrLn, stderr)
 
+--
+
 setNumberOfThreads :: NumberOfThreads -> IO Int
-setNumberOfThreads SingleThread        = pure 1
-setNumberOfThreads (MultipleThreads n) = pure n
-setNumberOfThreads DetectThreads       = do
-    detectedThreads <- getNumCapabilities
-    hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
-    return detectedThreads
+setNumberOfThreads x = do
+    numThreads <- set x
+    hPutStrLn stderr $ "Working with threads: " ++ show numThreads
+    return numThreads
+    where
+        set :: NumberOfThreads -> IO Int
+        set SingleThread        = pure 1
+        set (MultipleThreads n) = pure n
+        set DetectThreads       = do
+            detectedThreads <- getNumCapabilities
+            hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
+            return detectedThreads
 
 progress :: (MonadIO m) => Int -> Maybe Int -> ConduitT i i m ()
 progress reportNum goal = do
