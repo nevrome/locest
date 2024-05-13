@@ -103,9 +103,10 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDe
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
-    (shape,nugget,kernel) <- getKernelForOneDepVar kernelDefinition depVar
-    value  <- getOneDepVarPos oneObsWithDist
-    weight <- weightForOneObs shape nugget kernel oneObsWithDist
+    (shape,nugget,lengths) <- getKernelForOneDepVar kernelDefinition depVar
+    value     <- getOneDepVarPos oneObsWithDist
+    sqWeiDist <- squaredWeightedDistForOneObs lengths oneObsWithDist
+    weight    <- weightForOneObs shape nugget sqWeiDist
     return (value, weight)
     where
         getOneDepVarPos :: ObsWithDist -> CoreLog Double
@@ -113,20 +114,19 @@ valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
             case lookup depVar m of
                 Nothing -> E.throwError $ NormalException "Unknown variable"
                 Just x  -> pure x
-        weightForOneObs :: KernelShape -> KernelNugget -> KernelLengths -> ObsWithDist -> CoreLog Double
-        -- squared-exponential kernel
-        weightForOneObs SquaredExponential
-                        nugget
-                        (KernelLengths (ArbitraryDimPos [(_,spaceKernelWidth), (_,timeKernelWidth)]))
-                        (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
-            pure $ nugget / (nugget + exp ( (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2) - 1)
-        weightForOneObs SquaredExponential
-                        nugget
-                        lengths
-                        (ObsWithDist _ (IndepArbitraryDimDist ds)) =
-            pure $ nugget / (nugget + exp ( foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths)) ) - 1)
-        -- mismatch error case
-        weightForOneObs _ _ _ _ =
+        weightForOneObs :: KernelShape -> KernelNugget -> Double -> CoreLog Double
+        weightForOneObs SquaredExponential nugget d = pure $ nugget / (nugget + exp d - 1)
+        weightForOneObs Linear             nugget d = pure $ nugget / (nugget + sqrt d)
+        squaredWeightedDistForOneObs :: KernelLengths -> ObsWithDist -> CoreLog Double
+        squaredWeightedDistForOneObs
+            (KernelLengths (ArbitraryDimPos [(_,spaceKernelWidth), (_,timeKernelWidth)]))
+            (ObsWithDist _ (IndepSpatTempDist (SpatTempDist spatDist tempDist))) =
+            pure $ (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
+        squaredWeightedDistForOneObs
+            lengths
+            (ObsWithDist _ (IndepArbitraryDimDist ds)) =
+            pure $ foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths))
+        squaredWeightedDistForOneObs _ _ =
             E.throwError $ NormalException "Illegal combination of kernel and grid data"
 
 getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (KernelShape, KernelNugget, KernelLengths)
