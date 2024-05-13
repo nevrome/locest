@@ -15,7 +15,7 @@ type CoreLog = E.Except LOCESTException
 coreSearch :: CoreSupplement -> [Observation] -> CorePermutation -> CoreLog SearchResult
 coreSearch supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
-    let obsWithDist = mapMaybe (\o -> getDist supp o sett) observations
+    let obsWithDist = mapMaybe (getDist supp sett) observations
     -- determine (interpolated) posterior predictive distributions per depVar for this position,
     -- derive summary statistics and maybe perform the search for a specific search depVar value
     let namePerDepVar  = getKeys kernelDefinition
@@ -32,12 +32,12 @@ coreSearch supp observations sett@(CorePermutation _ searchDepVarPos kernelDefin
             xs -> Just $ foldSum xs
          }
 
-getDist :: CoreSupplement -> Observation -> CorePermutation -> Maybe ObsWithDist
+getDist :: CoreSupplement -> CorePermutation -> Observation -> Maybe ObsWithDist
 -- spatiotemporal distances
 getDist
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
-    obs@(Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _))
-    (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration) =
+    (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration)
+    obs@(Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) =
         let tempDist = findTempDist maybeTempSamples
             spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
@@ -66,8 +66,8 @@ getDist
 -- arbitrary dim distances
 getDist
     _
-    obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _))
-    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _) =
+    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _)
+    obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) =
         let arbitraryDimDist = findArbitraryDimDistsObsGrid
         in Just $ ObsWithDist obs (IndepArbitraryDimDist arbitraryDimDist)
         where
@@ -100,7 +100,6 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDe
                     return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity (Just 0)
                 Nothing ->
                     return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity Nothing
-            --E.throwError $ NormalException e
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
