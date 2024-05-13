@@ -79,8 +79,8 @@ runSearch (
     -- validate algorithm settings
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
-    permutations <- createPermutations algorithm indepVarsPredGrid depVarsPredGrid
-    let numPerms = length permutations
+    let permutations = createPermutations algorithm indepVarsPredGrid depVarsPredGrid
+        numPerms = length permutations
     -- run analysis pipeline
     hPutStrLn stderr "All preparations ready"
     hPutStrLn stderr "Running analysis"
@@ -222,18 +222,18 @@ validateAlgorithmSearch
         OP.unless (depVarsFromAlg == depVarsFromGrid) $
             throw $ NormalException "dep vars in --depVars and --algorithm not equal"
 
-createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> IO [CorePermutation]
+createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
-    return [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp
+    [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp
            | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos  <- inSpatGrid]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
-    return [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp
+    [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp
            | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- inSpatGrid]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
-    return [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0
+    [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0
            | indepPos <- gridPos, depPos <- depVarPos]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
-    return [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
+    [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
            | indepPos <- gridPos]
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
