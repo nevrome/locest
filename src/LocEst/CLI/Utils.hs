@@ -31,7 +31,7 @@ progress reportNum goal = do
     where
         logProgress :: Int -> String -> IO ()
         logProgress c g
-            | c `rem` reportNum == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 9 (show c) ++ g
+            | c == 1 || c `rem` reportNum == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 9 (show c) ++ g
             | otherwise = return ()
 
 padLeft :: Int -> String -> String

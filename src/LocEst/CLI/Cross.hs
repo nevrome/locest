@@ -51,7 +51,6 @@ runCross (
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
     -- split test and training data
-    -- this involves random shuffling of the observation list: TODO add seed
     let numObs = fromIntegral $ length observations
         numTestObs = round $ testFraction * numObs
     seed <- case maybeSeed of

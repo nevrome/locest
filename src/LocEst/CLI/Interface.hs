@@ -115,8 +115,9 @@ optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (
 optParseTestTrainingFraction :: OP.Parser Double
 optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
        OP.long    "testFraction"
-    <> OP.metavar "..."
-    <> OP.help    "..."
+    <> OP.metavar "DOUBLE"
+    <> OP.help    "Fraction of the observations that should be used as test data for the crossvalidation.\
+                  \ 1 - testFraction will be used as training data. The fraction must be between 0 and 1."
     )
     where
         readFraction :: String -> Either String Double
