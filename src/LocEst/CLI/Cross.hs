@@ -18,7 +18,7 @@ import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.List             as ConL
 import           Data.List                     (sortBy)
 import           System.IO (hPutStrLn, stderr)
-import           System.Random                 (randomRIO)
+import           System.Random as R
 import Data.Maybe (mapMaybe)
 import qualified Control.Monad.Except as E
 
@@ -34,11 +34,12 @@ data CrossSettings = CrossSettings {
       _crossvalInKernDef     :: [KernelDefinition]
     , _crossvalTestFraction  :: Double
     , _crossvalIterations    :: Int
+    , _crossvalMaybeSeed     :: Maybe Int
 }
 
 runCross :: CrossOptions -> IO ()
 runCross (
-    CrossOptions inObsFile (CrossSettings kernDefs testFraction iterations) threads outFile
+    CrossOptions inObsFile (CrossSettings kernDefs testFraction iterations maybeSeed) threads outFile
     ) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
@@ -53,7 +54,13 @@ runCross (
     -- this involves random shuffling of the observation list: TODO add seed
     let numObs = fromIntegral $ length observations
         numTestObs = round $ testFraction * numObs
-    testTrainingIterations <- mapM (\_ -> splitTestTraining numTestObs observations) [1..iterations]
+    seed <- case maybeSeed of
+                Nothing   -> do
+                    rng <- R.initStdGen
+                    let (seed,_) = R.genWord32 rng
+                    return $ fromIntegral seed
+                Just seed -> pure seed
+    let testTrainingIterations = map (\i -> splitTestTraining observations numTestObs (seed + i)) [1..iterations]
     -- determine nr of permutations
     let numKernDefs = length kernDefs
         numPerms = iterations * numTestObs * numKernDefs
@@ -112,20 +119,21 @@ sortFunc (SearchResult (CorePermutation _ _ kernDefA _) _ _)
          (SearchResult (CorePermutation _ _ kernDefB _) _ _) =
     compare kernDefA kernDefB
 
-splitTestTraining :: Int -> [a] -> IO ([a], [a])
-splitTestTraining numTestObs observations = do
-    observationsShuffled <- shuffle observations
-    return $ splitAt numTestObs observationsShuffled
+splitTestTraining :: [a] -> Int -> Int -> ([a], [a])
+splitTestTraining observations numTestObs seedOneIteration =
+    let rng = R.mkStdGen seedOneIteration
+        observationsShuffled = shuffle observations rng
+    in splitAt numTestObs observationsShuffled
 
 -- this was written by ChatGPT after I wasted a very sad hour with the random-fu package
 -- should probably be replaced with sth more reliable and faster
-shuffle :: [a] -> IO [a]
-shuffle [] = return []
-shuffle xs = do
-  randomIndex <- randomRIO (0, length xs - 1)
-  let (left, right) = splitAt randomIndex xs
-  rest <- shuffle (left ++ tail right)
-  return (head right : rest)
+shuffle :: [a] -> R.StdGen -> [a]
+shuffle [] _ = []
+shuffle xs rng =
+  let (randomIndex,rngNext) = uniformR (0, length xs - 1) rng
+      (left, right) = splitAt randomIndex xs
+      rest = shuffle (left ++ tail right) rngNext
+  in (head right : rest)
 
 multiplyByAlgorithms ::
        [KernelDefinition]

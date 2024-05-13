@@ -52,7 +52,7 @@ readr::write_tsv(prediction_points, "data/2D/grid.tsv")
 
 system('locest cross --configFile code/2D/experiment_2D_cross.conf')
 
-cross <- readr::read_tsv("data/2D/cross.tsv")
+readr::read_tsv("data/2D/cross.tsv")
 
 system('locest search --configFile code/2D/experiment_2D.conf')
 

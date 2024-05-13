@@ -100,6 +100,17 @@ optParseCrossSettings =
         <$> optParseKernDefStringPermutations
         <*> optParseTestTrainingFraction
         <*> optParseCrossvalIterations
+        <*> optParseCrossvalConfSeed
+
+optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
+optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (
+       OP.long  "seed"
+    <> OP.metavar "INT"
+    <> OP.help  "Seed for the random number generator for group splitting. \
+                \The default causes locest to fall back to a random seed."
+    <> OP.value Nothing
+    <> OP.showDefault
+    )
 
 optParseTestTrainingFraction :: OP.Parser Double
 optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
@@ -117,8 +128,9 @@ optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
 optParseCrossvalIterations :: OP.Parser Int
 optParseCrossvalIterations = OP.option OP.auto (
        OP.long    "iterations"
-    <> OP.metavar "..."
-    <> OP.help    "..."
+    <> OP.metavar "INT"
+    <> OP.help    "Number of crossvalidation iterations, so how often should the input observations be\
+                  \ reshuffled and split into test and training data for each kernel parameter set."
     )
 
 optParseAcrossIndepVars :: OP.Parser Bool
