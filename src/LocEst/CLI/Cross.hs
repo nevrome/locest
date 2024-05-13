@@ -16,6 +16,7 @@ import qualified Control.Monad.Except          as E
 import           Data.Conduit                  (ConduitT, (.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
+import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import           Data.List                     (sortBy)
 import           Data.Maybe                    (mapMaybe)
@@ -68,7 +69,7 @@ runCross (
     hPutStrLn stderr "Running analysis"
     perPointRes <- Con.runConduitRes $
         -- begin to stream iterations
-           ConL.sourceList testTrainingIterations
+           ConC.yieldMany testTrainingIterations
         -- run per-iteration conduit until no iterations left
         .| Con.awaitForever (oneIterationConduit numThreads)
         -- print progress information
@@ -76,28 +77,28 @@ runCross (
         -- split stream to report the error cases and add the good ones to the result list
         .| Con.getZipSink (
                 Con.ZipSink (
-                       ConL.mapMaybe leftToJust
+                       ConC.concatMap leftToJust
                     .| ConL.groupOn id
-                    .| ConL.mapM_ printErrors
+                    .| ConC.mapM_ printErrors
                 ) *>
                 Con.ZipSink (
-                       ConL.mapMaybe rightToJust
-                    .| ConL.consume
+                       ConC.concatMap rightToJust
+                    .| ConC.sinkList
                 )
            )
     -- summarize crossvalidation result per kernel parameter setting
     Con.runConduitRes $
-           ConL.sourceList (sortBy sortFunc perPointRes)
+           ConC.yieldMany (sortBy sortFunc perPointRes)
         .| ConL.groupBy groupFunc
-        .| ConL.map summarizeFunc
+        .| ConC.map summarizeFunc
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
     where
         oneIterationConduit :: Int -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SearchResult) (ResourceT IO) ()
         oneIterationConduit maxNumThreads (testData,trainingData) = do
-            ConL.sourceList testData
+            ConC.yieldMany testData
                 -- multiply multidimensional positions by algorithms
-                .| ConL.concatMap (multiplyByAlgorithms kernDefs)
+                .| ConC.concatMap (multiplyByAlgorithms kernDefs)
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (E.runExcept . coreSearch trainingData (CoreSupplement Nothing Nothing Nothing))
 

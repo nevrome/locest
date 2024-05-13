@@ -2,22 +2,22 @@
 
 module LocEst.CLI.Vario where
 
+import           LocEst.CLI.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
-import LocEst.CLI.Utils
 
-import           Conduit                      ((.|))
-import           Control.Monad                (replicateM, zipWithM_)
-import qualified Data.Conduit                 as Con
-import qualified Data.Conduit.Combinators            as ConC
-import           Data.Function                (on)
-import qualified Data.Vector                  as V
-import qualified Data.Vector.Algorithms.Intro as VA
-import qualified Data.Vector.Unboxed          as VU
-import qualified Data.Vector.Unboxed.Mutable  as VUM
-import           System.IO                    (hPutStrLn, stderr)
+import           Conduit                       ((.|))
+import           Control.Monad                 (replicateM, zipWithM_)
+import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
+import qualified Data.Conduit.Combinators      as ConC
+import           Data.Function                 (on)
+import qualified Data.Vector                   as V
+import qualified Data.Vector.Algorithms.Intro  as VA
+import qualified Data.Vector.Unboxed           as VU
+import qualified Data.Vector.Unboxed.Mutable   as VUM
+import           System.IO                     (hPutStrLn, stderr)
 --import Data.List (groupBy)
 
 data VarioOptions = VarioOptions {

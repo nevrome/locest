@@ -86,7 +86,7 @@ runSearch (
     hPutStrLn stderr "All preparations ready"
     hPutStrLn stderr "Running analysis"
     Con.runConduitRes $
-        ConL.sourceList permutations
+        ConC.yieldMany permutations
         -- main search algorithm
         -- 1. sequential
         -- .| ConL.map coreSearch
@@ -99,12 +99,12 @@ runSearch (
         -- split stream to report the error cases and write the good results to the file system
         .| Con.getZipSink (
                 Con.ZipSink (
-                       ConL.mapMaybe leftToJust
+                       ConC.concatMap leftToJust
                     .| ConL.groupOn id
-                    .| ConL.mapM_ printErrors
+                    .| ConC.mapM_ printErrors
                 ) *>
                 Con.ZipSink (
-                       ConL.mapMaybe rightToJust
+                       ConC.concatMap rightToJust
                     .| normalize normalization -- this assumes the permutation order to be set accordingly!!
                                                -- otherwise sorting is necessary, which means everything has to go into memory
                     .| sinkNamedCSV outFile
@@ -244,8 +244,8 @@ normalize :: Monad m => Normalization -> Con.ConduitT SearchResult SearchResult 
 normalize NoNorm = ConC.map id
 normalize NormBySpace =
        ConL.groupBy groupingCriteria
-    .| ConL.map scaleProbs
-    .| ConL.concat
+    .| ConC.map scaleProbs
+    .| ConC.concat
     where
     groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria

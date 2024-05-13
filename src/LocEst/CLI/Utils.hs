@@ -4,7 +4,7 @@ import           LocEst.Types
 
 import           Conduit           (MonadIO, liftIO)
 import           Data.Conduit      (ConduitT)
-import qualified Data.Conduit.List as ConL
+import qualified Data.Conduit.List as ConC
 import           Data.IORef        (modifyIORef, newIORef, readIORef)
 import           GHC.Conc          (getNumCapabilities)
 import           System.IO         (hPutStrLn, stderr)
@@ -23,7 +23,7 @@ progress reportNum goal = do
             Nothing -> ""
             Just x  -> "/" ++ show x
     counterRef <- liftIO $ newIORef (1 :: Int)
-    ConL.mapM $ \val -> do
+    ConC.mapM $ \val -> do
         n <- liftIO $ readIORef counterRef
         liftIO $ logProgress n goalString
         liftIO $ modifyIORef counterRef (+1)

@@ -18,7 +18,6 @@ import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
 import qualified Data.Conduit.Combinators  as ConC
 --import qualified Data.Conduit.Lift         as ConLF
-import qualified Data.Conduit.List         as ConL
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
@@ -141,7 +140,7 @@ readSpatPos = readCSVToList
 readCSVToList :: (Csv.FromNamedRecord a) => FilePath -> IO [a]
 readCSVToList path = do
     hPutStrLn stderr $ "Parsing " ++ path
-    parseRes <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConL.consume
+    parseRes <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.sinkList
     hPutStrLn stderr "Done"
     return parseRes
 
@@ -167,12 +166,12 @@ sinkNamedCSV path =
     Con.bracketP (openFile path WriteMode) hClose $ \handle ->
            writeHeaderCSV handle
         .| ConCsv.toCsv encodingOptions
-        .| ConL.mapM_ (liftIO . Bchs.hPutStr handle)
+        .| ConC.mapM_ (liftIO . Bchs.hPutStr handle)
     where
         writeHeaderCSV :: (MonadIO m, Csv.DefaultOrdered i) => Handle -> ConduitT i i m ()
         writeHeaderCSV handle = do
             flagRef <- liftIO $ newIORef True
-            ConL.mapM $ \val -> do
+            ConC.mapM $ \val -> do
                 -- run the action only for the first element
                 flag <- liftIO $ readIORef flagRef
                 when flag $ do
