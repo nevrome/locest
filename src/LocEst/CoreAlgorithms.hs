@@ -7,16 +7,16 @@ import           LocEst.Utils
 
 import           Control.Monad           (mapAndUnzipM)
 import qualified Control.Monad.Except    as E
-import           Data.Maybe              (mapMaybe)
+import qualified Control.Monad.Reader    as R
+import           Data.Maybe              (mapMaybe, catMaybes)
 import           Statistics.Distribution (density, quantile)
 
-type CoreLog = E.Except LOCESTException
+type CoreLog = R.ReaderT CoreSupplement (E.Except LOCESTException)
 
-coreSearch :: [Observation] -> CoreSupplement -> CorePermutation -> CoreLog SearchResult
-coreSearch observations supp
-    sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+coreSearch :: [Observation] -> CorePermutation -> CoreLog SearchResult
+coreSearch observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
-    let obsWithDist = getDist observations supp sett
+    obsWithDist <- catMaybes <$> mapM (\o -> getDist o sett) observations
     -- determine (interpolated) posterior predictive distributions per depVar for this position,
     -- derive summary statistics and maybe perform the search for a specific search depVar value
     let namePerDepVar  = getKeys kernelDefinition
@@ -33,22 +33,21 @@ coreSearch observations supp
             xs -> Just $ foldSum xs
          }
 
-getDist :: [Observation] -> CoreSupplement -> CorePermutation -> [ObsWithDist]
-getDist [] _ _ = []
+getDist :: Observation -> CorePermutation -> CoreLog (Maybe ObsWithDist)
 -- spatiotemporal distances
 getDist
-    (obs@(Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) : rest)
-    supp@(CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
-    sett@(CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration) =
+    obs@(Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _))
+    (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration) = do
+        (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples) <- R.ask
         let tempDist = findTempDist maybeTempSamples
             spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
             filtered = case maybeSpaceTimeFilter of
                 Just (spaceFilter,timeFilter) -> spatDistsKM > spaceFilter || tempDist > timeFilter
                 Nothing -> False
-        in if filtered
-           then getDist rest supp sett
-           else ObsWithDist obs (IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) : getDist rest supp sett
+        if filtered
+        then return Nothing
+        else return $ Just $ ObsWithDist obs (IndepSpatTempDist (SpatTempDist spatDistsKM tempDist))
         where
             findTempDist :: Maybe TempSampleMatrix -> Double
             -- calculate distances from mean ages
@@ -67,19 +66,18 @@ getDist
                 in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
 -- arbitrary dim distances
 getDist
-    (obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) : rest)
-    supp
-    sett@(CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _) =
+    obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _))
+    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _) = do
         let arbitraryDimDist = findArbitraryDimDistsObsGrid
-        in ObsWithDist obs (IndepArbitraryDimDist arbitraryDimDist) : getDist rest supp sett
+        return $ Just $ ObsWithDist obs (IndepArbitraryDimDist arbitraryDimDist)
         where
             findArbitraryDimDistsObsGrid :: [Double]
             findArbitraryDimDistsObsGrid =
                 let obsPos = getValues obsArbitraryDimPos
                     gridPos = getValues gridAbritryDimPos
                 in allDistances obsPos gridPos
--- wrong input, so skip
-getDist (_ : rest) supp sett = getDist rest supp sett
+-- wrong input
+getDist _ _ = pure Nothing
 
 interpolAndSearchOneDepVar :: KernelDefinition -> [ObsWithDist] -> (DepVarName, Maybe Double) -> CoreLog InterpolationResultOneDepVar
 interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDepVar) = do

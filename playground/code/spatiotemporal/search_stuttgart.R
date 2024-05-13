@@ -24,7 +24,7 @@ vario %>%
 
 # crossvalidation
 
-system('locest cross --configFile code/spatiotemporal/cross.conf')
+system('time locest cross --configFile code/spatiotemporal/cross.conf')
 
 readr::read_tsv("data/spatiotemporal/cross.tsv") %>% View()
 
