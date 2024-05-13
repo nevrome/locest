@@ -22,6 +22,7 @@ import           Data.List                     (sortBy)
 import           Data.Maybe                    (mapMaybe)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
+import qualified Data.Vector as V
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile :: FilePath
@@ -98,7 +99,7 @@ runCross (
                 -- multiply multidimensional positions by algorithms
                 .| ConC.concatMap (multiplyByAlgorithms kernDefs)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (\x -> E.runExcept (coreSearch (CoreSupplement Nothing Nothing Nothing) trainingData x))
+                .| ConAA.asyncMapC maxNumThreads (\x -> E.runExcept (coreSearch (CoreSupplement Nothing Nothing Nothing) (V.fromList trainingData) x))
 
 summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =

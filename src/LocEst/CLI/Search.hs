@@ -23,6 +23,7 @@ import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (catMaybes)
 import           LocEst.MathUtils
 import           System.IO                     (hPutStrLn, stderr)
+import qualified Data.Vector as V
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
@@ -90,7 +91,7 @@ runSearch (
         -- 1. sequential
         -- .| ConL.map coreSearch
         -- 2. normal parallel
-        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (coreSearch supplement observations x))
+        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (coreSearch supplement (V.fromList observations) x))
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
         -- print progress information

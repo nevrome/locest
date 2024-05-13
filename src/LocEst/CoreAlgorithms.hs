@@ -5,17 +5,18 @@ import           LocEst.MathUtils
 import           LocEst.Types
 import           LocEst.Utils
 
-import           Control.Monad           (mapAndUnzipM)
 import qualified Control.Monad.Except    as E
 import           Data.Maybe              (mapMaybe)
 import           Statistics.Distribution (density, quantile)
+import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as VU
 
 type CoreLog = E.Except LOCESTException
 
-coreSearch :: CoreSupplement -> [Observation] -> CorePermutation -> CoreLog SearchResult
+coreSearch :: CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog SearchResult
 coreSearch supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
-    let obsWithDist = mapMaybe (getDist supp sett) observations
+    let obsWithDist = V.mapMaybe (getDist supp sett) observations
     -- determine (interpolated) posterior predictive distributions per depVar for this position,
     -- derive summary statistics and maybe perform the search for a specific search depVar value
     let namePerDepVar  = getKeys kernelDefinition
@@ -79,10 +80,11 @@ getDist
 -- wrong input
 getDist _ _ _ = Nothing
 
-interpolAndSearchOneDepVar :: KernelDefinition -> [ObsWithDist] -> (DepVarName, Maybe Double) -> CoreLog InterpolationResultOneDepVar
+interpolAndSearchOneDepVar :: KernelDefinition -> V.Vector ObsWithDist -> (DepVarName, Maybe Double) -> CoreLog InterpolationResultOneDepVar
 interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDepVar) = do
-    (values, weights) <- mapAndUnzipM (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
-    let totalWeight = foldSum weights
+    --(values, weights) <- mapAndUnzipM (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
+    (values, weights) <- VU.unzip . VU.convert <$> V.mapM (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
+    let totalWeight = VU.sum weights
         neff        = totalWeight
         weightedA   = weightedAvg_ totalWeight values weights
         weightedV   = weightedVar_ totalWeight weightedA values weights
@@ -106,7 +108,7 @@ valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
     (shape,nugget,lengths) <- getKernelForOneDepVar kernelDefinition depVar
     value     <- getOneDepVarPos oneObsWithDist
     sqWeiDist <- squaredWeightedDistForOneObs lengths oneObsWithDist
-    weight    <- weightForOneObs shape nugget sqWeiDist
+    let weight = weightForOneObs shape nugget sqWeiDist
     return (value, weight)
     where
         getOneDepVarPos :: ObsWithDist -> CoreLog Double
@@ -114,9 +116,9 @@ valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
             case lookup depVar m of
                 Nothing -> E.throwError $ NormalException "Unknown variable"
                 Just x  -> pure x
-        weightForOneObs :: KernelShape -> KernelNugget -> Double -> CoreLog Double
-        weightForOneObs SquaredExponential nugget d = pure $ nugget / (nugget + exp d - 1)
-        weightForOneObs Linear             nugget d = pure $ nugget / (nugget + sqrt d)
+        weightForOneObs :: KernelShape -> KernelNugget -> Double -> Double
+        weightForOneObs SquaredExponential nugget d = nugget / (nugget + exp d - 1)
+        weightForOneObs Linear             nugget d = nugget / (nugget + sqrt d)
         squaredWeightedDistForOneObs :: KernelLengths -> ObsWithDist -> CoreLog Double
         squaredWeightedDistForOneObs
             (KernelLengths (ArbitraryDimPos [(_,spaceKernelWidth), (_,timeKernelWidth)]))
