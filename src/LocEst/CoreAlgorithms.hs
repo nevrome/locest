@@ -7,16 +7,15 @@ import           LocEst.Utils
 
 import           Control.Monad           (mapAndUnzipM)
 import qualified Control.Monad.Except    as E
-import qualified Control.Monad.Reader    as R
-import           Data.Maybe              (mapMaybe, catMaybes)
+import           Data.Maybe              (mapMaybe)
 import           Statistics.Distribution (density, quantile)
 
-type CoreLog = R.ReaderT CoreSupplement (E.Except LOCESTException)
+type CoreLog = E.Except LOCESTException
 
-coreSearch :: [Observation] -> CorePermutation -> CoreLog SearchResult
-coreSearch observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+coreSearch :: CoreSupplement -> [Observation] -> CorePermutation -> CoreLog SearchResult
+coreSearch supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
-    obsWithDist <- catMaybes <$> mapM (\o -> getDist o sett) observations
+    let obsWithDist = mapMaybe (\o -> getDist supp o sett) observations
     -- determine (interpolated) posterior predictive distributions per depVar for this position,
     -- derive summary statistics and maybe perform the search for a specific search depVar value
     let namePerDepVar  = getKeys kernelDefinition
@@ -33,21 +32,21 @@ coreSearch observations sett@(CorePermutation _ searchDepVarPos kernelDefinition
             xs -> Just $ foldSum xs
          }
 
-getDist :: Observation -> CorePermutation -> CoreLog (Maybe ObsWithDist)
+getDist :: CoreSupplement -> Observation -> CorePermutation -> Maybe ObsWithDist
 -- spatiotemporal distances
 getDist
+    (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
     obs@(Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _))
-    (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration) = do
-        (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples) <- R.ask
+    (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration) =
         let tempDist = findTempDist maybeTempSamples
             spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
             filtered = case maybeSpaceTimeFilter of
                 Just (spaceFilter,timeFilter) -> spatDistsKM > spaceFilter || tempDist > timeFilter
                 Nothing -> False
-        if filtered
-        then return Nothing
-        else return $ Just $ ObsWithDist obs (IndepSpatTempDist (SpatTempDist spatDistsKM tempDist))
+        in if filtered
+           then Nothing
+           else Just $ ObsWithDist obs (IndepSpatTempDist (SpatTempDist spatDistsKM tempDist))
         where
             findTempDist :: Maybe TempSampleMatrix -> Double
             -- calculate distances from mean ages
@@ -66,10 +65,11 @@ getDist
                 in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
 -- arbitrary dim distances
 getDist
+    _
     obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _))
-    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _) = do
+    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _) =
         let arbitraryDimDist = findArbitraryDimDistsObsGrid
-        return $ Just $ ObsWithDist obs (IndepArbitraryDimDist arbitraryDimDist)
+        in Just $ ObsWithDist obs (IndepArbitraryDimDist arbitraryDimDist)
         where
             findArbitraryDimDistsObsGrid :: [Double]
             findArbitraryDimDistsObsGrid =
@@ -77,7 +77,7 @@ getDist
                     gridPos = getValues gridAbritryDimPos
                 in allDistances obsPos gridPos
 -- wrong input
-getDist _ _ = pure Nothing
+getDist _ _ _ = Nothing
 
 interpolAndSearchOneDepVar :: KernelDefinition -> [ObsWithDist] -> (DepVarName, Maybe Double) -> CoreLog InterpolationResultOneDepVar
 interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDepVar) = do

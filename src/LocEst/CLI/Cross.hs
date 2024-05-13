@@ -22,8 +22,6 @@ import           Data.List                     (sortBy)
 import           Data.Maybe                    (mapMaybe)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
-import qualified Control.Monad.Reader as R
-
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile :: FilePath
@@ -100,7 +98,7 @@ runCross (
                 -- multiply multidimensional positions by algorithms
                 .| ConC.concatMap (multiplyByAlgorithms kernDefs)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (\x -> E.runExcept $ R.runReaderT (coreSearch trainingData x) (CoreSupplement Nothing Nothing Nothing))
+                .| ConAA.asyncMapC maxNumThreads (\x -> E.runExcept (coreSearch (CoreSupplement Nothing Nothing Nothing) trainingData x))
 
 summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =
