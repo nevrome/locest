@@ -85,6 +85,7 @@ varioOptParser = VarioOptions <$>
                         <*> optParseInNrBins
                         <*> optParseAcrossIndepVars
                         <*> optParseAcrossDepVars
+                        <*> optParseNumberOfThreads
                         <*> optParseVariogramOutFile
 
 crossOptParser :: OP.Parser CrossOptions

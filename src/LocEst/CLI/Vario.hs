@@ -5,19 +5,19 @@ module LocEst.CLI.Vario where
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
+import LocEst.CLI.Utils
 
 import           Conduit                      ((.|))
-import           Control.DeepSeq              (NFData)
 import           Control.Monad                (replicateM, zipWithM_)
-import qualified Control.Parallel.Strategies  as PS
 import qualified Data.Conduit                 as Con
-import qualified Data.Conduit.List            as ConL
+import qualified Data.Conduit.Combinators            as ConC
 import           Data.Function                (on)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import           System.IO                    (hPutStrLn, stderr)
+import qualified Data.Conduit.Algorithms.Async as ConAA
 --import Data.List (groupBy)
 
 data VarioOptions = VarioOptions {
@@ -25,6 +25,7 @@ data VarioOptions = VarioOptions {
     _voInNrBins          :: Maybe Int,
     _voInAcrossIndepVars :: Bool,
     _voInAcrossDepVars   :: Bool,
+    _voInThreads         :: NumberOfThreads,
     _voVariogramOutFile  :: Maybe FilePath
 }
 
@@ -33,11 +34,12 @@ forM :: Monad m => [a] -> (a -> m b) -> m [b]
 forM = flip mapM
 for :: [a] -> (a -> b) -> [b]
 for = flip map
-parFor :: NFData b => [a] -> (a -> b) -> [b]
-parFor l f = PS.parMap PS.rdeepseq f l
 
 runVario :: VarioOptions -> IO ()
-runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars outVariogramFile) = do
+runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars threads outVariogramFile) = do
+    -- number of threads
+    numThreads <- setNumberOfThreads threads
+    hPutStrLn stderr $ "Working with threads: " ++ show numThreads
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
@@ -69,13 +71,17 @@ runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars outVa
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
-                let !semivariancesPerBin = parFor startLenPerBin $ \(mid, startSorted, stopSorted) ->
+                semivariancesPerBin <- Con.runConduitRes $
+                        ConC.yieldMany startLenPerBin
+                        .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
+                        .| ConC.sinkList
+                --let !semivariancesPerBin = parFor startLenPerBin $ \(mid, startSorted, stopSorted) ->
                             -- recover depVar values through bin indices
-                        let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
-                            depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
+                --        let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
+                --            depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
                             -- calculate semivariance per bin
-                            semivariance = calcMatheron depDistsPerBin
-                        in (mid, semivariance)
+                --            semivariance = calcMatheron depDistsPerBin
+                --        in (mid, semivariance)
                 hPutStrLn stderr ("-> " ++ depVarName)
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
@@ -83,8 +89,6 @@ runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars outVa
 --     -- analyse variograms
 --     let kernels = map suggestKernel $ groupBy (\(EmpiricalVariogramOneVarCombination _ d1 _) (EmpiricalVariogramOneVarCombination _ d2 _) -> d1 == d2) empiricalVariograms
 --     writeKernelDefinition kernels (Just "/dev/null")
-
-
 -- suggestKernel :: [EmpiricalVariogramOneVarCombination] -> KernelOneDepVar
 -- suggestKernel xs =
 --     undefined
@@ -95,6 +99,13 @@ runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars outVa
 -- writeKernelDefinition _ Nothing        = return ()
 -- writeKernelDefinition k (Just path) = Con.runConduitRes $ ConL.sourceList k .| sinkNamedCSV path
 
+perBin :: VU.Vector (Int, Double) -> VU.Vector Double -> (Double, Int, Int) -> (Double, Double)
+perBin sortedIndepDists depDists (mid, startSorted, stopSorted) =
+    let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
+        depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
+        -- calculate semivariance per bin
+        semivariance = calcMatheron depDistsPerBin
+    in (mid, semivariance)
 
 -- perform binning of an indepVar
 binIndepVar :: VU.Vector (Int, Double) -> Int -> [(Double, Int, Int)]
@@ -130,7 +141,7 @@ getIndicesForBin sortedVec i1 i2 =
 -- write variograms to the file system
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
 writeVariograms _ Nothing        = return ()
-writeVariograms vars (Just path) = Con.runConduitRes $ ConL.sourceList (concatMap varToLong vars) .| sinkNamedCSV path
+writeVariograms vars (Just path) = Con.runConduitRes $ ConC.yieldMany (concatMap varToLong vars) .| sinkNamedCSV path
     where
         varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]
         varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
