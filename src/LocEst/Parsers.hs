@@ -88,7 +88,7 @@ readTempSamp noOrderCheck obs path = do
                     Nothing -> return ()
             loop [] = return ()
 
-readSpatDist :: Bool -> V.Vector Observation -> [SpatPos] -> FilePath -> IO SpatDistMatrix
+readSpatDist :: Bool -> V.Vector Observation -> V.Vector SpatPos -> FilePath -> IO SpatDistMatrix
 readSpatDist noOrderCheck obs spatGrid path = do
     hPutStrLn stderr $ "Parsing " ++ path
     let nObs = V.length obs
@@ -108,8 +108,8 @@ readSpatDist noOrderCheck obs spatGrid path = do
     checkOrder :: (MonadIO m) => ConduitT SpatDistObsGrid Double m ()
     checkOrder = do
         let outerCycle = V.map getID obs
-            innerCycle = map getID spatGrid
-            fullCycle  = [(o,i) | o <- (V.toList outerCycle), i <- innerCycle]
+            innerCycle = V.map getID spatGrid
+            fullCycle  = [(o,i) | o <- V.toList outerCycle, i <- V.toList innerCycle]
         loop fullCycle
         where
             loop (expected:rest) = do
@@ -131,12 +131,12 @@ readSpatDist noOrderCheck obs spatGrid path = do
 
 readObservations :: FilePath -> IO (V.Vector Observation)
 readObservations = readCSVToVector
-readHyperPos :: FilePath -> IO [HyperPos]
-readHyperPos = readCSVToList
-readArbitraryDimPos :: FilePath -> IO [ArbitraryDimPos]
-readArbitraryDimPos = readCSVToList
-readSpatPos :: FilePath -> IO [SpatPos]
-readSpatPos = readCSVToList
+readHyperPos :: FilePath -> IO (V.Vector HyperPos)
+readHyperPos = readCSVToVector
+readArbitraryDimPos :: FilePath -> IO (V.Vector ArbitraryDimPos)
+readArbitraryDimPos = readCSVToVector
+readSpatPos :: FilePath -> IO (V.Vector SpatPos)
+readSpatPos = readCSVToVector
 
 readCSVToVector :: (Csv.FromNamedRecord a) => FilePath -> IO (V.Vector a)
 readCSVToVector path = do

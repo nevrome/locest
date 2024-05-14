@@ -187,14 +187,14 @@ data SearchGrid = SearchGrid {
 
 data IndepVarsPredGrid =
     SpaceTimeGrid {
-      _stGridSpatPos         :: [SpatPos]
+      _stGridSpatPos         :: V.Vector SpatPos
     , _stGridTempPos         :: [Int]
     , _stGridSpaceTimeFilter :: Maybe (Double, Double)
     , _stGridSpatDist        :: Maybe SpatDistMatrix
     , _stGridTempSamples     :: Maybe TempSampleMatrix
     } |
     ArbitraryDimGrid {
-      _adGridPos  :: [ArbitraryDimPos]
+      _adGridPos  :: V.Vector ArbitraryDimPos
     }
 
 data DepVarsPredGrid = DepVarsPredGrid {

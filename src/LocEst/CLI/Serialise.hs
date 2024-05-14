@@ -22,7 +22,7 @@ runSerialise (SerialiseSpatDistFile (SpatDistFileSettings inSpatDistFile inObsFi
     observationsUnindexed <- readObservations inObsFile
     let observations = V.zipWith setIndex observationsUnindexed (V.generate (V.length observationsUnindexed) id)
     inSpatGridUnindexed <- readSpatPos inSpatGridFile
-    let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
+    let inSpatGrid = V.zipWith setIndex inSpatGridUnindexed (V.generate (V.length inSpatGridUnindexed) id)
     inSpatDists <- readSpatDist noOrderCheck observations inSpatGrid inSpatDistFile
     -- serialise output
     hPutStrLn stderr $ "Serialising spatial distances to " ++ outFile

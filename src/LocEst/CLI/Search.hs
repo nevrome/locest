@@ -132,7 +132,7 @@ readIndepVarsPredGrid
     -- read spatial grid
     hPutStrLn stderr "Reading spatial grid positions"
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
-    let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
+    let inSpatGrid = V.zipWith setIndex inSpatGridUnindexed (V.generate (V.length inSpatGridUnindexed) id)
     -- read spatial distances
     !inSpatDists <- case inSpatDistFile of
         Nothing   -> pure Nothing
@@ -167,7 +167,7 @@ readIndepVarsPredGrid
     let varsFromObs = case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> []
             IndepArbitraryDimPos x -> getKeys x
-    let varsFromGrid = getKeys $ head inArbitraryDimPos
+    let varsFromGrid = getKeys $ V.head inArbitraryDimPos
     OP.when (varsFromObs /= varsFromGrid) $ do
         throw $ NormalException "indep vars in --obsFile and --anyGridFile not equal"
     return $ ArbitraryDimGrid inArbitraryDimPos
@@ -208,7 +208,7 @@ validateAlgorithmInterpol
     (KernelDefinition kernelsPerDepVars)
     (ArbitraryDimGrid arbitraryDimPos) = do
         let allIndepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
-            indepVarsFromGrid = head $ map getKeys arbitraryDimPos
+            indepVarsFromGrid = getKeys $ V.head  arbitraryDimPos
         OP.unless (allEqual allIndepVarsFromAlg) $
             throw $ NormalException "indep var names not equal across kernel definitions"
         OP.unless (head allIndepVarsFromAlg == indepVarsFromGrid) $
@@ -226,16 +226,16 @@ validateAlgorithmSearch
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
     [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp
-    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos <- V.toList inSpatGrid]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
     [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp
-    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- V.toList inSpatGrid]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
     [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0
-    | indepPos <- gridPos, depPos <- depVarPos]
+    | indepPos <- V.toList gridPos, depPos <- depVarPos]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
     [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
-    | indepPos <- gridPos]
+    | indepPos <- V.toList gridPos]
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
