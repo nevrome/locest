@@ -530,6 +530,8 @@ data TempSampleMatrix = TempSampleMatrix {
     , _tSMMatrix    :: VU.Vector YearBCAD
 } deriving (Generic)
 
+instance S.Serialise TempSampleMatrix
+
 lookUpTempSample :: TempSampleMatrix -> Int -> Int -> YearBCAD
 lookUpTempSample (TempSampleMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
 

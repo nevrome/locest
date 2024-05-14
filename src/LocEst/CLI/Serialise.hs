@@ -2,9 +2,7 @@ module LocEst.CLI.Serialise where
 
 import qualified Codec.Serialise as S
 import           LocEst.Parsers
-import           LocEst.Types
 import           System.IO       (hPutStrLn, stderr)
-import qualified Data.Vector as V
 
 data SerialiseOptions = SerialiseOptions {
       _serialiseSet     :: SerialiseSet
@@ -32,7 +30,7 @@ runSerialise (SerialiseOptions (SerialiseSpatDistFile inSpatDistFile inObsFile i
     -- read input
     observations <- readObservations inObsFile
     inSpatGrid <- readSpatPos inSpatGridFile
-    inSpatDists <- readSpatDist noOrderCheck observations inSpatGrid inSpatDistFile
+    inSpatDists <- readSpatDist (ReadSpatDistParse noOrderCheck observations inSpatGrid inSpatDistFile)
     -- serialise output
     hPutStrLn stderr $ "Serialising spatial distances to " ++ outFile
     S.writeFileSerialise outFile inSpatDists

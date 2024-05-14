@@ -9,7 +9,6 @@ import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
 
-import qualified Codec.Serialise               as S
 import           Conduit                       (MonadIO, liftIO)
 import           Control.Exception             (throw)
 import qualified Control.Monad                 as OP
@@ -24,6 +23,7 @@ import           Data.Maybe                    (catMaybes)
 import           LocEst.MathUtils
 import           System.IO                     (hPutStrLn, stderr)
 import qualified Data.Vector as V
+import System.FilePath (takeExtension)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
@@ -130,18 +130,17 @@ readIndepVarsPredGrid
     -- read spatial grid
     inSpatGrid <- readSpatPos inSpatGridFile
     -- read spatial distances
-    !inSpatDists <- case inSpatDistFile of
+    inSpatDists <- case inSpatDistFile of
         Nothing   -> pure Nothing
-        Just path -> do
-            hPutStrLn stderr $ "Deserialising spatial distances from " ++ path
-            dists <- S.readFileDeserialise path
-            return $ Just dists
+        Just path -> case takeExtension path of
+            ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path) -- ToDo: input option for noCheck
+            _       -> Just <$> readSpatDist (ReadSpatDistParse False observations inSpatGrid path)
     -- read temporal distances
-    !inObsTempSamples <- case inObsTempSamplesFile of
+    inObsTempSamples <- case inObsTempSamplesFile of
         Nothing   -> pure Nothing
-        Just path -> do
-            hPutStrLn stderr "Reading temporal resampling ages"
-            Just <$> readTempSamp False observations path
+        Just path -> case takeExtension path of
+            ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
+            _       -> Just <$> readTempSamp (ReadTempSampParse False observations path)
     -- input validation
     case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> return ()
@@ -157,8 +156,7 @@ readIndepVarsPredGrid
     observations = do
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     -- read arbitrary-dimension grid
-    hPutStrLn stderr "Reading arbitrary-dimension grid positions"
-    !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
+    inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
     -- input validation
     let varsFromObs = case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> []

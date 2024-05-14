@@ -41,10 +41,24 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
-readTempSamp :: Bool -> V.Vector Observation -> FilePath -> IO TempSampleMatrix
-readTempSamp noOrderCheck obs path = do
+-- complex parsers
+
+data ReadTempSampSpec =
+      ReadTempSampDeserialise FilePath
+    | ReadTempSampParse Bool (V.Vector Observation) FilePath
+
+readTempSamp :: ReadTempSampSpec -> IO TempSampleMatrix
+readTempSamp (ReadTempSampDeserialise path) = do
+    hPutStrLn stderr "Reading age samples"
+    hPutStrLn stderr $ "Deserialising " ++ path
+    hPutStrLn stderr "Warning: There is no input validation for serialised input"
+    res <- S.readFileDeserialise path
+    hPutStrLn stderr "Done"
+    return res
+readTempSamp (ReadTempSampParse noOrderCheck obs path) = do
+    hPutStrLn stderr "Reading age samples"
     hPutStrLn stderr $ "Parsing " ++ path
-    let nObs = length obs
+    let nObs = V.length obs
     -- determine number of samples to expect
     hPutStrLn stderr "Counting the number of age samples"
     nSamples <- Con.runConduitRes $
@@ -91,11 +105,23 @@ readTempSamp noOrderCheck obs path = do
                     Nothing -> return ()
             loop [] = return ()
 
-readSpatDist :: Bool -> V.Vector Observation -> V.Vector SpatPos -> FilePath -> IO SpatDistMatrix
-readSpatDist noOrderCheck obs spatGrid path = do
+data ReadSpatDistSpec =
+      ReadSpatDistDeserialise FilePath
+    | ReadSpatDistParse Bool (V.Vector Observation) (V.Vector SpatPos) FilePath
+
+readSpatDist :: ReadSpatDistSpec -> IO SpatDistMatrix
+readSpatDist (ReadSpatDistDeserialise path) = do
+    hPutStrLn stderr "Reading spatial distances"
+    hPutStrLn stderr $ "Deserialising " ++ path
+    hPutStrLn stderr "Warning: There is no input validation for serialised input"
+    res <- S.readFileDeserialise path
+    hPutStrLn stderr "Done"
+    return res
+readSpatDist (ReadSpatDistParse noOrderCheck obs spatGrid path) = do
+    hPutStrLn stderr "Reading spatial distances"
     hPutStrLn stderr $ "Parsing " ++ path
     let nObs = V.length obs
-        nGridPoints = length spatGrid
+        nGridPoints = V.length spatGrid
     distVec <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
@@ -132,31 +158,28 @@ readSpatDist noOrderCheck obs spatGrid path = do
                     Nothing -> return ()
             loop [] = return ()
 
+-- simpler parsers without additional file requirements
+
 readObservations :: FilePath -> IO (V.Vector Observation)
 readObservations path = do
     hPutStrLn stderr "Reading observations"
-    !res <- readToVector path
+    res <- readToVector path
     let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)
     return resWithID
 readArbitraryDimPos :: FilePath -> IO (V.Vector ArbitraryDimPos)
 readArbitraryDimPos path = do
     hPutStrLn stderr "Reading arbitrary-dimension grid positions"
-    !res <- readToVector path
+    res <- readToVector path
     return res
 readSpatPos :: FilePath -> IO (V.Vector SpatPos)
 readSpatPos path = do
     hPutStrLn stderr "Reading spatial grid positions"
-    !res <- readToVector path
+    res <- readToVector path
     let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)
     return resWithID
 
 readToVector :: (Csv.FromNamedRecord a, S.Serialise a) => FilePath -> IO (V.Vector a)
 readToVector path
-    | takeExtension path == ".tsv" = do
-        hPutStrLn stderr $ "Parsing " ++ path
-        res <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.sinkVector
-        hPutStrLn stderr "Done"
-        return res
     | takeExtension path == ".cbor" = do
         hPutStrLn stderr $ "Deserialising " ++ path
         hPutStrLn stderr "Warning: There is no input validation for serialised input"
@@ -164,7 +187,10 @@ readToVector path
         hPutStrLn stderr "Done"
         return res
     | otherwise = do
-        throwIO $ NormalException $ "Can not read " ++ path ++ " because it is neither a .tsv nor a .cbor file"
+        hPutStrLn stderr $ "Parsing " ++ path
+        res <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.sinkVector
+        hPutStrLn stderr "Done"
+        return res
 
 readCSVToList :: (Csv.FromNamedRecord a) => FilePath -> IO [a]
 readCSVToList path = do
