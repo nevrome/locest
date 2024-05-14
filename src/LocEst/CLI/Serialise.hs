@@ -19,8 +19,7 @@ data SpatDistFileSettings = SpatDistFileSettings {
 runSerialise :: SerialiseOptions -> IO ()
 runSerialise (SerialiseSpatDistFile (SpatDistFileSettings inSpatDistFile inObsFile inSpatGridFile noOrderCheck outFile)) = do
     -- read input
-    observationsUnindexed <- readObservations inObsFile
-    let observations = V.zipWith setIndex observationsUnindexed (V.generate (V.length observationsUnindexed) id)
+    observations <- readObservations inObsFile
     inSpatGridUnindexed <- readSpatPos inSpatGridFile
     let inSpatGrid = V.zipWith setIndex inSpatGridUnindexed (V.generate (V.length inSpatGridUnindexed) id)
     inSpatDists <- readSpatDist noOrderCheck observations inSpatGrid inSpatDistFile

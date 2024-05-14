@@ -42,7 +42,7 @@ data SearchGridSettings = SearchGridSettings {
 data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _stgsInSpatGridFile       :: FilePath
     , _stgsInTempGrid           :: [Int]
-    , _spaceSpaceTimeFilter     :: Maybe (Double,Double)
+    , _stgsSpaceTimeFilter      :: Maybe (Double,Double)
     , _stgsInSpatDistFile       :: Maybe FilePath
     , _stgsInObsTempSamplesFile :: Maybe FilePath
 } | ArbitraryDimGridSettings {
@@ -62,9 +62,7 @@ runSearch (
     -- number of threads
     numThreads <- setNumberOfThreads threads
     -- read observations
-    hPutStrLn stderr "Reading observations"
-    !observationsUnindexed <- readObservations inObsFile
-    let observations = V.zipWith setIndex observationsUnindexed (V.generate (V.length observationsUnindexed) id)
+    observations <- readObservations inObsFile
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
     indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings observations
@@ -130,9 +128,7 @@ readIndepVarsPredGrid
     observations = do
     hPutStrLn stderr "Assuming a spatiotemporal system"
     -- read spatial grid
-    hPutStrLn stderr "Reading spatial grid positions"
-    !inSpatGridUnindexed <- readSpatPos inSpatGridFile
-    let inSpatGrid = V.zipWith setIndex inSpatGridUnindexed (V.generate (V.length inSpatGridUnindexed) id)
+    inSpatGrid <- readSpatPos inSpatGridFile
     -- read spatial distances
     !inSpatDists <- case inSpatDistFile of
         Nothing   -> pure Nothing

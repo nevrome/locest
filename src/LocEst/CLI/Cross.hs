@@ -46,9 +46,7 @@ runCross (
     -- number of threads
     numThreads <- setNumberOfThreads threads
     -- read observations
-    hPutStrLn stderr "Reading observations"
-    !observationsUnindexed <- readObservations inObsFile
-    let observations = V.zipWith setIndex observationsUnindexed (V.generate (V.length observationsUnindexed) id)
+    observations <- readObservations inObsFile
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
     -- split test and training data

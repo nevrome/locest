@@ -342,6 +342,7 @@ data Observation = Observation {
     , _obsPos   :: HyperPos
 } deriving (Show, Generic)
 
+instance S.Serialise Observation
 instance NFData Observation
 instance Csv.FromNamedRecord Observation where
     parseNamedRecord m = do
@@ -369,6 +370,7 @@ data HyperPos = HyperPos {
     , _hyposDepVarsPos   :: DepVarsPos
 } deriving (Show, Generic)
 
+instance S.Serialise HyperPos
 instance NFData HyperPos
 instance Csv.FromNamedRecord HyperPos where
     parseNamedRecord m = do
@@ -437,6 +439,7 @@ instance Csv.ToField OutBool where
 newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]
     deriving (Eq, Show, Generic)
 
+instance S.Serialise DepVarsPos
 instance NFData DepVarsPos
 instance Csv.FromNamedRecord DepVarsPos where
     parseNamedRecord m = do
@@ -457,6 +460,7 @@ instance PseudoMap DepVarsPos Double where
 newtype ArbitraryDimPos = ArbitraryDimPos [(IndepVarName, Double)]
     deriving (Eq, Show, Ord, Generic)
 
+instance S.Serialise ArbitraryDimPos
 instance NFData ArbitraryDimPos
 instance Csv.FromNamedRecord ArbitraryDimPos where
     parseNamedRecord m = do
@@ -478,6 +482,7 @@ instance PseudoMap ArbitraryDimPos Double where
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos
     deriving (Eq, Show, Generic)
 
+instance S.Serialise IndepVarsPos
 instance NFData IndepVarsPos
 instance Csv.FromNamedRecord IndepVarsPos where
     parseNamedRecord m = do
@@ -501,6 +506,7 @@ data SpatTempPos = SpatTempPos {
     , _temporalPos :: TempPos
 } deriving (Eq, Show, Generic)
 
+instance S.Serialise SpatTempPos
 instance NFData SpatTempPos
 instance Csv.FromNamedRecord SpatTempPos where
     parseNamedRecord m = do
@@ -542,6 +548,7 @@ instance Csv.FromNamedRecord TempSample where
 newtype TempPos = TempPos YearBCAD
     deriving (Eq, Show, Generic)
 
+instance S.Serialise TempPos
 instance NFData TempPos
 instance Csv.FromNamedRecord TempPos where
     parseNamedRecord m = TempPos <$> filterLookup m "yearBCAD"
@@ -558,6 +565,7 @@ type YearRange = Word
 data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
     deriving (Eq, Show, Generic)
 
+instance S.Serialise SpatPos
 instance NFData SpatPos
 instance Csv.FromNamedRecord SpatPos where
     parseNamedRecord m = do
@@ -580,6 +588,7 @@ instance Identifiable SpatPos where
 data CartesianPos = CartesianPos Int (Maybe String) Double Double
     deriving (Eq, Show, Generic)
 
+instance S.Serialise CartesianPos
 instance NFData CartesianPos
 instance Csv.FromNamedRecord CartesianPos where
     parseNamedRecord m =
@@ -598,6 +607,7 @@ instance Identifiable CartesianPos where
 data LongLatPos = LongLatPos Int (Maybe String) Longitude Latitude
     deriving (Eq, Show, Generic)
 
+instance S.Serialise LongLatPos
 instance NFData LongLatPos
 instance Csv.FromNamedRecord LongLatPos where
     parseNamedRecord m =
@@ -621,6 +631,7 @@ makeLongitude x
     | x >= -180 && x <= 180 = pure (Longitude x)
     | otherwise             = fail $ "Longitude " ++ show x ++ " not between -180 and 180"
 
+instance S.Serialise Longitude
 instance NFData Longitude
 instance Csv.ToField Longitude where
     toField (Longitude x) = Csv.toField x
@@ -636,6 +647,7 @@ makeLatitude x
     | x >= -90 && x <= 90 = pure (Latitude x)
     | otherwise           = fail $ "Latitude " ++ show x ++ " not between -90 and 90"
 
+instance S.Serialise Latitude
 instance NFData Latitude
 instance Csv.ToField Latitude where
     toField (Latitude x) = Csv.toField x
