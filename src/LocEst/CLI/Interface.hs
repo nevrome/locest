@@ -61,18 +61,22 @@ parseConfigFile configFile = do
 -- optparse-applicative interface
 
 serialiseOptParser :: OP.Parser SerialiseOptions
-serialiseOptParser = SerialiseSpatDistFile <$> (
-                        SpatDistFileSettings <$>
-                            optParseInSpatDistMapFile
+serialiseOptParser = SerialiseOptions
+                    <$> ((
+                        SerialiseObsFile
+                        <$> optParseInObservationFile
+                        ) OP.<|> (
+                        SerialiseSpatDistFile
+                        <$> optParseInSpatDistMapFile
                         <*> optParseInObservationFile
                         <*> optParseInSpatGridFile
                         <*> optParseInSpatDistNoOrderCheck
-                        <*> optParseOutFile
-                        )
+                        ))
+                    <*> optParseOutFile
 
 searchOptParser :: OP.Parser SearchOptions
-searchOptParser = SearchOptions <$>
-                            optParseInObservationFile
+searchOptParser = SearchOptions
+                        <$> optParseInObservationFile
                         <*> optParseSearchGridSettings
                         <*> optParseKernDefString
                         <*> optParseNormalization
@@ -80,8 +84,8 @@ searchOptParser = SearchOptions <$>
                         <*> optParseOutFile
 
 varioOptParser :: OP.Parser VarioOptions
-varioOptParser = VarioOptions <$>
-                            optParseInObservationFile
+varioOptParser = VarioOptions
+                        <$> optParseInObservationFile
                         <*> optParseInNrBins
                         <*> optParseAcrossIndepVars
                         <*> optParseAcrossDepVars
@@ -89,8 +93,8 @@ varioOptParser = VarioOptions <$>
                         <*> optParseVariogramOutFile
 
 crossOptParser :: OP.Parser CrossOptions
-crossOptParser = CrossOptions <$>
-                            optParseInObservationFile
+crossOptParser = CrossOptions
+                        <$> optParseInObservationFile
                         <*> optParseCrossSettings
                         <*> optParseNumberOfThreads
                         <*> optParseOutFile

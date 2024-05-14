@@ -6,22 +6,32 @@ import           LocEst.Types
 import           System.IO       (hPutStrLn, stderr)
 import qualified Data.Vector as V
 
-data SerialiseOptions = SerialiseSpatDistFile SpatDistFileSettings
-
-data SpatDistFileSettings = SpatDistFileSettings {
-    _spfsInSpatDistFile    :: FilePath,
-    _spfsInObservationFile :: FilePath,
-    _spfsInInSpatGridFile  :: FilePath,
-    _spfsNoOrderCheck      :: Bool,
-    _spfsOutFile           :: FilePath
+data SerialiseOptions = SerialiseOptions {
+      _serialiseSet     :: SerialiseSet
+    , _serialiseOutFile :: FilePath
 }
 
+data SerialiseSet =
+      SerialiseObsFile {
+        _sofInObservationFile :: FilePath
+      }
+    | SerialiseSpatDistFile  {
+        _spfsInSpatDistFile    :: FilePath,
+        _spfsInObservationFile :: FilePath,
+        _spfsInInSpatGridFile  :: FilePath,
+        _spfsNoOrderCheck      :: Bool
+    }
+
 runSerialise :: SerialiseOptions -> IO ()
-runSerialise (SerialiseSpatDistFile (SpatDistFileSettings inSpatDistFile inObsFile inSpatGridFile noOrderCheck outFile)) = do
+runSerialise (SerialiseOptions (SerialiseObsFile inObsFile) outFile) = do
+    observations <- readObservations inObsFile
+    hPutStrLn stderr $ "Serialising observations to " ++ outFile
+    S.writeFileSerialise outFile observations
+    hPutStrLn stderr "Done"
+runSerialise (SerialiseOptions (SerialiseSpatDistFile inSpatDistFile inObsFile inSpatGridFile noOrderCheck) outFile) = do
     -- read input
     observations <- readObservations inObsFile
-    inSpatGridUnindexed <- readSpatPos inSpatGridFile
-    let inSpatGrid = V.zipWith setIndex inSpatGridUnindexed (V.generate (V.length inSpatGridUnindexed) id)
+    inSpatGrid <- readSpatPos inSpatGridFile
     inSpatDists <- readSpatDist noOrderCheck observations inSpatGrid inSpatDistFile
     -- serialise output
     hPutStrLn stderr $ "Serialising spatial distances to " ++ outFile

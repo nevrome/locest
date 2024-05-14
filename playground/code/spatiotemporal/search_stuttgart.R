@@ -31,6 +31,8 @@ system('time locest cross --configFile code/spatiotemporal/cross.conf')
 
 readr::read_tsv("data/spatiotemporal/cross.tsv") %>% View()
 
+# system('time locest serialise --obsFile data/spatiotemporal/obs.tsv --outFile data/spatiotemporal/obs.cbor')
+
 # normal search test
 system('time locest search --configFile code/spatiotemporal/basic.conf')
 
