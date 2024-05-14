@@ -11,20 +11,36 @@ data SerialiseOptions = SerialiseOptions {
 
 data SerialiseSet =
       SerialiseObsFile {
-        _sofInObservationFile :: FilePath
+        _sofInObservationFile  :: FilePath
+      }
+    | SerialiseSpatGridFile {
+        _ssgfInSpatGridFile    :: FilePath
+      }
+    | SerialiseAnyGridFile {
+        _sagfInAnyGridFile     :: FilePath
       }
     | SerialiseSpatDistFile  {
         _spfsInSpatDistFile    :: FilePath,
         _spfsInObservationFile :: FilePath,
-        _spfsInInSpatGridFile  :: FilePath,
+        _spfsInSpatGridFile    :: FilePath,
         _spfsNoOrderCheck      :: Bool
     }
 
 runSerialise :: SerialiseOptions -> IO ()
 runSerialise (SerialiseOptions (SerialiseObsFile inObsFile) outFile) = do
     observations <- readObservations inObsFile
-    hPutStrLn stderr $ "Serialising observations to " ++ outFile
+    hPutStrLn stderr $ "Serialising to " ++ outFile
     S.writeFileSerialise outFile observations
+    hPutStrLn stderr "Done"
+runSerialise (SerialiseOptions (SerialiseSpatGridFile inSpatGridFile) outFile) = do
+    inSpatGrid <- readSpatPos inSpatGridFile
+    hPutStrLn stderr $ "Serialising to " ++ outFile
+    S.writeFileSerialise outFile inSpatGrid
+    hPutStrLn stderr "Done"
+runSerialise (SerialiseOptions (SerialiseAnyGridFile inAnyGridFile) outFile) = do
+    inAnyGrid <- readArbitraryDimPos inAnyGridFile
+    hPutStrLn stderr $ "Serialising to " ++ outFile
+    S.writeFileSerialise outFile inAnyGrid
     hPutStrLn stderr "Done"
 runSerialise (SerialiseOptions (SerialiseSpatDistFile inSpatDistFile inObsFile inSpatGridFile noOrderCheck) outFile) = do
     -- read input
@@ -32,6 +48,6 @@ runSerialise (SerialiseOptions (SerialiseSpatDistFile inSpatDistFile inObsFile i
     inSpatGrid <- readSpatPos inSpatGridFile
     inSpatDists <- readSpatDist (ReadSpatDistParse noOrderCheck observations inSpatGrid inSpatDistFile)
     -- serialise output
-    hPutStrLn stderr $ "Serialising spatial distances to " ++ outFile
+    hPutStrLn stderr $ "Serialising to " ++ outFile
     S.writeFileSerialise outFile inSpatDists
     hPutStrLn stderr "Done"

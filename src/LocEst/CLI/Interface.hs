@@ -61,18 +61,47 @@ parseConfigFile configFile = do
 -- optparse-applicative interface
 
 serialiseOptParser :: OP.Parser SerialiseOptions
-serialiseOptParser = SerialiseOptions
-                    <$> ((
-                        SerialiseObsFile
-                        <$> optParseInObservationFile
-                        ) OP.<|> (
-                        SerialiseSpatDistFile
-                        <$> optParseInSpatDistMapFile
-                        <*> optParseInObservationFile
-                        <*> optParseInSpatGridFile
-                        <*> optParseInSpatDistNoOrderCheck
-                        ))
-                    <*> optParseOutFile
+serialiseOptParser = OP.subparser (
+                        OP.command "obs" (OP.info (OP.helper <*> (
+                            SerialiseOptions
+                            <$> (SerialiseObsFile
+                                 <$> optParseInObservationFile
+                                )
+                                <*> optParseOutFile
+                            ))
+                            (OP.progDesc "test.")
+                        )
+                    <> OP.command "spatGrid" (OP.info (OP.helper <*> (
+                            SerialiseOptions
+                            <$> (SerialiseSpatGridFile
+                                <$> optParseInSpatGridFile
+                                )
+                                <*> optParseOutFile
+                            ))
+                            (OP.progDesc "test.")
+                        )
+                    <> OP.command "anyGrid" (OP.info (OP.helper <*> (
+                            SerialiseOptions
+                            <$> (SerialiseSpatGridFile
+                                <$> optParseInArbitraryDimFile
+                                )
+                                <*> optParseOutFile
+                            ))
+                            (OP.progDesc "test.")
+                        )
+                    <> OP.command "spatDist" (OP.info (OP.helper <*> (
+                            SerialiseOptions
+                            <$> (SerialiseSpatDistFile
+                                 <$> optParseInSpatDistMapFile
+                                 <*> optParseInObservationFile
+                                 <*> optParseInSpatGridFile
+                                 <*> optParseInSpatDistNoOrderCheck
+                                )
+                                <*> optParseOutFile
+                            ))
+                            (OP.progDesc "test.")
+                        )
+                    )
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions
