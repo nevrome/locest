@@ -45,6 +45,7 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
     , _stgsSpaceTimeFilter      :: Maybe (Double,Double)
     , _stgsInSpatDistFile       :: Maybe FilePath
     , _stgsInObsTempSamplesFile :: Maybe FilePath
+    , _stgsNoOrderCheck         :: Bool
 } | ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
 }
@@ -124,6 +125,7 @@ readIndepVarsPredGrid
         inSpaceTimeFilter
         inSpatDistFile
         inObsTempSamplesFile
+        noOrderCheck
     )
     observations = do
     hPutStrLn stderr "Assuming a spatiotemporal system"
@@ -133,14 +135,14 @@ readIndepVarsPredGrid
     inSpatDists <- case inSpatDistFile of
         Nothing   -> pure Nothing
         Just path -> case takeExtension path of
-            ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path) -- ToDo: input option for noCheck
-            _       -> Just <$> readSpatDist (ReadSpatDistParse False observations inSpatGrid path)
+            ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
+            _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations inSpatGrid path)
     -- read temporal distances
     inObsTempSamples <- case inObsTempSamplesFile of
         Nothing   -> pure Nothing
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
-            _       -> Just <$> readTempSamp (ReadTempSampParse False observations path)
+            _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
     -- input validation
     case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> return ()

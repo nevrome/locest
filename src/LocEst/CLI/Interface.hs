@@ -231,6 +231,7 @@ optParseIndepVarsPredGridSettings =
         <*> optParseSpaceTimeFilter
         <*> OP.optional optParseInSpatDistMapFile
         <*> OP.optional optParseInObsTempSamplesFile
+        <*> optParseInSpatDistNoOrderCheck
     ) OP.<|>
     (ArbitraryDimGridSettings <$> optParseInArbitraryDimFile)
 
