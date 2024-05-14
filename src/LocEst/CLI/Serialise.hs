@@ -29,25 +29,21 @@ data SerialiseSet =
 runSerialise :: SerialiseOptions -> IO ()
 runSerialise (SerialiseOptions (SerialiseObsFile inObsFile) outFile) = do
     observations <- readObservations inObsFile
-    hPutStrLn stderr $ "Serialising to " ++ outFile
-    S.writeFileSerialise outFile observations
-    hPutStrLn stderr "Done"
+    write outFile observations
 runSerialise (SerialiseOptions (SerialiseSpatGridFile inSpatGridFile) outFile) = do
-    inSpatGrid <- readSpatPos inSpatGridFile
-    hPutStrLn stderr $ "Serialising to " ++ outFile
-    S.writeFileSerialise outFile inSpatGrid
-    hPutStrLn stderr "Done"
+    inSpatGrid   <- readSpatPos inSpatGridFile
+    write outFile inSpatGrid
 runSerialise (SerialiseOptions (SerialiseAnyGridFile inAnyGridFile) outFile) = do
-    inAnyGrid <- readArbitraryDimPos inAnyGridFile
-    hPutStrLn stderr $ "Serialising to " ++ outFile
-    S.writeFileSerialise outFile inAnyGrid
-    hPutStrLn stderr "Done"
+    inAnyGrid    <- readArbitraryDimPos inAnyGridFile
+    write outFile inAnyGrid
 runSerialise (SerialiseOptions (SerialiseSpatDistFile inSpatDistFile inObsFile inSpatGridFile noOrderCheck) outFile) = do
-    -- read input
     observations <- readObservations inObsFile
-    inSpatGrid <- readSpatPos inSpatGridFile
-    inSpatDists <- readSpatDist (ReadSpatDistParse noOrderCheck observations inSpatGrid inSpatDistFile)
-    -- serialise output
-    hPutStrLn stderr $ "Serialising to " ++ outFile
-    S.writeFileSerialise outFile inSpatDists
+    inSpatGrid   <- readSpatPos inSpatGridFile
+    inSpatDists  <- readSpatDist (ReadSpatDistParse noOrderCheck observations inSpatGrid inSpatDistFile)
+    write outFile inSpatDists
+
+write :: S.Serialise a => FilePath -> a -> IO ()
+write path x = do
+    hPutStrLn stderr $ "Serialising to " ++ path
+    S.writeFileSerialise path x
     hPutStrLn stderr "Done"
