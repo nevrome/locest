@@ -71,7 +71,7 @@ serialiseOptParser = OP.subparser (
                             ))
                             (OP.progDesc "test.")
                         )
-                    <> OP.command "spatGrid" (OP.info (OP.helper <*> (
+                    <> OP.command "spatgrid" (OP.info (OP.helper <*> (
                             SerialiseOptions
                             <$> (SerialiseSpatGridFile
                                 <$> optParseInSpatGridFile
@@ -80,7 +80,7 @@ serialiseOptParser = OP.subparser (
                             ))
                             (OP.progDesc "test.")
                         )
-                    <> OP.command "anyGrid" (OP.info (OP.helper <*> (
+                    <> OP.command "anygrid" (OP.info (OP.helper <*> (
                             SerialiseOptions
                             <$> (SerialiseSpatGridFile
                                 <$> optParseInArbitraryDimFile
@@ -89,12 +89,23 @@ serialiseOptParser = OP.subparser (
                             ))
                             (OP.progDesc "test.")
                         )
-                    <> OP.command "spatDist" (OP.info (OP.helper <*> (
+                    <> OP.command "spatdist" (OP.info (OP.helper <*> (
                             SerialiseOptions
                             <$> (SerialiseSpatDistFile
                                  <$> optParseInSpatDistMapFile
                                  <*> optParseInObservationFile
                                  <*> optParseInSpatGridFile
+                                 <*> optParseInSpatDistNoOrderCheck
+                                )
+                                <*> optParseOutFile
+                            ))
+                            (OP.progDesc "test.")
+                        )
+                    <> OP.command "tempsamp" (OP.info (OP.helper <*> (
+                            SerialiseOptions
+                            <$> (SerialiseObsTempSamplesFile
+                                 <$> optParseInObservationFile
+                                 <*> optParseInObsTempSamplesFile
                                  <*> optParseInSpatDistNoOrderCheck
                                 )
                                 <*> optParseOutFile
@@ -223,13 +234,12 @@ optParseInObservationFile = OP.strOption (
     <> OP.help    "Path to the .tsv file with input observations to inform the field."
     )
 
-optParseInObsTempSamplesFile :: OP.Parser (Maybe FilePath)
-optParseInObsTempSamplesFile = OP.option (Just <$> OP.str) (
+optParseInObsTempSamplesFile :: OP.Parser FilePath
+optParseInObsTempSamplesFile = OP.strOption (
     OP.long "tempSampFile" <>
     OP.metavar "FILE" <>
     OP.help "Path to file with the random age permutations per sample, \
-            \e.g. produced with currycarbon." <>
-    OP.value Nothing
+            \e.g. produced with currycarbon."
     )
 
 optParseSearchGridSettings :: OP.Parser SearchGridSettings
@@ -245,7 +255,7 @@ optParseIndepVarsPredGridSettings =
         <*> optParseTempGridString
         <*> optParseSpaceTimeFilter
         <*> OP.optional optParseInSpatDistMapFile
-        <*> optParseInObsTempSamplesFile
+        <*> OP.optional optParseInObsTempSamplesFile
     ) OP.<|>
     (ArbitraryDimGridSettings <$> optParseInArbitraryDimFile)
 

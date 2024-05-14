@@ -88,7 +88,7 @@ subcommandParser = OP.subparser (
            OP.command "serialise" serialiseOptInfo
         <> OP.command "search" searchOptInfo
         <> OP.command "vario" varioOptInfo
-         <> OP.command "cross" crossOptInfo
+        <> OP.command "cross" crossOptInfo
     )
     where
         serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))

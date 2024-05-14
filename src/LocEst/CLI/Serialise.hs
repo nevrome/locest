@@ -11,20 +11,25 @@ data SerialiseOptions = SerialiseOptions {
 
 data SerialiseSet =
       SerialiseObsFile {
-        _sofInObservationFile  :: FilePath
+        _sofInObservationFile     :: FilePath
       }
     | SerialiseSpatGridFile {
-        _ssgfInSpatGridFile    :: FilePath
+        _ssgfInSpatGridFile       :: FilePath
       }
     | SerialiseAnyGridFile {
-        _sagfInAnyGridFile     :: FilePath
+        _sagfInAnyGridFile        :: FilePath
       }
     | SerialiseSpatDistFile  {
-        _spfsInSpatDistFile    :: FilePath,
-        _spfsInObservationFile :: FilePath,
-        _spfsInSpatGridFile    :: FilePath,
-        _spfsNoOrderCheck      :: Bool
-    }
+        _spfsInSpatDistFile       :: FilePath,
+        _spfsInObservationFile    :: FilePath,
+        _spfsInSpatGridFile       :: FilePath,
+        _spfsNoOrderCheck         :: Bool
+      }
+    | SerialiseObsTempSamplesFile  {
+        _sotsInObservationFile    :: FilePath,
+        _sotsInObsTempSamplesFile :: FilePath,
+        _sotsNoOrderCheck         :: Bool
+      }
 
 runSerialise :: SerialiseOptions -> IO ()
 runSerialise (SerialiseOptions (SerialiseObsFile inObsFile) outFile) = do
@@ -41,6 +46,10 @@ runSerialise (SerialiseOptions (SerialiseSpatDistFile inSpatDistFile inObsFile i
     inSpatGrid   <- readSpatPos inSpatGridFile
     inSpatDists  <- readSpatDist (ReadSpatDistParse noOrderCheck observations inSpatGrid inSpatDistFile)
     write outFile inSpatDists
+runSerialise (SerialiseOptions (SerialiseObsTempSamplesFile inObsFile inObsTempSamplesFile noOrderCheck) outFile) = do
+    observations <- readObservations inObsFile
+    inTempSamps  <- readTempSamp (ReadTempSampParse noOrderCheck observations inObsTempSamplesFile)
+    write outFile inTempSamps
 
 write :: S.Serialise a => FilePath -> a -> IO ()
 write path x = do
