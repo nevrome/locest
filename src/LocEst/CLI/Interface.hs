@@ -61,58 +61,33 @@ parseConfigFile configFile = do
 -- optparse-applicative interface
 
 serialiseOptParser :: OP.Parser SerialiseOptions
-serialiseOptParser = OP.subparser (
+serialiseOptParser = SerialiseOptions <$> OP.subparser (
                         OP.command "obs" (OP.info (OP.helper <*> (
-                            SerialiseOptions
-                            <$> (SerialiseObsFile
-                                 <$> optParseInObservationFile
-                                )
-                                <*> optParseOutFile
-                            ))
-                            (OP.progDesc "test.")
-                        )
-                    <> OP.command "spatgrid" (OP.info (OP.helper <*> (
-                            SerialiseOptions
-                            <$> (SerialiseSpatGridFile
-                                <$> optParseInSpatGridFile
-                                )
-                                <*> optParseOutFile
-                            ))
-                            (OP.progDesc "test.")
-                        )
-                    <> OP.command "anygrid" (OP.info (OP.helper <*> (
-                            SerialiseOptions
-                            <$> (SerialiseSpatGridFile
-                                <$> optParseInArbitraryDimFile
-                                )
-                                <*> optParseOutFile
-                            ))
-                            (OP.progDesc "test.")
-                        )
-                    <> OP.command "spatdist" (OP.info (OP.helper <*> (
-                            SerialiseOptions
-                            <$> (SerialiseSpatDistFile
-                                 <$> optParseInSpatDistMapFile
-                                 <*> optParseInObservationFile
-                                 <*> optParseInSpatGridFile
-                                 <*> optParseInSpatDistNoOrderCheck
-                                )
-                                <*> optParseOutFile
-                            ))
-                            (OP.progDesc "test.")
-                        )
-                    <> OP.command "tempsamp" (OP.info (OP.helper <*> (
-                            SerialiseOptions
-                            <$> (SerialiseObsTempSamplesFile
-                                 <$> optParseInObservationFile
-                                 <*> optParseInObsTempSamplesFile
-                                 <*> optParseInSpatDistNoOrderCheck
-                                )
-                                <*> optParseOutFile
-                            ))
-                            (OP.progDesc "test.")
-                        )
-                    )
+                            SerialiseObsFile
+                            <$> optParseInObservationFile
+                            )) (OP.progDesc "Serialise --obsFile."))
+                     <> OP.command "spatgrid" (OP.info (OP.helper <*> (
+                            SerialiseSpatGridFile
+                            <$> optParseInSpatGridFile
+                            )) (OP.progDesc "Serialise --spatGridFile."))
+                     <> OP.command "anygrid" (OP.info (OP.helper <*> (
+                            SerialiseSpatGridFile
+                            <$> optParseInArbitraryDimFile
+                            )) (OP.progDesc "Serialise --anyGridFile."))
+                     <> OP.command "spatdist" (OP.info (OP.helper <*> (
+                            SerialiseSpatDistFile
+                            <$> optParseInSpatDistMapFile
+                            <*> optParseInObservationFile
+                            <*> optParseInSpatGridFile
+                            <*> optParseInSpatDistNoOrderCheck
+                            )) (OP.progDesc "Serialise --spatDistFile."))
+                     <> OP.command "tempsamp" (OP.info (OP.helper <*> (
+                            SerialiseObsTempSamplesFile
+                            <$> optParseInObservationFile
+                            <*> optParseInObsTempSamplesFile
+                            <*> optParseInSpatDistNoOrderCheck
+                            )) (OP.progDesc "Serialise --tempSampFile."))
+                     ) <*> optParseOutFile
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions
