@@ -22,6 +22,8 @@ import           Data.List                     (sortBy)
 import           Data.Maybe                    (mapMaybe)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
+import qualified Data.Vector as V
+import Immutable.Shuffle (shuffle)
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile :: FilePath
@@ -46,7 +48,7 @@ runCross (
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
-    let observations = zipWith setIndex observationsUnindexed [0..]
+    let observations = V.zipWith setIndex observationsUnindexed (V.generate (V.length observationsUnindexed) id)
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
     -- split test and training data
@@ -58,7 +60,7 @@ runCross (
                     let (seed,_) = R.genWord32 rng
                     return $ fromIntegral seed
                 Just seed -> pure seed
-    let testTrainingIterations = map (\i -> splitTestTraining observations numTestObs (seed + i)) [1..iterations]
+    let testTrainingIterations = V.map (\i -> splitTestTraining observations numTestObs (seed + i)) (V.generate iterations id)
     -- determine nr of permutations
     let numKernDefs = length kernDefs
         numPerms = iterations * numTestObs * numKernDefs
@@ -92,7 +94,7 @@ runCross (
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
     where
-        oneIterationConduit :: Int -> ([Observation],[Observation]) -> ConduitT ([Observation],[Observation]) (Either LOCESTException SearchResult) (ResourceT IO) ()
+        oneIterationConduit :: Int -> (V.Vector Observation, V.Vector Observation) -> ConduitT (V.Vector Observation, V.Vector Observation) (Either LOCESTException SearchResult) (ResourceT IO) ()
         oneIterationConduit maxNumThreads (testData,trainingData) = do
             ConC.yieldMany testData
                 -- multiply multidimensional positions by algorithms
@@ -117,21 +119,21 @@ sortFunc (SearchResult (CorePermutation _ _ kernDefA _) _ _)
          (SearchResult (CorePermutation _ _ kernDefB _) _ _) =
     compare kernDefA kernDefB
 
-splitTestTraining :: [a] -> Int -> Int -> ([a], [a])
+splitTestTraining :: V.Vector a -> Int -> Int -> (V.Vector a, V.Vector a)
 splitTestTraining observations numTestObs seedOneIteration =
     let rng = R.mkStdGen seedOneIteration
-        observationsShuffled = shuffle observations rng
-    in splitAt numTestObs observationsShuffled
+        (observationsShuffled,_) = shuffle observations rng
+    in V.splitAt numTestObs observationsShuffled
 
 -- this was written by ChatGPT after I wasted a very sad hour with the random-fu package
 -- should probably be replaced with sth more reliable and faster
-shuffle :: [a] -> R.StdGen -> [a]
-shuffle [] _ = []
-shuffle xs rng =
-  let (randomIndex,rngNext) = uniformR (0, length xs - 1) rng
-      (left, right) = splitAt randomIndex xs
-      rest = shuffle (left ++ tail right) rngNext
-  in (head right : rest)
+--shuffle :: V.Vector a -> R.StdGen -> V.Vector a
+--shuffle empty _ = V.empty
+--shuffle xs rng =
+--  let (randomIndex,rngNext) = uniformR (0, length xs - 1) rng
+--      (left, right) = splitAt randomIndex xs
+--      rest = shuffle (left ++ tail right) rngNext
+--  in (head right : rest)
 
 multiplyByAlgorithms ::
        [KernelDefinition]

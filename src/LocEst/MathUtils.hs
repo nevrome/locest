@@ -4,6 +4,7 @@ import           Data.List                         (foldl')
 import           Statistics.Distribution.StudentT  (StudentT,
                                                     studentTUnstandardized)
 import           Statistics.Distribution.Transform (LinearTransform)
+import qualified Data.Vector.Unboxed as VU
 
 infinity :: Fractional a => a
 infinity = 1/0
@@ -28,9 +29,9 @@ weightedAvg :: [Double] -> [Double] -> Double
 weightedAvg values weights =
     foldl' (\o (v,w) -> o + v * w) 0 (zip values weights) / foldSum weights
 
-weightedAvg_ :: Double -> [Double] -> [Double] -> Double
+weightedAvg_ :: Double -> VU.Vector Double -> VU.Vector Double -> Double
 weightedAvg_ totalWeight values weights =
-    foldl' (\o (v,w) -> o + v * w) 0 (zip values weights) / totalWeight
+    VU.foldl' (\o (v,w) -> o + v * w) 0 (VU.zip values weights) / totalWeight
 
 weightedVar :: [Double] -> [Double] -> Double
 weightedVar values weights =
@@ -41,11 +42,11 @@ weightedVar values weights =
         neff1 = totalWeight - 1
         totalWeight = foldSum weights
 
-weightedVar_ :: Double -> Double -> [Double] -> [Double] -> Double
+weightedVar_ :: Double -> Double -> VU.Vector Double -> VU.Vector Double -> Double
 weightedVar_ totalWeight weightedMean values weights =
     numerator / neff1
     where
-        numerator = foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights)
+        numerator = VU.foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (VU.zip values weights)
         neff1 = totalWeight - 1
 
 weightedSD :: [Double] -> [Double] -> Double

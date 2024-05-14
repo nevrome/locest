@@ -37,6 +37,7 @@ library
       , vector-algorithms
       , optparse-applicative
       , parsec
+      , perfect-vector-shuffle
       , mtl
       , random
       , serialise

@@ -23,6 +23,7 @@ import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (catMaybes)
 import           LocEst.MathUtils
 import           System.IO                     (hPutStrLn, stderr)
+import qualified Data.Vector as V
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
@@ -63,7 +64,7 @@ runSearch (
     -- read observations
     hPutStrLn stderr "Reading observations"
     !observationsUnindexed <- readObservations inObsFile
-    let observations = zipWith setIndex observationsUnindexed [0..]
+    let observations = V.zipWith setIndex observationsUnindexed (V.generate (V.length observationsUnindexed) id)
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
     indepVarsPredGrid <- readIndepVarsPredGrid indepVarsPredGridSettings observations
@@ -116,7 +117,7 @@ printErrors errMsg = liftIO $ hPutStrLn stderr (show (length errMsg) ++ " * " ++
 
 readIndepVarsPredGrid ::
        IndepVarsPredGridSettings
-    -> [Observation]
+    -> V.Vector Observation
     -> IO IndepVarsPredGrid
 readIndepVarsPredGrid
     (SpaceTimeGridSettings
@@ -131,7 +132,7 @@ readIndepVarsPredGrid
     -- read spatial grid
     hPutStrLn stderr "Reading spatial grid positions"
     !inSpatGridUnindexed <- readSpatPos inSpatGridFile
-    let inSpatGrid = zipWith setIndex inSpatGridUnindexed [0..]
+    let inSpatGrid = V.zipWith setIndex inSpatGridUnindexed (V.generate (V.length inSpatGridUnindexed) id)
     -- read spatial distances
     !inSpatDists <- case inSpatDistFile of
         Nothing   -> pure Nothing
@@ -146,7 +147,7 @@ readIndepVarsPredGrid
             hPutStrLn stderr "Reading temporal resampling ages"
             Just <$> readTempSamp False observations path
     -- input validation
-    case head $ map (_hyposIndepVarsPos . _obsPos) observations of
+    case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> return ()
             IndepArbitraryDimPos _ ->
                 throw $ NormalException "spatiotemporal positions in --obsFile not readable, \
@@ -163,23 +164,23 @@ readIndepVarsPredGrid
     hPutStrLn stderr "Reading arbitrary-dimension grid positions"
     !inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
     -- input validation
-    let varsFromObs = case head $ map (_hyposIndepVarsPos . _obsPos) observations of
+    let varsFromObs = case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> []
             IndepArbitraryDimPos x -> getKeys x
-    let varsFromGrid = getKeys $ head inArbitraryDimPos
+    let varsFromGrid = getKeys $ V.head inArbitraryDimPos
     OP.when (varsFromObs /= varsFromGrid) $ do
         throw $ NormalException "indep vars in --obsFile and --anyGridFile not equal"
     return $ ArbitraryDimGrid inArbitraryDimPos
 
 readDepVarsPredGrid ::
        [DepVarsPos]
-    -> [Observation]
+    -> V.Vector Observation
     -> IO DepVarsPredGrid
 readDepVarsPredGrid
     depVarsPos
     observations = do
     -- input validation
-    let varsFromObs  = getKeys $ (_hyposDepVarsPos . _obsPos) $ head observations
+    let varsFromObs  = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
         varsFromGrid = getKeys $ head depVarsPos
     OP.when (varsFromObs /= varsFromGrid) $ do
         throw $ NormalException "dep vars in --obsFile and --depVars not equal"
@@ -207,7 +208,7 @@ validateAlgorithmInterpol
     (KernelDefinition kernelsPerDepVars)
     (ArbitraryDimGrid arbitraryDimPos) = do
         let allIndepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
-            indepVarsFromGrid = head $ map getKeys arbitraryDimPos
+            indepVarsFromGrid = getKeys $ V.head  arbitraryDimPos
         OP.unless (allEqual allIndepVarsFromAlg) $
             throw $ NormalException "indep var names not equal across kernel definitions"
         OP.unless (head allIndepVarsFromAlg == indepVarsFromGrid) $
@@ -225,16 +226,16 @@ validateAlgorithmSearch
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
     [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp
-    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos <- V.toList inSpatGrid]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
     [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp
-    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- inSpatGrid]
+    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- V.toList inSpatGrid]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
     [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0
-    | indepPos <- gridPos, depPos <- depVarPos]
+    | indepPos <- V.toList gridPos, depPos <- depVarPos]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
     [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
-    | indepPos <- gridPos]
+    | indepPos <- V.toList gridPos]
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n

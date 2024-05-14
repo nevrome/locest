@@ -25,6 +25,7 @@ import           Data.IORef                (modifyIORef, newIORef, readIORef)
 import           LocEst.Utils              (LOCESTException (NormalException))
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
+import qualified Data.Vector as V
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -37,7 +38,7 @@ encodingOptions = Csv.defaultEncodeOptions {
       Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
-readTempSamp :: Bool -> [Observation] -> FilePath -> IO TempSampleMatrix
+readTempSamp :: Bool -> V.Vector Observation -> FilePath -> IO TempSampleMatrix
 readTempSamp noOrderCheck obs path = do
     hPutStrLn stderr $ "Parsing " ++ path
     let nObs = length obs
@@ -46,13 +47,13 @@ readTempSamp noOrderCheck obs path = do
     nSamples <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
-        ConC.takeWhile (\(TempSample obsID _) -> obsID == _obsID (head obs)) .|
+        ConC.takeWhile (\(TempSample obsID _) -> obsID == _obsID (V.head obs)) .|
         ConC.length
     if nSamples > 0
     then hPutStrLn stderr $ "Expected age samples per observation: " ++ show nSamples
     else liftIO $ throwIO $ NormalException $
         "Order of entries in --tempSampFile not equal to -i. " ++
-        "Expected first value: " ++ _obsID (head obs)
+        "Expected first value: " ++ _obsID (V.head obs)
     -- start the actual parsing
     sampleVec <- Con.runConduitRes $
         sourceCSV path .|
@@ -87,10 +88,10 @@ readTempSamp noOrderCheck obs path = do
                     Nothing -> return ()
             loop [] = return ()
 
-readSpatDist :: Bool -> [Observation] -> [SpatPos] -> FilePath -> IO SpatDistMatrix
+readSpatDist :: Bool -> V.Vector Observation -> V.Vector SpatPos -> FilePath -> IO SpatDistMatrix
 readSpatDist noOrderCheck obs spatGrid path = do
     hPutStrLn stderr $ "Parsing " ++ path
-    let nObs = length obs
+    let nObs = V.length obs
         nGridPoints = length spatGrid
     distVec <- Con.runConduitRes $
         sourceCSV path .|
@@ -106,9 +107,9 @@ readSpatDist noOrderCheck obs spatGrid path = do
     where
     checkOrder :: (MonadIO m) => ConduitT SpatDistObsGrid Double m ()
     checkOrder = do
-        let outerCycle = map getID obs
-            innerCycle = map getID spatGrid
-            fullCycle  = [(o,i) | o <- outerCycle, i <- innerCycle]
+        let outerCycle = V.map getID obs
+            innerCycle = V.map getID spatGrid
+            fullCycle  = [(o,i) | o <- V.toList outerCycle, i <- V.toList innerCycle]
         loop fullCycle
         where
             loop (expected:rest) = do
@@ -128,14 +129,21 @@ readSpatDist noOrderCheck obs spatGrid path = do
                     Nothing -> return ()
             loop [] = return ()
 
-readObservations :: FilePath -> IO [Observation]
-readObservations = readCSVToList
-readHyperPos :: FilePath -> IO [HyperPos]
-readHyperPos = readCSVToList
-readArbitraryDimPos :: FilePath -> IO [ArbitraryDimPos]
-readArbitraryDimPos = readCSVToList
-readSpatPos :: FilePath -> IO [SpatPos]
-readSpatPos = readCSVToList
+readObservations :: FilePath -> IO (V.Vector Observation)
+readObservations = readCSVToVector
+readHyperPos :: FilePath -> IO (V.Vector HyperPos)
+readHyperPos = readCSVToVector
+readArbitraryDimPos :: FilePath -> IO (V.Vector ArbitraryDimPos)
+readArbitraryDimPos = readCSVToVector
+readSpatPos :: FilePath -> IO (V.Vector SpatPos)
+readSpatPos = readCSVToVector
+
+readCSVToVector :: (Csv.FromNamedRecord a) => FilePath -> IO (V.Vector a)
+readCSVToVector path = do
+    hPutStrLn stderr $ "Parsing " ++ path
+    parseRes <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.sinkVector
+    hPutStrLn stderr "Done"
+    return parseRes
 
 readCSVToList :: (Csv.FromNamedRecord a) => FilePath -> IO [a]
 readCSVToList path = do
