@@ -88,11 +88,11 @@ runSearch (
         ConC.yieldMany permutations
         -- main search algorithm
         -- 1. sequential
-        -- .| ConL.map coreSearch
+        -- .| ConL.map core
         -- 2. normal parallel
-        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (coreSearch supplement observations x))
+        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (core supplement observations x))
         -- 3. chunked parallel
-        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map coreSearch) .| ConL.concat
+        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map core) .| ConL.concat
         -- print progress information
         .| progress 1000 (Just numPerms)
         -- split stream to report the error cases and write the good results to the file system

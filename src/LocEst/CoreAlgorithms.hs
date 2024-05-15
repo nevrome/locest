@@ -13,8 +13,8 @@ import qualified Data.Vector.Unboxed as VU
 
 type CoreLog = E.Except LOCESTException
 
-coreSearch :: CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog SearchResult
-coreSearch supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+core :: CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog SearchResult
+core supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
     let obsWithDist = V.mapMaybe (getDist supp sett) observations
     -- determine (interpolated) posterior predictive distributions per depVar for this position,
