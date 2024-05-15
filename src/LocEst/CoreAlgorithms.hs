@@ -29,7 +29,7 @@ core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDef
     let valuePerDepVar = case searchDepVarPos of
             Just x  -> Just <$> getValues x
             Nothing -> replicate (length namePerDepVar) Nothing
-    interpolPerDepVarFull <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithWeights) $ zip namePerDepVar valuePerDepVar
+    interpolPerDepVarFull <- mapM (interpolAndSearchOneDepVar obsWithWeights) $ zip namePerDepVar valuePerDepVar
     let interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull -> interpolPerDepVarFull
@@ -39,7 +39,7 @@ core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDef
          , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srProbability     = case mapMaybe getProbability interpolPerDepVarFull of
             [] -> Nothing
-            xs -> Just $ foldSum xs
+            xs -> Just $ foldSum xs -- TODO: Should probably be a product
          }
 
 getWeightsPerObs :: CoreSupplement -> CorePermutation -> [DepVarName] -> Observation -> CoreLog (Maybe ObsWithWeights)
@@ -94,8 +94,8 @@ getWeightsPerObs
 getWeightsPerObs _ _ _ _ = pure Nothing
 
 weightPerDepVar :: KernelDefinition -> [Double] -> DepVarName -> CoreLog (DepVarName, Double)
-weightPerDepVar kernelDefinition dists depVar  = do
-    (shape,nugget,lengths) <- getKernelForOneDepVar kernelDefinition depVar
+weightPerDepVar (KernelDefinition kernelsPerDepVar) dists depVar  = do
+    (shape,nugget,lengths) <- getKernelForOneDepVar
     let sqWeiDist = foldSum (zipWith (\d t -> (d / t) ** 2) dists (getValues lengths))
     let weight = weightByKernel shape nugget sqWeiDist
     return (depVar, weight)
@@ -103,15 +103,15 @@ weightPerDepVar kernelDefinition dists depVar  = do
         weightByKernel :: KernelShape -> KernelNugget -> Double -> Double
         weightByKernel SquaredExponential nugget d = nugget / (nugget + exp d - 1)
         weightByKernel Linear             nugget d = nugget / (nugget + sqrt d)
-        getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (KernelShape, KernelNugget, KernelLengths)
-        getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
+        getKernelForOneDepVar :: CoreLog (KernelShape, KernelNugget, KernelLengths)
+        getKernelForOneDepVar = do
             case filter (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
                 []                    -> E.throwError $ NormalException "Variable not defined in kernel definition"
                 [KernelOneDepVar _ s n k] -> pure (s, n, k)
                 _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel definition"
 
-interpolAndSearchOneDepVar :: KernelDefinition -> V.Vector ObsWithWeights -> (DepVarName, Maybe Double) -> CoreLog InterpolationResultOneDepVar
-interpolAndSearchOneDepVar kernelDefinition obsWithWeights (depVar,maybeValueDepVar) = do
+interpolAndSearchOneDepVar :: V.Vector ObsWithWeights -> (DepVarName, Maybe Double) -> CoreLog InterpolationResultOneDepVar
+interpolAndSearchOneDepVar obsWithWeights (depVar,maybeValueDepVar) = do
     values <- VU.convert <$> V.mapM (getDepVarValuePerObs depVar) obsWithWeights
     weights <- VU.convert <$> V.mapM (getDepVarWeightPerObs depVar) obsWithWeights
     let totalWeight = VU.sum weights
