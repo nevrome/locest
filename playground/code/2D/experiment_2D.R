@@ -58,13 +58,7 @@ system('locest search --configFile code/2D/experiment_2D.conf')
 
 #res <- readr::read_tsv(file = "data/2D/interpol.tsv")
 
-res <- readr::read_tsv("data/2D/interpol.tsv") %>%
-  dplyr::mutate(
-    dplyr::across(
-      tidyselect::ends_with(c("low", "up")),
-      \(x) { stringr::str_replace(x, "Infinity", "Inf") %>% as.numeric() }
-    )
-  )
+res <- readr::read_tsv("data/2D/interpol.tsv")
 
 p <- ggplot() +
   geom_point(

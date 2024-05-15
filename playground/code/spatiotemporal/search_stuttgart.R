@@ -36,13 +36,7 @@ readr::read_tsv("data/spatiotemporal/cross.tsv") %>% View()
 # normal search test
 system('time locest search --configFile code/spatiotemporal/basic.conf')
 
-hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv") %>%
-  dplyr::mutate(
-    dplyr::across(
-      tidyselect::ends_with(c("low", "up")),
-      \(x) { stringr::str_replace(x, "Infinity", "Inf") %>% as.numeric() }
-    )
-  )
+hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
 hu5 %>%
   dplyr::filter(temp_sampling_iteration == 0) %>%

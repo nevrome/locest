@@ -6,6 +6,8 @@
 
 module LocEst.Types where
 
+import LocEst.MathUtils
+
 import qualified Codec.Serialise       as S
 import           Control.Applicative   (empty, (<|>))
 import           Control.DeepSeq
@@ -401,20 +403,20 @@ getProbability i@(InterpolationResultOneDepVarFull {})  = _irodvProbability i
 
 data InterpolationResultOneDepVar =
       InterpolationResultOneDepVarShort {
-          _irodvsDepVarName  :: DepVarName -- name of the dependent variable
-        , _irodvsLowerBound  :: Double     -- lower boundary of the 95% interval
-        , _irodvsMedian      :: Double     -- median
-        , _irodvsUpperBound  :: Double     -- upper boundary of the 95% interval
+          _irodvsDepVarName  :: DepVarName   -- name of the dependent variable
+        , _irodvsLowerBound  :: OutInfDouble -- lower boundary of the 95% interval
+        , _irodvsMedian      :: Double       -- median
+        , _irodvsUpperBound  :: OutInfDouble -- upper boundary of the 95% interval
     } 
     | InterpolationResultOneDepVarFull {
-          _irodvDepVarName  :: DepVarName -- name of the dependent variable
-        , _irodvEffN        :: Double     -- effective number of samples
-        , _irodvWeightedAvg :: Double     -- weighted average
-        , _irodvWeightedVar :: Double     -- weighted variance
-        , _irodvPosterior   :: OutBool    -- could a posterior distribution be calculated?
-        , _irodvLowerBound  :: Double     -- lower boundary of the 95% interval
-        , _irodvMedian      :: Double     -- median
-        , _irodvUpperBound  :: Double     -- upper boundary of the 95% interval
+          _irodvDepVarName  :: DepVarName    -- name of the dependent variable
+        , _irodvEffN        :: Double        -- effective number of samples
+        , _irodvWeightedAvg :: Double        -- weighted average
+        , _irodvWeightedVar :: Double        -- weighted variance
+        , _irodvPosterior   :: OutBool       -- could a posterior distribution be calculated?
+        , _irodvLowerBound  :: OutInfDouble  -- lower boundary of the 95% interval
+        , _irodvMedian      :: Double        -- median
+        , _irodvUpperBound  :: OutInfDouble  -- upper boundary of the 95% interval
         , _irodvProbability :: Maybe Double  -- Probability for search value
     } deriving (Eq, Show, Generic)
 
@@ -445,11 +447,19 @@ resOneDepvar2Short x = x
 
 newtype OutBool = OutBool Bool
     deriving (Eq, Show, Generic)
-
 instance NFData OutBool
 instance Csv.ToField OutBool where
     toField (OutBool True)  = "TRUE"
     toField (OutBool False) = "FALSE"
+
+newtype OutInfDouble = OutInfDouble Double
+    deriving (Eq, Show, Generic)
+instance NFData OutInfDouble
+instance Csv.ToField OutInfDouble where
+    toField (OutInfDouble x)
+        | x == infinity    = "Inf"
+        | x == (-infinity) = "-Inf"
+        | otherwise        = Bchs.pack $ show x
 
 -- | A datatype for dependent vars
 newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]

@@ -102,14 +102,14 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDe
                 median = quantile distribution 0.5 -- I'm sure now this is identical to weightedA
                 upper  = quantile distribution 0.975
                 prob   = fmap (density distribution) maybeValueDepVar
-            return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool True) lower median upper prob
+            return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool True) (OutInfDouble lower) median (OutInfDouble upper) prob
         Left _ -> do
             case maybeValueDepVar of
                 Just _ ->
                     -- is setting the probability to 0 a good idea?
-                    return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity (Just 0)
+                    return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just 0)
                 Nothing ->
-                    return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity Nothing
+                    return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
