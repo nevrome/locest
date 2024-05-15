@@ -36,7 +36,7 @@ core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDef
     return $ SearchResult {
            _srCorePermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
-         , _srProbability     = case mapMaybe _irodvProbability interpolPerDepVar of
+         , _srProbability     = case mapMaybe getProbability interpolPerDepVarFull of
             [] -> Nothing
             xs -> Just $ foldSum xs
          }

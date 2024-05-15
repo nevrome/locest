@@ -394,9 +394,10 @@ instance Csv.DefaultOrdered InterpolationResult where
     headerOrder (InterpolationResult l) = V.concat $ map Csv.headerOrder l
 instance Csv.ToRecord InterpolationResult where
     toRecord (InterpolationResult l) = V.concat $ map Csv.toRecord l
---instance PseudoMap InterpolationResult Double where
---    getKeys (InterpolationResult l) = map fst l
---    getValues (InterpolationResult l) = map snd l
+
+getProbability :: InterpolationResultOneDepVar -> Maybe Double
+getProbability (InterpolationResultOneDepVarShort {}) = error "should never happen"
+getProbability i@(InterpolationResultOneDepVarFull {})  = _irodvProbability i
 
 data InterpolationResultOneDepVar =
       InterpolationResultOneDepVarShort {

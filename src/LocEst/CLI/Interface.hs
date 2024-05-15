@@ -96,7 +96,7 @@ searchOptParser = SearchOptions
                         <*> optParseKernDefString
                         <*> optParseNormalization
                         <*> optParseNumberOfThreads
-                        <*> optParseOutFile
+                        <*> optParseSearchOutMode
 
 varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
@@ -121,6 +121,25 @@ optParseCrossSettings =
         <*> optParseTestTrainingFraction
         <*> optParseCrossvalIterations
         <*> optParseCrossvalConfSeed
+
+optParseSearchOutMode :: OP.Parser SearchOutMode
+optParseSearchOutMode = optParseSearchOutShort OP.<|> optParseSearchOutFull
+
+optParseSearchOutShort :: OP.Parser SearchOutMode
+optParseSearchOutShort = SearchOutShort <$> OP.strOption (
+       OP.long  "shortOutFile"
+    <> OP.short 'o'
+    <> OP.metavar "FILE"
+    <> OP.help  "Path to the output file. TODO"
+    )
+
+optParseSearchOutFull :: OP.Parser SearchOutMode
+optParseSearchOutFull = SearchOutFull <$> OP.strOption (
+       OP.long  "outFile"
+    <> OP.short 'o'
+    <> OP.metavar "FILE"
+    <> OP.help  "Path to the output file. TODO"
+    )
 
 optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
 optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (

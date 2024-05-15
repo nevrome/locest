@@ -31,7 +31,7 @@ data SearchOptions = SearchOptions
     , _searchAlgorithm          :: KernelDefinition
     , _normalize                :: Normalization
     , _numThreads               :: NumberOfThreads
-    , _searchOutFile            :: SearchOutMode
+    , _searchOutMode            :: SearchOutMode
     }
 
 data SearchGridSettings = SearchGridSettings {
