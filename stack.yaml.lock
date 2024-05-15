@@ -5,19 +5,23 @@
 
 packages:
 - completed:
+    commit: 501b61b4dbc189f1bb8e2080ccfd85473f2ac554
+    git: https://github.com/Boarders/perfect-vector-shuffle
+    name: perfect-vector-shuffle
+    pantry-tree:
+      sha256: 9bd3a5050e3f9fb206f468475dfd86fcfa4d82fcd3fdd0776389791598b07a24
+      size: 792
+    version: 0.1.1.1
+  original:
+    commit: 501b61b4dbc189f1bb8e2080ccfd85473f2ac554
+    git: https://github.com/Boarders/perfect-vector-shuffle
+- completed:
     hackage: cassava-conduit-0.6.2@sha256:0a955eec5876bc187a21da4a9a484f7f88d00994e8918830daac316f65cce4e4,2670
     pantry-tree:
       sha256: 697f31d69920090e24de1b038c74626c7d8bcbc882a898302d0e4194df963e3b
       size: 655
   original:
     hackage: cassava-conduit-0.6.2
-- completed:
-    hackage: perfect-vector-shuffle-0.1.1.1@sha256:3c034b313e0b81147860bd40d1f8f84f1ca191beba76476abbecbbeb2edcf752,3681
-    pantry-tree:
-      sha256: 73b0edf95d907bbb42c30dd21bede6a3697dbec23fec25b1affefcb99dbddc44
-      size: 422
-  original:
-    hackage: perfect-vector-shuffle-0.1.1.1@sha256:3c034b313e0b81147860bd40d1f8f84f1ca191beba76476abbecbbeb2edcf752,3681
 snapshots:
 - completed:
     sha256: 85d2382958c178491d3fe50d770a624621f5ab456beef7d31ac7521f780c9bc7

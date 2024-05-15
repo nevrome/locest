@@ -3,7 +3,6 @@ resolver: lts-21.17
 packages:
 - .
 extra-deps:
+  - git: https://github.com/Boarders/perfect-vector-shuffle
+    commit: 501b61b4dbc189f1bb8e2080ccfd85473f2ac554
   - 'cassava-conduit-0.6.2'
-  - perfect-vector-shuffle-0.1.1.1@sha256:3c034b313e0b81147860bd40d1f8f84f1ca191beba76476abbecbbeb2edcf752,3681
-
-allow-newer: true
