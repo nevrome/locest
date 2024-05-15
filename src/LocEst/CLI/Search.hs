@@ -109,22 +109,31 @@ runSearch (
         .| progress 1000 (Just numPerms)
         -- split stream to report the error cases and write the good results to the file system
         .| Con.getZipSink (
+                -- errors
                 Con.ZipSink (
                        mapOnlyLefts
                     .| ConL.groupOn id
                     .| ConC.mapM_ printErrors
                 ) *>
+                -- search results
                 Con.ZipSink (
                        mapOnlyRights
                     .| mapOnlySearchResult
                     .| normalize normalization -- this assumes the permutation order to be set accordingly!!
                                                -- otherwise sorting is necessary, which means everything has to go into memory
                     .| sinkNamedCSV outFile
+                ) *>
+                -- per-observation weights
+                Con.ZipSink (
+                       mapOnlyRights
+                    .| mapOnlyObsWeights
+                    .| ConC.concatMap id
+                    .| sinkNamedCSV outFile
                 )
            )
     hPutStrLn stderr "Done"
 
---mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights
+mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights
 mapOnlySearchResult = ConC.concatMap coreOutToSearchResult
 coreOutToObsWeights :: CoreOut -> Maybe [ObsWeight]
 coreOutToObsWeights (CoreObsWeight x) = Just x

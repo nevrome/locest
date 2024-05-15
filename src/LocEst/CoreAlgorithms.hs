@@ -16,10 +16,10 @@ type CoreLog = E.Except LOCESTException
 data CoreOutMode =
       CoreOutShort
     | CoreOutFull
-    | CoreOutObsWeight
+    | CoreOutObsWeight Int
 
 core :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog CoreOut
-core CoreOutObsWeight supp observations sett@(CorePermutation _ _ kernelDefinition _) = do
+core (CoreOutObsWeight nrTopObs) supp observations sett@(CorePermutation _ _ kernelDefinition _) = do
     let obsWithDist = V.mapMaybe (getDist supp sett) observations
         namePerDepVar  = getKeys kernelDefinition
     hu <- mapM (\namePerDepVar -> VU.unzip . VU.convert <$> V.mapM (valueAndWeightOneDepVarOneObs kernelDefinition namePerDepVar) obsWithDist) namePerDepVar
