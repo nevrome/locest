@@ -144,26 +144,25 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
 
 -- | A datatype for possible output of the core algorithm
 data CoreOut =
-      CoreObsWeight [ObsWeight]
+      CoreObsWeight (V.Vector ObsWeight)
     | CoreSearchResult SearchResult
-    deriving (Show, Generic)
+    deriving (Generic)
 
 instance NFData CoreOut
 
 -- | A datatype for observation weights per core permutation
 data ObsWeight = ObsWeight {
       _powCorePermutation :: CorePermutation
-    , _powObservation     :: Observation
-    , _powWeight          :: Double
-    } deriving (Show, Generic)
+    , _powObservation     :: ObsWithWeights
+    } deriving (Generic)
 
 instance NFData ObsWeight
 instance Csv.DefaultOrdered ObsWeight where
-    headerOrder (ObsWeight corePermutation obs _) =
-        Csv.headerOrder corePermutation <> Csv.headerOrder obs <> Csv.header ["weight"]
+    headerOrder (ObsWeight corePermutation obsWithWeights) =
+        Csv.headerOrder corePermutation <> Csv.headerOrder obsWithWeights
 instance Csv.ToRecord ObsWeight where
-    toRecord (ObsWeight corePermutation obs weight) =
-        Csv.toRecord corePermutation <> Csv.toRecord obs <> Csv.record [Csv.toField weight]
+    toRecord (ObsWeight corePermutation obsWithWeights) =
+        Csv.toRecord corePermutation <> Csv.toRecord obsWithWeights
 
 -- | A datatype for search result points in space and time
 data SearchResult = 
@@ -351,12 +350,23 @@ makeKernelShape "Linear" = pure Linear
 makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
 data ObsWithWeights = ObsWithWeights {
-      _owdObservation  :: Observation
-    , _owdSpatTempDist :: IndepVarsDist
+      _owdObservation      :: Observation
+    , _owdSpatTempDist     :: IndepVarsDist
     , _owdPerDepVarWeights :: DepVarsPos
-}
+} deriving (Generic)
+
+instance NFData ObsWithWeights
+instance Csv.DefaultOrdered ObsWithWeights where
+    headerOrder (ObsWithWeights obs dists depVarWeights) =
+        Csv.headerOrder obs <> Csv.headerOrder depVarWeights
+instance Csv.ToRecord ObsWithWeights where
+    toRecord (ObsWithWeights obs dists depVarWeights) =
+        Csv.toRecord obs <> Csv.toRecord depVarWeights
 
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist [Double]
+    deriving (Generic)
+
+instance NFData IndepVarsDist
 
 -- | A datatype for observations with id and position
 data Observation = Observation {
@@ -547,7 +557,9 @@ instance Csv.ToRecord IndepVarsPos where
 data SpatTempDist = SpatTempDist {
       _spatDist :: Double
     , _tempDist :: Double
-}
+} deriving Generic
+
+instance NFData SpatTempDist
 
 -- | A datatype for spatio-temporal positions
 data SpatTempPos = SpatTempPos {

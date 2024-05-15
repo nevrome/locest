@@ -21,13 +21,12 @@ data CoreOutMode =
 core :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog CoreOut
 core (CoreOutObsWeight nrTopObs) supp observations sett@(CorePermutation _ _ kernelDefinition _) = do
     let namePerDepVar  = getKeys kernelDefinition
-        obsWithWeights = V.mapMaybe (getWeightsPerObs supp sett namePerDepVar) observations
-    return undefined
-
+    obsWithWeights <- V.mapMaybeM (getWeightsPerObs supp sett namePerDepVar) observations
+    return $ CoreObsWeight obsWithWeights
 core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     let namePerDepVar  = getKeys kernelDefinition
-        obsWithWeights = V.mapMaybe (getWeightsPerObs supp sett namePerDepVar) observations
-        valuePerDepVar = case searchDepVarPos of
+    obsWithWeights <- V.mapMaybeM (getWeightsPerObs supp sett namePerDepVar) observations
+    let valuePerDepVar = case searchDepVarPos of
             Just x  -> Just <$> getValues x
             Nothing -> replicate (length namePerDepVar) Nothing
     interpolPerDepVarFull <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithWeights) $ zip namePerDepVar valuePerDepVar
@@ -43,7 +42,7 @@ core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDef
             xs -> Just $ foldSum xs
          }
 
-getWeightsPerObs :: CoreSupplement -> CorePermutation -> [DepVarName] -> Observation -> Maybe ObsWithWeights
+getWeightsPerObs :: CoreSupplement -> CorePermutation -> [DepVarName] -> Observation -> CoreLog (Maybe ObsWithWeights)
 -- spatiotemporal distances
 getWeightsPerObs
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
@@ -59,10 +58,10 @@ getWeightsPerObs
                 Just (spaceFilter,timeFilter) -> spatDistsKM > spaceFilter || tempDist > timeFilter
                 Nothing -> False
         in if filtered
-           then Nothing
+           then return Nothing
            else do
                 weightsPerDepvar <- mapM (weightPerDepVar kernelDefinition [spatDistsKM,tempDist]) depVars
-                Just $ ObsWithWeights obs (IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) (DepVarsPos weightsPerDepvar)
+                return $ Just $ ObsWithWeights obs (IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) (DepVarsPos weightsPerDepvar)
         where
             findTempDist :: Maybe TempSampleMatrix -> Double
             -- calculate distances from mean ages
@@ -87,7 +86,7 @@ getWeightsPerObs
     obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) = do
         let arbitraryDimDist = findArbitraryDimDistsObsGrid
         weightsPerDepvar <- mapM (weightPerDepVar kernelDefinition arbitraryDimDist) depVars
-        Just $ ObsWithWeights obs (IndepArbitraryDimDist arbitraryDimDist) (DepVarsPos weightsPerDepvar)
+        return $ Just $ ObsWithWeights obs (IndepArbitraryDimDist arbitraryDimDist) (DepVarsPos weightsPerDepvar)
         where
             findArbitraryDimDistsObsGrid :: [Double]
             findArbitraryDimDistsObsGrid =
@@ -95,9 +94,9 @@ getWeightsPerObs
                     gridPos = getValues gridAbritryDimPos
                 in allDistances obsPos gridPos
 -- wrong input
-getWeightsPerObs _ _ _ _ = Nothing
+getWeightsPerObs _ _ _ _ = pure Nothing
 
-weightPerDepVar :: KernelDefinition -> [Double] -> DepVarName -> Maybe (DepVarName, Double)
+weightPerDepVar :: KernelDefinition -> [Double] -> DepVarName -> CoreLog (DepVarName, Double)
 weightPerDepVar kernelDefinition dists depVar  = do
     (shape,nugget,lengths) <- getKernelForOneDepVar kernelDefinition depVar
     let sqWeiDist = squaredWeightedDist lengths
@@ -146,16 +145,9 @@ interpolAndSearchOneDepVar kernelDefinition obsWithWeights (depVar,maybeValueDep
                 Nothing ->
                     return $ InterpolationResultOneDepVarFull depVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
-getKernelForOneDepVar :: KernelDefinition -> String -> Maybe (KernelShape, KernelNugget, KernelLengths)
+getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (KernelShape, KernelNugget, KernelLengths)
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
     case filter (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
-        []                    -> Nothing --E.throwError $ NormalException "Variable not defined in kernel definition"
+        []                    -> E.throwError $ NormalException "Variable not defined in kernel definition"
         [KernelOneDepVar _ s n k] -> pure (s, n, k)
-        _                     -> Nothing --E.throwError $ NormalException "Variable defined multiple times in kernel definition"
-
---getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (KernelShape, KernelNugget, KernelLengths)
---getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
---    case filter (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
---        []                    -> E.throwError $ NormalException "Variable not defined in kernel definition"
---        [KernelOneDepVar _ s n k] -> pure (s, n, k)
---        _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel definition"
+        _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel definition"
