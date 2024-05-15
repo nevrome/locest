@@ -21,13 +21,3 @@ renderLOCESTException (ConfigFileParsingException s) =
     "Error: \n" ++ s
 
 instance Exception LOCESTException
-
--- General helper functions
-
-rightToJust :: Either a b -> Maybe b
-rightToJust (Right x) = Just x
-rightToJust _         = Nothing
-
-leftToJust :: Either a b -> Maybe a
-leftToJust (Left x) = Just x
-leftToJust _        = Nothing

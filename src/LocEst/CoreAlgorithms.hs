@@ -16,9 +16,15 @@ type CoreLog = E.Except LOCESTException
 data CoreOutMode =
       CoreOutShort
     | CoreOutFull
-    -- | CoreOutObsWeight
+    | CoreOutObsWeight
 
-core :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog SearchResult
+core :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog CoreOut
+core CoreOutObsWeight supp observations sett@(CorePermutation _ _ kernelDefinition _) = do
+    let obsWithDist = V.mapMaybe (getDist supp sett) observations
+        namePerDepVar  = getKeys kernelDefinition
+    hu <- mapM (\namePerDepVar -> VU.unzip . VU.convert <$> V.mapM (valueAndWeightOneDepVarOneObs kernelDefinition namePerDepVar) obsWithDist) namePerDepVar
+    return undefined
+
 core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
     let obsWithDist = V.mapMaybe (getDist supp sett) observations
@@ -33,7 +39,7 @@ core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDef
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull -> interpolPerDepVarFull
     -- compile output object
-    return $ SearchResult {
+    return $ CoreSearchResult $ SearchResult {
            _srCorePermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srProbability     = case mapMaybe getProbability interpolPerDepVarFull of

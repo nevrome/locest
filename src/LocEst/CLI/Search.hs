@@ -110,18 +110,37 @@ runSearch (
         -- split stream to report the error cases and write the good results to the file system
         .| Con.getZipSink (
                 Con.ZipSink (
-                       ConC.concatMap leftToJust
+                       mapOnlyLefts
                     .| ConL.groupOn id
                     .| ConC.mapM_ printErrors
                 ) *>
                 Con.ZipSink (
-                       ConC.concatMap rightToJust
+                       mapOnlyRights
+                    .| mapOnlySearchResult
                     .| normalize normalization -- this assumes the permutation order to be set accordingly!!
                                                -- otherwise sorting is necessary, which means everything has to go into memory
                     .| sinkNamedCSV outFile
                 )
            )
     hPutStrLn stderr "Done"
+
+--mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights
+mapOnlySearchResult = ConC.concatMap coreOutToSearchResult
+coreOutToObsWeights :: CoreOut -> Maybe [ObsWeight]
+coreOutToObsWeights (CoreObsWeight x) = Just x
+coreOutToObsWeights _                 = Nothing
+coreOutToSearchResult :: CoreOut -> Maybe SearchResult
+coreOutToSearchResult (CoreSearchResult x) = Just x
+coreOutToSearchResult _                    = Nothing
+
+mapOnlyLefts = ConC.concatMap leftToJust -- this translates to a mapMaybe
+mapOnlyRights = ConC.concatMap rightToJust
+rightToJust :: Either a b -> Maybe b
+rightToJust (Right x) = Just x
+rightToJust _         = Nothing
+leftToJust :: Either a b -> Maybe a
+leftToJust (Left x) = Just x
+leftToJust _        = Nothing
 
 printErrors :: MonadIO m => NE.NonEmpty LOCESTException -> m ()
 printErrors errMsg = liftIO $ hPutStrLn stderr (show (length errMsg) ++ " * " ++ renderLOCESTException (NE.head errMsg))

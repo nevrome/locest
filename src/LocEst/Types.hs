@@ -142,26 +142,48 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
     parseNamedRecord m =
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
+-- | A datatype for possible output of the core algorithm
+data CoreOut =
+      CoreObsWeight [ObsWeight]
+    | CoreSearchResult SearchResult
+    deriving (Show, Generic)
+
+instance NFData CoreOut
+
+-- | A datatype for observation weights per core permutation
+data ObsWeight = ObsWeight {
+      _powCorePermutation :: CorePermutation
+    , _powObservation     :: Observation
+    , _powWeight          :: Double
+    } deriving (Show, Generic)
+
+instance NFData ObsWeight
+instance Csv.DefaultOrdered ObsWeight where
+    headerOrder (ObsWeight corePermutation obs _) =
+        Csv.headerOrder corePermutation <> Csv.headerOrder obs <> Csv.header ["weight"]
+instance Csv.ToRecord ObsWeight where
+    toRecord (ObsWeight corePermutation obs weight) =
+        Csv.toRecord corePermutation <> Csv.toRecord obs <> Csv.record [Csv.toField weight]
+
 -- | A datatype for search result points in space and time
 data SearchResult = 
       SearchResult {
         _srCorePermutation :: CorePermutation
       , _srInterpolation   :: InterpolationResult
       , _srProbability     :: Maybe Double
-      }
-    deriving (Show, Generic)
+      } deriving (Show, Generic)
 
 instance NFData SearchResult
 instance Csv.DefaultOrdered SearchResult where
-    headerOrder (SearchResult spatTempDepVarsPos interpolationResult Nothing) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult
-    headerOrder (SearchResult spatTempDepVarsPos interpolationResult (Just _)) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult <> Csv.header ["probability"]
+    headerOrder (SearchResult corePermutation interpolationResult Nothing) =
+        Csv.headerOrder corePermutation <> Csv.headerOrder interpolationResult
+    headerOrder (SearchResult corePermutation interpolationResult (Just _)) =
+        Csv.headerOrder corePermutation <> Csv.headerOrder interpolationResult <> Csv.header ["probability"]
 instance Csv.ToRecord SearchResult where
-    toRecord (SearchResult spatTempDepVarsPos interpolationResult Nothing) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult
-    toRecord (SearchResult spatTempDepVarsPos interpolationResult (Just prob)) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult <> Csv.record [Csv.toField prob]
+    toRecord (SearchResult corePermutation interpolationResult Nothing) =
+        Csv.toRecord corePermutation <> Csv.toRecord interpolationResult
+    toRecord (SearchResult corePermutation interpolationResult (Just prob)) =
+        Csv.toRecord corePermutation <> Csv.toRecord interpolationResult <> Csv.record [Csv.toField prob]
 
 data SpatTempProb = SpatTempProb {
       _stprCorePermutation :: CorePermutation

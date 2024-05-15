@@ -3,7 +3,7 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (printErrors)
+import           LocEst.CLI.Search             (printErrors, mapOnlyLefts, mapOnlyRights, mapOnlySearchResult)
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (foldSum)
@@ -75,12 +75,13 @@ runCross (
         -- split stream to report the error cases and add the good ones to the result list
         .| Con.getZipSink (
                 Con.ZipSink (
-                       ConC.concatMap leftToJust
+                       mapOnlyLefts
                     .| ConL.groupOn id
                     .| ConC.mapM_ printErrors
                 ) *>
                 Con.ZipSink (
-                       ConC.concatMap rightToJust
+                       mapOnlyRights
+                    .| mapOnlySearchResult
                     .| ConC.sinkList
                 )
            )
@@ -92,7 +93,7 @@ runCross (
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
     where
-        oneIterationConduit :: Int -> (V.Vector Observation, V.Vector Observation) -> ConduitT (V.Vector Observation, V.Vector Observation) (Either LOCESTException SearchResult) (ResourceT IO) ()
+        oneIterationConduit :: Int -> (V.Vector Observation, V.Vector Observation) -> ConduitT (V.Vector Observation, V.Vector Observation) (Either LOCESTException CoreOut) (ResourceT IO) ()
         oneIterationConduit maxNumThreads (testData,trainingData) = do
             ConC.yieldMany testData
                 -- multiply multidimensional positions by algorithms
