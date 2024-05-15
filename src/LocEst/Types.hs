@@ -141,26 +141,37 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
 -- | A datatype for search result points in space and time
-data SearchResult = SearchResult {
-      _srCorePermutation :: CorePermutation
-    , _srInterpolation   :: InterpolationResult
-    , _srProbability     :: Maybe Double
-    -- to model the different densities per input point
-    -- (which will certainly be necessary for debugging)
-    -- SpatTempProb must somehow include also the source Observation
-    -- Perhaps this could be implemented as a Maybe String for the Obs name?
-} deriving (Show, Generic)
+data SearchResult = 
+      SearchResultShort {
+        _srsCorePermutation :: CorePermutation
+      , _srsInterpolation   :: InterpolationResultShort
+      , _srsProbability     :: Maybe Double
+      }
+    | SearchResultFull {
+        _srfCorePermutation :: CorePermutation
+      , _srfInterpolation   :: InterpolationResult
+      , _srfProbability     :: Maybe Double
+      }
+    deriving (Show, Generic)
 
 instance NFData SearchResult
 instance Csv.DefaultOrdered SearchResult where
-    headerOrder (SearchResult spatTempDepVarsPos interpolationResult Nothing) =
+    headerOrder (SearchResultShort spatTempDepVarsPos interpolationResult Nothing) =
         Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult
-    headerOrder (SearchResult spatTempDepVarsPos interpolationResult (Just _)) =
+    headerOrder (SearchResultShort spatTempDepVarsPos interpolationResult (Just _)) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult <> Csv.header ["probability"]
+    headerOrder (SearchResultFull spatTempDepVarsPos interpolationResult Nothing) =
+        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult
+    headerOrder (SearchResultFull spatTempDepVarsPos interpolationResult (Just _)) =
         Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult <> Csv.header ["probability"]
 instance Csv.ToRecord SearchResult where
-    toRecord (SearchResult spatTempDepVarsPos interpolationResult Nothing) =
+    toRecord (SearchResultShort spatTempDepVarsPos interpolationResult Nothing) =
         Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult
-    toRecord (SearchResult spatTempDepVarsPos interpolationResult (Just prob)) =
+    toRecord (SearchResultShort spatTempDepVarsPos interpolationResult (Just prob)) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult <> Csv.record [Csv.toField prob]
+    toRecord (SearchResultFull spatTempDepVarsPos interpolationResult Nothing) =
+        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult
+    toRecord (SearchResultFull spatTempDepVarsPos interpolationResult (Just prob)) =
         Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult <> Csv.record [Csv.toField prob]
 
 data SpatTempProb = SpatTempProb {
@@ -387,6 +398,35 @@ instance Csv.ToRecord HyperPos where
     toRecord (HyperPos indepVarsPos depVarsPos) =
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
+-- | A datatype for a reduced version of the interpolation output (see below)
+newtype InterpolationResultShort = InterpolationResultShort [InterpolationResultOneDepVarShort]
+    deriving (Eq, Show, Generic)
+
+instance NFData InterpolationResultShort
+instance Csv.DefaultOrdered InterpolationResultShort where
+    headerOrder (InterpolationResultShort l) = V.concat $ map Csv.headerOrder l
+instance Csv.ToRecord InterpolationResultShort where
+    toRecord (InterpolationResultShort l) = V.concat $ map Csv.toRecord l
+
+data InterpolationResultOneDepVarShort = InterpolationResultOneDepVarShort {
+          _irodvsDepVarName  :: DepVarName -- name of the dependent variable
+        , _irodvsLowerBound  :: Double     -- lower boundary of the 95% interval
+        , _irodvsMedian      :: Double     -- median
+        , _irodvsUpperBound  :: Double     -- upper boundary of the 95% interval
+    } deriving (Eq, Show, Generic)
+
+instance NFData InterpolationResultOneDepVarShort
+instance Csv.DefaultOrdered InterpolationResultOneDepVarShort where
+    headerOrder (InterpolationResultOneDepVarShort n _ _ _ ) =
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["low", "median", "up"]
+instance Csv.ToRecord InterpolationResultOneDepVarShort where
+    toRecord (InterpolationResultOneDepVarShort _ lb m ub) =
+        Csv.record [ Csv.toField lb, Csv.toField m, Csv.toField ub ]
+
+resOneDepvar2Short :: InterpolationResultOneDepVar -> InterpolationResultOneDepVarShort
+resOneDepvar2Short (InterpolationResultOneDepVar n _ _ _ _ lb m ub _) =
+    InterpolationResultOneDepVarShort n lb m ub
+
 -- | A datatype for the interpolation output
 newtype InterpolationResult = InterpolationResult [InterpolationResultOneDepVar]
     deriving (Eq, Show, Generic)
@@ -395,15 +435,14 @@ instance NFData InterpolationResult
 instance Csv.DefaultOrdered InterpolationResult where
     headerOrder (InterpolationResult l) = V.concat $ map Csv.headerOrder l
 instance Csv.ToRecord InterpolationResult where
-    toRecord (InterpolationResult l) =
-        V.concat $ map Csv.toRecord l
+    toRecord (InterpolationResult l) = V.concat $ map Csv.toRecord l
 
 data InterpolationResultOneDepVar = InterpolationResultOneDepVar {
           _irodvDepVarName  :: DepVarName -- name of the dependent variable
         , _irodvEffN        :: Double     -- effective number of samples
         , _irodvWeightedAvg :: Double     -- weighted average
         , _irodvWeightedVar :: Double     -- weighted variance
-        , _irodvPosterior   :: OutBool       -- could a posterior distribution be calculated?
+        , _irodvPosterior   :: OutBool    -- could a posterior distribution be calculated?
         , _irodvLowerBound  :: Double     -- lower boundary of the 95% interval
         , _irodvMedian      :: Double     -- median
         , _irodvUpperBound  :: Double     -- upper boundary of the 95% interval

@@ -13,8 +13,32 @@ import qualified Data.Vector.Unboxed as VU
 
 type CoreLog = E.Except LOCESTException
 
-core :: CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog SearchResult
-core supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+data CoreOutMode =
+      CoreOutShort
+    | CoreOutFull
+    -- | CoreOutObsWeight
+
+core :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog SearchResult
+core CoreOutShort supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+    -- determine distances per observation to the current position of interest
+    let obsWithDist = V.mapMaybe (getDist supp sett) observations
+    -- determine (interpolated) posterior predictive distributions per depVar for this position,
+    -- derive summary statistics and maybe perform the search for a specific search depVar value
+    let namePerDepVar  = getKeys kernelDefinition
+        valuePerDepVar = case searchDepVarPos of
+            Just x  -> Just <$> getValues x
+            Nothing -> replicate (length namePerDepVar) Nothing
+    interpolPerDepVar <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithDist) $ zip namePerDepVar valuePerDepVar
+    let interpolPerDepVarShort = map resOneDepvar2Short interpolPerDepVar
+    -- compile output object
+    return $ SearchResultShort {
+           _srsCorePermutation = sett
+         , _srsInterpolation   = InterpolationResultShort interpolPerDepVarShort
+         , _srsProbability     = case mapMaybe _irodvProbability interpolPerDepVar of
+            [] -> Nothing
+            xs -> Just $ foldSum xs
+         }
+core CoreOutFull supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
     let obsWithDist = V.mapMaybe (getDist supp sett) observations
     -- determine (interpolated) posterior predictive distributions per depVar for this position,
@@ -25,10 +49,10 @@ core supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition 
             Nothing -> replicate (length namePerDepVar) Nothing
     interpolPerDepVar <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithDist) $ zip namePerDepVar valuePerDepVar
     -- compile output object
-    return $ SearchResult {
-           _srCorePermutation = sett
-         , _srInterpolation   = InterpolationResult interpolPerDepVar
-         , _srProbability     = case mapMaybe _irodvProbability interpolPerDepVar of
+    return $ SearchResultFull {
+           _srfCorePermutation = sett
+         , _srfInterpolation   = InterpolationResult interpolPerDepVar
+         , _srfProbability     = case mapMaybe _irodvProbability interpolPerDepVar of
             [] -> Nothing
             xs -> Just $ foldSum xs
          }

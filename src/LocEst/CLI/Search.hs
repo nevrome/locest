@@ -31,7 +31,7 @@ data SearchOptions = SearchOptions
     , _searchAlgorithm          :: KernelDefinition
     , _normalize                :: Normalization
     , _numThreads               :: NumberOfThreads
-    , _searchOutFile            :: FilePath
+    , _searchOutFile            :: SearchOutMode
     }
 
 data SearchGridSettings = SearchGridSettings {
@@ -50,6 +50,16 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
 }
 
+data SearchOutMode =
+      SearchOutShort FilePath
+    | SearchOutFull FilePath
+   -- | SearchOutObsWeight FilePath
+
+determineCoreOutMode :: SearchOutMode -> (CoreOutMode,FilePath)
+determineCoreOutMode (SearchOutShort p)     = (CoreOutShort,p)
+determineCoreOutMode (SearchOutFull p)      = (CoreOutFull,p)
+--determineCoreOutMode (SearchOutObsWeight p) = (CoreOutObsWeight,p)
+
 runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions
@@ -58,10 +68,12 @@ runSearch (
         algorithm
         normalization
         threads
-        outFile
+        outMode
     ) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
+    -- outmode
+    let (coreOutMode,outFile) = determineCoreOutMode outMode
     -- read observations
     observations <- readObservations inObsFile
     -- read and prepare prediction grids
@@ -90,7 +102,7 @@ runSearch (
         -- 1. sequential
         -- .| ConL.map core
         -- 2. normal parallel
-        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (core supplement observations x))
+        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (core coreOutMode supplement observations x))
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map core) .| ConL.concat
         -- print progress information
@@ -245,19 +257,27 @@ normalize NormBySpace =
     where
     groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria
-        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1) _ _)
-        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2) _ _) =
+        (SearchResultShort (CorePermutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1) _ _)
+        (SearchResultShort (CorePermutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2) _ _) =
+            t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
+    groupingCriteria
+        (SearchResultFull (CorePermutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1) _ _)
+        (SearchResultFull (CorePermutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2) _ _) =
             t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
     groupingCriteria _ _ = False
     scaleProbs :: [SearchResult] -> [SearchResult]
     scaleProbs stps =
-        let probs = map _srProbability stps
+        let probs = map getProb stps
             rescaledProbs = case catMaybes probs of
                 [] -> repeat Nothing
                 xs -> map (\x -> Just $ x / foldSum xs) xs
         in zipWith setProb stps rescaledProbs
+    getProb :: SearchResult -> Maybe Double
+    getProb stp@(SearchResultShort {}) = _srsProbability stp
+    getProb stp@(SearchResultFull {})  = _srfProbability stp
     setProb :: SearchResult -> Maybe Double -> SearchResult
-    setProb stp p = stp {_srProbability = p}
+    setProb stp@(SearchResultShort {}) p = stp {_srsProbability = p}
+    setProb stp@(SearchResultFull {}) p = stp {_srfProbability = p}
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
