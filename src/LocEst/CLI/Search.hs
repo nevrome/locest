@@ -257,12 +257,8 @@ normalize NormBySpace =
     where
     groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria
-        (SearchResultShort (CorePermutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1) _ _)
-        (SearchResultShort (CorePermutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2) _ _) =
-            t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
-    groupingCriteria
-        (SearchResultFull (CorePermutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1) _ _)
-        (SearchResultFull (CorePermutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2) _ _) =
+        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1) _ _)
+        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2) _ _) =
             t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
     groupingCriteria _ _ = False
     scaleProbs :: [SearchResult] -> [SearchResult]
@@ -273,11 +269,9 @@ normalize NormBySpace =
                 xs -> map (\x -> Just $ x / foldSum xs) xs
         in zipWith setProb stps rescaledProbs
     getProb :: SearchResult -> Maybe Double
-    getProb stp@(SearchResultShort {}) = _srsProbability stp
-    getProb stp@(SearchResultFull {})  = _srfProbability stp
+    getProb stp@(SearchResult {}) = _srProbability stp
     setProb :: SearchResult -> Maybe Double -> SearchResult
-    setProb stp@(SearchResultShort {}) p = stp {_srsProbability = p}
-    setProb stp@(SearchResultFull {}) p = stp {_srfProbability = p}
+    setProb stp@(SearchResult {}) p = stp {_srProbability = p}
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True

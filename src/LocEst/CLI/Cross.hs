@@ -98,7 +98,7 @@ runCross (
                 -- multiply multidimensional positions by algorithms
                 .| ConC.concatMap (multiplyByAlgorithms kernDefs)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (\x -> E.runExcept (core (CoreSupplement Nothing Nothing Nothing) trainingData x))
+                .| ConAA.asyncMapC maxNumThreads (\x -> E.runExcept (core CoreOutFull (CoreSupplement Nothing Nothing Nothing) trainingData x))
 
 summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =

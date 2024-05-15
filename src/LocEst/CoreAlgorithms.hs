@@ -19,7 +19,7 @@ data CoreOutMode =
     -- | CoreOutObsWeight
 
 core :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog SearchResult
-core CoreOutShort supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
     let obsWithDist = V.mapMaybe (getDist supp sett) observations
     -- determine (interpolated) posterior predictive distributions per depVar for this position,
@@ -28,31 +28,15 @@ core CoreOutShort supp observations sett@(CorePermutation _ searchDepVarPos kern
         valuePerDepVar = case searchDepVarPos of
             Just x  -> Just <$> getValues x
             Nothing -> replicate (length namePerDepVar) Nothing
-    interpolPerDepVar <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithDist) $ zip namePerDepVar valuePerDepVar
-    let interpolPerDepVarShort = map resOneDepvar2Short interpolPerDepVar
+    interpolPerDepVarFull <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithDist) $ zip namePerDepVar valuePerDepVar
+    let interpolPerDepVar = case outMode of
+            CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
+            CoreOutFull -> interpolPerDepVarFull
     -- compile output object
-    return $ SearchResultShort {
-           _srsCorePermutation = sett
-         , _srsInterpolation   = InterpolationResultShort interpolPerDepVarShort
-         , _srsProbability     = case mapMaybe _irodvProbability interpolPerDepVar of
-            [] -> Nothing
-            xs -> Just $ foldSum xs
-         }
-core CoreOutFull supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
-    -- determine distances per observation to the current position of interest
-    let obsWithDist = V.mapMaybe (getDist supp sett) observations
-    -- determine (interpolated) posterior predictive distributions per depVar for this position,
-    -- derive summary statistics and maybe perform the search for a specific search depVar value
-    let namePerDepVar  = getKeys kernelDefinition
-        valuePerDepVar = case searchDepVarPos of
-            Just x  -> Just <$> getValues x
-            Nothing -> replicate (length namePerDepVar) Nothing
-    interpolPerDepVar <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithDist) $ zip namePerDepVar valuePerDepVar
-    -- compile output object
-    return $ SearchResultFull {
-           _srfCorePermutation = sett
-         , _srfInterpolation   = InterpolationResult interpolPerDepVar
-         , _srfProbability     = case mapMaybe _irodvProbability interpolPerDepVar of
+    return $ SearchResult {
+           _srCorePermutation = sett
+         , _srInterpolation   = InterpolationResult interpolPerDepVar
+         , _srProbability     = case mapMaybe _irodvProbability interpolPerDepVar of
             [] -> Nothing
             xs -> Just $ foldSum xs
          }
@@ -118,14 +102,14 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDe
                 median = quantile distribution 0.5 -- I'm sure now this is identical to weightedA
                 upper  = quantile distribution 0.975
                 prob   = fmap (density distribution) maybeValueDepVar
-            return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (OutBool True) lower median upper prob
+            return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool True) lower median upper prob
         Left _ -> do
             case maybeValueDepVar of
                 Just _ ->
                     -- is setting the probability to 0 a good idea?
-                    return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity (Just 0)
+                    return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity (Just 0)
                 Nothing ->
-                    return $ InterpolationResultOneDepVar nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity Nothing
+                    return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (-infinity) weightedA infinity Nothing
 
 valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> ObsWithDist -> CoreLog (Double, Double)
 valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do

@@ -142,36 +142,23 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
 
 -- | A datatype for search result points in space and time
 data SearchResult = 
-      SearchResultShort {
-        _srsCorePermutation :: CorePermutation
-      , _srsInterpolation   :: InterpolationResultShort
-      , _srsProbability     :: Maybe Double
-      }
-    | SearchResultFull {
-        _srfCorePermutation :: CorePermutation
-      , _srfInterpolation   :: InterpolationResult
-      , _srfProbability     :: Maybe Double
+      SearchResult {
+        _srCorePermutation :: CorePermutation
+      , _srInterpolation   :: InterpolationResult
+      , _srProbability     :: Maybe Double
       }
     deriving (Show, Generic)
 
 instance NFData SearchResult
 instance Csv.DefaultOrdered SearchResult where
-    headerOrder (SearchResultShort spatTempDepVarsPos interpolationResult Nothing) =
+    headerOrder (SearchResult spatTempDepVarsPos interpolationResult Nothing) =
         Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult
-    headerOrder (SearchResultShort spatTempDepVarsPos interpolationResult (Just _)) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult <> Csv.header ["probability"]
-    headerOrder (SearchResultFull spatTempDepVarsPos interpolationResult Nothing) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult
-    headerOrder (SearchResultFull spatTempDepVarsPos interpolationResult (Just _)) =
+    headerOrder (SearchResult spatTempDepVarsPos interpolationResult (Just _)) =
         Csv.headerOrder spatTempDepVarsPos <> Csv.headerOrder interpolationResult <> Csv.header ["probability"]
 instance Csv.ToRecord SearchResult where
-    toRecord (SearchResultShort spatTempDepVarsPos interpolationResult Nothing) =
+    toRecord (SearchResult spatTempDepVarsPos interpolationResult Nothing) =
         Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult
-    toRecord (SearchResultShort spatTempDepVarsPos interpolationResult (Just prob)) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult <> Csv.record [Csv.toField prob]
-    toRecord (SearchResultFull spatTempDepVarsPos interpolationResult Nothing) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult
-    toRecord (SearchResultFull spatTempDepVarsPos interpolationResult (Just prob)) =
+    toRecord (SearchResult spatTempDepVarsPos interpolationResult (Just prob)) =
         Csv.toRecord spatTempDepVarsPos <> Csv.toRecord interpolationResult <> Csv.record [Csv.toField prob]
 
 data SpatTempProb = SpatTempProb {
@@ -398,35 +385,6 @@ instance Csv.ToRecord HyperPos where
     toRecord (HyperPos indepVarsPos depVarsPos) =
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
--- | A datatype for a reduced version of the interpolation output (see below)
-newtype InterpolationResultShort = InterpolationResultShort [InterpolationResultOneDepVarShort]
-    deriving (Eq, Show, Generic)
-
-instance NFData InterpolationResultShort
-instance Csv.DefaultOrdered InterpolationResultShort where
-    headerOrder (InterpolationResultShort l) = V.concat $ map Csv.headerOrder l
-instance Csv.ToRecord InterpolationResultShort where
-    toRecord (InterpolationResultShort l) = V.concat $ map Csv.toRecord l
-
-data InterpolationResultOneDepVarShort = InterpolationResultOneDepVarShort {
-          _irodvsDepVarName  :: DepVarName -- name of the dependent variable
-        , _irodvsLowerBound  :: Double     -- lower boundary of the 95% interval
-        , _irodvsMedian      :: Double     -- median
-        , _irodvsUpperBound  :: Double     -- upper boundary of the 95% interval
-    } deriving (Eq, Show, Generic)
-
-instance NFData InterpolationResultOneDepVarShort
-instance Csv.DefaultOrdered InterpolationResultOneDepVarShort where
-    headerOrder (InterpolationResultOneDepVarShort n _ _ _ ) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["low", "median", "up"]
-instance Csv.ToRecord InterpolationResultOneDepVarShort where
-    toRecord (InterpolationResultOneDepVarShort _ lb m ub) =
-        Csv.record [ Csv.toField lb, Csv.toField m, Csv.toField ub ]
-
-resOneDepvar2Short :: InterpolationResultOneDepVar -> InterpolationResultOneDepVarShort
-resOneDepvar2Short (InterpolationResultOneDepVar n _ _ _ _ lb m ub _) =
-    InterpolationResultOneDepVarShort n lb m ub
-
 -- | A datatype for the interpolation output
 newtype InterpolationResult = InterpolationResult [InterpolationResultOneDepVar]
     deriving (Eq, Show, Generic)
@@ -436,8 +394,18 @@ instance Csv.DefaultOrdered InterpolationResult where
     headerOrder (InterpolationResult l) = V.concat $ map Csv.headerOrder l
 instance Csv.ToRecord InterpolationResult where
     toRecord (InterpolationResult l) = V.concat $ map Csv.toRecord l
+--instance PseudoMap InterpolationResult Double where
+--    getKeys (InterpolationResult l) = map fst l
+--    getValues (InterpolationResult l) = map snd l
 
-data InterpolationResultOneDepVar = InterpolationResultOneDepVar {
+data InterpolationResultOneDepVar =
+      InterpolationResultOneDepVarShort {
+          _irodvsDepVarName  :: DepVarName -- name of the dependent variable
+        , _irodvsLowerBound  :: Double     -- lower boundary of the 95% interval
+        , _irodvsMedian      :: Double     -- median
+        , _irodvsUpperBound  :: Double     -- upper boundary of the 95% interval
+    } 
+    | InterpolationResultOneDepVarFull {
           _irodvDepVarName  :: DepVarName -- name of the dependent variable
         , _irodvEffN        :: Double     -- effective number of samples
         , _irodvWeightedAvg :: Double     -- weighted average
@@ -451,25 +419,33 @@ data InterpolationResultOneDepVar = InterpolationResultOneDepVar {
 
 instance NFData InterpolationResultOneDepVar
 instance Csv.DefaultOrdered InterpolationResultOneDepVar where
-    headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ _ (Just _)) =
+    headerOrder (InterpolationResultOneDepVarShort n _ _ _ ) =
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["low", "median", "up"]
+    headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ (Just _)) =
         Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "post", "low", "median", "up", "prob"]
-    headerOrder (InterpolationResultOneDepVar n _ _ _ _ _ _ _ Nothing) =
+    headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ Nothing) =
         Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "post", "low", "median", "up"]
 instance Csv.ToRecord InterpolationResultOneDepVar where
-    toRecord (InterpolationResultOneDepVar _ neff a v po lb m ub (Just p)) =
+    toRecord (InterpolationResultOneDepVarShort _ lb m ub) =
+        Csv.record [ Csv.toField lb, Csv.toField m, Csv.toField ub ]
+    toRecord (InterpolationResultOneDepVarFull _ neff a v po lb m ub (Just p)) =
         Csv.record [
             Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField p
         ]
-    toRecord (InterpolationResultOneDepVar _ neff a v po lb m ub Nothing) =
+    toRecord (InterpolationResultOneDepVarFull _ neff a v po lb m ub Nothing) =
         Csv.record [
             Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub
         ]
 
-instance NFData OutBool
+resOneDepvar2Short :: InterpolationResultOneDepVar -> InterpolationResultOneDepVar
+resOneDepvar2Short (InterpolationResultOneDepVarFull n _ _ _ _ lb m ub _) =
+    InterpolationResultOneDepVarShort n lb m ub
+resOneDepvar2Short x = x
 
 newtype OutBool = OutBool Bool
     deriving (Eq, Show, Generic)
 
+instance NFData OutBool
 instance Csv.ToField OutBool where
     toField (OutBool True)  = "TRUE"
     toField (OutBool False) = "FALSE"
