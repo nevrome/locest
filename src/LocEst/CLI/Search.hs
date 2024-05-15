@@ -120,7 +120,6 @@ runSearch (
                        mapOnlyRights
                     .| mapOnlySearchResult
                     .| normalize normalization -- this assumes the permutation order to be set accordingly!!
-                                               -- otherwise sorting is necessary, which means everything has to go into memory
                     .| sinkNamedCSV outFile
                 ) *>
                 -- per-observation weights

@@ -350,9 +350,10 @@ makeKernelShape "SqEx"   = pure SquaredExponential
 makeKernelShape "Linear" = pure Linear
 makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
-data ObsWithDist = ObsWithDist {
+data ObsWithWeights = ObsWithWeights {
       _owdObservation  :: Observation
     , _owdSpatTempDist :: IndepVarsDist
+    , _owdPerDepVarWeights :: DepVarsPos
 }
 
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist [Double]
