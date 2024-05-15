@@ -153,7 +153,7 @@ instance NFData CoreOut
 -- | A datatype for observation weights per core permutation
 data ObsWeight = ObsWeight {
       _powCorePermutation :: CorePermutation
-    , _powObservation     :: ObsWithWeights
+    , _powObsWeights      :: ObsWithWeights
     } deriving (Generic)
 
 instance NFData ObsWeight
@@ -363,7 +363,7 @@ instance Csv.ToRecord ObsWithWeights where
     toRecord (ObsWithWeights obs dists depVarWeights) =
         Csv.toRecord obs <> Csv.toRecord depVarWeights
 
-data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist [Double]
+data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimPos
     deriving (Generic)
 
 instance NFData IndepVarsDist

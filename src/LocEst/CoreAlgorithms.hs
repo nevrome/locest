@@ -22,7 +22,7 @@ core :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation
 core (CoreOutObsWeight nrTopObs) supp observations sett@(CorePermutation _ _ kernelDefinition _) = do
     let namePerDepVar  = getKeys kernelDefinition
     obsWithWeights <- V.mapMaybeM (getWeightsPerObs supp sett namePerDepVar) observations
-    return $ CoreObsWeight obsWithWeights
+    return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeights)
 core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     let namePerDepVar  = getKeys kernelDefinition
     obsWithWeights <- V.mapMaybeM (getWeightsPerObs supp sett namePerDepVar) observations
@@ -84,43 +84,31 @@ getWeightsPerObs
     (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ kernelDefinition _)
     depVars
     obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) = do
-        let arbitraryDimDist = findArbitraryDimDistsObsGrid
-        weightsPerDepvar <- mapM (weightPerDepVar kernelDefinition arbitraryDimDist) depVars
-        return $ Just $ ObsWithWeights obs (IndepArbitraryDimDist arbitraryDimDist) (DepVarsPos weightsPerDepvar)
-        where
-            findArbitraryDimDistsObsGrid :: [Double]
-            findArbitraryDimDistsObsGrid =
-                let obsPos = getValues obsArbitraryDimPos
-                    gridPos = getValues gridAbritryDimPos
-                in allDistances obsPos gridPos
+        let indepVarNames = getKeys obsArbitraryDimPos
+            obsPos = getValues obsArbitraryDimPos
+            gridPos = getValues gridAbritryDimPos
+            dists = allDistances obsPos gridPos
+        weightsPerDepvar <- mapM (weightPerDepVar kernelDefinition dists) depVars
+        return $ Just $ ObsWithWeights obs (IndepArbitraryDimDist (ArbitraryDimPos $ zip indepVarNames dists)) (DepVarsPos weightsPerDepvar)
 -- wrong input
 getWeightsPerObs _ _ _ _ = pure Nothing
 
 weightPerDepVar :: KernelDefinition -> [Double] -> DepVarName -> CoreLog (DepVarName, Double)
 weightPerDepVar kernelDefinition dists depVar  = do
     (shape,nugget,lengths) <- getKernelForOneDepVar kernelDefinition depVar
-    let sqWeiDist = squaredWeightedDist lengths
-    let weight = weightForOneObs shape nugget sqWeiDist
+    let sqWeiDist = foldSum (zipWith (\d t -> (d / t) ** 2) dists (getValues lengths))
+    let weight = weightByKernel shape nugget sqWeiDist
     return (depVar, weight)
     where
-        squaredWeightedDist :: KernelLengths -> Double
-        squaredWeightedDist lengths = foldSum (zipWith (\d t -> (d / t) ** 2) dists (getValues lengths))
-
-weightForOneObs :: KernelShape -> KernelNugget -> Double -> Double
-weightForOneObs SquaredExponential nugget d = nugget / (nugget + exp d - 1)
-weightForOneObs Linear             nugget d = nugget / (nugget + sqrt d)
-
-getDepVarValuePerObs :: DepVarName -> ObsWithWeights -> CoreLog Double
-getDepVarValuePerObs depVar (ObsWithWeights (Observation _ _ (HyperPos _ (DepVarsPos m))) _ _) =
-    case lookup depVar m of
-        Nothing -> E.throwError $ NormalException "Unknown variable"
-        Just x  -> pure x
-
-getDepVarWeightPerObs :: DepVarName -> ObsWithWeights -> CoreLog Double
-getDepVarWeightPerObs depVar (ObsWithWeights _ _ (DepVarsPos m)) =
-    case lookup depVar m of
-        Nothing -> E.throwError $ NormalException "Unknown variable"
-        Just x  -> pure x
+        weightByKernel :: KernelShape -> KernelNugget -> Double -> Double
+        weightByKernel SquaredExponential nugget d = nugget / (nugget + exp d - 1)
+        weightByKernel Linear             nugget d = nugget / (nugget + sqrt d)
+        getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (KernelShape, KernelNugget, KernelLengths)
+        getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
+            case filter (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
+                []                    -> E.throwError $ NormalException "Variable not defined in kernel definition"
+                [KernelOneDepVar _ s n k] -> pure (s, n, k)
+                _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel definition"
 
 interpolAndSearchOneDepVar :: KernelDefinition -> V.Vector ObsWithWeights -> (DepVarName, Maybe Double) -> CoreLog InterpolationResultOneDepVar
 interpolAndSearchOneDepVar kernelDefinition obsWithWeights (depVar,maybeValueDepVar) = do
@@ -145,9 +133,14 @@ interpolAndSearchOneDepVar kernelDefinition obsWithWeights (depVar,maybeValueDep
                 Nothing ->
                     return $ InterpolationResultOneDepVarFull depVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
-getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (KernelShape, KernelNugget, KernelLengths)
-getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
-    case filter (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
-        []                    -> E.throwError $ NormalException "Variable not defined in kernel definition"
-        [KernelOneDepVar _ s n k] -> pure (s, n, k)
-        _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel definition"
+getDepVarValuePerObs :: DepVarName -> ObsWithWeights -> CoreLog Double
+getDepVarValuePerObs depVar (ObsWithWeights (Observation _ _ (HyperPos _ (DepVarsPos m))) _ _) =
+    case lookup depVar m of
+        Nothing -> E.throwError $ NormalException "Unknown variable"
+        Just x  -> pure x
+
+getDepVarWeightPerObs :: DepVarName -> ObsWithWeights -> CoreLog Double
+getDepVarWeightPerObs depVar (ObsWithWeights _ _ (DepVarsPos m)) =
+    case lookup depVar m of
+        Nothing -> E.throwError $ NormalException "Unknown variable"
+        Just x  -> pure x

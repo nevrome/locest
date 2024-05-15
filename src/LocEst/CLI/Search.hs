@@ -134,7 +134,7 @@ runSearch (
 
 mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights
 mapOnlySearchResult = ConC.concatMap coreOutToSearchResult
-coreOutToObsWeights :: CoreOut -> Maybe [ObsWeight]
+coreOutToObsWeights :: CoreOut -> Maybe (V.Vector ObsWeight)
 coreOutToObsWeights (CoreObsWeight x) = Just x
 coreOutToObsWeights _                 = Nothing
 coreOutToSearchResult :: CoreOut -> Maybe SearchResult
