@@ -96,7 +96,8 @@ searchOptParser = SearchOptions
                         <*> optParseKernDefString
                         <*> optParseNormalization
                         <*> optParseNumberOfThreads
-                        <*> optParseSearchOutMode
+                        <*> optParseCoreOutMode
+                        <*> optParseOutFile
 
 varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
@@ -122,24 +123,28 @@ optParseCrossSettings =
         <*> optParseCrossvalIterations
         <*> optParseCrossvalConfSeed
 
-optParseSearchOutMode :: OP.Parser SearchOutMode
-optParseSearchOutMode = optParseSearchOutShort OP.<|> optParseSearchOutFull
-
-optParseSearchOutShort :: OP.Parser SearchOutMode
-optParseSearchOutShort = SearchOutShort <$> OP.strOption (
-       OP.long  "shortOutFile"
-    <> OP.short 'o'
-    <> OP.metavar "FILE"
-    <> OP.help  "Path to the output file. TODO"
+optParseCoreOutMode :: OP.Parser CoreOutMode
+optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
+    OP.long "outMode" <>
+    OP.metavar "Short|Full|Obs(n)" <>
+    OP.help "Output options." <>
+    OP.value CoreOutShort <>
+    OP.showDefault
     )
-
-optParseSearchOutFull :: OP.Parser SearchOutMode
-optParseSearchOutFull = SearchOutFull <$> OP.strOption (
-       OP.long  "outFile"
-    <> OP.short 'o'
-    <> OP.metavar "FILE"
-    <> OP.help  "Path to the output file. TODO"
-    )
+    where
+        readOutMode :: String -> Either String CoreOutMode
+        readOutMode s =
+            case P.runParser parseOutMode () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseOutMode = P.try parseShort P.<|> parseFull P.<|> parseObs
+        parseShort = P.string "Short" >> return CoreOutShort
+        parseFull  = P.string "Full"  >> return CoreOutFull
+        parseObs   = do
+            res <- parseRecordType "Obs" $ do
+                s <- parseArgument "n" parseInt
+                return s
+            return (CoreOutObsWeight res)
 
 optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
 optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (

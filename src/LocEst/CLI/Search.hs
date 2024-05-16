@@ -31,7 +31,8 @@ data SearchOptions = SearchOptions
     , _searchAlgorithm          :: KernelDefinition
     , _normalize                :: Normalization
     , _numThreads               :: NumberOfThreads
-    , _searchOutMode            :: SearchOutMode
+    , _searchOutMode            :: CoreOutMode
+    , _searchOutFile            :: FilePath
     }
 
 data SearchGridSettings = SearchGridSettings {
@@ -55,11 +56,6 @@ data SearchOutMode =
     | SearchOutFull FilePath
     | SearchOutObsWeight Int FilePath
 
-determineCoreOutMode :: SearchOutMode -> (CoreOutMode,FilePath)
-determineCoreOutMode (SearchOutShort p)     = (CoreOutShort,p)
-determineCoreOutMode (SearchOutFull p)      = (CoreOutFull,p)
-determineCoreOutMode (SearchOutObsWeight n p) = (CoreOutObsWeight n,p)
-
 runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions
@@ -69,11 +65,10 @@ runSearch (
         normalization
         threads
         outMode
+        outFile
     ) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
-    -- outmode
-    let (coreOutMode,outFile) = determineCoreOutMode outMode
     -- read observations
     observations <- readObservations inObsFile
     -- read and prepare prediction grids
@@ -102,7 +97,7 @@ runSearch (
         -- 1. sequential
         -- .| ConL.map core
         -- 2. normal parallel
-        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (core coreOutMode supplement observations x))
+        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (core outMode supplement observations x))
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map core) .| ConL.concat
         -- print progress information
@@ -112,25 +107,27 @@ runSearch (
                 -- errors
                 Con.ZipSink ( mapOnlyLefts .| ConL.groupOn id .| ConC.mapM_ printErrors ) *>
                 -- results
-                Con.ZipSink ( mapOnlyRights .| processBasedOnSetting outMode normalization )
+                Con.ZipSink ( mapOnlyRights .| processBasedOnSetting outMode outFile normalization )
             )
     hPutStrLn stderr "Done"
 
-processBasedOnSetting :: SearchOutMode -> Normalization -> Con.ConduitT CoreOut Con.Void (ResourceT IO) ()
-processBasedOnSetting (SearchOutShort outFile) normalization =
+processBasedOnSetting :: CoreOutMode -> FilePath -> Normalization -> Con.ConduitT CoreOut Con.Void (ResourceT IO) ()
+processBasedOnSetting CoreOutShort outFile normalization =
        mapOnlySearchResult
     .| normalize normalization
     .| sinkNamedCSV outFile
-processBasedOnSetting (SearchOutFull outFile) normalization =
+processBasedOnSetting CoreOutFull outFile normalization =
        mapOnlySearchResult
     .| normalize normalization
     .| sinkNamedCSV outFile
-processBasedOnSetting (SearchOutObsWeight _ outFile) normalization =
+processBasedOnSetting (CoreOutObsWeight _) outFile _ =
        mapOnlyObsWeights
     .| ConC.concatMap id
     .| sinkNamedCSV outFile
 
-mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights
+mapOnlyObsWeights :: Con.ConduitT CoreOut (V.Vector ObsWeight) (ResourceT IO) ()
+mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights -- this translates to a mapMaybe
+mapOnlySearchResult :: Con.ConduitT CoreOut SearchResult (ResourceT IO) ()
 mapOnlySearchResult = ConC.concatMap coreOutToSearchResult
 coreOutToObsWeights :: CoreOut -> Maybe (V.Vector ObsWeight)
 coreOutToObsWeights (CoreObsWeight x) = Just x
@@ -139,7 +136,9 @@ coreOutToSearchResult :: CoreOut -> Maybe SearchResult
 coreOutToSearchResult (CoreSearchResult x) = Just x
 coreOutToSearchResult _                    = Nothing
 
-mapOnlyLefts = ConC.concatMap leftToJust -- this translates to a mapMaybe
+mapOnlyLefts :: Con.ConduitT (Either a b) a (ResourceT IO) ()
+mapOnlyLefts = ConC.concatMap leftToJust
+mapOnlyRights :: Con.ConduitT (Either a b) b (ResourceT IO) ()
 mapOnlyRights = ConC.concatMap rightToJust
 rightToJust :: Either a b -> Maybe b
 rightToJust (Right x) = Just x

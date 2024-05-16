@@ -56,6 +56,12 @@ filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup na
 
 -- data types
 
+data CoreOutMode =
+      CoreOutShort
+    | CoreOutFull
+    | CoreOutObsWeight Int
+    deriving Show
+
 -- | A datatype for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
       _crossoutKernelDefinition :: KernelDefinition
@@ -358,15 +364,25 @@ data ObsWithWeights = ObsWithWeights {
 instance NFData ObsWithWeights
 instance Csv.DefaultOrdered ObsWithWeights where
     headerOrder (ObsWithWeights obs dists depVarWeights) =
-        Csv.headerOrder obs <> Csv.headerOrder depVarWeights
+        Csv.headerOrder obs <> Csv.headerOrder dists <> Csv.headerOrder depVarWeights
 instance Csv.ToRecord ObsWithWeights where
     toRecord (ObsWithWeights obs dists depVarWeights) =
-        Csv.toRecord obs <> Csv.toRecord depVarWeights
+        Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
 
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimPos
     deriving (Generic)
 
 instance NFData IndepVarsDist
+instance Csv.DefaultOrdered IndepVarsDist where
+    headerOrder (IndepSpatTempDist spatTempDist) =
+        Csv.headerOrder spatTempDist
+    headerOrder (IndepArbitraryDimDist arbitraryDimPos) =
+        Csv.headerOrder arbitraryDimPos
+instance Csv.ToRecord IndepVarsDist where
+    toRecord (IndepSpatTempDist spatTempDist) =
+        Csv.toRecord spatTempDist
+    toRecord (IndepArbitraryDimDist arbitraryDimPos) =
+        Csv.toRecord arbitraryDimPos
 
 -- | A datatype for observations with id and position
 data Observation = Observation {
@@ -560,6 +576,12 @@ data SpatTempDist = SpatTempDist {
 } deriving Generic
 
 instance NFData SpatTempDist
+instance Csv.DefaultOrdered SpatTempDist where
+    headerOrder (SpatTempDist _ _) =
+        Csv.header ["spatDist", "tempDist"]
+instance Csv.ToRecord SpatTempDist where
+    toRecord (SpatTempDist spatDist tempDist) =
+        Csv.record [Csv.toField spatDist, Csv.toField tempDist]
 
 -- | A datatype for spatio-temporal positions
 data SpatTempPos = SpatTempPos {

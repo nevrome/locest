@@ -16,11 +16,6 @@ type CoreLog = E.Except LOCESTException
 -- you could throw a clean exception with for just one core iteration with
 -- E.throwError $ NormalException ""
 
-data CoreOutMode =
-      CoreOutShort
-    | CoreOutFull
-    | CoreOutObsWeight Int
-
 core ::
        CoreOutMode
     -> CoreSupplement
