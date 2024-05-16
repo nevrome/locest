@@ -9,7 +9,7 @@ import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
 
-import           Conduit                       (MonadIO, liftIO)
+import           Conduit                       (MonadIO, liftIO, ResourceT)
 import           Control.Exception             (throw)
 import qualified Control.Monad                 as OP
 import qualified Control.Monad.Except          as E
@@ -53,12 +53,12 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
 data SearchOutMode =
       SearchOutShort FilePath
     | SearchOutFull FilePath
-   -- | SearchOutObsWeight FilePath
+    | SearchOutObsWeight Int FilePath
 
 determineCoreOutMode :: SearchOutMode -> (CoreOutMode,FilePath)
 determineCoreOutMode (SearchOutShort p)     = (CoreOutShort,p)
 determineCoreOutMode (SearchOutFull p)      = (CoreOutFull,p)
---determineCoreOutMode (SearchOutObsWeight p) = (CoreOutObsWeight,p)
+determineCoreOutMode (SearchOutObsWeight n p) = (CoreOutObsWeight n,p)
 
 runSearch :: SearchOptions -> IO ()
 runSearch (
@@ -110,27 +110,25 @@ runSearch (
         -- split stream to report the error cases and write the good results to the file system
         .| Con.getZipSink (
                 -- errors
-                Con.ZipSink (
-                       mapOnlyLefts
-                    .| ConL.groupOn id
-                    .| ConC.mapM_ printErrors
-                ) *>
-                -- search results
-                Con.ZipSink (
-                       mapOnlyRights
-                    .| mapOnlySearchResult
-                    .| normalize normalization -- this assumes the permutation order to be set accordingly!!
-                    .| sinkNamedCSV outFile
-                ) *>
-                -- per-observation weights
-                Con.ZipSink (
-                       mapOnlyRights
-                    .| mapOnlyObsWeights
-                    .| ConC.concatMap id
-                    .| sinkNamedCSV outFile
-                )
-           )
+                Con.ZipSink ( mapOnlyLefts .| ConL.groupOn id .| ConC.mapM_ printErrors ) *>
+                -- results
+                Con.ZipSink ( mapOnlyRights .| processBasedOnSetting outMode normalization )
+            )
     hPutStrLn stderr "Done"
+
+processBasedOnSetting :: SearchOutMode -> Normalization -> Con.ConduitT CoreOut Con.Void (ResourceT IO) ()
+processBasedOnSetting (SearchOutShort outFile) normalization =
+       mapOnlySearchResult
+    .| normalize normalization
+    .| sinkNamedCSV outFile
+processBasedOnSetting (SearchOutFull outFile) normalization =
+       mapOnlySearchResult
+    .| normalize normalization
+    .| sinkNamedCSV outFile
+processBasedOnSetting (SearchOutObsWeight _ outFile) normalization =
+       mapOnlyObsWeights
+    .| ConC.concatMap id
+    .| sinkNamedCSV outFile
 
 mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights
 mapOnlySearchResult = ConC.concatMap coreOutToSearchResult
