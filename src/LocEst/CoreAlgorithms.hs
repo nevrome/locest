@@ -20,7 +20,12 @@ data CoreOutMode =
     | CoreOutFull
     | CoreOutObsWeight Int
 
-core :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation -> CoreLog CoreOut
+core ::
+       CoreOutMode
+    -> CoreSupplement
+    -> V.Vector Observation
+    -> CorePermutation
+    -> CoreLog CoreOut
 core (CoreOutObsWeight nrTopObs) supp observations sett@(CorePermutation _ _ kernelDefinition _) = do
     --let namePerDepVar  = getKeys kernelDefinition
     --obsWithWeights <- V.mapMaybeM (getWeightsPerObs supp sett namePerDepVar) observations
@@ -30,12 +35,8 @@ core
     outMode 
     (CoreSupplement maybeSpaceTimeFiler maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
-    -- determine distances per observation to the current position of interest
     let dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
-    -- filter to the relevant observations based on distance
         obsWithDist = V.filter (inFilterRange maybeSpaceTimeFiler) $ V.zip observations dists
-    -- determine (interpolated) posterior predictive distributions per depVar for this position,
-    -- derive summary statistics and maybe perform the search for a specific search depVar value
     let namePerDepVar  = getKeys kernelDefinition
         valuePerDepVar = case searchDepVarPos of
             Just x  -> Just <$> getValues x
@@ -44,7 +45,6 @@ core
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull -> interpolPerDepVarFull
-    -- compile output object
     return $ CoreSearchResult $ SearchResult {
            _srCorePermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
@@ -53,14 +53,12 @@ core
             xs -> Just $ foldSum xs
          }
 
-inFilterRange :: Maybe (Double, Double) -> (Observation, IndepVarsDist) -> Bool
-inFilterRange
-    (Just (spaceFilter,timeFilter))
-    (_,IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
-    spatDistsKM <= spaceFilter && tempDist <= timeFilter
-inFilterRange _ _ = True
-
-getDists :: Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> CorePermutation -> Observation -> IndepVarsDist
+getDists ::
+       Maybe SpatDistMatrix
+    -> Maybe TempSampleMatrix
+    -> CorePermutation
+    -> Observation
+    -> IndepVarsDist
 -- spatiotemporal distances
 getDists
     maybeSpatDistMap maybeTempSamples
@@ -96,11 +94,22 @@ getDists
             gridPos = getValues gridAbritryDimPos
             arbitraryDimDist = ArbitraryDimPos $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
-
 -- wrong input
 getDists _ _ _ _ = error "Should not happen" -- ToDo
 
-interpolAndSearchOneDepVar :: KernelDefinition -> V.Vector (Observation, IndepVarsDist) -> DepVarName -> Maybe Double -> InterpolationResultOneDepVar
+inFilterRange :: Maybe (Double, Double) -> (Observation, IndepVarsDist) -> Bool
+inFilterRange
+    (Just (spaceFilter,timeFilter))
+    (_,IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
+    spatDistsKM <= spaceFilter && tempDist <= timeFilter
+inFilterRange _ _ = True
+
+interpolAndSearchOneDepVar ::
+       KernelDefinition
+    -> V.Vector (Observation, IndepVarsDist)
+    -> DepVarName
+    -> Maybe Double
+    -> InterpolationResultOneDepVar
 interpolAndSearchOneDepVar kernelDefinition obsWithDist nameDepVar maybeValueDepVar = do
     let (values, weights) = VU.unzip . VU.convert $ V.map (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
         totalWeight = VU.sum weights
@@ -122,30 +131,34 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist nameDepVar maybeValueDep
                 Nothing ->
                     InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
-valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> (Observation, IndepVarsDist) -> (Double, Double)
-valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist =
+valueAndWeightOneDepVarOneObs ::
+       KernelDefinition
+    -> DepVarName
+    -> (Observation, IndepVarsDist)
+    -> (Double, Double)
+valueAndWeightOneDepVarOneObs kernelDefinition depVar (obs,dists) =
     let (shape,nugget,lengths) = getKernelForOneDepVar kernelDefinition depVar
-        value = getOneDepVarPos oneObsWithDist
-        sqWeiDist = squaredWeightedDistForOneObs lengths oneObsWithDist
+        value = getOneDepVarPos obs
+        sqWeiDist = squaredWeightedDistForOneObs lengths dists
         weight = weightForOneObs shape nugget sqWeiDist
     in (value, weight)
     where
-        getOneDepVarPos :: (Observation, IndepVarsDist) -> Double
-        getOneDepVarPos (Observation _ _ (HyperPos _ (DepVarsPos m)), _) =
+        getOneDepVarPos :: Observation -> Double
+        getOneDepVarPos (Observation _ _ (HyperPos _ (DepVarsPos m))) =
             case lookup depVar m of
                 Nothing -> error "Unknown variable"
                 Just x  -> x
         weightForOneObs :: KernelShape -> KernelNugget -> Double -> Double
         weightForOneObs SquaredExponential nugget d = nugget / (nugget + exp d - 1)
         weightForOneObs Linear             nugget d = nugget / (nugget + sqrt d)
-        squaredWeightedDistForOneObs :: KernelLengths -> (Observation, IndepVarsDist) -> Double
+        squaredWeightedDistForOneObs :: KernelLengths -> IndepVarsDist -> Double
         squaredWeightedDistForOneObs
             (KernelLengths (ArbitraryDimPos [(_,spaceKernelWidth), (_,timeKernelWidth)]))
-            (_,IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
+            (IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
             (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
         squaredWeightedDistForOneObs
             lengths
-            (_,IndepArbitraryDimDist namedDists) =
+            (IndepArbitraryDimDist namedDists) =
             let ds = getValues namedDists
             in foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths))
         squaredWeightedDistForOneObs _ _ =
