@@ -10,7 +10,7 @@ import           Data.Maybe              (mapMaybe)
 import           Statistics.Distribution (density, quantile)
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
-import Data.List (transpose)
+import Data.List (sortBy)
 
 type CoreLog = E.Except LOCESTException
 -- you could throw a clean exception with for just one core iteration with
@@ -28,25 +28,26 @@ core ::
     -> CorePermutation
     -> CoreLog CoreOut
 core (CoreOutObsWeight nrTopObs) 
-    (CoreSupplement maybeSpaceTimeFiler maybeSpatDistMap maybeTempSamples)
-     observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+    (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
+     observations sett@(CorePermutation _ _ kernelDefinition _) = do
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
-        obsWithDist = V.filter (inFilterRange maybeSpaceTimeFiler) $ V.zip observations dists
-        weights = V.map (\obs -> DepVarsPos $ map (\depVar -> (depVar, getWeightOneObsOneDepVar kernelDefinition depVar obs)) depVars) obsWithDist
-        obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDist weights
-    return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeights)
+        obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
+        weights = V.map (\obs -> DepVarsPos $ map (\depVar -> (depVar, getWeightOneObsOneDepVar kernelDefinition depVar obs)) depVars) obsWithDistFiltered
+        obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
+        obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
+    return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeightsSubset)
 core
     outMode 
-    (CoreSupplement maybeSpaceTimeFiler maybeSpatDistMap maybeTempSamples)
+    (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
-        obsWithDist = V.filter (inFilterRange maybeSpaceTimeFiler) $ V.zip observations dists
+        obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
         valuePerDepVar = case searchDepVarPos of
             Just x  -> Just <$> getValues x
             Nothing -> replicate (length depVars) Nothing
-        interpolPerDepVarFull = zipWith (interpolAndSearchOneDepVar kernelDefinition obsWithDist) depVars valuePerDepVar
+        interpolPerDepVarFull = zipWith (interpolAndSearchOneDepVar kernelDefinition obsWithDistFiltered) depVars valuePerDepVar
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull -> interpolPerDepVarFull
@@ -58,6 +59,10 @@ core
             xs -> Just $ foldSum xs
          }
 
+compareObsWithWeights :: ObsWithWeights -> ObsWithWeights -> Ordering
+compareObsWithWeights (ObsWithWeights _ _ (DepVarsPos x1)) (ObsWithWeights _ _ (DepVarsPos x2)) =
+    compare (foldSum (map snd x1)) (foldSum (map snd x2))
+
 getDists ::
        Maybe SpatDistMatrix
     -> Maybe TempSampleMatrix
@@ -68,7 +73,7 @@ getDists ::
 getDists
     maybeSpatDistMap maybeTempSamples
     (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration)
-    obs@(Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) =
+    (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) =
         let spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
             tempDist = findTempDist maybeTempSamples  
@@ -93,7 +98,7 @@ getDists
 getDists
     _ _
     (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _)
-    obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) =
+    (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) =
         let keys = getKeys obsArbitraryDimPos
             obsPos = getValues obsArbitraryDimPos
             gridPos = getValues gridAbritryDimPos
@@ -154,7 +159,7 @@ getWeightOneObsOneDepVar ::
     -> DepVarName
     -> (Observation, IndepVarsDist)
     -> Double
-getWeightOneObsOneDepVar kernelDefinition depVar (obs,dists) =
+getWeightOneObsOneDepVar kernelDefinition depVar (_,dists) =
     let (shape,nugget,lengths) = getKernelForOneDepVar kernelDefinition depVar
         sqWeiDist = squaredWeightedDistForOneObs lengths dists
     in weightForOneObs shape nugget sqWeiDist
