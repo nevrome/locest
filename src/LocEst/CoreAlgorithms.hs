@@ -26,18 +26,21 @@ core ::
     -> V.Vector Observation
     -> CorePermutation
     -> CoreLog CoreOut
-core (CoreOutObsWeight nrTopObs) supp observations sett@(CorePermutation _ _ kernelDefinition _) = do
-    --let namePerDepVar  = getKeys kernelDefinition
-    --obsWithWeights <- V.mapMaybeM (getWeightsPerObs supp sett namePerDepVar) observations
+core (CoreOutObsWeight nrTopObs) 
+    (CoreSupplement maybeSpaceTimeFiler maybeSpatDistMap maybeTempSamples)
+     observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+    let namePerDepVar  = getKeys kernelDefinition
+        dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
+        obsWithDist = V.filter (inFilterRange maybeSpaceTimeFiler) $ V.zip observations dists
     --return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeights)
     undefined
 core
     outMode 
     (CoreSupplement maybeSpaceTimeFiler maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
-    let dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
-        obsWithDist = V.filter (inFilterRange maybeSpaceTimeFiler) $ V.zip observations dists
     let namePerDepVar  = getKeys kernelDefinition
+        dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
+        obsWithDist = V.filter (inFilterRange maybeSpaceTimeFiler) $ V.zip observations dists
         valuePerDepVar = case searchDepVarPos of
             Just x  -> Just <$> getValues x
             Nothing -> replicate (length namePerDepVar) Nothing
@@ -110,8 +113,9 @@ interpolAndSearchOneDepVar ::
     -> DepVarName
     -> Maybe Double
     -> InterpolationResultOneDepVar
-interpolAndSearchOneDepVar kernelDefinition obsWithDist nameDepVar maybeValueDepVar = do
-    let (values, weights) = VU.unzip . VU.convert $ V.map (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
+interpolAndSearchOneDepVar kernelDefinition obsWithDist depVar maybeValueDepVar = do
+    let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
+        weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelDefinition depVar) obsWithDist
         totalWeight = VU.sum weights
         neff        = totalWeight
         weightedA   = weightedAvg_ totalWeight values weights
@@ -122,32 +126,37 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist nameDepVar maybeValueDep
                 median = quantile distribution 0.5 -- this is identical to weightedA
                 upper  = quantile distribution 0.975
                 prob   = fmap (density distribution) maybeValueDepVar
-            in InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool True) (OutInfDouble lower) median (OutInfDouble upper) prob
+            in InterpolationResultOneDepVarFull
+                depVar neff weightedA weightedV (OutBool True)
+                (OutInfDouble lower) median (OutInfDouble upper) prob
         Left _ ->
             case maybeValueDepVar of
                 Just _ ->
                     -- is setting the probability to 0 a good idea?
-                    InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just 0)
+                    InterpolationResultOneDepVarFull
+                        depVar neff weightedA weightedV (OutBool False)
+                        (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just 0)
                 Nothing ->
-                    InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
+                    InterpolationResultOneDepVarFull
+                        depVar neff weightedA weightedV (OutBool False)
+                        (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
-valueAndWeightOneDepVarOneObs ::
+getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
+getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (DepVarsPos m)), _) =
+    case lookup depVar m of
+        Nothing -> error "Unknown variable"
+        Just x  -> x
+
+getWeightOneObsOneDepVar ::
        KernelDefinition
     -> DepVarName
     -> (Observation, IndepVarsDist)
-    -> (Double, Double)
-valueAndWeightOneDepVarOneObs kernelDefinition depVar (obs,dists) =
+    -> Double
+getWeightOneObsOneDepVar kernelDefinition depVar (obs,dists) =
     let (shape,nugget,lengths) = getKernelForOneDepVar kernelDefinition depVar
-        value = getOneDepVarPos obs
         sqWeiDist = squaredWeightedDistForOneObs lengths dists
-        weight = weightForOneObs shape nugget sqWeiDist
-    in (value, weight)
+    in weightForOneObs shape nugget sqWeiDist
     where
-        getOneDepVarPos :: Observation -> Double
-        getOneDepVarPos (Observation _ _ (HyperPos _ (DepVarsPos m))) =
-            case lookup depVar m of
-                Nothing -> error "Unknown variable"
-                Just x  -> x
         weightForOneObs :: KernelShape -> KernelNugget -> Double -> Double
         weightForOneObs SquaredExponential nugget d = nugget / (nugget + exp d - 1)
         weightForOneObs Linear             nugget d = nugget / (nugget + sqrt d)
