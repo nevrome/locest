@@ -12,6 +12,8 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
 
 type CoreLog = E.Except LOCESTException
+-- you could throw a clean exception with for just one core iteration with
+-- E.throwError $ NormalException ""
 
 data CoreOutMode =
       CoreOutShort
@@ -24,19 +26,22 @@ core (CoreOutObsWeight nrTopObs) supp observations sett@(CorePermutation _ _ ker
     --obsWithWeights <- V.mapMaybeM (getWeightsPerObs supp sett namePerDepVar) observations
     --return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeights)
     undefined
-core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+core
+    outMode 
+    (CoreSupplement maybeSpaceTimeFiler maybeSpatDistMap maybeTempSamples)
+     observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     -- determine distances per observation to the current position of interest
-    let dists = V.map (getDists supp sett) observations
-        obsWithDist = V.filter (inFilterRange supp) $ V.zip observations dists
-
+    let dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
+    -- filter to the relevant observations based on distance
+        obsWithDist = V.filter (inFilterRange maybeSpaceTimeFiler) $ V.zip observations dists
     -- determine (interpolated) posterior predictive distributions per depVar for this position,
     -- derive summary statistics and maybe perform the search for a specific search depVar value
     let namePerDepVar  = getKeys kernelDefinition
         valuePerDepVar = case searchDepVarPos of
             Just x  -> Just <$> getValues x
             Nothing -> replicate (length namePerDepVar) Nothing
-    interpolPerDepVarFull <- mapM (interpolAndSearchOneDepVar kernelDefinition obsWithDist) $ zip namePerDepVar valuePerDepVar
-    let interpolPerDepVar = case outMode of
+        interpolPerDepVarFull = zipWith (interpolAndSearchOneDepVar kernelDefinition obsWithDist) namePerDepVar valuePerDepVar
+        interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull -> interpolPerDepVarFull
     -- compile output object
@@ -48,22 +53,22 @@ core outMode supp observations sett@(CorePermutation _ searchDepVarPos kernelDef
             xs -> Just $ foldSum xs
          }
 
-inFilterRange :: CoreSupplement -> (Observation, IndepVarsDist) -> Bool
+inFilterRange :: Maybe (Double, Double) -> (Observation, IndepVarsDist) -> Bool
 inFilterRange
-    (CoreSupplement (Just (spaceFilter,timeFilter)) _ _)
-    (obs,IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
+    (Just (spaceFilter,timeFilter))
+    (_,IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
     spatDistsKM <= spaceFilter && tempDist <= timeFilter
 inFilterRange _ _ = True
 
-getDists :: CoreSupplement -> CorePermutation -> Observation -> IndepVarsDist
+getDists :: Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> CorePermutation -> Observation -> IndepVarsDist
 -- spatiotemporal distances
 getDists
-    (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
+    maybeSpatDistMap maybeTempSamples
     (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration)
     obs@(Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) =
-        let tempDist = findTempDist maybeTempSamples
-            spatDist = findSpatDist maybeSpatDistMap
+        let spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
+            tempDist = findTempDist maybeTempSamples  
         in IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)
         where
             findTempDist :: Maybe TempSampleMatrix -> Double
@@ -83,7 +88,7 @@ getDists
                 in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
 -- arbitrary dim distances
 getDists
-    _
+    _ _
     (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _)
     obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) =
         let keys = getKeys obsArbitraryDimPos
@@ -93,63 +98,62 @@ getDists
         in IndepArbitraryDimDist arbitraryDimDist
 
 -- wrong input
-getDists _ _ _ = error "Should not happen" -- ToDo
+getDists _ _ _ _ = error "Should not happen" -- ToDo
 
-interpolAndSearchOneDepVar :: KernelDefinition -> V.Vector (Observation, IndepVarsDist) -> (DepVarName, Maybe Double) -> CoreLog InterpolationResultOneDepVar
-interpolAndSearchOneDepVar kernelDefinition obsWithDist (nameDepVar,maybeValueDepVar) = do
-    --(values, weights) <- mapAndUnzipM (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
-    (values, weights) <- VU.unzip . VU.convert <$> V.mapM (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
-    let totalWeight = VU.sum weights
+interpolAndSearchOneDepVar :: KernelDefinition -> V.Vector (Observation, IndepVarsDist) -> DepVarName -> Maybe Double -> InterpolationResultOneDepVar
+interpolAndSearchOneDepVar kernelDefinition obsWithDist nameDepVar maybeValueDepVar = do
+    let (values, weights) = VU.unzip . VU.convert $ V.map (valueAndWeightOneDepVarOneObs kernelDefinition nameDepVar) obsWithDist
+        totalWeight = VU.sum weights
         neff        = totalWeight
         weightedA   = weightedAvg_ totalWeight values weights
         weightedV   = weightedVar_ totalWeight weightedA values weights
     case posteriorPredictive_ totalWeight weightedA weightedV of
-        Right distribution -> do
+        Right distribution ->
             let lower  = quantile distribution 0.025
-                median = quantile distribution 0.5 -- I'm sure now this is identical to weightedA
+                median = quantile distribution 0.5 -- this is identical to weightedA
                 upper  = quantile distribution 0.975
                 prob   = fmap (density distribution) maybeValueDepVar
-            return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool True) (OutInfDouble lower) median (OutInfDouble upper) prob
-        Left _ -> do
+            in InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool True) (OutInfDouble lower) median (OutInfDouble upper) prob
+        Left _ ->
             case maybeValueDepVar of
                 Just _ ->
                     -- is setting the probability to 0 a good idea?
-                    return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just 0)
+                    InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just 0)
                 Nothing ->
-                    return $ InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
+                    InterpolationResultOneDepVarFull nameDepVar neff weightedA weightedV (OutBool False) (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
-valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> (Observation, IndepVarsDist) -> CoreLog (Double, Double)
-valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist = do
-    (shape,nugget,lengths) <- getKernelForOneDepVar kernelDefinition depVar
-    value     <- getOneDepVarPos oneObsWithDist
-    sqWeiDist <- squaredWeightedDistForOneObs lengths oneObsWithDist
-    let weight = weightForOneObs shape nugget sqWeiDist
-    return (value, weight)
+valueAndWeightOneDepVarOneObs :: KernelDefinition -> DepVarName -> (Observation, IndepVarsDist) -> (Double, Double)
+valueAndWeightOneDepVarOneObs kernelDefinition depVar oneObsWithDist =
+    let (shape,nugget,lengths) = getKernelForOneDepVar kernelDefinition depVar
+        value = getOneDepVarPos oneObsWithDist
+        sqWeiDist = squaredWeightedDistForOneObs lengths oneObsWithDist
+        weight = weightForOneObs shape nugget sqWeiDist
+    in (value, weight)
     where
-        getOneDepVarPos :: (Observation, IndepVarsDist) -> CoreLog Double
+        getOneDepVarPos :: (Observation, IndepVarsDist) -> Double
         getOneDepVarPos (Observation _ _ (HyperPos _ (DepVarsPos m)), _) =
             case lookup depVar m of
-                Nothing -> E.throwError $ NormalException "Unknown variable"
-                Just x  -> pure x
+                Nothing -> error "Unknown variable"
+                Just x  -> x
         weightForOneObs :: KernelShape -> KernelNugget -> Double -> Double
         weightForOneObs SquaredExponential nugget d = nugget / (nugget + exp d - 1)
         weightForOneObs Linear             nugget d = nugget / (nugget + sqrt d)
-        squaredWeightedDistForOneObs :: KernelLengths -> (Observation, IndepVarsDist) -> CoreLog Double
+        squaredWeightedDistForOneObs :: KernelLengths -> (Observation, IndepVarsDist) -> Double
         squaredWeightedDistForOneObs
             (KernelLengths (ArbitraryDimPos [(_,spaceKernelWidth), (_,timeKernelWidth)]))
             (_,IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
-            pure $ (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
+            (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
         squaredWeightedDistForOneObs
             lengths
-            (_,IndepArbitraryDimDist namedDists) = do
+            (_,IndepArbitraryDimDist namedDists) =
             let ds = getValues namedDists
-            pure $ foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths))
+            in foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths))
         squaredWeightedDistForOneObs _ _ =
-            E.throwError $ NormalException "Illegal combination of kernel and grid data"
+            error "Illegal combination of kernel and grid data"
 
-getKernelForOneDepVar :: KernelDefinition -> String -> CoreLog (KernelShape, KernelNugget, KernelLengths)
+getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugget, KernelLengths)
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
     case filter (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
-        []                    -> E.throwError $ NormalException "Variable not defined in kernel definition"
-        [KernelOneDepVar _ s n k] -> pure (s, n, k)
-        _                     -> E.throwError $ NormalException "Variable defined multiple times in kernel definition"
+        []                        -> error "Variable not defined in kernel definition"
+        [KernelOneDepVar _ s n k] -> (s, n, k)
+        _                         -> error "Variable defined multiple times in kernel definition"
