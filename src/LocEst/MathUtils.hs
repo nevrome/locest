@@ -17,6 +17,9 @@ nan = 0/0
 foldSum :: [Double] -> Double
 foldSum = foldl' (+) 0
 
+foldProduct :: [Double] -> Double
+foldProduct = foldl' (*) 1
+
 avg :: [Double] -> Double
 avg xs = foldSum xs / fromIntegral (length xs)
 

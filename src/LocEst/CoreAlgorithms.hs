@@ -55,7 +55,7 @@ core
          , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srProbability     = case mapMaybe getProbability interpolPerDepVarFull of
             [] -> Nothing
-            xs -> Just $ foldSum xs
+            xs -> Just $ foldProduct xs
          }
 
 compareObsWithWeights :: ObsWithWeights -> ObsWithWeights -> Ordering
