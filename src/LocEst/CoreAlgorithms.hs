@@ -33,7 +33,11 @@ core (CoreOutObsWeight nrTopObs)
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
-        weights = V.map (\obs -> DepVarsPos $ map (\depVar -> (depVar, getWeightOneObsOneDepVar kernelDefinition depVar obs)) depVars) obsWithDistFiltered
+        weights = V.map
+            (\obs -> DepVarsPos $ map
+                (\depVar -> (depVar, getWeightOneObsOneDepVar kernelDefinition depVar obs))
+                depVars)
+            obsWithDistFiltered
         obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
         obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
     return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeightsSubset)
