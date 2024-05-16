@@ -10,6 +10,7 @@ import           Data.Maybe              (mapMaybe)
 import           Statistics.Distribution (density, quantile)
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
+import Data.List (transpose)
 
 type CoreLog = E.Except LOCESTException
 -- you could throw a clean exception with for just one core iteration with
@@ -29,22 +30,23 @@ core ::
 core (CoreOutObsWeight nrTopObs) 
     (CoreSupplement maybeSpaceTimeFiler maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
-    let namePerDepVar  = getKeys kernelDefinition
+    let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDist = V.filter (inFilterRange maybeSpaceTimeFiler) $ V.zip observations dists
-    --return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeights)
-    undefined
+        weights = V.map (\obs -> DepVarsPos $ map (\depVar -> (depVar, getWeightOneObsOneDepVar kernelDefinition depVar obs)) depVars) obsWithDist
+        obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDist weights
+    return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeights)
 core
     outMode 
     (CoreSupplement maybeSpaceTimeFiler maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
-    let namePerDepVar  = getKeys kernelDefinition
+    let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDist = V.filter (inFilterRange maybeSpaceTimeFiler) $ V.zip observations dists
         valuePerDepVar = case searchDepVarPos of
             Just x  -> Just <$> getValues x
-            Nothing -> replicate (length namePerDepVar) Nothing
-        interpolPerDepVarFull = zipWith (interpolAndSearchOneDepVar kernelDefinition obsWithDist) namePerDepVar valuePerDepVar
+            Nothing -> replicate (length depVars) Nothing
+        interpolPerDepVarFull = zipWith (interpolAndSearchOneDepVar kernelDefinition obsWithDist) depVars valuePerDepVar
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull -> interpolPerDepVarFull
