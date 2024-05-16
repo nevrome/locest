@@ -364,7 +364,7 @@ data ObsWithWeights = ObsWithWeights {
 instance NFData ObsWithWeights
 instance Csv.DefaultOrdered ObsWithWeights where
     headerOrder (ObsWithWeights obs dists depVarWeights) =
-        Csv.headerOrder obs <> Csv.headerOrder dists <> Csv.headerOrder depVarWeights
+        V.map ("in_obs_" <>) (Csv.headerOrder obs <> Csv.headerOrder dists <> (V.map ("weight_" <>) $ Csv.headerOrder depVarWeights))
 instance Csv.ToRecord ObsWithWeights where
     toRecord (ObsWithWeights obs dists depVarWeights) =
         Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
@@ -377,7 +377,7 @@ instance Csv.DefaultOrdered IndepVarsDist where
     headerOrder (IndepSpatTempDist spatTempDist) =
         Csv.headerOrder spatTempDist
     headerOrder (IndepArbitraryDimDist arbitraryDimPos) =
-        Csv.headerOrder arbitraryDimPos
+        V.map ("dist_" <>) $ Csv.headerOrder arbitraryDimPos
 instance Csv.ToRecord IndepVarsDist where
     toRecord (IndepSpatTempDist spatTempDist) =
         Csv.toRecord spatTempDist
@@ -407,7 +407,7 @@ instance Csv.DefaultOrdered Observation where
         Csv.header ["obsID"] <> Csv.headerOrder position
 instance Csv.ToRecord Observation where
     toRecord (Observation _ identifier position) =
-        Csv.toRecord identifier <> Csv.toRecord position
+        Csv.record [Csv.toField identifier] <> Csv.toRecord position
 instance Identifiable Observation where
     getID (Observation _ identifier _) = identifier
     getIndex (Observation index _ _) = index
@@ -578,7 +578,7 @@ data SpatTempDist = SpatTempDist {
 instance NFData SpatTempDist
 instance Csv.DefaultOrdered SpatTempDist where
     headerOrder (SpatTempDist _ _) =
-        Csv.header ["spatDist", "tempDist"]
+        Csv.header ["dist_space", "dist_time"]
 instance Csv.ToRecord SpatTempDist where
     toRecord (SpatTempDist spatDist tempDist) =
         Csv.record [Csv.toField spatDist, Csv.toField tempDist]
