@@ -247,10 +247,10 @@ optParseSearchGridSettings =
         <$> optParseIndepVarsPredGridSettings
         <*> OP.optional optParseSearchPositions
 
-optParseSearchPositions :: OP.Parser SearchPositions
+optParseSearchPositions :: OP.Parser DepVarsPredGridSettings
 optParseSearchPositions =
-           DepVarsPosViaObsFile <$> optParseInSearchObservationFile
-    OP.<|> DirectDepVarsGrid <$> optParseSearchDepVarsPos
+           DirectDepVarsGridSettings <$> optParseSearchDepVarsPos
+    OP.<|> SearchObsDepVarsGridSettings <$> optParseInSearchObservationFile
 
 optParseIndepVarsPredGridSettings :: OP.Parser IndepVarsPredGridSettings
 optParseIndepVarsPredGridSettings =
@@ -363,8 +363,8 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
 
 optParseInSearchObservationFile :: OP.Parser FilePath
 optParseInSearchObservationFile = OP.strOption (
-       OP.long    "obsFile"
-    <> OP.short   'i'
+       OP.long    "searchObsFile"
+    <> OP.short   's'
     <> OP.metavar "FILE"
     <> OP.help    "Path to the .tsv file with search observations."
     )

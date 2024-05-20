@@ -224,10 +224,6 @@ data IndepVarsPredGrid =
       _adGridPos  :: V.Vector ArbitraryDimPos
     }
 
-data DepVarsPredGrid = DepVarsPredGrid {
-      _depVarsGrid  :: [DepVarsPos]
-}
-
 data CoreSupplement = CoreSupplement {
       _csSpaceTimeFilter :: Maybe (Double, Double)
     , _csSpatDist        :: Maybe SpatDistMatrix
@@ -237,7 +233,7 @@ data CoreSupplement = CoreSupplement {
 -- | A datatype with core-algorithm settings
 data CorePermutation = CorePermutation {
       _casIndepVarsPos          :: IndepVarsPos
-    , _casDepVarsPos            :: Maybe DepVarsPos
+    , _casSearchObs             :: Maybe DepVarsPredPos
     , _casKernelDefinition      :: KernelDefinition
     , _casTempSamplingIteration :: Int
 } deriving (Show, Generic)
@@ -246,7 +242,7 @@ instance NFData CorePermutation
 instance Csv.DefaultOrdered CorePermutation where
     headerOrder (CorePermutation indepVarsPos (Just depVarsPos) algorithm _) =
            Csv.headerOrder indepVarsPos
-        <> V.map ("search_" <>) (Csv.headerOrder depVarsPos)
+        <> Csv.headerOrder depVarsPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["temp_sampling_iteration"]
     headerOrder (CorePermutation indepVarsPos Nothing algorithm _) =
@@ -265,6 +261,25 @@ instance Csv.ToRecord CorePermutation where
         <> Csv.record [Csv.toField tempSamplingIteration]
 
 type DepVarName = String
+
+newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
+
+data DepVarsPredPos =
+      DepVarsPredPosDirect DepVarsPos
+    | DepVarsPredPosSearchObs Observation
+    deriving (Show, Generic)
+
+instance NFData DepVarsPredPos
+instance Csv.DefaultOrdered DepVarsPredPos where
+    headerOrder (DepVarsPredPosDirect depVarsPos) =
+           V.map ("search_" <>) $ Csv.headerOrder depVarsPos
+    headerOrder (DepVarsPredPosSearchObs searchObs) =
+           V.map ("search_" <>) $ Csv.headerOrder searchObs
+instance Csv.ToRecord DepVarsPredPos where
+    toRecord (DepVarsPredPosDirect depVarsPos) =
+           Csv.toRecord depVarsPos
+    toRecord (DepVarsPredPosSearchObs searchObs) =
+           Csv.toRecord searchObs
 
 newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
