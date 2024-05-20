@@ -10,7 +10,7 @@ import           Data.Maybe              (mapMaybe)
 import           Statistics.Distribution (density, quantile)
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
-import Data.List (sortBy)
+import Data.List (sortBy, find)
 
 type CoreLog = E.Except LOCESTException
 -- you could throw a clean exception with for just one core iteration with
@@ -150,8 +150,8 @@ interpolAndSearchOneDepVar kernelDefinition obsWithDist depVar maybeValueDepVar 
 getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
 getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (DepVarsPos m)), _) =
     case lookup depVar m of
-        Nothing -> error "Unknown variable"
         Just x  -> x
+        Nothing -> error "Unknown variable"
 
 getWeightOneObsOneDepVar ::
        KernelDefinition
@@ -181,7 +181,6 @@ getWeightOneObsOneDepVar kernelDefinition depVar (_,dists) =
 
 getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugget, KernelLengths)
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
-    case filter (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
-        []                        -> error "Variable not defined in kernel definition"
-        [KernelOneDepVar _ s n k] -> (s, n, k)
-        _                         -> error "Variable defined multiple times in kernel definition"
+    case find (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
+        Just (KernelOneDepVar _ s n k) -> (s, n, k)
+        Nothing                        -> error "Variable not defined in kernel definition"
