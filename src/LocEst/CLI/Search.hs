@@ -37,8 +37,12 @@ data SearchOptions = SearchOptions
 
 data SearchGridSettings = SearchGridSettings {
       _searchPosSetIndepVarsGrid :: IndepVarsPredGridSettings
-    , _searchPosSetDepVarsGrid   :: Maybe [DepVarsPos]
+    , _searchPosSetDepVarsGrid   :: Maybe SearchPositions
 }
+
+data SearchPositions =
+      DirectDepVarsGrid [DepVarsPos]
+    | DepVarsPosViaObsFile FilePath
 
 data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _stgsInSpatGridFile       :: FilePath
