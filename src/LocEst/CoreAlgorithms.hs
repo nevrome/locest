@@ -28,10 +28,11 @@ core (CoreOutObsWeight nrTopObs)
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
+        kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
         weights = V.map
-            (\obs -> DepVarsPos $ map
-                (\depVar -> (depVar, getWeightOneObsOneDepVar kernelDefinition depVar obs))
-                depVars)
+            (\obs -> DepVarsPos $ zipWith
+                (\depVar kernelPerDepVar -> (depVar, getWeightOneObsOneDepVar kernelPerDepVar obs))
+                depVars kernelsPerDepVar)
             obsWithDistFiltered
         obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
         obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
@@ -43,10 +44,11 @@ core
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
+        kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
         valuePerDepVar = case searchDepVarPos of
             Just x  -> Just <$> getValues x
             Nothing -> replicate (length depVars) Nothing
-        interpolPerDepVarFull = zipWith (interpolAndSearchOneDepVar kernelDefinition obsWithDistFiltered) depVars valuePerDepVar
+        interpolPerDepVarFull = zipWith3 (interpolAndSearchOneDepVar obsWithDistFiltered) depVars kernelsPerDepVar valuePerDepVar
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull -> interpolPerDepVarFull
@@ -113,15 +115,21 @@ inFilterRange
     spatDistsKM <= spaceFilter && tempDist <= timeFilter
 inFilterRange _ _ = True
 
+getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugget, KernelLengths)
+getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
+    case find (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
+        Just (KernelOneDepVar _ s n k) -> (s, n, k)
+        Nothing                        -> error "Variable not defined in kernel definition"
+
 interpolAndSearchOneDepVar ::
-       KernelDefinition
-    -> V.Vector (Observation, IndepVarsDist)
+       V.Vector (Observation, IndepVarsDist)
     -> DepVarName
+    -> (KernelShape, KernelNugget, KernelLengths)
     -> Maybe Double
     -> InterpolationResultOneDepVar
-interpolAndSearchOneDepVar kernelDefinition obsWithDist depVar maybeValueDepVar = do
+interpolAndSearchOneDepVar obsWithDist depVar kernelPerDepVar maybeValueDepVar = do
     let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
-        weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelDefinition depVar) obsWithDist
+        weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelPerDepVar) obsWithDist
         totalWeight = VU.sum weights
         neff        = totalWeight
         weightedA   = weightedAvg_ totalWeight values weights
@@ -154,12 +162,11 @@ getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (DepVarsPos m)), _) 
         Nothing -> error "Unknown variable"
 
 getWeightOneObsOneDepVar ::
-       KernelDefinition
-    -> DepVarName
+       (KernelShape, KernelNugget, KernelLengths)
     -> (Observation, IndepVarsDist)
     -> Double
-getWeightOneObsOneDepVar kernelDefinition depVar (_,dists) =
-    let (shape,nugget,lengths) = getKernelForOneDepVar kernelDefinition depVar
+getWeightOneObsOneDepVar kernelPerDepVar (_,dists) =
+    let (shape,nugget,lengths) = kernelPerDepVar
         sqWeiDist = squaredWeightedDistForOneObs lengths dists
     in weightForOneObs shape nugget sqWeiDist
     where
@@ -178,9 +185,3 @@ getWeightOneObsOneDepVar kernelDefinition depVar (_,dists) =
             in foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths))
         squaredWeightedDistForOneObs _ _ =
             error "Illegal combination of kernel and grid data"
-
-getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugget, KernelLengths)
-getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
-    case find (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
-        Just (KernelOneDepVar _ s n k) -> (s, n, k)
-        Nothing                        -> error "Variable not defined in kernel definition"
