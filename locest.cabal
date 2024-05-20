@@ -45,6 +45,10 @@ library
       , currycarbon
     default-language:
       Haskell2010
+    -- for stan (https://github.com/kowainik/stan | run with stan --no-default)
+    --ghc-options:
+    --  -fwrite-ide-info
+    --  -hiedir=.hie
 
 executable locest
     main-is:

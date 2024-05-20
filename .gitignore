@@ -9,3 +9,4 @@ playground/data
 *eventlog*
 *.prof.*
 *.hp
+.hie/
