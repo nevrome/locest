@@ -265,7 +265,7 @@ validateAlgorithmSearch kernelDef (DepVarsPredGrid (DepVarsPredPosDirect x:_)) =
             throw $ NormalException "dep vars in --depVars and --algorithm not equal"
 validateAlgorithmSearch kernelDef (DepVarsPredGrid (DepVarsPredPosSearchObs x:_)) = do
         let depVarsFromAlg = getKeys kernelDef
-            depVarsFromGrid = getKeys x
+            depVarsFromGrid = getKeys $ (_hyposDepVarsPos . _obsPos) x
         OP.unless (depVarsFromAlg == depVarsFromGrid) $
             throw $ NormalException "dep vars in --searchObsFile and --algorithm not equal"
 

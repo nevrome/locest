@@ -46,8 +46,9 @@ core
         obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
         kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
         valuePerDepVar = case searchDepVarPos of
-            Just x  -> Just <$> getValues x
-            Nothing -> replicate (length depVars) Nothing
+            Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
+            Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
+            Nothing                          -> replicate (length depVars) Nothing
         interpolPerDepVarFull = zipWith3 (interpolAndSearchOneDepVar obsWithDistFiltered) depVars kernelsPerDepVar valuePerDepVar
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull

@@ -267,7 +267,7 @@ newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
 data DepVarsPredPos =
       DepVarsPredPosDirect DepVarsPos
     | DepVarsPredPosSearchObs Observation
-    deriving (Show, Generic)
+    deriving (Show, Generic, Eq)
 
 instance NFData DepVarsPredPos
 instance Csv.DefaultOrdered DepVarsPredPos where
@@ -404,7 +404,7 @@ data Observation = Observation {
       _obsIndex :: Int
     , _obsID    :: String
     , _obsPos   :: HyperPos
-} deriving (Show, Generic)
+} deriving (Show, Generic, Eq)
 
 instance S.Serialise Observation
 instance NFData Observation
@@ -432,7 +432,7 @@ instance Identifiable Observation where
 data HyperPos = HyperPos {
       _hyposIndepVarsPos :: IndepVarsPos
     , _hyposDepVarsPos   :: DepVarsPos
-} deriving (Show, Generic)
+} deriving (Show, Generic, Eq)
 
 instance S.Serialise HyperPos
 instance NFData HyperPos

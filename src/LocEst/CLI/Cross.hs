@@ -141,4 +141,4 @@ multiplyByAlgorithms ::
 multiplyByAlgorithms
     kernelDefs
     obs =
-    map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ _hyposDepVarsPos $ _obsPos obs) a 0) kernelDefs
+    map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosDirect $ _hyposDepVarsPos $ _obsPos obs) a 0) kernelDefs
