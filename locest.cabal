@@ -49,7 +49,7 @@ library
     ghc-options:
     --  -fwrite-ide-info
     --  -hiedir=.hie
-      -threaded -with-rtsopts=-N -O2
+      -O2
 
 executable locest
     main-is:
