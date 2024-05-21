@@ -44,10 +44,10 @@ data DepVarsPredGridSettings =
     | SearchObsDepVarsGridSettings FilePath
 
 data IndepVarsPredGridSettings = SpaceTimeGridSettings {
-      _stgsInSpatGridFile       :: FilePath
-    , _stgsInTempGrid           :: [Int]
-    , _stgsSupplementSettings   :: SpaceTimeCoreSupplementSettings
-    
+      _stgsInSpatGridFile     :: FilePath
+    , _stgsInTempGrid         :: [Int]
+    , _stgsSupplementSettings :: SpaceTimeCoreSupplementSettings
+
 } | ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
 }

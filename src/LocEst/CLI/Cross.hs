@@ -2,9 +2,10 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (mapOnlyLefts, mapOnlyRights,
+import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings),
+                                                mapOnlyLefts, mapOnlyRights,
                                                 mapOnlySearchResult,
-                                                printErrors, SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings))
+                                                printErrors)
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (foldSum)
@@ -13,6 +14,7 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import           Conduit                       (ResourceT)
+import           Control.Exception             (throw)
 import qualified Control.Monad.Except          as E
 import           Data.Conduit                  (ConduitT, (.|))
 import qualified Data.Conduit                  as Con
@@ -23,10 +25,9 @@ import           Data.List                     (sortBy)
 import           Data.Maybe                    (mapMaybe)
 import qualified Data.Vector                   as V
 import           Immutable.Shuffle             (shuffle)
+import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
-import System.FilePath (takeExtension)
-import Control.Exception (throw)
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath

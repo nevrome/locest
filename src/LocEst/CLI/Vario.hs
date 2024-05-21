@@ -3,10 +3,10 @@
 module LocEst.CLI.Vario where
 
 import           LocEst.CLI.Utils
-import           LocEst.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
+import           LocEst.Utils
 
 import           Conduit                       ((.|))
 import           Control.Monad                 (replicateM, zipWithM_)
@@ -14,14 +14,13 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import           Data.Function                 (on)
+import           Data.List                     (singleton)
 import qualified Data.Vector                   as V
 import qualified Data.Vector.Algorithms.Intro  as VA
 import qualified Data.Vector.Unboxed           as VU
 import qualified Data.Vector.Unboxed.Mutable   as VUM
+import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
-import System.FilePath (takeExtension)
-import Data.List (singleton)
---import Data.List (groupBy)
 
 data VarioOptions = VarioOptions {
       _voInObservationFile :: FilePath
@@ -34,8 +33,8 @@ data VarioOptions = VarioOptions {
 }
 
 data SpatDistSettings = SpatDistSettings {
-      _sdfInSpatDistFile    :: FilePath
-    , _sdfNoOrderCheck      :: Bool
+      _sdfInSpatDistFile :: FilePath
+    , _sdfNoOrderCheck   :: Bool
 }
 
 data BinModeSettings =
@@ -90,14 +89,6 @@ runVario (VarioOptions inObsFile maybeSpatDist binModeSettings acrossIndepVars a
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outVariogramFile
---     -- analyse variograms
---     let kernels = map suggestKernel $ groupBy (\(EmpiricalVariogramOneVarCombination _ d1 _) (EmpiricalVariogramOneVarCombination _ d2 _) -> d1 == d2) empiricalVariograms
---     writeKernelDefinition kernels (Just "/dev/null")
--- suggestKernel :: [EmpiricalVariogramOneVarCombination] -> KernelOneDepVar
--- suggestKernel xs =
---     undefined
---     --KernelOneDepVar depVarName 0.1 (SquaredExponential $ ArbitraryDimPos [(indepVarName, 100)])
-
 
 -- write variograms to the file system
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
