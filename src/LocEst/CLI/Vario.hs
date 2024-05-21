@@ -19,26 +19,40 @@ import qualified Data.Vector.Algorithms.Intro  as VA
 import qualified Data.Vector.Unboxed           as VU
 import qualified Data.Vector.Unboxed.Mutable   as VUM
 import           System.IO                     (hPutStrLn, stderr)
+import System.FilePath (takeExtension)
 --import Data.List (groupBy)
 
 data VarioOptions = VarioOptions {
-    _voInObservationFile :: FilePath,
-    _voInNrBins          :: Maybe Int,
-    _voInAcrossIndepVars :: Bool,
-    _voInAcrossDepVars   :: Bool,
-    _voInThreads         :: NumberOfThreads,
-    _voVariogramOutFile  :: Maybe FilePath
+      _voInObservationFile :: FilePath
+    , _voSpatDistSetting   :: Maybe SpatDistSetting
+    , _voInNrBins          :: Maybe Int
+    , _voInAcrossIndepVars :: Bool
+    , _voInAcrossDepVars   :: Bool
+    , _voInThreads         :: NumberOfThreads
+    , _voVariogramOutFile  :: Maybe FilePath
+}
+
+data SpatDistSetting = SpatDistSetting {
+      _sdfInSpatDistFile    :: FilePath
+    , _sdfNoOrderCheck      :: Bool
 }
 
 runVario :: VarioOptions -> IO ()
-runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars threads outVariogramFile) = do
+runVario (VarioOptions inObsFile maybeSpatDist maybeNrBins acrossIndepVars acrossDepVars threads outVariogramFile) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
     -- read observations
     observations <- readObservations inObsFile
+    -- read spat dist file
+    inSpatDists <- case maybeSpatDist of
+        Nothing                                  -> pure Nothing
+        Just (SpatDistSetting path noOrderCheck) ->
+            case takeExtension path of
+                ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
+                _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
-    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars observations
+    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars inSpatDists observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
     !distsPerDepVar   <- calcDepVarPairwiseDistances acrossDepVars observations
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
@@ -145,8 +159,8 @@ makeObsPairs obs =
     in zip [0..] obsPairs
 
 -- distance calculation functions
-calcIndepVarPairwiseDistances :: Bool -> V.Vector Observation -> IO [(IndepVarName, SUDistMatrix)]
-calcIndepVarPairwiseDistances merge obs = do
+calcIndepVarPairwiseDistances :: Bool -> Maybe SpatDistMatrix -> V.Vector Observation -> IO [(IndepVarName, SUDistMatrix)]
+calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
     let obsPairs = makeObsPairs obs
         nrPairs = length obsPairs
         (Observation _ _ (HyperPos indepPos _)) = V.head obs
@@ -179,11 +193,13 @@ calcIndepVarPairwiseDistances merge obs = do
         distSpaceTime
             spaceVec timeVec
             (i,
-            (Observation _ _ (HyperPos (IndepSpatTempPos p1) _),
-            Observation _ _ (HyperPos (IndepSpatTempPos p2) _))
+            (Observation i1 _ (HyperPos (IndepSpatTempPos p1) _),
+            Observation i2 _ (HyperPos (IndepSpatTempPos p2) _))
             ) = do
-            let spaceDist = spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
-                timeDist  = temporalDistSpatTempPos p1 p2
+            let timeDist  = temporalDistSpatTempPos p1 p2
+                spaceDist = case maybeSpatDistMatrix of
+                    Nothing             -> spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
+                    Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
             -- write distances to mutable vector
             VUM.write spaceVec i spaceDist
             VUM.write timeVec  i timeDist

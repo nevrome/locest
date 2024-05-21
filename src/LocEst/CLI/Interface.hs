@@ -108,6 +108,7 @@ searchOptParser = SearchOptions
 varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
                         <$> optParseInObservationFile
+                        <*> OP.optional optParseSpatDistSetting
                         <*> optParseInNrBins
                         <*> optParseAcrossIndepVars
                         <*> optParseAcrossDepVars
@@ -122,6 +123,11 @@ crossOptParser = CrossOptions
                         <*> optParseNumberOfThreads
                         <*> optParseCrossOutMode
                         <*> optParseOutFile
+
+optParseSpatDistSetting :: OP.Parser SpatDistSetting
+optParseSpatDistSetting = SpatDistSetting
+                        <$> optParseInSpatDistMapFile
+                        <*> optParseInSpatDistNoOrderCheck
 
 optParseCrossSettings :: OP.Parser CrossSettings
 optParseCrossSettings =
