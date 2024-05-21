@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module LocEst.CLI.Search where
@@ -9,7 +8,7 @@ import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
 
-import           Conduit                       (MonadIO, liftIO, ResourceT)
+import           Conduit                       (MonadIO, ResourceT, liftIO)
 import           Control.Exception             (throw)
 import qualified Control.Monad                 as OP
 import qualified Control.Monad.Except          as E
@@ -20,10 +19,10 @@ import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (catMaybes)
+import qualified Data.Vector                   as V
 import           LocEst.MathUtils
+import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
-import qualified Data.Vector as V
-import System.FilePath (takeExtension)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath

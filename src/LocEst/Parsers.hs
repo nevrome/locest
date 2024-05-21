@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Strict           #-}
-{-# LANGUAGE BangPatterns #-}
 
 module LocEst.Parsers where
 
@@ -19,16 +18,16 @@ import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
 import qualified Data.Conduit.Combinators  as ConC
 --import qualified Data.Conduit.Lift         as ConLF
+import qualified Codec.Serialise           as S
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
+import qualified Data.Vector               as V
 import           LocEst.Utils              (LOCESTException (NormalException))
+import           System.FilePath           (takeExtension)
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
-import qualified Data.Vector as V
-import System.FilePath (takeExtension)
-import qualified Codec.Serialise as S
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions

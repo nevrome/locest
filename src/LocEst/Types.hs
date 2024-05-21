@@ -6,7 +6,7 @@
 
 module LocEst.Types where
 
-import LocEst.MathUtils
+import           LocEst.MathUtils
 
 import qualified Codec.Serialise       as S
 import           Control.Applicative   (empty, (<|>))
@@ -171,7 +171,7 @@ instance Csv.ToRecord ObsWeight where
         Csv.toRecord corePermutation <> Csv.toRecord obsWithWeights
 
 -- | A datatype for search result points in space and time
-data SearchResult = 
+data SearchResult =
       SearchResult {
         _srCorePermutation :: CorePermutation
       , _srInterpolation   :: InterpolationResult
@@ -467,11 +467,11 @@ getProbability i@(InterpolationResultOneDepVarFull {})  = _irodvProbability i
 
 data InterpolationResultOneDepVar =
       InterpolationResultOneDepVarShort {
-          _irodvsDepVarName  :: DepVarName   -- name of the dependent variable
-        , _irodvsLowerBound  :: OutInfDouble -- lower boundary of the 95% interval
-        , _irodvsMedian      :: Double       -- median
-        , _irodvsUpperBound  :: OutInfDouble -- upper boundary of the 95% interval
-    } 
+          _irodvsDepVarName :: DepVarName   -- name of the dependent variable
+        , _irodvsLowerBound :: OutInfDouble -- lower boundary of the 95% interval
+        , _irodvsMedian     :: Double       -- median
+        , _irodvsUpperBound :: OutInfDouble -- upper boundary of the 95% interval
+    }
     | InterpolationResultOneDepVarFull {
           _irodvDepVarName  :: DepVarName    -- name of the dependent variable
         , _irodvEffN        :: Double        -- effective number of samples

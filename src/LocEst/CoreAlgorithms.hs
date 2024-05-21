@@ -6,11 +6,11 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import qualified Control.Monad.Except    as E
+import           Data.List               (find, sortBy)
 import           Data.Maybe              (mapMaybe)
+import qualified Data.Vector             as V
+import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (density, quantile)
-import qualified Data.Vector as V
-import qualified Data.Vector.Unboxed as VU
-import Data.List (sortBy, find)
 
 type CoreLog = E.Except LOCESTException
 -- you could throw a clean exception with for just one core iteration with
@@ -22,7 +22,7 @@ core ::
     -> V.Vector Observation
     -> CorePermutation
     -> CoreLog CoreOut
-core (CoreOutObsWeight nrTopObs) 
+core (CoreOutObsWeight nrTopObs)
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ _ kernelDefinition _) = do
     let depVars = getKeys kernelDefinition
@@ -38,7 +38,7 @@ core (CoreOutObsWeight nrTopObs)
         obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
     return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeightsSubset)
 core
-    outMode 
+    outMode
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
     let depVars = getKeys kernelDefinition
@@ -52,7 +52,7 @@ core
         interpolPerDepVarFull = zipWith3 (interpolAndSearchOneDepVar obsWithDistFiltered) depVars kernelsPerDepVar valuePerDepVar
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
-            CoreOutFull -> interpolPerDepVarFull
+            CoreOutFull  -> interpolPerDepVarFull
     return $ CoreSearchResult $ SearchResult {
            _srCorePermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
@@ -78,7 +78,7 @@ getDists
     (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) =
         let spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
-            tempDist = findTempDist maybeTempSamples  
+            tempDist = findTempDist maybeTempSamples
         in IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)
         where
             findTempDist :: Maybe TempSampleMatrix -> Double

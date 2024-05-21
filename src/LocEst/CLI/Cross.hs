@@ -1,9 +1,10 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (printErrors, mapOnlyLefts, mapOnlyRights, mapOnlySearchResult)
+import           LocEst.CLI.Search             (mapOnlyLefts, mapOnlyRights,
+                                                mapOnlySearchResult,
+                                                printErrors)
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (foldSum)
@@ -20,10 +21,10 @@ import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import           Data.List                     (sortBy)
 import           Data.Maybe                    (mapMaybe)
+import qualified Data.Vector                   as V
+import           Immutable.Shuffle             (shuffle)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
-import qualified Data.Vector as V
-import Immutable.Shuffle (shuffle)
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile :: FilePath

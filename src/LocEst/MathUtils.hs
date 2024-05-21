@@ -1,10 +1,10 @@
 module LocEst.MathUtils where
 
 import           Data.List                         (foldl')
+import qualified Data.Vector.Unboxed               as VU
 import           Statistics.Distribution.StudentT  (StudentT,
                                                     studentTUnstandardized)
 import           Statistics.Distribution.Transform (LinearTransform)
-import qualified Data.Vector.Unboxed as VU
 
 infinity :: Fractional a => a
 infinity = 1/0

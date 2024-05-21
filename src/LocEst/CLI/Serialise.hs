@@ -20,10 +20,10 @@ data SerialiseSet =
         _sagfInAnyGridFile        :: FilePath
       }
     | SerialiseSpatDistFile  {
-        _spfsInSpatDistFile       :: FilePath,
-        _spfsInObservationFile    :: FilePath,
-        _spfsInSpatGridFile       :: FilePath,
-        _spfsNoOrderCheck         :: Bool
+        _spfsInSpatDistFile    :: FilePath,
+        _spfsInObservationFile :: FilePath,
+        _spfsInSpatGridFile    :: FilePath,
+        _spfsNoOrderCheck      :: Bool
       }
     | SerialiseObsTempSamplesFile  {
         _sotsInObservationFile    :: FilePath,
