@@ -21,3 +21,10 @@ renderLOCESTException (ConfigFileParsingException s) =
     "Error: \n" ++ s
 
 instance Exception LOCESTException
+
+-- helper functions
+
+forM :: Monad m => [a] -> (a -> m b) -> m [b]
+forM = flip mapM
+for :: [a] -> (a -> b) -> [b]
+for = flip map

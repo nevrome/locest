@@ -131,7 +131,8 @@ runCross (
             -> Observation
             -> [CorePermutation]
         multiplyByAlgorithms kernelDefs obs =
-            map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) a 0) kernelDefs
+            for kernelDefs $
+                \a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) a 0
 
 readSpaceTimeSupp ::
        SpaceTimeCoreSupplementSettings

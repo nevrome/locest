@@ -3,6 +3,7 @@
 module LocEst.CLI.Vario where
 
 import           LocEst.CLI.Utils
+import           LocEst.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
@@ -28,12 +29,6 @@ data VarioOptions = VarioOptions {
     _voInThreads         :: NumberOfThreads,
     _voVariogramOutFile  :: Maybe FilePath
 }
-
--- helper functions for nested loops
-forM :: Monad m => [a] -> (a -> m b) -> m [b]
-forM = flip mapM
-for :: [a] -> (a -> b) -> [b]
-for = flip map
 
 runVario :: VarioOptions -> IO ()
 runVario (VarioOptions inObsFile maybeNrBins acrossIndepVars acrossDepVars threads outVariogramFile) = do
