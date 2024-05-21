@@ -3,14 +3,13 @@ module LocEst.CoreAlgorithms where
 import           LocEst.Distance
 import           LocEst.MathUtils
 import           LocEst.Types
+import           LocEst.Exceptions
 
 import           Data.List               (find, sortBy)
 import           Data.Maybe              (mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (density, quantile)
-import Control.Exception (throw)
-import LocEst.Exceptions
 
 core ::
        CoreOutMode

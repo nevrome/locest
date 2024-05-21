@@ -694,9 +694,11 @@ instance Csv.FromNamedRecord CartesianPos where
     parseNamedRecord m =
         CartesianPos <$> pure 0 <*> filterLookupOptional m "spatID" <*> filterLookup m "x" <*> filterLookup m "y"
 instance Csv.DefaultOrdered CartesianPos where
-    headerOrder _ = Csv.header ["spatID", "x", "y"]
+    headerOrder (CartesianPos _ Nothing _ _)  = Csv.header ["x", "y"]
+    headerOrder (CartesianPos _ (Just _) _ _) = Csv.header ["spatID", "x", "y"]
 instance Csv.ToRecord CartesianPos where
-    toRecord (CartesianPos _ s x y) = Csv.record [Csv.toField s, Csv.toField x, Csv.toField y]
+    toRecord (CartesianPos _ Nothing x y)  = Csv.record [Csv.toField x, Csv.toField y]
+    toRecord (CartesianPos _ (Just s) x y) = Csv.record [Csv.toField s, Csv.toField x, Csv.toField y]
 instance Identifiable CartesianPos where
     getID (CartesianPos _ Nothing _ _)           = "unnamed"
     getID (CartesianPos _ (Just identifier) _ _) = identifier
@@ -713,9 +715,11 @@ instance Csv.FromNamedRecord LongLatPos where
     parseNamedRecord m =
         LongLatPos <$> pure 0 <*> filterLookupOptional m "spatID" <*> filterLookup m "longitude" <*> filterLookup m "latitude"
 instance Csv.DefaultOrdered LongLatPos where
-    headerOrder _ = Csv.header ["spatID", "longitude", "latitude"]
+    headerOrder (LongLatPos _ Nothing _ _)  = Csv.header ["longitude", "latitude"]
+    headerOrder (LongLatPos _ (Just _) _ _) = Csv.header ["spatID", "longitude", "latitude"]
 instance Csv.ToRecord LongLatPos where
-    toRecord (LongLatPos _ s long lat) = Csv.record [Csv.toField s, Csv.toField long, Csv.toField lat]
+    toRecord (LongLatPos _ Nothing long lat)  = Csv.record [Csv.toField long, Csv.toField lat]
+    toRecord (LongLatPos _ (Just s) long lat) = Csv.record [Csv.toField s, Csv.toField long, Csv.toField lat]
 instance Identifiable LongLatPos where
     getID (LongLatPos _ Nothing _ _)           = "unnamed"
     getID (LongLatPos _ (Just identifier) _ _) = identifier

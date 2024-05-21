@@ -10,7 +10,7 @@ hu <- mobest::create_prediction_grid(
 
 hu %>%
   dplyr::select(
-    id, x, y
+    spatID = id, x, y
   ) %>%
   readr::write_tsv(file = "data/spatiotemporal/spatial_grid.tsv")
 
