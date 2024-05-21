@@ -52,7 +52,9 @@ vario %>%
 
 system('locest cross --configFile code/2D/experiment_2D_cross.conf')
 
-readr::read_tsv("data/2D/cross.tsv")
+cross <- readr::read_tsv("data/2D/cross.tsv")
+
+View(cross)
 
 system('locest search --configFile code/2D/experiment_2D.conf')
 

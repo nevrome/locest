@@ -496,28 +496,30 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
         parseAKernDefString :: P.Parser [KernelDefinition]
         parseAKernDefString = do
                     perDepVar <- parseNamedVector parseDepVarName parseShapeNuggetLengths
-                    let flattened = map (\(name,(s,n,ls)) -> map (\l -> KernelOneDepVar name s n l) ls) perDepVar
+                    let flattened = map (\(name,(s,ns,ls)) -> map (\(n,l) -> KernelOneDepVar name s n l) (allCombinations ns ls)) perDepVar
                         permutations = sequenceA flattened
                     return $ map KernelDefinition permutations
         parseShapeNuggetLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
-                ns <- parseArgument "nugget" parseDouble
+                ns <- parseArgument "nugget" parseNugget
                 ls <- parseArgument "lengths" parseKernelLengths
                 return (s,ns,ls)
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
+        parseNugget :: P.Parser [Double]
+        parseNugget = P.try parseSequence P.<|> P.try parseList P.<|> parseSingle
         parseKernelLengths ::  P.Parser [KernelLengths]
         parseKernelLengths = do
             res <- parseNamedVector parseIndepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
             let flattened = map (\(name,vs) -> map (name,) vs) res
                 permutations = sequenceA flattened
             return $ map (KernelLengths . ArbitraryDimPos) permutations
-            where
-                parseSequence = parseDoubleSequence
-                parseList = parseVector parseDouble
-                parseSingle = singleton <$> parseDouble
+        parseSequence = parseDoubleSequence
+        parseList = parseVector parseDouble
+        parseSingle = singleton <$> parseDouble
+        allCombinations xs ys = [ (x,y) | x <- xs, y <- ys ]
 
 -- general parsers
 
