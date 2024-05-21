@@ -20,6 +20,7 @@ import qualified Data.Vector.Unboxed           as VU
 import qualified Data.Vector.Unboxed.Mutable   as VUM
 import           System.IO                     (hPutStrLn, stderr)
 import System.FilePath (takeExtension)
+import Data.List (singleton)
 --import Data.List (groupBy)
 
 data VarioOptions = VarioOptions {
@@ -75,14 +76,14 @@ runVario (VarioOptions inObsFile maybeSpatDist binModeSettings acrossIndepVars a
             -- sort indep distance vector for easy binning
             sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
             -- get start index and stop index for each bin in the sorted indep vector
-            let startLenPerBin = case binModeSettings of
-                    BinByNrBins nrBins -> binIndepVar sortedIndepDists nrBins
-                    BinForNugget thresholds -> undefined--binIndepVar sortedIndepDists 100
+            let startStopPerBin = case binModeSettings of
+                    BinByNrBins nrBins -> binIndepVarByNrBins sortedIndepDists nrBins
+                    BinForNugget thresholds -> binIndepVarForNugget sortedIndepDists thresholds indepVarName
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
                 semivariancesPerBin <- Con.runConduitRes $
-                        ConC.yieldMany startLenPerBin
+                        ConC.yieldMany startStopPerBin
                         .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
                         .| ConC.sinkList
                 hPutStrLn stderr ("-> " ++ depVarName)
@@ -116,19 +117,29 @@ perBin sortedIndepDists depDists (mid, startSorted, stopSorted) =
     in (mid, semivariance)
 
 -- perform binning of an indepVar
-binIndepVar :: VU.Vector (Int, Double) -> Int -> [(Double, Int, Int)]
-binIndepVar sortedVec nrBins =
+binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [(Double, Int, Int)]
+binIndepVarForNugget sortedVec (ArbitraryDimPos m) indepVarName =
+    let threshold = case lookup indepVarName m of
+            Nothing -> error "indep var not there"
+            Just x  -> x
+        stop = case VU.findIndexR (\(_,x) -> x <= threshold) sortedVec of
+            Nothing -> VU.length sortedVec - 1
+            Just i  -> i
+    in singleton (calcMean sortedVec 0 stop, 0, stop)
+
+binIndepVarByNrBins :: VU.Vector (Int, Double) -> Int -> [(Double, Int, Int)]
+binIndepVarByNrBins sortedVec nrBins =
     let len = VU.length sortedVec
         stepWidth = len `div` nrBins -- in nr of distances
         starts = [0,stepWidth..(len - stepWidth)]
         stops = map (\x -> x-1) [stepWidth,2*stepWidth..len]
-    in zipWith (\start stop -> (calcMean start stop, start, stop)) starts stops
-    where
-        calcMean :: Int -> Int -> Double
-        calcMean start stop =
-            let (_,lo) = sortedVec VU.! start
-                (_,hi) = sortedVec VU.! stop
-            in (lo+hi)/2
+    in zipWith (\start stop -> (calcMean sortedVec start stop, start, stop)) starts stops
+
+calcMean :: VU.Vector (Int, Double) -> Int -> Int -> Double
+calcMean sortedVec start stop =
+    let (_,lo) = sortedVec VU.! start
+        (_,hi) = sortedVec VU.! stop
+    in (lo+hi)/2
 
 -- half mean squared distance within one bin
 calcMatheron :: VU.Vector Double -> Double
