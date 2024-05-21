@@ -58,8 +58,6 @@ View(cross)
 
 system('locest search --configFile code/2D/experiment_2D.conf')
 
-#res <- readr::read_tsv(file = "data/2D/interpol.tsv")
-
 res <- readr::read_tsv("data/2D/interpol.tsv")
 
 p <- ggplot() +
