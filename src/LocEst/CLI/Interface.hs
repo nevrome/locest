@@ -109,7 +109,7 @@ varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
                         <$> optParseInObservationFile
                         <*> OP.optional optParseSpatDistSetting
-                        <*> optParseInNrBins
+                        <*> optParseBinModeSettings
                         <*> optParseAcrossIndepVars
                         <*> optParseAcrossDepVars
                         <*> optParseNumberOfThreads
@@ -124,10 +124,36 @@ crossOptParser = CrossOptions
                         <*> optParseCrossOutMode
                         <*> optParseOutFile
 
-optParseSpatDistSetting :: OP.Parser SpatDistSetting
-optParseSpatDistSetting = SpatDistSetting
+optParseSpatDistSetting :: OP.Parser SpatDistSettings
+optParseSpatDistSetting = SpatDistSettings
                         <$> optParseInSpatDistMapFile
                         <*> optParseInSpatDistNoOrderCheck
+
+optParseBinModeSettings :: OP.Parser BinModeSettings
+optParseBinModeSettings = OP.option (OP.eitherReader readOutMode) (
+    OP.long "outMode" <>
+    OP.metavar "EqualSize(n=INT)|OneBinMax(max = c(indepX=DOUBLE,indepY=DOUBLE,...))" <>
+    OP.help "..." <>
+    OP.value (BinByNrBins 100) <>
+    OP.showDefault
+    )
+    where
+        readOutMode :: String -> Either String BinModeSettings
+        readOutMode s =
+            case P.runParser parseBinMode () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseBinMode = P.try parseEqualSize P.<|> parseOneBinMax
+        parseEqualSize = do
+            res <- parseRecordType "EqualSize" $ do
+                n <- parseArgument "n" parseInt
+                return n
+            return (BinByNrBins res)
+        parseOneBinMax = do
+            res <- parseRecordType "OneBinMax" $ do
+                maxPerIndepVar <- parseArgument "max" (parseNamedVector parseIndepVarName parseDouble)
+                return $ ArbitraryDimPos maxPerIndepVar
+            return (BinForNugget res)
 
 optParseCrossSettings :: OP.Parser CrossSettings
 optParseCrossSettings =
@@ -418,14 +444,6 @@ optParseVariogramOutFile = OP.optional $ OP.strOption (
        OP.long  "variogramOutFile"
     <> OP.metavar "FILE"
     <> OP.help  "Path to the variogram output file."
-    )
-
-optParseInNrBins :: OP.Parser (Maybe Int)
-optParseInNrBins = OP.optional $ OP.option OP.auto (
-       OP.long  "nrBins"
-    <> OP.short 'b'
-    <> OP.metavar "INT"
-    <> OP.help  "..."
     )
 
 --optParseQuiet :: OP.Parser Bool

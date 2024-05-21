@@ -24,21 +24,26 @@ import System.FilePath (takeExtension)
 
 data VarioOptions = VarioOptions {
       _voInObservationFile :: FilePath
-    , _voSpatDistSetting   :: Maybe SpatDistSetting
-    , _voInNrBins          :: Maybe Int
+    , _voSpatDistSetting   :: Maybe SpatDistSettings
+    , _voInNrBins          :: BinModeSettings
     , _voInAcrossIndepVars :: Bool
     , _voInAcrossDepVars   :: Bool
     , _voInThreads         :: NumberOfThreads
     , _voVariogramOutFile  :: Maybe FilePath
 }
 
-data SpatDistSetting = SpatDistSetting {
+data SpatDistSettings = SpatDistSettings {
       _sdfInSpatDistFile    :: FilePath
     , _sdfNoOrderCheck      :: Bool
 }
 
+data BinModeSettings =
+      BinByNrBins Int
+    | BinForNugget ArbitraryDimPos
+    deriving (Show)
+
 runVario :: VarioOptions -> IO ()
-runVario (VarioOptions inObsFile maybeSpatDist maybeNrBins acrossIndepVars acrossDepVars threads outVariogramFile) = do
+runVario (VarioOptions inObsFile maybeSpatDist binModeSettings acrossIndepVars acrossDepVars threads outVariogramFile) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
     -- read observations
@@ -46,7 +51,7 @@ runVario (VarioOptions inObsFile maybeSpatDist maybeNrBins acrossIndepVars acros
     -- read spat dist file
     inSpatDists <- case maybeSpatDist of
         Nothing                                  -> pure Nothing
-        Just (SpatDistSetting path noOrderCheck) ->
+        Just (SpatDistSettings path noOrderCheck) ->
             case takeExtension path of
                 ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
                 _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
@@ -70,9 +75,9 @@ runVario (VarioOptions inObsFile maybeSpatDist maybeNrBins acrossIndepVars acros
             -- sort indep distance vector for easy binning
             sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
             -- get start index and stop index for each bin in the sorted indep vector
-            let startLenPerBin = case maybeNrBins of
-                    Just b  -> binIndepVar sortedIndepDists b
-                    Nothing -> binIndepVar sortedIndepDists 100
+            let startLenPerBin = case binModeSettings of
+                    BinByNrBins nrBins -> binIndepVar sortedIndepDists nrBins
+                    BinForNugget thresholds -> undefined--binIndepVar sortedIndepDists 100
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
@@ -80,13 +85,6 @@ runVario (VarioOptions inObsFile maybeSpatDist maybeNrBins acrossIndepVars acros
                         ConC.yieldMany startLenPerBin
                         .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
                         .| ConC.sinkList
-                --let !semivariancesPerBin = parFor startLenPerBin $ \(mid, startSorted, stopSorted) ->
-                            -- recover depVar values through bin indices
-                --        let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
-                --            depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
-                            -- calculate semivariance per bin
-                --            semivariance = calcMatheron depDistsPerBin
-                --        in (mid, semivariance)
                 hPutStrLn stderr ("-> " ++ depVarName)
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
@@ -99,10 +97,15 @@ runVario (VarioOptions inObsFile maybeSpatDist maybeNrBins acrossIndepVars acros
 --     undefined
 --     --KernelOneDepVar depVarName 0.1 (SquaredExponential $ ArbitraryDimPos [(indepVarName, 100)])
 
--- -- write variograms to the file system
--- writeKernelDefinition :: [KernelOneDepVar] -> Maybe FilePath -> IO ()
--- writeKernelDefinition _ Nothing        = return ()
--- writeKernelDefinition k (Just path) = Con.runConduitRes $ ConL.sourceList k .| sinkNamedCSV path
+
+-- write variograms to the file system
+writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
+writeVariograms _ Nothing        = return ()
+writeVariograms vars (Just path) = Con.runConduitRes $ ConC.yieldMany (concatMap varToLong vars) .| sinkNamedCSV path
+    where
+        varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]
+        varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
+            map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
 
 perBin :: VU.Vector (Int, Double) -> VU.Vector Double -> (Double, Int, Int) -> (Double, Double)
 perBin sortedIndepDists depDists (mid, startSorted, stopSorted) =
@@ -142,15 +145,6 @@ getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
 getIndicesForBin sortedVec i1 i2 =
     --let !_ = unsafePerformIO $ putStrLn (show i1 ++ " " ++ show (i2 - i1))
     VU.map fst $ VU.slice i1 (i2 - i1) sortedVec
-
--- write variograms to the file system
-writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
-writeVariograms _ Nothing        = return ()
-writeVariograms vars (Just path) = Con.runConduitRes $ ConC.yieldMany (concatMap varToLong vars) .| sinkNamedCSV path
-    where
-        varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]
-        varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
-            map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
 
 makeObsPairs :: V.Vector Observation -> [(Int, (Observation, Observation))]
 makeObsPairs obs =
