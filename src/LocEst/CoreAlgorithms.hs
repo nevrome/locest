@@ -3,7 +3,7 @@ module LocEst.CoreAlgorithms where
 import           LocEst.Distance
 import           LocEst.MathUtils
 import           LocEst.Types
-import           LocEst.Utils
+import           LocEst.Exceptions
 
 import qualified Control.Monad.Except    as E
 import           Data.List               (find, sortBy)

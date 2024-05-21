@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module LocEst.Utils where
+module LocEst.Exceptions where
 
 import           Control.DeepSeq   (NFData)
 import           Control.Exception (Exception)
@@ -21,10 +21,3 @@ renderLOCESTException (ConfigFileParsingException s) =
     "Error: \n" ++ s
 
 instance Exception LOCESTException
-
--- helper functions
-
-forM :: Monad m => [a] -> (a -> m b) -> m [b]
-forM = flip mapM
-for :: [a] -> (a -> b) -> [b]
-for = flip map

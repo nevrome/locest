@@ -47,3 +47,8 @@ padLeft n s
     | length s >= n = reverse (take n (reverse s))
     | length s < n = replicate (n - length s) ' ' ++ s
     | otherwise    = s
+
+forM :: Monad m => [a] -> (a -> m b) -> m [b]
+forM = flip mapM
+for :: [a] -> (a -> b) -> [b]
+for = flip map

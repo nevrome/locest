@@ -9,11 +9,11 @@ import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
 import           LocEst.Types
+import           LocEst.Exceptions
 
 import           Control.Exception     (throw)
 import           Data.Char             (isSpace, toLower)
 import           Data.List             (groupBy, singleton)
-import           LocEst.Utils
 import qualified Options.Applicative   as OP
 import qualified Text.Parsec           as P
 import qualified Text.Parsec.String    as P

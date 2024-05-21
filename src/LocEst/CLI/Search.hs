@@ -6,7 +6,7 @@ import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
-import           LocEst.Utils
+import           LocEst.Exceptions
 
 import           Conduit                       (MonadIO, ResourceT, liftIO)
 import           Control.Exception             (throw)
@@ -47,7 +47,6 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _stgsInSpatGridFile     :: FilePath
     , _stgsInTempGrid         :: [Int]
     , _stgsSupplementSettings :: SpaceTimeCoreSupplementSettings
-
 } | ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
 }
@@ -86,7 +85,6 @@ runSearch (
         Nothing -> pure Nothing
     let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
         supplement = createCoreSupplement searchGrid
-    -- validate algorithm settings
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
     let permutations = createPermutations algorithm indepVarsPredGrid depVarsPredGrid
@@ -188,8 +186,7 @@ readIndepVarsPredGrid
     case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> return ()
             IndepArbitraryDimPos _ ->
-                throw $ NormalException "spatiotemporal positions in --obsFile not readable, \
-                                        \maybe wrong column names"
+                throw $ NormalException "spatiotemporal positions in --obsFile not readable, maybe wrong column names"
     -- complete spatiotemporal grid
     return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeFilter inSpatDists inObsTempSamples
 readIndepVarsPredGrid

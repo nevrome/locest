@@ -24,7 +24,7 @@ import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
 import qualified Data.Vector               as V
-import           LocEst.Utils              (LOCESTException (NormalException))
+import           LocEst.Exceptions         (LOCESTException (NormalException))
 import           System.FilePath           (takeExtension)
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)

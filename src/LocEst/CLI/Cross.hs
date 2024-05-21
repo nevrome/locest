@@ -11,7 +11,7 @@ import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (foldSum)
 import           LocEst.Parsers
 import           LocEst.Types
-import           LocEst.Utils
+import           LocEst.Exceptions
 
 import           Conduit                       (ResourceT)
 import           Control.Exception             (throw)
@@ -61,11 +61,9 @@ runCross (
     -- read observations
     observations <- readObservations inObsFile
     -- read core supplements
-    hPutStrLn stderr "Reading supplements"
     coreSupp <- readSpaceTimeSupp spaceTimeSuppSettings observations
     -- prepare permutations
-    hPutStrLn stderr "Preparing permutations"
-    -- split test and training data
+    hPutStrLn stderr "Splitting test and training data"
     let numObs = fromIntegral $ length observations
         numTestObs = round $ testFraction * numObs
     seed <- case maybeSeed of
@@ -147,6 +145,7 @@ readSpaceTimeSupp
             noOrderCheck
     )
     observations = do
+    hPutStrLn stderr "Reading supplements"
     -- read spatial distances
     inSpatDists <- case inSpatDistFile of
         Nothing   -> pure Nothing

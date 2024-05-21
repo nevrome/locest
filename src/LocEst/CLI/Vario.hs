@@ -6,7 +6,6 @@ import           LocEst.CLI.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
-import           LocEst.Utils
 
 import           Conduit                       ((.|))
 import           Control.Monad                 (replicateM, zipWithM_)
