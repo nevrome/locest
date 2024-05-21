@@ -137,16 +137,6 @@ splitTestTraining observations numTestObs seedOneIteration =
         (observationsShuffled,_) = shuffle observations rng
     in V.splitAt numTestObs observationsShuffled
 
--- this was written by ChatGPT after I wasted a very sad hour with the random-fu package
--- should probably be replaced with sth more reliable and faster
---shuffle :: V.Vector a -> R.StdGen -> V.Vector a
---shuffle empty _ = V.empty
---shuffle xs rng =
---  let (randomIndex,rngNext) = uniformR (0, length xs - 1) rng
---      (left, right) = splitAt randomIndex xs
---      rest = shuffle (left ++ tail right) rngNext
---  in (head right : rest)
-
 multiplyByAlgorithms ::
        [KernelDefinition]
     -> Observation
@@ -154,4 +144,4 @@ multiplyByAlgorithms ::
 multiplyByAlgorithms
     kernelDefs
     obs =
-    map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosDirect $ _hyposDepVarsPos $ _obsPos obs) a 0) kernelDefs
+    map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) a 0) kernelDefs
