@@ -42,13 +42,13 @@ readr::write_tsv(prediction_points, "data/2D/grid.tsv")
 # stack exec --profile -- locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv +RTS -p
 # profiteur locest.prof
 
-# system('locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv')
-# 
-# vario <- readr::read_tsv("data/2D/vario.tsv")
-# 
-# vario %>%
-#   ggplot() +
-#   geom_point(aes(bin, semivariance))
+system('locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv')
+
+vario <- readr::read_tsv("data/2D/vario.tsv")
+
+vario %>%
+  ggplot() +
+  geom_point(aes(bin, semivariance))
 
 system('locest cross --configFile code/2D/experiment_2D_cross.conf')
 

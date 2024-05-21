@@ -144,13 +144,6 @@ readSpaceTimeSupp
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
             _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
-    -- input validation
-    case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
-            IndepSpatTempPos _     -> return ()
-            IndepArbitraryDimPos _ ->
-                throwLIO "spatiotemporal positions in --obsFile not readable, \
-                         \maybe wrong column names"
-    -- complete spatiotemporal grid
     return $ CoreSupplement inSpaceTimeFilter inSpatDists inObsTempSamples
 
 summarizeFunc :: [SearchResult] -> CrossvalOutput
