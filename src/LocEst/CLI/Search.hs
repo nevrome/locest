@@ -9,7 +9,6 @@ import           LocEst.Types
 import           LocEst.Exceptions
 
 import           Conduit                       (ResourceT)
-import           Control.Exception             (throw)
 import qualified Control.Monad                 as OP
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
@@ -165,7 +164,7 @@ readIndepVarsPredGrid
     case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> return ()
             IndepArbitraryDimPos _ ->
-                throw $ NormalException "spatiotemporal positions in --obsFile not readable, maybe wrong column names"
+                throwLIO "spatiotemporal positions in --obsFile not readable, maybe wrong column names"
     -- complete spatiotemporal grid
     return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeFilter inSpatDists inObsTempSamples
 readIndepVarsPredGrid
@@ -182,7 +181,7 @@ readIndepVarsPredGrid
             IndepArbitraryDimPos x -> getKeys x
     let varsFromGrid = getKeys $ V.head inArbitraryDimPos
     OP.when (varsFromObs /= varsFromGrid) $ do
-        throw $ NormalException "indep vars in --obsFile and --anyGridFile not equal"
+        throwLIO "indep vars in --obsFile and --anyGridFile not equal"
     return $ ArbitraryDimGrid inArbitraryDimPos
 
 validateAlgorithmInterpol :: KernelDefinition -> IndepVarsPredGrid -> IO ()
@@ -192,18 +191,18 @@ validateAlgorithmInterpol
         let allIndepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
             indepVarsFromGrid = ["space", "time"]
         OP.unless (allEqual allIndepVarsFromAlg) $
-            throw $ NormalException "indep var names not equal across kernel definitions"
+            throwLIO "indep var names not equal across kernel definitions"
         OP.unless (head allIndepVarsFromAlg == indepVarsFromGrid) $
-            throw $ NormalException "indep vars not equal to \"space\" and \"time\""
+            throwLIO "indep vars not equal to \"space\" and \"time\""
 validateAlgorithmInterpol
     (KernelDefinition kernelsPerDepVars)
     (ArbitraryDimGrid arbitraryDimPos) = do
         let allIndepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
             indepVarsFromGrid = getKeys $ V.head  arbitraryDimPos
         OP.unless (allEqual allIndepVarsFromAlg) $
-            throw $ NormalException "indep var names not equal across kernel definitions"
+            throwLIO "indep var names not equal across kernel definitions"
         OP.unless (head allIndepVarsFromAlg == indepVarsFromGrid) $
-            throw $ NormalException "indep vars in --anyGridFile and --algorithm not equal"
+            throwLIO "indep vars in --anyGridFile and --algorithm not equal"
 
 readDepVarsPredGrid ::
        DepVarsPredGridSettings
@@ -217,13 +216,13 @@ readDepVarsPredGrid
         DirectDepVarsGridSettings depVarsPos -> do
             let varsFromGrid = getKeys $ head depVarsPos
             OP.when (varsFromObs /= varsFromGrid) $ do
-                throw $ NormalException "dep vars in --obsFile and --depVars not equal"
+                throwLIO "dep vars in --obsFile and --depVars not equal"
             return $ DepVarsPredGrid $ map DepVarsPredPosDirect $ depVarsPos
         SearchObsDepVarsGridSettings path -> do
             searchObservations <- V.toList <$> readObservations path
             let varsFromSearchObs = getKeys $ (_hyposDepVarsPos . _obsPos) $ head searchObservations
             OP.when (varsFromObs /= varsFromSearchObs) $ do
-                throw $ NormalException "dep vars in --obsFile and --searchObsFile not equal"
+                throwLIO "dep vars in --obsFile and --searchObsFile not equal"
             return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 
 validateAlgorithmSearch :: KernelDefinition -> DepVarsPredGrid -> IO ()
@@ -231,14 +230,14 @@ validateAlgorithmSearch kernelDef (DepVarsPredGrid (DepVarsPredPosDirect x:_)) =
         let depVarsFromAlg = getKeys kernelDef
             depVarsFromGrid = getKeys x
         OP.unless (depVarsFromAlg == depVarsFromGrid) $
-            throw $ NormalException "dep vars in --depVars and --algorithm not equal"
+            throwLIO "dep vars in --depVars and --algorithm not equal"
 validateAlgorithmSearch kernelDef (DepVarsPredGrid (DepVarsPredPosSearchObs x:_)) = do
         let depVarsFromAlg = getKeys kernelDef
             depVarsFromGrid = getKeys $ (_hyposDepVarsPos . _obsPos) x
         OP.unless (depVarsFromAlg == depVarsFromGrid) $
-            throw $ NormalException "dep vars in --searchObsFile and --algorithm not equal"
+            throwLIO "dep vars in --searchObsFile and --algorithm not equal"
 validateAlgorithmSearch _ (DepVarsPredGrid _) = do
-        throw $ NormalException "dep vars empty"
+        throwLIO "dep vars empty"
 
 createCoreSupplement :: SearchGrid -> CoreSupplement
 createCoreSupplement (SearchGrid (SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples) _) =

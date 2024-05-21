@@ -11,7 +11,6 @@ import           LocEst.CLI.Vario
 import           LocEst.Types
 import           LocEst.Exceptions
 
-import           Control.Exception     (throw)
 import           Data.Char             (isSpace, toLower)
 import           Data.List             (groupBy, singleton)
 import qualified Options.Applicative   as OP
@@ -25,7 +24,7 @@ parseConfigFile :: FilePath -> IO [String]
 parseConfigFile configFile = do
     contents <- readFile configFile
     case P.parse parseFile configFile contents of
-        Left err -> throw $ ConfigFileParsingException $ show err
+        Left err -> throwLIO $ show err
         Right x  -> return x
     where
     parseFile :: P.Parser [String]

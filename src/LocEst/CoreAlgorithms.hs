@@ -103,7 +103,7 @@ getDists
             arbitraryDimDist = ArbitraryDimPos $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
 -- wrong input
-getDists _ _ _ _ = throw (CoreException "Should not happen") -- ToDo
+getDists _ _ _ _ = throwL "Should not happen" -- ToDo
 
 inFilterRange :: Maybe (Double, Double) -> (Observation, IndepVarsDist) -> Bool
 inFilterRange
@@ -116,7 +116,7 @@ getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugge
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
     case find (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
         Just (KernelOneDepVar _ s n k) -> (s, n, k)
-        Nothing                        -> throw (CoreException "Variable not defined in kernel definition")
+        Nothing                        -> throwL "Variable not defined in kernel definition"
 
 interpolAndSearchOneDepVar ::
        V.Vector (Observation, IndepVarsDist)
@@ -156,7 +156,7 @@ getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
 getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (DepVarsPos m)), _) =
     case lookup depVar m of
         Just x  -> x
-        Nothing -> throw (CoreException "Unknown variable")
+        Nothing -> throwL "Unknown variable"
 
 getWeightOneObsOneDepVar ::
        (KernelShape, KernelNugget, KernelLengths)
@@ -181,4 +181,4 @@ getWeightOneObsOneDepVar kernelPerDepVar (_,dists) =
             let ds = getValues namedDists
             in foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths))
         squaredWeightedDistForOneObs _ _ =
-            throw (CoreException "Illegal combination of kernel and grid data")
+            throwL "Illegal combination of kernel and grid data"

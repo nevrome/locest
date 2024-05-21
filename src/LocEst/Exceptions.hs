@@ -3,24 +3,20 @@
 module LocEst.Exceptions where
 
 import           Control.DeepSeq   (NFData)
-import           Control.Exception (Exception)
+import           Control.Exception (Exception, throw, throwIO)
 import           GHC.Generics      (Generic)
 
 -- | Different exceptions for locest
-data LOCESTException =
-        NormalException String
-      | ConfigFileParsingException String
-      | CoreException String
+newtype LocEstException = LocEstException String
     deriving (Show, Generic, Eq)
 
-instance NFData LOCESTException
+instance Exception LocEstException
+instance NFData LocEstException
 
-renderLOCESTException :: LOCESTException -> String
-renderLOCESTException (NormalException s) =
-    "\nError: \n" ++ s
-renderLOCESTException (ConfigFileParsingException s) =
-    "\nError: \n" ++ s
-renderLOCESTException (CoreException s) =
-    "\nError: \n" ++ s
+renderLocEstException :: LocEstException -> String
+renderLocEstException (LocEstException s) = "\nError: \n" ++ s
 
-instance Exception LOCESTException
+throwL :: String -> a
+throwL s = throw $ LocEstException s
+throwLIO :: String -> IO a
+throwLIO s = throwIO $ LocEstException s

@@ -62,9 +62,9 @@ main = do
             dropNextElement [_]      = []
             dropNextElement (_ : ys) = removeConfigFileArg ys
         -- exception handler
-        handler :: LOCESTException -> IO a
+        handler :: LocEstException -> IO a
         handler e = do
-            hPutStrLn stderr $ renderLOCESTException e
+            hPutStrLn stderr $ renderLocEstException e
             exitFailure
 
 runCmd :: Subcommand -> IO ()

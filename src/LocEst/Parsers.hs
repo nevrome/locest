@@ -5,9 +5,9 @@ module LocEst.Parsers where
 
 import           LocEst.CLI.Utils
 import           LocEst.Types
+import           LocEst.Exceptions
 
 import           Conduit                   (MonadIO, MonadResource, liftIO)
-import           Control.Exception         (throwIO)
 import           Control.Monad             (when)
 import           Control.Monad.Error.Class
 --import qualified Control.Monad.State       as ST
@@ -24,7 +24,6 @@ import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
 import           Data.IORef                (modifyIORef, newIORef, readIORef)
 import qualified Data.Vector               as V
-import           LocEst.Exceptions         (LOCESTException (NormalException))
 import           System.FilePath           (takeExtension)
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr)
@@ -67,9 +66,9 @@ readTempSamp (ReadTempSampParse noOrderCheck obs path) = do
         ConC.length
     if nSamples > 0
     then hPutStrLn stderr $ "Expected age samples per observation: " ++ show nSamples
-    else liftIO $ throwIO $ NormalException $
-        "Order of entries in --tempSampFile not equal to -i. " ++
-        "Expected first value: " ++ _obsID (V.head obs)
+    else throwLIO $
+            "Order of entries in --tempSampFile not equal to -i. " ++
+            "Expected first value: " ++ _obsID (V.head obs)
     -- start the actual parsing
     sampleVec <- Con.runConduitRes $
         sourceCSV path .|
@@ -98,7 +97,7 @@ readTempSamp (ReadTempSampParse noOrderCheck obs path) = do
                             loop rest
                         else do
                             -- throw an exception if the order is not as expected
-                            liftIO $ throwIO $ NormalException $
+                            liftIO $ throwLIO $
                                 "Order of entries in --tempSampFile not equal to -i. " ++
                                 "Expected: " ++ expected ++ " but got: " ++ obsID
                     Nothing -> return ()
@@ -151,7 +150,7 @@ readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path) = do
                             loop rest
                         else do
                             -- throw an exception if the order is not as expected
-                            liftIO $ throwIO $ NormalException $
+                            liftIO $ throwLIO $
                                 "Order of entries in --spatDistFile not equal to -i and -g. " ++
                                 "Expected: " ++ show expected ++ " but got: " ++ show (obsID, spatID)
                     Nothing -> return ()
@@ -203,8 +202,8 @@ unwrapCSVParsingErrors parseRes =
     case parseRes of
         Left e ->
             case e of
-                Left e1  -> liftIO $ throwIO $ NormalException $ show e1
-                Right e2 -> liftIO $ throwIO $ NormalException $ show e2
+                Left e1  -> liftIO $ throwLIO $ show e1
+                Right e2 -> liftIO $ throwLIO $ show e2
         Right res -> return res
 
 sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) =>

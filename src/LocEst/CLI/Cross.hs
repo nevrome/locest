@@ -12,7 +12,6 @@ import           LocEst.Types
 import           LocEst.Exceptions
 
 import           Conduit                       (ResourceT)
-import           Control.Exception             (throw)
 import           Data.Conduit                  (ConduitT, (.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
@@ -149,8 +148,8 @@ readSpaceTimeSupp
     case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> return ()
             IndepArbitraryDimPos _ ->
-                throw $ NormalException "spatiotemporal positions in --obsFile not readable, \
-                                        \maybe wrong column names"
+                throwLIO "spatiotemporal positions in --obsFile not readable, \
+                         \maybe wrong column names"
     -- complete spatiotemporal grid
     return $ CoreSupplement inSpaceTimeFilter inSpatDists inObsTempSamples
 
