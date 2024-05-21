@@ -9,8 +9,6 @@ import           Data.IORef        (modifyIORef, newIORef, readIORef)
 import           GHC.Conc          (getNumCapabilities)
 import           System.IO         (hPutStrLn, stderr)
 
---
-
 setNumberOfThreads :: NumberOfThreads -> IO Int
 setNumberOfThreads x = do
     numThreads <- set x
@@ -39,7 +37,7 @@ progress reportNum goal = do
     where
         logProgress :: Int -> String -> IO ()
         logProgress c g
-            | c == 1 || c `rem` reportNum == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 9 (show c) ++ g
+            | c `rem` reportNum == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 9 (show c) ++ g
             | otherwise = return ()
 
 padLeft :: Int -> String -> String
@@ -52,3 +50,7 @@ forM :: Monad m => [a] -> (a -> m b) -> m [b]
 forM = flip mapM
 for :: [a] -> (a -> b) -> [b]
 for = flip map
+
+allEqual :: Eq a => [a] -> Bool
+allEqual []     = True
+allEqual (x:xs) = all (== x) xs

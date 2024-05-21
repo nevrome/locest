@@ -286,7 +286,3 @@ normalize NormBySpace =
     getProb stp@(SearchResult {}) = _srProbability stp
     setProb :: SearchResult -> Maybe Double -> SearchResult
     setProb stp@(SearchResult {}) p = stp {_srProbability = p}
-
-allEqual :: Eq a => [a] -> Bool
-allEqual []     = True
-allEqual (x:xs) = all (== x) xs

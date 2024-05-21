@@ -9,7 +9,6 @@ import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (foldSum)
 import           LocEst.Parsers
 import           LocEst.Types
-import           LocEst.Exceptions
 
 import           Conduit                       (ResourceT)
 import           Data.Conduit                  (ConduitT, (.|))
