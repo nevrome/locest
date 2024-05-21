@@ -55,11 +55,6 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
 }
 
-data SearchOutMode =
-      SearchOutShort FilePath
-    | SearchOutFull FilePath
-    | SearchOutObsWeight Int FilePath
-
 runSearch :: SearchOptions -> IO ()
 runSearch (
     SearchOptions

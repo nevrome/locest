@@ -113,6 +113,7 @@ crossOptParser = CrossOptions
                         <$> optParseInObservationFile
                         <*> optParseCrossSettings
                         <*> optParseNumberOfThreads
+                        <*> optParseCrossOutMode
                         <*> optParseOutFile
 
 optParseCrossSettings :: OP.Parser CrossSettings
@@ -122,6 +123,24 @@ optParseCrossSettings =
         <*> optParseTestTrainingFraction
         <*> optParseCrossvalIterations
         <*> optParseCrossvalConfSeed
+
+optParseCrossOutMode :: OP.Parser CrossOutMode
+optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
+    OP.long "outMode" <>
+    OP.metavar "Summed|Obs" <>
+    OP.help "Output options." <>
+    OP.value SummedLikelihoodPerKernelSetting <>
+    OP.showDefault
+    )
+    where
+        readOutMode :: String -> Either String CrossOutMode
+        readOutMode s =
+            case P.runParser parseOutMode () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseOutMode = P.try parseSummed P.<|> parseObs
+        parseSummed = P.string "Short" >> return SummedLikelihoodPerKernelSetting
+        parseObs    = P.string "Obs"   >> return IndividualSearchObsResults
 
 optParseCoreOutMode :: OP.Parser CoreOutMode
 optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (

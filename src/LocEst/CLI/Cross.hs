@@ -29,6 +29,7 @@ data CrossOptions = CrossOptions
     { _crossInObservationFile :: FilePath
     , _crossSettings          :: CrossSettings
     , _crossNumThreads        :: NumberOfThreads
+    , _crossOutMode           :: CrossOutMode
     , _crossOutFile           :: FilePath
     }
 
@@ -39,9 +40,14 @@ data CrossSettings = CrossSettings {
     , _crossvalMaybeSeed    :: Maybe Int
 }
 
+data CrossOutMode =
+      SummedLikelihoodPerKernelSetting
+    | IndividualSearchObsResults
+    deriving (Show)
+
 runCross :: CrossOptions -> IO ()
 runCross (
-    CrossOptions inObsFile (CrossSettings kernDefs testFraction iterations maybeSeed) threads outFile
+    CrossOptions inObsFile (CrossSettings kernDefs testFraction iterations maybeSeed) threads outMode outFile
     ) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
@@ -85,12 +91,19 @@ runCross (
                     .| ConC.sinkList
                 )
            )
-    -- summarize crossvalidation result per kernel parameter setting
-    Con.runConduitRes $
-           ConC.yieldMany (sortBy sortFunc perPointRes)
-        .| ConL.groupBy groupFunc
-        .| ConC.map summarizeFunc
-        .| sinkNamedCSV outFile
+    case outMode of
+        IndividualSearchObsResults -> do
+            -- write out crossvalidation results for individual observations
+            Con.runConduitRes $
+                   ConC.yieldMany perPointRes-- (sortBy sortFunc perPointRes)
+                .| sinkNamedCSV outFile
+        SummedLikelihoodPerKernelSetting -> do
+            -- summarize crossvalidation result per kernel parameter setting
+            Con.runConduitRes $
+                   ConC.yieldMany (sortBy sortFunc perPointRes)
+                .| ConL.groupBy groupFunc
+                .| ConC.map summarizeFunc
+                .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
     where
         oneIterationConduit :: Int -> (V.Vector Observation, V.Vector Observation) -> ConduitT (V.Vector Observation, V.Vector Observation) (Either LOCESTException CoreOut) (ResourceT IO) ()
