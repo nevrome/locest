@@ -8,16 +8,14 @@ import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Exceptions
 
-import           Conduit                       (MonadIO, ResourceT, liftIO)
+import           Conduit                       (ResourceT)
 import           Control.Exception             (throw)
 import qualified Control.Monad                 as OP
-import qualified Control.Monad.Except          as E
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import qualified Data.List.NonEmpty            as NE
 import           Data.Maybe                    (catMaybes)
 import qualified Data.Vector                   as V
 import           LocEst.MathUtils
@@ -98,18 +96,13 @@ runSearch (
         -- 1. sequential
         -- .| ConL.map core
         -- 2. normal parallel
-        .| ConAA.asyncMapC numThreads (\x -> E.runExcept (core outMode supplement observations x))
+        .| ConAA.asyncMapC numThreads (core outMode supplement observations)
         -- 3. chunked parallel
         -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map core) .| ConL.concat
         -- print progress information
         .| progress 1000 (Just numPerms)
-        -- split stream to report the error cases and write the good results to the file system
-        .| Con.getZipSink (
-                -- errors
-                Con.ZipSink ( mapOnlyLefts .| ConL.groupOn id .| ConC.mapM_ printErrors ) *>
-                -- results
-                Con.ZipSink ( mapOnlyRights .| processBasedOnSetting outMode outFile normalization )
-            )
+        -- split stream for different output cases
+        .| processBasedOnSetting outMode outFile normalization
     hPutStrLn stderr "Done"
 
 processBasedOnSetting :: CoreOutMode -> FilePath -> Normalization -> Con.ConduitT CoreOut Con.Void (ResourceT IO) ()
@@ -136,20 +129,6 @@ coreOutToObsWeights _                 = Nothing
 coreOutToSearchResult :: CoreOut -> Maybe SearchResult
 coreOutToSearchResult (CoreSearchResult x) = Just x
 coreOutToSearchResult _                    = Nothing
-
-mapOnlyLefts :: Con.ConduitT (Either a b) a (ResourceT IO) ()
-mapOnlyLefts = ConC.concatMap leftToJust
-mapOnlyRights :: Con.ConduitT (Either a b) b (ResourceT IO) ()
-mapOnlyRights = ConC.concatMap rightToJust
-rightToJust :: Either a b -> Maybe b
-rightToJust (Right x) = Just x
-rightToJust _         = Nothing
-leftToJust :: Either a b -> Maybe a
-leftToJust (Left x) = Just x
-leftToJust _        = Nothing
-
-printErrors :: MonadIO m => NE.NonEmpty LOCESTException -> m ()
-printErrors errMsg = liftIO $ hPutStrLn stderr (show (length errMsg) ++ " * " ++ renderLOCESTException (NE.head errMsg))
 
 readIndepVarsPredGrid ::
        IndepVarsPredGridSettings

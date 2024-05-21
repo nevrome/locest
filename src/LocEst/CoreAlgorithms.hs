@@ -3,25 +3,19 @@ module LocEst.CoreAlgorithms where
 import           LocEst.Distance
 import           LocEst.MathUtils
 import           LocEst.Types
-import           LocEst.Exceptions
 
-import qualified Control.Monad.Except    as E
 import           Data.List               (find, sortBy)
 import           Data.Maybe              (mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (density, quantile)
 
-type CoreLog = E.Except LOCESTException
--- you could throw a clean exception with for just one core iteration with
--- E.throwError $ NormalException ""
-
 core ::
        CoreOutMode
     -> CoreSupplement
     -> V.Vector Observation
     -> CorePermutation
-    -> CoreLog CoreOut
+    -> CoreOut
 core (CoreOutObsWeight nrTopObs)
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ _ kernelDefinition _) = do
@@ -36,7 +30,7 @@ core (CoreOutObsWeight nrTopObs)
             obsWithDistFiltered
         obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
         obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
-    return $ CoreObsWeight (V.map (ObsWeight sett) obsWithWeightsSubset)
+    CoreObsWeight (V.map (ObsWeight sett) obsWithWeightsSubset)
 core
     outMode
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
@@ -53,7 +47,7 @@ core
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull  -> interpolPerDepVarFull
-    return $ CoreSearchResult $ SearchResult {
+    CoreSearchResult $ SearchResult {
            _srCorePermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srProbability     = case mapMaybe getProbability interpolPerDepVarFull of

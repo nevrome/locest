@@ -3,9 +3,7 @@
 module LocEst.CLI.Cross where
 
 import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings),
-                                                mapOnlyLefts, mapOnlyRights,
-                                                mapOnlySearchResult,
-                                                printErrors)
+                                                mapOnlySearchResult)
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (foldSum)
@@ -15,7 +13,6 @@ import           LocEst.Exceptions
 
 import           Conduit                       (ResourceT)
 import           Control.Exception             (throw)
-import qualified Control.Monad.Except          as E
 import           Data.Conduit                  (ConduitT, (.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
@@ -87,18 +84,8 @@ runCross (
         -- print progress information
         .| progress 1000 (Just numPerms)
         -- split stream to report the error cases and add the good ones to the result list
-        .| Con.getZipSink (
-                Con.ZipSink (
-                       mapOnlyLefts
-                    .| ConL.groupOn id
-                    .| ConC.mapM_ printErrors
-                ) *>
-                Con.ZipSink (
-                       mapOnlyRights
-                    .| mapOnlySearchResult
-                    .| ConC.sinkList
-                )
-           )
+        .| mapOnlySearchResult
+        .| ConC.sinkList
     case outMode of
         IndividualSearchObsResults -> do
             -- write out crossvalidation results for individual observations
@@ -118,13 +105,13 @@ runCross (
                CoreSupplement
             -> Int
             -> (V.Vector Observation, V.Vector Observation)
-            -> ConduitT (V.Vector Observation, V.Vector Observation) (Either LOCESTException CoreOut) (ResourceT IO) ()
+            -> ConduitT (V.Vector Observation, V.Vector Observation) CoreOut (ResourceT IO) ()
         oneIterationConduit coreSupp maxNumThreads (testData,trainingData) = do
             ConC.yieldMany testData
                 -- multiply multidimensional positions by algorithms
                 .| ConC.concatMap (multiplyByAlgorithms kernDefs)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (\x -> E.runExcept (core CoreOutFull coreSupp trainingData x))
+                .| ConAA.asyncMapC maxNumThreads (core CoreOutFull coreSupp trainingData)
         multiplyByAlgorithms ::
                [KernelDefinition]
             -> Observation
