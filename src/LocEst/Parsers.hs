@@ -106,7 +106,7 @@ readTempSamp (ReadTempSampParse noOrderCheck obs path) = do
 
 data ReadSpatDistSpec =
       ReadSpatDistDeserialise FilePath
-    | ReadSpatDistParse Bool (V.Vector Observation) (V.Vector SpatPos) FilePath
+    | ReadSpatDistParse Bool (V.Vector Observation) (Maybe (V.Vector SpatPos)) FilePath
 
 readSpatDist :: ReadSpatDistSpec -> IO SpatDistMatrix
 readSpatDist (ReadSpatDistDeserialise path) = do
@@ -116,11 +116,11 @@ readSpatDist (ReadSpatDistDeserialise path) = do
     res <- S.readFileDeserialise path
     hPutStrLn stderr "Done"
     return res
-readSpatDist (ReadSpatDistParse noOrderCheck obs spatGrid path) = do
+readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path) = do
     hPutStrLn stderr "Reading spatial distances"
     hPutStrLn stderr $ "Parsing " ++ path
     let nObs = V.length obs
-        nGridPoints = V.length spatGrid
+        nGridPoints = maybe nObs V.length maybeSpatGrid
     distVec <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
@@ -136,7 +136,7 @@ readSpatDist (ReadSpatDistParse noOrderCheck obs spatGrid path) = do
     checkOrder :: (MonadIO m) => ConduitT SpatDistObsGrid Double m ()
     checkOrder = do
         let outerCycle = V.map getID obs
-            innerCycle = V.map getID spatGrid
+            innerCycle = maybe outerCycle (V.map getID) maybeSpatGrid
             fullCycle  = [(o,i) | o <- V.toList outerCycle, i <- V.toList innerCycle]
         loop fullCycle
         where

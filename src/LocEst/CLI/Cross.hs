@@ -4,7 +4,7 @@ module LocEst.CLI.Cross where
 
 import           LocEst.CLI.Search             (mapOnlyLefts, mapOnlyRights,
                                                 mapOnlySearchResult,
-                                                printErrors)
+                                                printErrors, SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings))
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (foldSum)
@@ -25,13 +25,16 @@ import qualified Data.Vector                   as V
 import           Immutable.Shuffle             (shuffle)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
+import System.FilePath (takeExtension)
+import Control.Exception (throw)
 
 data CrossOptions = CrossOptions
-    { _crossInObservationFile :: FilePath
-    , _crossSettings          :: CrossSettings
-    , _crossNumThreads        :: NumberOfThreads
-    , _crossOutMode           :: CrossOutModeSettings
-    , _crossOutFile           :: FilePath
+    { _crossInObservationFile  :: FilePath
+    , _crossSupplementSettings :: SpaceTimeCoreSupplementSettings
+    , _crossSettings           :: CrossSettings
+    , _crossNumThreads         :: NumberOfThreads
+    , _crossOutMode            :: CrossOutModeSettings
+    , _crossOutFile            :: FilePath
     }
 
 data CrossSettings = CrossSettings {
@@ -48,12 +51,17 @@ data CrossOutModeSettings =
 
 runCross :: CrossOptions -> IO ()
 runCross (
-    CrossOptions inObsFile (CrossSettings kernDefs testFraction iterations maybeSeed) threads outMode outFile
+    CrossOptions inObsFile
+    spaceTimeSuppSettings
+    (CrossSettings kernDefs testFraction iterations maybeSeed) threads outMode outFile
     ) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
     -- read observations
     observations <- readObservations inObsFile
+    -- read core supplements
+    hPutStrLn stderr "Reading supplements"
+    coreSupp <- readSpaceTimeSupp spaceTimeSuppSettings observations
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
     -- split test and training data
@@ -76,7 +84,7 @@ runCross (
         -- begin to stream iterations
            ConC.yieldMany testTrainingIterations
         -- run per-iteration conduit until no iterations left
-        .| Con.awaitForever (oneIterationConduit numThreads)
+        .| Con.awaitForever (oneIterationConduit coreSupp numThreads)
         -- print progress information
         .| progress 1000 (Just numPerms)
         -- split stream to report the error cases and add the good ones to the result list
@@ -107,13 +115,56 @@ runCross (
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
     where
-        oneIterationConduit :: Int -> (V.Vector Observation, V.Vector Observation) -> ConduitT (V.Vector Observation, V.Vector Observation) (Either LOCESTException CoreOut) (ResourceT IO) ()
-        oneIterationConduit maxNumThreads (testData,trainingData) = do
+        oneIterationConduit ::
+               CoreSupplement
+            -> Int
+            -> (V.Vector Observation, V.Vector Observation)
+            -> ConduitT (V.Vector Observation, V.Vector Observation) (Either LOCESTException CoreOut) (ResourceT IO) ()
+        oneIterationConduit coreSupp maxNumThreads (testData,trainingData) = do
             ConC.yieldMany testData
                 -- multiply multidimensional positions by algorithms
                 .| ConC.concatMap (multiplyByAlgorithms kernDefs)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (\x -> E.runExcept (core CoreOutFull (CoreSupplement Nothing Nothing Nothing) trainingData x))
+                .| ConAA.asyncMapC maxNumThreads (\x -> E.runExcept (core CoreOutFull coreSupp trainingData x))
+        multiplyByAlgorithms ::
+               [KernelDefinition]
+            -> Observation
+            -> [CorePermutation]
+        multiplyByAlgorithms kernelDefs obs =
+            map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) a 0) kernelDefs
+
+readSpaceTimeSupp ::
+       SpaceTimeCoreSupplementSettings
+    -> V.Vector Observation
+    -> IO CoreSupplement
+readSpaceTimeSupp
+    (SpaceTimeCoreSupplementSettings
+            inSpaceTimeFilter
+            inSpatDistFile
+            inObsTempSamplesFile
+            noOrderCheck
+    )
+    observations = do
+    -- read spatial distances
+    inSpatDists <- case inSpatDistFile of
+        Nothing   -> pure Nothing
+        Just path -> case takeExtension path of
+            ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
+            _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
+    -- read temporal distances
+    inObsTempSamples <- case inObsTempSamplesFile of
+        Nothing   -> pure Nothing
+        Just path -> case takeExtension path of
+            ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
+            _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
+    -- input validation
+    case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
+            IndepSpatTempPos _     -> return ()
+            IndepArbitraryDimPos _ ->
+                throw $ NormalException "spatiotemporal positions in --obsFile not readable, \
+                                        \maybe wrong column names"
+    -- complete spatiotemporal grid
+    return $ CoreSupplement inSpaceTimeFilter inSpatDists inObsTempSamples
 
 summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =
@@ -138,11 +189,4 @@ splitTestTraining observations numTestObs seedOneIteration =
         (observationsShuffled,_) = shuffle observations rng
     in V.splitAt numTestObs observationsShuffled
 
-multiplyByAlgorithms ::
-       [KernelDefinition]
-    -> Observation
-    -> [CorePermutation]
-multiplyByAlgorithms
-    kernelDefs
-    obs =
-    map (\a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) a 0) kernelDefs
+

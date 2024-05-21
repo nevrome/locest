@@ -74,6 +74,12 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             SerialiseSpatGridFile
                             <$> optParseInArbitraryDimFile
                             )) (OP.progDesc "Serialise --anyGridFile."))
+                     <> OP.command "obsdist" (OP.info (OP.helper <*> (
+                            SerialiseObsObsSpatDistFile
+                            <$> optParseInSpatDistMapFile
+                            <*> optParseInObservationFile
+                            <*> optParseInSpatDistNoOrderCheck
+                            )) (OP.progDesc "Serialise --spatDistFile for the obs-obs case."))
                      <> OP.command "spatdist" (OP.info (OP.helper <*> (
                             SerialiseSpatDistFile
                             <$> optParseInSpatDistMapFile
@@ -111,6 +117,7 @@ varioOptParser = VarioOptions
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions
                         <$> optParseInObservationFile
+                        <*> optParseSpaceTimeCoreSupplementSettings
                         <*> optParseCrossSettings
                         <*> optParseNumberOfThreads
                         <*> optParseCrossOutMode

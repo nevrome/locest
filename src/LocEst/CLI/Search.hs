@@ -177,7 +177,7 @@ readIndepVarsPredGrid
         Nothing   -> pure Nothing
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
-            _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations inSpatGrid path)
+            _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations (Just inSpatGrid) path)
     -- read temporal distances
     inObsTempSamples <- case inObsTempSamplesFile of
         Nothing   -> pure Nothing
@@ -265,12 +265,10 @@ validateAlgorithmSearch _ (DepVarsPredGrid _) = do
         throw $ NormalException "dep vars empty"
 
 createCoreSupplement :: SearchGrid -> CoreSupplement
-createCoreSupplement (SearchGrid indepVarsPredGrid _) =
-    case indepVarsPredGrid of
-        SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples ->
-            CoreSupplement spaceTimeFilter maybeSpatDistMap maybeTempSamples
-        ArbitraryDimGrid _ ->
-            CoreSupplement Nothing Nothing Nothing
+createCoreSupplement (SearchGrid (SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples) _) =
+    CoreSupplement spaceTimeFilter maybeSpatDistMap maybeTempSamples
+createCoreSupplement (SearchGrid (ArbitraryDimGrid _) _) =
+    CoreSupplement Nothing Nothing Nothing
 
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
