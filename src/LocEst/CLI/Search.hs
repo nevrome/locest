@@ -46,12 +46,17 @@ data DepVarsPredGridSettings =
 data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _stgsInSpatGridFile       :: FilePath
     , _stgsInTempGrid           :: [Int]
-    , _stgsSpaceTimeFilter      :: Maybe (Double,Double)
-    , _stgsInSpatDistFile       :: Maybe FilePath
-    , _stgsInObsTempSamplesFile :: Maybe FilePath
-    , _stgsNoOrderCheck         :: Bool
+    , _stgsSupplementSettings   :: SpaceTimeCoreSupplementSettings
+    
 } | ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
+}
+
+data SpaceTimeCoreSupplementSettings = SpaceTimeCoreSupplementSettings {
+      _stcsSpaceTimeFilter      :: Maybe (Double,Double)
+    , _stcsInSpatDistFile       :: Maybe FilePath
+    , _stcsInObsTempSamplesFile :: Maybe FilePath
+    , _stcsNoOrderCheck         :: Bool
 }
 
 runSearch :: SearchOptions -> IO ()
@@ -156,10 +161,12 @@ readIndepVarsPredGrid
     (SpaceTimeGridSettings
         inSpatGridFile
         inTempGrid
-        inSpaceTimeFilter
-        inSpatDistFile
-        inObsTempSamplesFile
-        noOrderCheck
+        (SpaceTimeCoreSupplementSettings
+            inSpaceTimeFilter
+            inSpatDistFile
+            inObsTempSamplesFile
+            noOrderCheck
+        )
     )
     observations = do
     hPutStrLn stderr "Assuming a spatiotemporal system"

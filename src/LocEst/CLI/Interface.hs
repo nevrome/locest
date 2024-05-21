@@ -124,7 +124,7 @@ optParseCrossSettings =
         <*> optParseCrossvalIterations
         <*> optParseCrossvalConfSeed
 
-optParseCrossOutMode :: OP.Parser CrossOutMode
+optParseCrossOutMode :: OP.Parser CrossOutModeSettings
 optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
     OP.long "outMode" <>
     OP.metavar "Summed|Obs" <>
@@ -133,7 +133,7 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
     OP.showDefault
     )
     where
-        readOutMode :: String -> Either String CrossOutMode
+        readOutMode :: String -> Either String CrossOutModeSettings
         readOutMode s =
             case P.runParser parseOutMode () "" s of
                 Left err -> Left $ showParsecErr err
@@ -276,20 +276,24 @@ optParseIndepVarsPredGridSettings =
     (SpaceTimeGridSettings
         <$> optParseInSpatGridFile
         <*> optParseTempGridString
-        <*> optParseSpaceTimeFilter
-        <*> OP.optional optParseInSpatDistMapFile
-        <*> OP.optional optParseInObsTempSamplesFile
-        <*> optParseInSpatDistNoOrderCheck
+        <*> optParseSpaceTimeCoreSupplementSettings
     ) OP.<|>
     (ArbitraryDimGridSettings <$> optParseInArbitraryDimFile)
 
-optParseSpaceTimeFilter :: OP.Parser (Maybe (Double,Double))
-optParseSpaceTimeFilter = OP.option (Just <$> OP.eitherReader readSpaceTime) (
+optParseSpaceTimeCoreSupplementSettings :: OP.Parser SpaceTimeCoreSupplementSettings
+optParseSpaceTimeCoreSupplementSettings =
+    SpaceTimeCoreSupplementSettings
+        <$> OP.optional optParseSpaceTimeFilter
+        <*> OP.optional optParseInSpatDistMapFile
+        <*> OP.optional optParseInObsTempSamplesFile
+        <*> optParseInSpatDistNoOrderCheck
+
+optParseSpaceTimeFilter :: OP.Parser (Double,Double)
+optParseSpaceTimeFilter = OP.option (OP.eitherReader readSpaceTime) (
        OP.long    "spaceTimeFilter"
     <> OP.metavar "filter(spatialRadius = DOUBLE, temporalRadius = DOUBLE)"
     <> OP.help    "Filter list of relevant observations for each prediction point by space and time. \
                    \ This can be set to speed up the calculation."
-    <> OP.value Nothing
     )
     where
         readSpaceTime :: String -> Either String (Double, Double)

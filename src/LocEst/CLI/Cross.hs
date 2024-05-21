@@ -30,7 +30,7 @@ data CrossOptions = CrossOptions
     { _crossInObservationFile :: FilePath
     , _crossSettings          :: CrossSettings
     , _crossNumThreads        :: NumberOfThreads
-    , _crossOutMode           :: CrossOutMode
+    , _crossOutMode           :: CrossOutModeSettings
     , _crossOutFile           :: FilePath
     }
 
@@ -41,7 +41,7 @@ data CrossSettings = CrossSettings {
     , _crossvalMaybeSeed    :: Maybe Int
 }
 
-data CrossOutMode =
+data CrossOutModeSettings =
       SummedLikelihoodPerKernelSetting
     | IndividualSearchObsResults
     deriving (Show)
