@@ -10,14 +10,17 @@ import           GHC.Generics      (Generic)
 data LOCESTException =
         NormalException String
       | ConfigFileParsingException String
+      | CoreException String
     deriving (Show, Generic, Eq)
 
 instance NFData LOCESTException
 
 renderLOCESTException :: LOCESTException -> String
 renderLOCESTException (NormalException s) =
-    "Error: " ++ s
+    "\nError: \n" ++ s
 renderLOCESTException (ConfigFileParsingException s) =
-    "Error: \n" ++ s
+    "\nError: \n" ++ s
+renderLOCESTException (CoreException s) =
+    "\nError: \n" ++ s
 
 instance Exception LOCESTException

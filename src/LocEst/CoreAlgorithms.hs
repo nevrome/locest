@@ -9,6 +9,8 @@ import           Data.Maybe              (mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (density, quantile)
+import Control.Exception (throw)
+import LocEst.Exceptions
 
 core ::
        CoreOutMode
@@ -18,7 +20,7 @@ core ::
     -> CoreOut
 core (CoreOutObsWeight nrTopObs)
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
-     observations sett@(CorePermutation _ _ kernelDefinition _) = do
+     observations sett@(CorePermutation _ _ kernelDefinition _) =
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
@@ -30,11 +32,11 @@ core (CoreOutObsWeight nrTopObs)
             obsWithDistFiltered
         obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
         obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
-    CoreObsWeight (V.map (ObsWeight sett) obsWithWeightsSubset)
+    in CoreObsWeight (V.map (ObsWeight sett) obsWithWeightsSubset)
 core
     outMode
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
-     observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) = do
+     observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) =
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
@@ -47,7 +49,7 @@ core
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull  -> interpolPerDepVarFull
-    CoreSearchResult $ SearchResult {
+    in CoreSearchResult $ SearchResult {
            _srCorePermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srProbability     = case mapMaybe getProbability interpolPerDepVarFull of
@@ -101,7 +103,7 @@ getDists
             arbitraryDimDist = ArbitraryDimPos $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
 -- wrong input
-getDists _ _ _ _ = error "Should not happen" -- ToDo
+getDists _ _ _ _ = throw (CoreException "Should not happen") -- ToDo
 
 inFilterRange :: Maybe (Double, Double) -> (Observation, IndepVarsDist) -> Bool
 inFilterRange
@@ -114,7 +116,7 @@ getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugge
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
     case find (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
         Just (KernelOneDepVar _ s n k) -> (s, n, k)
-        Nothing                        -> error "Variable not defined in kernel definition"
+        Nothing                        -> throw (CoreException "Variable not defined in kernel definition")
 
 interpolAndSearchOneDepVar ::
        V.Vector (Observation, IndepVarsDist)
@@ -154,7 +156,7 @@ getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
 getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (DepVarsPos m)), _) =
     case lookup depVar m of
         Just x  -> x
-        Nothing -> error "Unknown variable"
+        Nothing -> throw (CoreException "Unknown variable")
 
 getWeightOneObsOneDepVar ::
        (KernelShape, KernelNugget, KernelLengths)
@@ -179,4 +181,4 @@ getWeightOneObsOneDepVar kernelPerDepVar (_,dists) =
             let ds = getValues namedDists
             in foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths))
         squaredWeightedDistForOneObs _ _ =
-            error "Illegal combination of kernel and grid data"
+            throw (CoreException "Illegal combination of kernel and grid data")
