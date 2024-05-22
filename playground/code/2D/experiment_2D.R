@@ -60,7 +60,7 @@ system('locest search --configFile code/2D/experiment_2D.conf')
 
 res <- readr::read_tsv("data/2D/interpol.tsv")
 
-p <- ggplot() +
+ggplot() +
   geom_point(
     data = observations,
     mapping = aes(indepV1, depV1),
@@ -68,7 +68,7 @@ p <- ggplot() +
   ) +
   geom_line(
     data = res,
-    mapping = aes(x = indepV1, y = interpol_depV1_avg),
+    mapping = aes(x = indepV1, y = interpol_depV1_median),
     color = "red",
     linewidth = 1
   ) +
@@ -86,7 +86,7 @@ ggsave(
   bg = "white"
 )
 
-p <- ggplot() +
+ggplot() +
   geom_point(
     data = observations,
     mapping = aes(indepV1, depV1),
@@ -94,7 +94,7 @@ p <- ggplot() +
   ) +
   geom_line(
     data = res,
-    mapping = aes(x = indepV1, y = interpol_depV1_avg),
+    mapping = aes(x = indepV1, y = interpol_depV1_median),
     color = "red",
     linewidth = 1
   ) +
@@ -102,8 +102,8 @@ p <- ggplot() +
     data = res,
     mapping = aes(
       x = indepV1,
-      ymin = interpol_depV1_avg - 2*sqrt(interpol_depV1_var),
-      ymax = interpol_depV1_avg + 2*sqrt(interpol_depV1_var)
+      ymin = interpol_depV1_low,
+      ymax = interpol_depV1_up
     ),
     # mapping = aes(
     #     x = indepV1,

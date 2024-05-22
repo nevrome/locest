@@ -60,7 +60,7 @@ hu5 %>%
 hu5 %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
-  geom_raster(aes(x, y, fill = interpol_depC1_median)) +
+  geom_raster(aes(x, y, fill = dep_dist_euclidean)) +
   scale_fill_viridis_c() +
   coord_fixed()
 

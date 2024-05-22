@@ -6,7 +6,7 @@ import           LocEst.Types
 import           LocEst.Exceptions
 
 import           Data.List               (find, sortBy)
-import           Data.Maybe              (mapMaybe)
+import           Data.Maybe              (mapMaybe, catMaybes)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (quantile, logDensity)
@@ -53,8 +53,12 @@ core
          , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srLikelihood      = case mapMaybe getLogLikelihood interpolPerDepVarFull of
             [] -> Nothing
-            xs -> Just SearchLikelihood {
-                  _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
+            xs -> 
+                let valuesPerDepVar = catMaybes valuePerDepVar
+                    depDist = euclideanDistance (map _irodvWeightedAvg interpolPerDepVarFull) valuesPerDepVar
+                in Just SearchLikelihood {
+                  _slhEuclideanDep  = depDist
+                , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
                 , _slhProbability   = Nothing
                 }
          }

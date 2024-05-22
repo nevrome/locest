@@ -65,17 +65,18 @@ data CoreOutMode =
 -- | A datatype for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
       _crossoutKernelDefinition :: KernelDefinition
+    , _crossoutDistSum          :: Double
     , _crossoutProbSum          :: Double
 } deriving (Show, Generic)
 
 instance NFData CrossvalOutput
 -- these instances are a quick hack - should actually be defined down to the algo types:
 instance Csv.DefaultOrdered CrossvalOutput where
-    headerOrder (CrossvalOutput algo _) =
-        Csv.headerOrder algo <> Csv.header ["probability"]
+    headerOrder (CrossvalOutput algo _ _) =
+        Csv.headerOrder algo <> Csv.header ["sum_dep_dist_euclidean"] <> Csv.header ["sum_probability"]
 instance Csv.ToRecord CrossvalOutput where
-    toRecord (CrossvalOutput algo sumProb) =
-        Csv.toRecord algo <> Csv.record [Csv.toField sumProb]
+    toRecord (CrossvalOutput algo sumDist sumProb) =
+        Csv.toRecord algo <> Csv.record [Csv.toField sumDist] <> Csv.record [Csv.toField sumProb]
 
 -- | A datatype for an empirical variogram
 newtype EmpiricalVariogram = EmpiricalVariogram [(Double, Double)]
@@ -191,21 +192,22 @@ instance Csv.ToRecord SearchResult where
         Csv.toRecord corePermutation <> Csv.toRecord interpolationResult <> Csv.toRecord searchLikelihood
 
 data SearchLikelihood = SearchLikelihood {
-      _slhLogLikelihood :: Double
+      _slhEuclideanDep  :: Double
+    , _slhLogLikelihood :: Double
     , _slhProbability   :: Maybe Double
 } deriving (Show, Generic)
 
 instance NFData SearchLikelihood
 instance Csv.DefaultOrdered SearchLikelihood where
-    headerOrder (SearchLikelihood _ Nothing) =
-        Csv.header ["logLikelihood"]
-    headerOrder (SearchLikelihood _ (Just _)) =
-        Csv.header ["logLikelihood", "probability"]
+    headerOrder (SearchLikelihood _ _ Nothing) =
+        Csv.header ["dep_dist_euclidean", "log_likelihood"]
+    headerOrder (SearchLikelihood _ _ (Just _)) =
+        Csv.header ["dep_dist_euclidean", "log_likelihood", "probability"]
 instance Csv.ToRecord SearchLikelihood where
-    toRecord (SearchLikelihood logLikelihood Nothing) =
-        Csv.record [Csv.toField logLikelihood]
-    toRecord (SearchLikelihood logLikelihood (Just prob)) =
-        Csv.record [Csv.toField logLikelihood, Csv.toField prob]
+    toRecord (SearchLikelihood depDist logLikelihood Nothing) =
+        Csv.record [Csv.toField depDist, Csv.toField logLikelihood]
+    toRecord (SearchLikelihood depDist logLikelihood (Just prob)) =
+        Csv.record [Csv.toField depDist, Csv.toField logLikelihood, Csv.toField prob]
 
 data SearchGrid = SearchGrid {
       _searchPosIndepVarsGrid :: IndepVarsPredGrid

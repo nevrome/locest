@@ -291,8 +291,8 @@ normalize NormBySpace =
                     in map (\l -> Just $ l / sumls) ls
         in zipWith setLogL stps probabilities
     getLogL :: SearchResult -> Maybe Double
-    getLogL (SearchResult _ _ (Just (SearchLikelihood logL _))) = Just logL
-    getLogL _                                                   = Nothing
+    getLogL (SearchResult _ _ (Just (SearchLikelihood _ logL _))) = Just logL
+    getLogL _                                                     = Nothing
     setLogL :: SearchResult -> Maybe Double -> SearchResult
     setLogL stp@(SearchResult _ _ (Just slh@(SearchLikelihood {}))) p =
         stp { _srLikelihood = Just slh { _slhProbability = p } }
