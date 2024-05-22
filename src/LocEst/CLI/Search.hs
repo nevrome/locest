@@ -277,10 +277,16 @@ normalize NormBySpace =
     groupingCriteria _ _ = False
     scaleProbs :: [SearchResult] -> [SearchResult]
     scaleProbs stps =
-        let logLikelihoods = map getLogL stps
-            probabilities = case catMaybes logLikelihoods of
-                [] -> repeat Nothing
-                xs -> map (\x -> Just $ x / foldSum xs) xs
+        let maybeLogLikelihoods = map getLogL stps
+            probabilities = case catMaybes maybeLogLikelihoods of
+                []          -> repeat Nothing
+                logls ->
+                    -- https://stats.stackexchange.com/questions/66616/converting-normalizing-very-small-likelihood-values-to-probability
+                    let maxlogl = maximum logls
+                        shiftedlogls = map (\logl -> logl - maxlogl) logls
+                        ls = map exp shiftedlogls
+                        sumls = foldSum ls
+                    in map (\l -> Just $ l / sumls) ls
         in zipWith setLogL stps probabilities
     getLogL :: SearchResult -> Maybe Double
     getLogL (SearchResult _ _ (Just (SearchLikelihood logL _))) = Just logL
