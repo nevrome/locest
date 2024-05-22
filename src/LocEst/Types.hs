@@ -175,37 +175,37 @@ data SearchResult =
       SearchResult {
         _srCorePermutation :: CorePermutation
       , _srInterpolation   :: InterpolationResult
-      , _srProbability     :: Maybe Double
+      , _srLikelihood      :: Maybe SearchLikelihood
       } deriving (Show, Generic)
 
 instance NFData SearchResult
 instance Csv.DefaultOrdered SearchResult where
     headerOrder (SearchResult corePermutation interpolationResult Nothing) =
         Csv.headerOrder corePermutation <> Csv.headerOrder interpolationResult
-    headerOrder (SearchResult corePermutation interpolationResult (Just _)) =
-        Csv.headerOrder corePermutation <> Csv.headerOrder interpolationResult <> Csv.header ["probability"]
+    headerOrder (SearchResult corePermutation interpolationResult (Just searchLikelihood)) =
+        Csv.headerOrder corePermutation <> Csv.headerOrder interpolationResult <> Csv.headerOrder searchLikelihood
 instance Csv.ToRecord SearchResult where
     toRecord (SearchResult corePermutation interpolationResult Nothing) =
         Csv.toRecord corePermutation <> Csv.toRecord interpolationResult
-    toRecord (SearchResult corePermutation interpolationResult (Just prob)) =
-        Csv.toRecord corePermutation <> Csv.toRecord interpolationResult <> Csv.record [Csv.toField prob]
+    toRecord (SearchResult corePermutation interpolationResult (Just searchLikelihood)) =
+        Csv.toRecord corePermutation <> Csv.toRecord interpolationResult <> Csv.toRecord searchLikelihood
 
-data SpatTempProb = SpatTempProb {
-      _stprCorePermutation :: CorePermutation
-    , _stprprobability     :: Double
-    -- to model the different densities per input point
-    -- (which will certainly be necessary for debugging)
-    -- SpatTempProb must somehow include also the source Observation
-    -- Perhaps this could be implemented as a Maybe String for the Obs name?
+data SearchLikelihood = SearchLikelihood {
+      _slhLogLikelihood :: Double
+    , _slhProbability   :: Maybe Double
 } deriving (Show, Generic)
 
-instance NFData SpatTempProb
-instance Csv.DefaultOrdered SpatTempProb where
-    headerOrder (SpatTempProb spatTempDepVarsPos _) =
-        Csv.headerOrder spatTempDepVarsPos <> Csv.header ["probability"]
-instance Csv.ToRecord SpatTempProb where
-    toRecord (SpatTempProb spatTempDepVarsPos prob) =
-        Csv.toRecord spatTempDepVarsPos <> Csv.record [Csv.toField prob]
+instance NFData SearchLikelihood
+instance Csv.DefaultOrdered SearchLikelihood where
+    headerOrder (SearchLikelihood _ Nothing) =
+        Csv.header ["logLikelihood"]
+    headerOrder (SearchLikelihood _ (Just _)) =
+        Csv.header ["logLikelihood", "probability"]
+instance Csv.ToRecord SearchLikelihood where
+    toRecord (SearchLikelihood logLikelihood Nothing) =
+        Csv.record [Csv.toField logLikelihood]
+    toRecord (SearchLikelihood logLikelihood (Just prob)) =
+        Csv.record [Csv.toField logLikelihood, Csv.toField prob]
 
 data SearchGrid = SearchGrid {
       _searchPosIndepVarsGrid :: IndepVarsPredGrid
@@ -461,9 +461,9 @@ instance Csv.DefaultOrdered InterpolationResult where
 instance Csv.ToRecord InterpolationResult where
     toRecord (InterpolationResult l) = V.concat $ map Csv.toRecord l
 
-getProbability :: InterpolationResultOneDepVar -> Maybe Double
-getProbability (InterpolationResultOneDepVarShort {}) = error "should never happen"
-getProbability i@(InterpolationResultOneDepVarFull {})  = _irodvProbability i
+getLogLikelihood :: InterpolationResultOneDepVar -> Maybe Double
+getLogLikelihood (InterpolationResultOneDepVarShort {}) = error "should never happen"
+getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood i
 
 data InterpolationResultOneDepVar =
       InterpolationResultOneDepVarShort {
@@ -473,35 +473,35 @@ data InterpolationResultOneDepVar =
         , _irodvsUpperBound :: OutInfDouble -- upper boundary of the 95% interval
     }
     | InterpolationResultOneDepVarFull {
-          _irodvDepVarName  :: DepVarName    -- name of the dependent variable
-        , _irodvEffN        :: Double        -- effective number of samples
-        , _irodvWeightedAvg :: Double        -- weighted average
-        , _irodvWeightedVar :: Double        -- weighted variance
-        , _irodvPosterior   :: OutBool       -- could a posterior distribution be calculated?
-        , _irodvLowerBound  :: OutInfDouble  -- lower boundary of the 95% interval
-        , _irodvMedian      :: Double        -- median
-        , _irodvUpperBound  :: OutInfDouble  -- upper boundary of the 95% interval
-        , _irodvProbability :: Maybe Double  -- Probability for search value
+          _irodvDepVarName    :: DepVarName    -- name of the dependent variable
+        , _irodvEffN          :: Double        -- effective number of samples
+        , _irodvWeightedAvg   :: Double        -- weighted average
+        , _irodvWeightedVar   :: Double        -- weighted variance
+        , _irodvPosterior     :: OutBool       -- could a posterior distribution be calculated?
+        , _irodvLowerBound    :: OutInfDouble  -- lower boundary of the 95% interval
+        , _irodvMedian        :: Double        -- median
+        , _irodvUpperBound    :: OutInfDouble  -- upper boundary of the 95% interval
+        , _irodvLogLikelihood :: Maybe Double  -- Log-likelihood for search value
     } deriving (Eq, Show, Generic)
 
 instance NFData InterpolationResultOneDepVar
 instance Csv.DefaultOrdered InterpolationResultOneDepVar where
     headerOrder (InterpolationResultOneDepVarShort n _ _ _ ) =
         Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["low", "median", "up"]
-    headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ (Just _)) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "post", "low", "median", "up", "prob"]
     headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ Nothing) =
         Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "post", "low", "median", "up"]
+    headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ (Just _)) =
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "post", "low", "median", "up", "logl"]
 instance Csv.ToRecord InterpolationResultOneDepVar where
     toRecord (InterpolationResultOneDepVarShort _ lb m ub) =
         Csv.record [ Csv.toField lb, Csv.toField m, Csv.toField ub ]
-    toRecord (InterpolationResultOneDepVarFull _ neff a v po lb m ub (Just p)) =
-        Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField p
-        ]
     toRecord (InterpolationResultOneDepVarFull _ neff a v po lb m ub Nothing) =
         Csv.record [
             Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub
+        ]
+    toRecord (InterpolationResultOneDepVarFull _ neff a v po lb m ub (Just l)) =
+        Csv.record [
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField l
         ]
 
 resOneDepvar2Short :: InterpolationResultOneDepVar -> InterpolationResultOneDepVar

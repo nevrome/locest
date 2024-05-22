@@ -177,8 +177,8 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
         parseOutMode = P.try parseSummed P.<|> parseObs
-        parseSummed = P.string "Short" >> return SummedLikelihoodPerKernelSetting
-        parseObs    = P.string "Obs"   >> return IndividualSearchObsResults
+        parseSummed = P.string "Summed" >> return SummedLikelihoodPerKernelSetting
+        parseObs    = P.string "Obs"    >> return IndividualSearchObsResults
 
 optParseCoreOutMode :: OP.Parser CoreOutMode
 optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (

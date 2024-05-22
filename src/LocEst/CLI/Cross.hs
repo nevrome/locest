@@ -149,8 +149,9 @@ summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =
     let oneProb  = _srCorePermutation $ head xs
         kerndef  = _casKernelDefinition oneProb
-        sumProbs = foldSum $ mapMaybe _srProbability xs
+        sumProbs = foldSum $ mapMaybe (fmap _slhLogLikelihood . _srLikelihood) xs
     in CrossvalOutput kerndef sumProbs
+
 
 groupFunc :: SearchResult -> SearchResult -> Bool
 groupFunc (SearchResult (CorePermutation _ _ kernDefA _) _ _)

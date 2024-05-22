@@ -277,12 +277,15 @@ normalize NormBySpace =
     groupingCriteria _ _ = False
     scaleProbs :: [SearchResult] -> [SearchResult]
     scaleProbs stps =
-        let probs = map getProb stps
-            rescaledProbs = case catMaybes probs of
+        let logLikelihoods = map getLogL stps
+            probabilities = case catMaybes logLikelihoods of
                 [] -> repeat Nothing
                 xs -> map (\x -> Just $ x / foldSum xs) xs
-        in zipWith setProb stps rescaledProbs
-    getProb :: SearchResult -> Maybe Double
-    getProb stp@(SearchResult {}) = _srProbability stp
-    setProb :: SearchResult -> Maybe Double -> SearchResult
-    setProb stp@(SearchResult {}) p = stp {_srProbability = p}
+        in zipWith setLogL stps probabilities
+    getLogL :: SearchResult -> Maybe Double
+    getLogL (SearchResult _ _ (Just (SearchLikelihood logL _))) = Just logL
+    getLogL _                                                   = Nothing
+    setLogL :: SearchResult -> Maybe Double -> SearchResult
+    setLogL stp@(SearchResult _ _ (Just slh@(SearchLikelihood {}))) p =
+        stp { _srLikelihood = Just slh { _slhProbability = p } }
+    setLogL stp _ = stp

@@ -9,7 +9,7 @@ import           Data.List               (find, sortBy)
 import           Data.Maybe              (mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
-import           Statistics.Distribution (density, quantile)
+import           Statistics.Distribution (quantile, logDensity)
 
 core ::
        CoreOutMode
@@ -51,9 +51,12 @@ core
     in CoreSearchResult $ SearchResult {
            _srCorePermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
-         , _srProbability     = case mapMaybe getProbability interpolPerDepVarFull of
+         , _srLikelihood      = case mapMaybe getLogLikelihood interpolPerDepVarFull of
             [] -> Nothing
-            xs -> Just $ foldProduct xs
+            xs -> Just SearchLikelihood {
+                  _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
+                , _slhProbability   = Nothing
+                }
          }
 
 compareObsWithWeights :: ObsWithWeights -> ObsWithWeights -> Ordering
@@ -135,10 +138,10 @@ interpolAndSearchOneDepVar obsWithDist depVar kernelPerDepVar maybeValueDepVar =
             let lower  = quantile distribution 0.025
                 median = quantile distribution 0.5 -- this is identical to weightedA
                 upper  = quantile distribution 0.975
-                prob   = fmap (density distribution) maybeValueDepVar
+                logL   = fmap (logDensity distribution) maybeValueDepVar -- log-likelihood
             in InterpolationResultOneDepVarFull
                 depVar neff weightedA weightedV (OutBool True)
-                (OutInfDouble lower) median (OutInfDouble upper) prob
+                (OutInfDouble lower) median (OutInfDouble upper) logL
         Left _ ->
             case maybeValueDepVar of
                 Just _ ->
