@@ -150,8 +150,8 @@ summarizeFunc xs =
     let oneProb  = _srCorePermutation $ head xs
         kerndef  = _casKernelDefinition oneProb
         sumDists = foldSum $ mapMaybe (fmap _slhEuclideanDep  . _srLikelihood) xs
-        sumProbs = foldSum $ mapMaybe (fmap _slhLogLikelihood . _srLikelihood) xs
-    in CrossvalOutput kerndef sumDists sumProbs
+        sumLogLs = foldSum $ mapMaybe (fmap _slhLogLikelihood . _srLikelihood) xs
+    in CrossvalOutput kerndef sumDists sumLogLs
 
 
 groupFunc :: SearchResult -> SearchResult -> Bool

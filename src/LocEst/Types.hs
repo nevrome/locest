@@ -73,7 +73,7 @@ instance NFData CrossvalOutput
 -- these instances are a quick hack - should actually be defined down to the algo types:
 instance Csv.DefaultOrdered CrossvalOutput where
     headerOrder (CrossvalOutput algo _ _) =
-        Csv.headerOrder algo <> Csv.header ["sum_dep_dist_euclidean"] <> Csv.header ["sum_probability"]
+        Csv.headerOrder algo <> Csv.header ["sum_dep_dist_euclidean"] <> Csv.header ["sum_log_likelihood"]
 instance Csv.ToRecord CrossvalOutput where
     toRecord (CrossvalOutput algo sumDist sumProb) =
         Csv.toRecord algo <> Csv.record [Csv.toField sumDist] <> Csv.record [Csv.toField sumProb]
