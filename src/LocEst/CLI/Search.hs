@@ -282,9 +282,11 @@ normalize NormBySpace =
                 []          -> repeat Nothing
                 logls ->
                     -- https://stats.stackexchange.com/questions/66616/converting-normalizing-very-small-likelihood-values-to-probability
+                    -- no explicit underflow handling implemented, because
+                    -- I think Haskell sets the output of exp reliably to zero
+                    -- for underflowing doubles
                     let maxlogl = maximum logls
-                        shiftedlogls = map (\logl -> logl - maxlogl) logls
-                        ls = map exp shiftedlogls
+                        ls = map (\logl -> exp $ logl - maxlogl) logls
                         sumls = foldSum ls
                     in map (\l -> Just $ l / sumls) ls
         in zipWith setLogL stps probabilities
