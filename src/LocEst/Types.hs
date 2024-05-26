@@ -22,24 +22,28 @@ import           GHC.Generics          (Generic)
 
 -- typeclasses
 
--- a typeclass for maps
+-- a typeclass for data types with map-like properties
 class PseudoMap a b | a -> b where
     getKeys :: a -> [String]
     getValues :: a -> [b]
 
--- a typeclass for things with ids
+-- a typeclass for data types with ids
 class Identifiable a where
     getID :: a -> String
     getIndex :: a -> Int
     setIndex :: a -> Int -> a
 
--- helper functions
+-- helper functions for cassava
 
--- lookup one column name
+-- lookup one column by name
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
 filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
 
--- lookup multiple column names and keep the first match
+-- lookup optional column by name
+filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
+filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
+
+-- lookup column by multiple different names and keep the first match
 filterLookupMulti :: Csv.FromField a => Csv.NamedRecord -> [Bchs.ByteString] -> Csv.Parser a
 filterLookupMulti m names =
     maybe empty Csv.parseField $ lookupMulti names
@@ -51,16 +55,9 @@ filterLookupMulti m names =
                 []    -> Nothing
                 (x:_) -> Just x
 
-filterLookupOptional :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser (Maybe a)
-filterLookupOptional m name = maybe (pure Nothing) Csv.parseField $ HM.lookup name m
-
 -- data types
 
-data CoreOutMode =
-      CoreOutShort
-    | CoreOutFull
-    | CoreOutObsWeight Int
-    deriving Show
+-- special types for the cross subcommand
 
 -- | A datatype for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
@@ -70,13 +67,14 @@ data CrossvalOutput = CrossvalOutput {
 } deriving (Show, Generic)
 
 instance NFData CrossvalOutput
--- these instances are a quick hack - should actually be defined down to the algo types:
 instance Csv.DefaultOrdered CrossvalOutput where
     headerOrder (CrossvalOutput algo _ _) =
         Csv.headerOrder algo <> Csv.header ["sum_dep_dist_euclidean"] <> Csv.header ["sum_log_likelihood"]
 instance Csv.ToRecord CrossvalOutput where
     toRecord (CrossvalOutput algo sumDist sumProb) =
         Csv.toRecord algo <> Csv.record [Csv.toField sumDist] <> Csv.record [Csv.toField sumProb]
+
+-- special types for the vario subcommands
 
 -- | A datatype for an empirical variogram
 newtype EmpiricalVariogram = EmpiricalVariogram [(Double, Double)]
@@ -94,7 +92,9 @@ instance Csv.ToRecord EmpiricalVariogramSingleBin where
     toRecord (EmpiricalVariogramSingleBin i d iv dv) =
         Csv.record [Csv.toField i, Csv.toField d, Csv.toField iv, Csv.toField dv]
 
--- | A datatype for normalization of the output
+-- general types or types specifically relevant for the search subcommand
+
+-- | A datatype for normalization of search output
 data Normalization = NormBySpace | NoNorm
     deriving (Show)
 
@@ -103,25 +103,15 @@ data Normalization = NormBySpace | NoNorm
 newtype SUDistMatrix = SUDistMatrix {
     _sudmMatrix     :: VU.Vector Double
 } deriving (Generic, Show)
-
--- | This lookup function must consider that the triangular matrix packs
--- its values in a certain order. In the case of a lower triangular matrix,
--- where every element above the principal diagonal is zero, we can count
--- by rows to get the right index for each value:
+-- If you need a  lookup function for this matrix you must consider that the 
+-- triangular matrix packs its values in a certain order. In the case of a 
+-- lower triangular matrix, where every element above the principal diagonal
+-- is zero, we can count by rows to get the right index for each value:
 -- The first row contains 0 elements (as "a distance to itself" is not present),
 -- The second row contains 1 element,
 -- The third row contains 2 elements,
 -- and so forth.
--- see https://math.stackexchange.com/questions/646117/how-to-find-a-function-mapping-matrix-indices
--- for the lookup algorithm
-lookUpDistanceSU :: SUDistMatrix -> Int -> Int -> Double
-lookUpDistanceSU (SUDistMatrix vec) col row
-    | col == row = 0
-    | col < row  = vec VU.! (nodesInTriangle (row - 1) + col)
-    | col > row  = vec VU.! (nodesInTriangle (col - 1) + row)
-    | otherwise  = error "Impossible state in lookUpDistanceSU"
-    where
-        nodesInTriangle n = n * (n+1) `div` 2
+-- See https://math.stackexchange.com/questions/646117/how-to-find-a-function-mapping-matrix-indices
 
 -- | A datatype for an asymmetric, unidirectional distance matrix
 -- this matrix has m*n different entries and a rectangular shape
@@ -138,6 +128,8 @@ lookUpDistanceAU (AUDistMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
 
 type SpatDistMatrix = AUDistMatrix
 
+-- | A datatype for an individual distance between one observation and one prediction grid point.
+-- Exists for reading from CSV into a SpatDistMatrix
 data SpatDistObsGrid = SpatDistObsGrid {
       _spatDistObsGridObsID    :: String
     , _spatDistObsGridGridID   :: String
@@ -149,7 +141,14 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
     parseNamedRecord m =
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
--- | A datatype for possible output of the core algorithm
+-- | A data type for requesting specific output of the core algorithm
+data CoreOutMode =
+      CoreOutShort
+    | CoreOutFull
+    | CoreOutObsWeight Int
+    deriving Show
+
+-- | A datatype for the actual output of the core algorithm
 data CoreOut =
       CoreObsWeight (V.Vector ObsWeight)
     | CoreSearchResult SearchResult
@@ -171,7 +170,7 @@ instance Csv.ToRecord ObsWeight where
     toRecord (ObsWeight corePermutation obsWithWeights) =
         Csv.toRecord corePermutation <> Csv.toRecord obsWithWeights
 
--- | A datatype for search result points in space and time
+-- | A datatype for search results produced by the core algorithm
 data SearchResult =
       SearchResult {
         _srCorePermutation :: CorePermutation
@@ -191,10 +190,11 @@ instance Csv.ToRecord SearchResult where
     toRecord (SearchResult corePermutation interpolationResult (Just searchLikelihood)) =
         Csv.toRecord corePermutation <> Csv.toRecord interpolationResult <> Csv.toRecord searchLikelihood
 
+-- | A datatype specifically for the likelihood output of the core search
 data SearchLikelihood = SearchLikelihood {
-      _slhEuclideanDep  :: Double
-    , _slhLogLikelihood :: Double
-    , _slhProbability   :: Maybe Double
+      _slhEuclideanDep  :: Double -- Euclidean distance in dependent variable space between interpolation and search depvar position
+    , _slhLogLikelihood :: Double -- Likelihood of the search value
+    , _slhProbability   :: Maybe Double -- Normalized likelihood (= probability) of the search depvar position
 } deriving (Show, Generic)
 
 instance NFData SearchLikelihood
@@ -209,11 +209,13 @@ instance Csv.ToRecord SearchLikelihood where
     toRecord (SearchLikelihood depDist logLikelihood (Just prob)) =
         Csv.record [Csv.toField depDist, Csv.toField logLikelihood, Csv.toField prob]
 
+-- | A datatype to specify a search position in independent and (for the search case) in depvar space
 data SearchGrid = SearchGrid {
       _searchPosIndepVarsGrid :: IndepVarsPredGrid
     , _searchPosDepVarsGrid   :: Maybe DepVarsPredGrid
 }
 
+-- | A datatype for the independent variable space prediction grid
 data IndepVarsPredGrid =
     SpaceTimeGrid {
       _stGridSpatPos         :: V.Vector SpatPos
@@ -226,6 +228,7 @@ data IndepVarsPredGrid =
       _adGridPos  :: V.Vector ArbitraryDimPos
     }
 
+-- | A datatype for supplementary information used in the core algorithm
 data CoreSupplement = CoreSupplement {
       _csSpaceTimeFilter :: Maybe (Double, Double)
     , _csSpatDist        :: Maybe SpatDistMatrix
@@ -262,10 +265,10 @@ instance Csv.ToRecord CorePermutation where
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
 
-type DepVarName = String
-
+-- | A datatype for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
 
+-- | A datatype for individual dependent variable positions
 data DepVarsPredPos =
       DepVarsPredPosDirect DepVarsPos
     | DepVarsPredPosSearchObs Observation
@@ -283,6 +286,7 @@ instance Csv.ToRecord DepVarsPredPos where
     toRecord (DepVarsPredPosSearchObs searchObs) =
            Csv.toRecord searchObs
 
+-- A datatype to specify a kernel across multiple depvars and indepvars
 newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
@@ -337,10 +341,11 @@ instance Csv.ToRecord KernelOneDepVar where
     toRecord (KernelOneDepVar name shape nugget lengths) =
         Csv.toRecord name <> Csv.toRecord [Csv.toField shape] <> Csv.record [Csv.toField nugget] <> Csv.toRecord lengths
 
+type DepVarName   = String
 type IndepVarName = String
 type KernelNugget = Double
 
-data KernelLengths = KernelLengths ArbitraryDimPos
+newtype KernelLengths = KernelLengths ArbitraryDimPos
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelLengths
