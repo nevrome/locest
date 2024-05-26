@@ -245,9 +245,9 @@ data CorePermutation = CorePermutation {
 
 instance NFData CorePermutation
 instance Csv.DefaultOrdered CorePermutation where
-    headerOrder (CorePermutation indepVarsPos (Just depVarsPos) algorithm _) =
+    headerOrder (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm _) =
            Csv.headerOrder indepVarsPos
-        <> Csv.headerOrder depVarsPos
+        <> Csv.headerOrder depVarsPredPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["temp_sampling_iteration"]
     headerOrder (CorePermutation indepVarsPos Nothing algorithm _) =
@@ -255,9 +255,9 @@ instance Csv.DefaultOrdered CorePermutation where
         <> Csv.headerOrder algorithm
         <> Csv.header ["temp_sampling_iteration"]
 instance Csv.ToRecord CorePermutation where
-    toRecord (CorePermutation indepVarsPos (Just depVarsPos) algorithm tempSamplingIteration) =
+    toRecord (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm tempSamplingIteration) =
            Csv.toRecord indepVarsPos
-        <> Csv.toRecord depVarsPos
+        <> Csv.toRecord depVarsPredPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
     toRecord (CorePermutation indepVarsPos Nothing algorithm tempSamplingIteration) =
@@ -286,7 +286,7 @@ instance Csv.ToRecord DepVarsPredPos where
     toRecord (DepVarsPredPosSearchObs searchObs) =
            Csv.toRecord searchObs
 
--- A datatype to specify a kernel across multiple depvars and indepvars
+-- | A datatype to specify a kernel across multiple depvars and indepvars
 newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
@@ -313,6 +313,7 @@ instance PseudoMap KernelDefinition KernelLengths where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = map _kodvLengths l
 
+-- | A datatype for a component of a kernel definition for one depvar
 data KernelOneDepVar = KernelOneDepVar {
       _kodvDepVarName :: DepVarName
     , _kodvShape      :: KernelShape
@@ -341,23 +342,25 @@ instance Csv.ToRecord KernelOneDepVar where
     toRecord (KernelOneDepVar name shape nugget lengths) =
         Csv.toRecord name <> Csv.toRecord [Csv.toField shape] <> Csv.record [Csv.toField nugget] <> Csv.toRecord lengths
 
+-- type definitions for easier readability
 type DepVarName   = String
 type IndepVarName = String
 type KernelNugget = Double
 
-newtype KernelLengths = KernelLengths ArbitraryDimPos
+-- | A datatype for kernel lengthscale parameters for multiple indepvars
+newtype KernelLengths = KernelLengths ArbitraryDimLengths
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelLengths
 instance Csv.FromNamedRecord KernelLengths where
     parseNamedRecord = Csv.parseNamedRecord
 instance Csv.DefaultOrdered KernelLengths where
-    headerOrder (KernelLengths arbitraryDimPos) = Csv.headerOrder arbitraryDimPos
+    headerOrder (KernelLengths arbitraryDimLengths) = Csv.headerOrder arbitraryDimLengths
 instance Csv.ToRecord KernelLengths where
-    toRecord (KernelLengths arbitraryDimPos) = Csv.toRecord arbitraryDimPos
+    toRecord (KernelLengths arbitraryDimLengths) = Csv.toRecord arbitraryDimLengths
 instance PseudoMap KernelLengths Double where
-    getKeys   (KernelLengths arbitraryDimPos) = getKeys arbitraryDimPos
-    getValues (KernelLengths arbitraryDimPos) = getValues arbitraryDimPos
+    getKeys   (KernelLengths arbitraryDimLengths) = getKeys arbitraryDimLengths
+    getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
 
 -- Data types for core algorithm specification
 data KernelShape =
@@ -380,7 +383,7 @@ makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 data ObsWithWeights = ObsWithWeights {
       _owdObservation      :: Observation
     , _owdSpatTempDist     :: IndepVarsDist
-    , _owdPerDepVarWeights :: DepVarsPos
+    , _owdPerDepVarWeights :: DepVarsWeights
 } deriving (Generic)
 
 instance NFData ObsWithWeights
@@ -391,20 +394,20 @@ instance Csv.ToRecord ObsWithWeights where
     toRecord (ObsWithWeights obs dists depVarWeights) =
         Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
 
-data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimPos
+data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimDists
     deriving (Generic)
 
 instance NFData IndepVarsDist
 instance Csv.DefaultOrdered IndepVarsDist where
     headerOrder (IndepSpatTempDist spatTempDist) =
         Csv.headerOrder spatTempDist
-    headerOrder (IndepArbitraryDimDist arbitraryDimPos) =
-        V.map ("dist_" <>) $ Csv.headerOrder arbitraryDimPos
+    headerOrder (IndepArbitraryDimDist arbitraryDimDists) =
+        V.map ("dist_" <>) $ Csv.headerOrder arbitraryDimDists
 instance Csv.ToRecord IndepVarsDist where
     toRecord (IndepSpatTempDist spatTempDist) =
         Csv.toRecord spatTempDist
-    toRecord (IndepArbitraryDimDist arbitraryDimPos) =
-        Csv.toRecord arbitraryDimPos
+    toRecord (IndepArbitraryDimDist arbitraryDimDists) =
+        Csv.toRecord arbitraryDimDists
 
 -- | A datatype for observations with id and position
 data Observation = Observation {
@@ -532,48 +535,54 @@ instance Csv.ToField OutInfDouble where
         | x == (-infinity) = "-Inf"
         | otherwise        = Bchs.pack $ show x
 
--- | A datatype for dependent vars
-newtype DepVarsPos = DepVarsPos [(DepVarName, Double)]
+-- | A datatype for dependent vars with some value
+type DepVarsPos = ValuesPerDepVar
+type DepVarsWeights = ValuesPerDepVar
+newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
     deriving (Eq, Show, Generic)
 
-instance S.Serialise DepVarsPos
-instance NFData DepVarsPos
-instance Csv.FromNamedRecord DepVarsPos where
+instance S.Serialise ValuesPerDepVar
+instance NFData ValuesPerDepVar
+instance Csv.FromNamedRecord ValuesPerDepVar where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "dep" k) m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
             sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
-        pure $ DepVarsPos sortedList
-instance Csv.DefaultOrdered DepVarsPos where
-    headerOrder (DepVarsPos l) =
+        pure $ ValuesPerDepVar sortedList
+instance Csv.DefaultOrdered ValuesPerDepVar where
+    headerOrder (ValuesPerDepVar l) =
         V.map Bchs.pack $ V.fromList $ map fst l
-instance Csv.ToRecord DepVarsPos where
-    toRecord (DepVarsPos l) =
+instance Csv.ToRecord ValuesPerDepVar where
+    toRecord (ValuesPerDepVar l) =
         V.map (Bchs.pack . show) $ V.fromList $ map snd l
-instance PseudoMap DepVarsPos Double where
-    getKeys (DepVarsPos l) = map fst l
-    getValues (DepVarsPos l) = map snd l
+instance PseudoMap ValuesPerDepVar Double where
+    getKeys (ValuesPerDepVar l) = map fst l
+    getValues (ValuesPerDepVar l) = map snd l
 
-newtype ArbitraryDimPos = ArbitraryDimPos [(IndepVarName, Double)]
+-- | A datatype for independent vars with some value
+type ArbitraryDimPos = ValuesPerIndepVar
+type ArbitraryDimDists = ValuesPerIndepVar
+type ArbitraryDimLengths = ValuesPerIndepVar
+newtype ValuesPerIndepVar = ValuesPerIndepVar [(IndepVarName, Double)]
     deriving (Eq, Show, Ord, Generic)
 
-instance S.Serialise ArbitraryDimPos
-instance NFData ArbitraryDimPos
-instance Csv.FromNamedRecord ArbitraryDimPos where
+instance S.Serialise ValuesPerIndepVar
+instance NFData ValuesPerIndepVar
+instance Csv.FromNamedRecord ValuesPerIndepVar where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k) m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
             sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
-        pure $ ArbitraryDimPos sortedList
-instance Csv.DefaultOrdered ArbitraryDimPos where
-    headerOrder (ArbitraryDimPos l) =
+        pure $ ValuesPerIndepVar sortedList
+instance Csv.DefaultOrdered ValuesPerIndepVar where
+    headerOrder (ValuesPerIndepVar l) =
         V.map Bchs.pack $ V.fromList $ map fst l
-instance Csv.ToRecord ArbitraryDimPos where
-    toRecord (ArbitraryDimPos l) =
+instance Csv.ToRecord ValuesPerIndepVar where
+    toRecord (ValuesPerIndepVar l) =
         V.map (Bchs.pack . show) $ V.fromList $ map snd l
-instance PseudoMap ArbitraryDimPos Double where
-    getKeys (ArbitraryDimPos l) = map fst l
-    getValues (ArbitraryDimPos l) = map snd l
+instance PseudoMap ValuesPerIndepVar Double where
+    getKeys (ValuesPerIndepVar l) = map fst l
+    getValues (ValuesPerIndepVar l) = map snd l
 
 -- A datatype for positions in a spatiotemporal or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos

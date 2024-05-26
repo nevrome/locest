@@ -108,7 +108,7 @@ perBin sortedIndepDists depDists (mid, startSorted, stopSorted) =
 
 -- perform binning of an indepVar
 binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [(Double, Int, Int)]
-binIndepVarForNugget sortedVec (ArbitraryDimPos m) indepVarName =
+binIndepVarForNugget sortedVec (ValuesPerIndepVar m) indepVarName =
     let threshold = case lookup indepVarName m of
             Nothing -> error "indep var not there"
             Just x  -> x
@@ -172,13 +172,13 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
             timeVecNonMut  <- VU.unsafeFreeze timeVec
             return [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
         -- arbitrary dimension system
-        (IndepArbitraryDimPos pos@(ArbitraryDimPos l),False) -> do
+        (IndepArbitraryDimPos pos@(ValuesPerIndepVar l),False) -> do
             arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
             mapM_ (distArbitrary arbitraryVecs) obsPairs
             arbitraryVecsNonMut <- mapM VU.unsafeFreeze arbitraryVecs
             return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
         -- arbitrary dimensions merged
-        (IndepArbitraryDimPos (ArbitraryDimPos _),True) -> do
+        (IndepArbitraryDimPos (ValuesPerIndepVar _),True) -> do
             distVec <- VUM.new nrPairs
             mapM_ (distArbitraryMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
@@ -226,7 +226,7 @@ calcDepVarPairwiseDistances :: Bool -> V.Vector Observation -> IO [(DepVarName, 
 calcDepVarPairwiseDistances merge obs = do
     let obsPairs = makeObsPairs obs
         nrPairs = length obsPairs
-        (Observation _ _ (HyperPos _ pos@(DepVarsPos l))) = V.head obs
+        (Observation _ _ (HyperPos _ pos@(ValuesPerDepVar l))) = V.head obs
     -- writing distances to mutable vectors
     case merge of
         False -> do

@@ -25,7 +25,7 @@ core (CoreOutObsWeight nrTopObs)
         obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
         kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
         weights = V.map
-            (\obs -> DepVarsPos $ zipWith
+            (\obs -> ValuesPerDepVar $ zipWith
                 (\depVar kernelPerDepVar -> (depVar, getWeightOneObsOneDepVar kernelPerDepVar obs))
                 depVars kernelsPerDepVar)
             obsWithDistFiltered
@@ -64,7 +64,7 @@ core
          }
 
 compareObsWithWeights :: ObsWithWeights -> ObsWithWeights -> Ordering
-compareObsWithWeights (ObsWithWeights _ _ (DepVarsPos x1)) (ObsWithWeights _ _ (DepVarsPos x2)) =
+compareObsWithWeights (ObsWithWeights _ _ (ValuesPerDepVar x1)) (ObsWithWeights _ _ (ValuesPerDepVar x2)) =
     compare (foldSum (map snd x1)) (foldSum (map snd x2))
 
 getDists ::
@@ -106,7 +106,7 @@ getDists
         let keys = getKeys obsArbitraryDimPos
             obsPos = getValues obsArbitraryDimPos
             gridPos = getValues gridAbritryDimPos
-            arbitraryDimDist = ArbitraryDimPos $ zip keys (allDistances obsPos gridPos)
+            arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
 -- wrong input
 getDists _ _ _ _ = throwL "Should not happen" -- ToDo
@@ -159,7 +159,7 @@ interpolAndSearchOneDepVar obsWithDist depVar kernelPerDepVar maybeValueDepVar =
                         (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
 getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
-getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (DepVarsPos m)), _) =
+getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (ValuesPerDepVar m)), _) =
     case lookup depVar m of
         Just x  -> x
         Nothing -> throwL "Unknown variable"
@@ -178,7 +178,7 @@ getWeightOneObsOneDepVar kernelPerDepVar (_,dists) =
         weightForOneObs Linear             nugget d = nugget / (nugget + sqrt d)
         squaredWeightedDistForOneObs :: KernelLengths -> IndepVarsDist -> Double
         squaredWeightedDistForOneObs
-            (KernelLengths (ArbitraryDimPos [(_,spaceKernelWidth), (_,timeKernelWidth)]))
+            (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
             (IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
             (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
         squaredWeightedDistForOneObs

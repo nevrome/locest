@@ -151,7 +151,7 @@ optParseBinModeSettings = OP.option (OP.eitherReader readOutMode) (
         parseOneBinMax = do
             res <- parseRecordType "OneBinMax" $ do
                 maxPerIndepVar <- parseArgument "max" (parseNamedVector parseIndepVarName parseDouble)
-                return $ ArbitraryDimPos maxPerIndepVar
+                return $ ValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
 optParseCrossSettings :: OP.Parser CrossSettings
@@ -416,7 +416,7 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
             let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
                 grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
                 permutations = sequenceA grouped
-            return $ map DepVarsPos permutations
+            return $ map ValuesPerDepVar permutations
             where
                 parseSequence = parseDoubleSequence
                 parseList = parseVector parseDouble
@@ -478,7 +478,7 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
-        parseKernelLengths = KernelLengths . ArbitraryDimPos <$> parseNamedVector parseIndepVarName parseDouble
+        parseKernelLengths = KernelLengths . ValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
 
 optParseKernDefStringPermutations :: OP.Parser [KernelDefinition]
 optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString) (
@@ -515,7 +515,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
             res <- parseNamedVector parseIndepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
             let flattened = map (\(name,vs) -> map (name,) vs) res
                 permutations = sequenceA flattened
-            return $ map (KernelLengths . ArbitraryDimPos) permutations
+            return $ map (KernelLengths . ValuesPerIndepVar) permutations
         parseSequence = parseDoubleSequence
         parseList = parseVector parseDouble
         parseSingle = singleton <$> parseDouble
