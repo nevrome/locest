@@ -5,6 +5,7 @@ module LocEst.CLI.Search where
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.Exceptions
+import           LocEst.MathUtils
 import           LocEst.Parsers
 import           LocEst.Types
 
@@ -17,7 +18,6 @@ import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import           Data.Maybe                    (catMaybes)
 import qualified Data.Vector                   as V
-import           LocEst.MathUtils
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 
@@ -160,14 +160,14 @@ readIndepVarsPredGrid
     case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
             IndepSpatTempPos _     -> return ()
             IndepArbitraryDimPos _ ->
-                throwLIO "Spatiotemporal positions in --obsFile not readable, maybe wrong column names"
+                throwLIO "spatiotemporal positions in --obsFile not readable"
     -- validation kernelDefinition
-    let allIndepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
-        indepVarsFromGrid = ["space", "time"]
-    OP.unless (allEqual allIndepVarsFromAlg) $
-        throwLIO "indep var names not equal across kernel definitions"
-    OP.unless (head allIndepVarsFromAlg == indepVarsFromGrid) $
-        throwLIO "indep vars not equal to \"space\" and \"time\""
+    let indepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
+    OP.unless (head indepVarsFromAlg == ["space", "time"]) $
+        throwLIO "independent variable names in --kerndef not equal to \"space\" and \"time\""
+    OP.unless (allEqual indepVarsFromAlg) $
+        throwLIO "independent variable names in --kerndef not all equal across kernel \
+                 \definitions for all dependent variables"
     -- return grid
     return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeFilter inSpatDists inObsTempSamples
 -- arbitrary dimension case
@@ -184,13 +184,14 @@ readIndepVarsPredGrid
             IndepArbitraryDimPos x -> getKeys x
     let indepVarsFromGrid = getKeys $ V.head inArbitraryDimPos
     OP.when (indepVarsFromObs /= indepVarsFromGrid) $ do
-        throwLIO "indep vars in --obsFile and --anyGridFile not equal"
+        throwLIO "independent variable names in --obsFile and --anyGridFile not equal"
     -- validation kernelDefinition
     let indepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
-    OP.unless (allEqual indepVarsFromAlg) $
-        throwLIO "indep var names not equal across kernel definitions"
     OP.unless (head indepVarsFromAlg == indepVarsFromGrid) $
-        throwLIO "indep vars in --anyGridFile and --algorithm not equal"
+        throwLIO "independent variable names in --kerndef and --anyGridFile not equal"
+    OP.unless (allEqual indepVarsFromAlg) $
+        throwLIO "independent variable names in --kerndef not all equal across kernel \
+                 \definitions for all dependent variables"
     -- return grid
     return $ ArbitraryDimGrid inArbitraryDimPos
 
@@ -208,11 +209,11 @@ readDepVarsPredGrid
     -- validation obsFile
     let depVarsFromObs = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
     OP.when (depVarsFromObs /= depVarsFromGrid) $ do
-        throwLIO "dep vars in --obsFile and --depVars not equal"
+        throwLIO "dependent variable names in --obsFile and --searchDepVarsPos not equal"
     -- validation kernelDefinition
     let depVarsFromAlg = getKeys kernelDefinition
     OP.unless (depVarsFromAlg == depVarsFromGrid) $
-        throwLIO "dep vars in --depVars and --algorithm not equal"
+        throwLIO "dependent variable names in --kerndef and --searchDepVarsPos not equal"
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPos
 readDepVarsPredGrid
@@ -225,11 +226,11 @@ readDepVarsPredGrid
     -- validation obsFile
     let depVarsFromObs = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
     OP.when (depVarsFromObs /= depVarsFromGrid) $ do
-        throwLIO "dep vars in --obsFile and --searchObsFile not equal"
+        throwLIO "dependent variable names in --obsFile and --searchObsFile not equal"
     -- validation kernelDefinition
     let depVarsFromAlg = getKeys kernelDefinition
     OP.unless (depVarsFromAlg == depVarsFromGrid) $
-        throwLIO "dep vars in --searchObsFile and --algorithm not equal"
+        throwLIO  "dependent variable names in --kerndef and --searchObsFile not equal"
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 

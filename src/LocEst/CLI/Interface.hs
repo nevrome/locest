@@ -399,7 +399,7 @@ optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
 
 optParseSearchDepVarsPos :: OP.Parser [DepVarsPos]
 optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
-       OP.long    "depVars"
+       OP.long    "searchDepVarsPos"
     <> OP.short   'd'
     <> OP.metavar "c(depX=DOUBLE,depY=c(DOUBLE,DOUBLE,...),depZ=START:STOP:BY,...)"
     <> OP.help    "Dependent variable positions that should be queried."
