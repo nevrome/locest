@@ -8,8 +8,8 @@ import           LocEst.CLI.Cross
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
-import           LocEst.Types
 import           LocEst.Exceptions
+import           LocEst.Types
 
 import           Data.Char             (isSpace, toLower)
 import           Data.List             (groupBy, singleton)

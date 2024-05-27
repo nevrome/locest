@@ -4,21 +4,19 @@
 module LocEst.Parsers where
 
 import           LocEst.CLI.Utils
-import           LocEst.Types
 import           LocEst.Exceptions
+import           LocEst.Types
 
+import qualified Codec.Serialise           as S
 import           Conduit                   (MonadIO, MonadResource, liftIO)
 import           Control.Monad             (when)
 import           Control.Monad.Error.Class
---import qualified Control.Monad.State       as ST
 import qualified Data.ByteString.Builder   as BB
 import qualified Data.ByteString.Char8     as Bchs
 import           Data.Char                 (ord)
 import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
 import qualified Data.Conduit.Combinators  as ConC
---import qualified Data.Conduit.Lift         as ConLF
-import qualified Codec.Serialise           as S
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
@@ -31,12 +29,12 @@ import           System.IO                 (Handle, IOMode (..), hClose,
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
 decodingOptions = Csv.defaultDecodeOptions {
-    Csv.decDelimiter = fromIntegral (ord '\t')
-}
+        Csv.decDelimiter = fromIntegral (ord '\t')
+    }
 
 encodingOptions :: Csv.EncodeOptions
 encodingOptions = Csv.defaultEncodeOptions {
-      Csv.encDelimiter = fromIntegral (ord '\t')
+        Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
 -- complex parsers

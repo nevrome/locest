@@ -103,8 +103,8 @@ data Normalization = NormBySpace | NoNorm
 newtype SUDistMatrix = SUDistMatrix {
     _sudmMatrix     :: VU.Vector Double
 } deriving (Generic, Show)
--- If you need a  lookup function for this matrix you must consider that the 
--- triangular matrix packs its values in a certain order. In the case of a 
+-- If you need a  lookup function for this matrix you must consider that the
+-- triangular matrix packs its values in a certain order. In the case of a
 -- lower triangular matrix, where every element above the principal diagonal
 -- is zero, we can count by rows to get the right index for each value:
 -- The first row contains 0 elements (as "a distance to itself" is not present),

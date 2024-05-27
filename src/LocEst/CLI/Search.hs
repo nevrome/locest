@@ -4,9 +4,9 @@ module LocEst.CLI.Search where
 
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
+import           LocEst.Exceptions
 import           LocEst.Parsers
 import           LocEst.Types
-import           LocEst.Exceptions
 
 import           Conduit                       (ResourceT)
 import qualified Control.Monad                 as OP

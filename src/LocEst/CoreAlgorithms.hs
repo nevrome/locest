@@ -1,15 +1,15 @@
 module LocEst.CoreAlgorithms where
 
 import           LocEst.Distance
+import           LocEst.Exceptions
 import           LocEst.MathUtils
 import           LocEst.Types
-import           LocEst.Exceptions
 
 import           Data.List               (find, sortBy)
-import           Data.Maybe              (mapMaybe, catMaybes)
+import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
-import           Statistics.Distribution (quantile, logDensity)
+import           Statistics.Distribution (logDensity, quantile)
 
 core ::
        CoreOutMode
@@ -53,7 +53,7 @@ core
          , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srLikelihood      = case mapMaybe getLogLikelihood interpolPerDepVarFull of
             [] -> Nothing
-            xs -> 
+            xs ->
                 let valuesPerDepVar = catMaybes valuePerDepVar
                     depDist = euclideanDistance (map _irodvWeightedAvg interpolPerDepVarFull) valuesPerDepVar
                 in Just SearchLikelihood {
