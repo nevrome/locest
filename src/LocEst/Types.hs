@@ -141,6 +141,13 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
     parseNamedRecord m =
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
+-- | A datatype for selecting the number of threads locest should use
+data NumberOfThreads =
+      SingleThread
+    | MultipleThreads Int
+    | DetectThreads
+    deriving Show
+
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutShort
@@ -235,7 +242,7 @@ data CoreSupplement = CoreSupplement {
     , _csTempSamp        :: Maybe TempSampleMatrix
 }
 
--- | A datatype with core-algorithm settings
+-- | A datatype with core-algorithm settings (for one run of the core algorithm)
 data CorePermutation = CorePermutation {
       _casIndepVarsPos          :: IndepVarsPos
     , _casSearchObs             :: Maybe DepVarsPredPos
@@ -362,7 +369,7 @@ instance PseudoMap KernelLengths Double where
     getKeys   (KernelLengths arbitraryDimLengths) = getKeys arbitraryDimLengths
     getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
 
--- Data types for core algorithm specification
+-- | A datatype for kernel shapes
 data KernelShape =
       SquaredExponential
     | Linear
@@ -380,6 +387,7 @@ makeKernelShape "SqEx"   = pure SquaredExponential
 makeKernelShape "Linear" = pure Linear
 makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
+-- | A datatype for a observation with a distance and weight in relation to a point of interest
 data ObsWithWeights = ObsWithWeights {
       _owdObservation      :: Observation
     , _owdSpatTempDist     :: IndepVarsDist
@@ -389,11 +397,12 @@ data ObsWithWeights = ObsWithWeights {
 instance NFData ObsWithWeights
 instance Csv.DefaultOrdered ObsWithWeights where
     headerOrder (ObsWithWeights obs dists depVarWeights) =
-        V.map ("in_obs_" <>) (Csv.headerOrder obs <> Csv.headerOrder dists <> (V.map ("weight_" <>) $ Csv.headerOrder depVarWeights))
+        V.map ("in_obs_" <>) (Csv.headerOrder obs <> Csv.headerOrder dists <> V.map ("weight_" <>) (Csv.headerOrder depVarWeights))
 instance Csv.ToRecord ObsWithWeights where
     toRecord (ObsWithWeights obs dists depVarWeights) =
         Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
 
+-- | A datatype for a per-dimension distances in independent variable space
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimDists
     deriving (Generic)
 
@@ -475,6 +484,7 @@ getLogLikelihood :: InterpolationResultOneDepVar -> Maybe Double
 getLogLikelihood (InterpolationResultOneDepVarShort {}) = error "should never happen"
 getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood i
 
+-- | A datatype for interpolation output for one dependent variable
 data InterpolationResultOneDepVar =
       InterpolationResultOneDepVarShort {
           _irodvsDepVarName :: DepVarName   -- name of the dependent variable
@@ -519,6 +529,8 @@ resOneDepvar2Short (InterpolationResultOneDepVarFull n _ _ _ _ lb m ub _) =
     InterpolationResultOneDepVarShort n lb m ub
 resOneDepvar2Short x = x
 
+-- | A datatype that wraps around bools to modify the way they are rendered in the .tsv output
+-- This is specifically done to make it easily readable in R
 newtype OutBool = OutBool Bool
     deriving (Eq, Show, Generic)
 instance NFData OutBool
@@ -526,6 +538,8 @@ instance Csv.ToField OutBool where
     toField (OutBool True)  = "TRUE"
     toField (OutBool False) = "FALSE"
 
+-- | A datatype that wraps around Doubles to modify the way they are rendered in the .tsv output.
+-- This is specifically done for the representation of infinity to make it easily readable in R
 newtype OutInfDouble = OutInfDouble Double
     deriving (Eq, Show, Generic)
 instance NFData OutInfDouble
@@ -584,7 +598,7 @@ instance PseudoMap ValuesPerIndepVar Double where
     getKeys (ValuesPerIndepVar l) = map fst l
     getValues (ValuesPerIndepVar l) = map snd l
 
--- A datatype for positions in a spatiotemporal or an arbitrary space
+-- A datatype for positions independent variable space, so here either a spatiotemporal or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos
     deriving (Eq, Show, Generic)
 
@@ -649,7 +663,7 @@ instance S.Serialise TempSampleMatrix
 lookUpTempSample :: TempSampleMatrix -> Int -> Int -> YearBCAD
 lookUpTempSample (TempSampleMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
 
--- | A datatype for age samples
+-- | A datatype for one age sample (used for reading from .tsv)
 data TempSample = TempSample {
       _tempSampObsID :: String
     , _tempSampAge   :: YearBCAD
@@ -773,9 +787,3 @@ instance Csv.ToField Latitude where
     toField (Latitude x) = Csv.toField x
 instance Csv.FromField Latitude where
     parseField x = Csv.parseField x >>= makeLatitude
-
-data NumberOfThreads =
-      SingleThread
-    | MultipleThreads Int
-    | DetectThreads
-    deriving Show
