@@ -85,18 +85,20 @@ versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.hel
 
 subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
-           OP.command "serialise" serialiseOptInfo
-        <> OP.command "search" searchOptInfo
+           OP.command "search" searchOptInfo
         <> OP.command "vario" varioOptInfo
         <> OP.command "cross" crossOptInfo
+        <> OP.command "serialise" serialiseOptInfo
     )
     where
-        serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
-            (OP.progDesc "Transform input data to compact binary blobs for faster startup.")
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
-            (OP.progDesc "Interpolate dependent variables in space and time to determine areas of \
-                          \ increased similarity to specific observations.")
+            (OP.progDesc "Interpolate dependent variables in space and time (or any independent \
+                         \variable space) and optionally determine a probabilistic measure of similarity \
+                         \for individual \"search\" observations.")
         varioOptInfo = OP.info (OP.helper <*> (CmdVario <$> varioOptParser))
-            (OP.progDesc "...")
+            (OP.progDesc "Calculate variograms binned based on distances in independent variable space.")
         crossOptInfo = OP.info (OP.helper <*> (CmdCross <$> crossOptParser))
             (OP.progDesc "Compare hyperparameter settings for the interpolation through crossvalidation.")
+        serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
+            (OP.progDesc "Transform input data to compact binary files in .cbor format, which then can be \
+                         \used to load data faster in the other subcommands.")
