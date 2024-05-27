@@ -109,7 +109,7 @@ getDists
             arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
 -- wrong input
-getDists _ _ _ _ = throwL "Should not happen" -- ToDo
+getDists _ _ _ _ = throwL "Mismatch of independent variable definitions in distance calculation"
 
 inFilterRange :: Maybe (Double, Double) -> (Observation, IndepVarsDist) -> Bool
 inFilterRange
@@ -122,7 +122,7 @@ getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugge
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
     case find (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
         Just (KernelOneDepVar _ s n k) -> (s, n, k)
-        Nothing                        -> throwL "Variable not defined in kernel definition"
+        Nothing                        -> throwL $ "Dependent variable " ++ depVar ++ " not defined in --kerndef"
 
 interpolAndSearchOneDepVar ::
        V.Vector (Observation, IndepVarsDist)
@@ -162,7 +162,7 @@ getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
 getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (ValuesPerDepVar m)), _) =
     case lookup depVar m of
         Just x  -> x
-        Nothing -> throwL "Unknown variable"
+        Nothing -> throwL $ "Dependent variable " ++ depVar ++ " not defined in --obsFile"
 
 getWeightOneObsOneDepVar ::
        (KernelShape, KernelNugget, KernelLengths)
@@ -187,4 +187,4 @@ getWeightOneObsOneDepVar kernelPerDepVar (_,dists) =
             let ds = getValues namedDists
             in foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths))
         squaredWeightedDistForOneObs _ _ =
-            throwL "Illegal combination of kernel and grid data"
+            throwL "Mismatch of independent variable definitions in weight calculation"
