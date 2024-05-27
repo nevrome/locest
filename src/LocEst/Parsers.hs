@@ -4,10 +4,9 @@
 module LocEst.Parsers where
 
 import           LocEst.CLI.Utils
-import           LocEst.Exceptions
 import           LocEst.Types
+import           LocEst.Exceptions
 
-import qualified Codec.Serialise           as S
 import           Conduit                   (MonadIO, MonadResource, liftIO)
 import           Control.Monad             (when)
 import           Control.Monad.Error.Class
@@ -17,6 +16,7 @@ import           Data.Char                 (ord)
 import           Data.Conduit              (ConduitT, Void, (.|))
 import qualified Data.Conduit              as Con
 import qualified Data.Conduit.Combinators  as ConC
+import qualified Codec.Serialise           as S
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
