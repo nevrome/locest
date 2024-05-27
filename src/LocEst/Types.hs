@@ -59,7 +59,7 @@ filterLookupMulti m names =
 
 -- special types for the cross subcommand
 
--- | A datatype for crossvalidation output
+-- | A data type for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
       _crossoutKernelDefinition :: KernelDefinition
     , _crossoutDistSum          :: Double
@@ -76,7 +76,7 @@ instance Csv.ToRecord CrossvalOutput where
 
 -- special types for the vario subcommands
 
--- | A datatype for an empirical variogram
+-- | A data type for an empirical variogram
 newtype EmpiricalVariogram = EmpiricalVariogram [(Double, Double)]
     deriving Show
 
@@ -94,11 +94,11 @@ instance Csv.ToRecord EmpiricalVariogramSingleBin where
 
 -- general types or types specifically relevant for the search subcommand
 
--- | A datatype for normalization of search output
+-- | A data type for normalization of search output
 data Normalization = NormBySpace | NoNorm
     deriving (Show)
 
--- | A datatype for a symmetric, unidirectional distance matrix
+-- | A data type for a symmetric, unidirectional distance matrix
 -- this matrix has (n*n)/2 - n entries and a triangular shape
 newtype SUDistMatrix = SUDistMatrix {
     _sudmMatrix     :: VU.Vector Double
@@ -113,7 +113,7 @@ newtype SUDistMatrix = SUDistMatrix {
 -- and so forth.
 -- See https://math.stackexchange.com/questions/646117/how-to-find-a-function-mapping-matrix-indices
 
--- | A datatype for an asymmetric, unidirectional distance matrix
+-- | A data type for an asymmetric, unidirectional distance matrix
 -- this matrix has m*n different entries and a rectangular shape
 data AUDistMatrix = AUDistMatrix {
       _audmNrCols :: Int -- column number
@@ -128,7 +128,7 @@ lookUpDistanceAU (AUDistMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
 
 type SpatDistMatrix = AUDistMatrix
 
--- | A datatype for an individual distance between one observation and one prediction grid point.
+-- | A data type for an individual distance between one observation and one prediction grid point.
 -- Exists for reading from CSV into a SpatDistMatrix
 data SpatDistObsGrid = SpatDistObsGrid {
       _spatDistObsGridObsID    :: String
@@ -141,7 +141,7 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
     parseNamedRecord m =
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
--- | A datatype for selecting the number of threads locest should use
+-- | A data type for selecting the number of threads locest should use
 data NumberOfThreads =
       SingleThread
     | MultipleThreads Int
@@ -155,7 +155,7 @@ data CoreOutMode =
     | CoreOutObsWeight Int
     deriving Show
 
--- | A datatype for the actual output of the core algorithm
+-- | A data type for the actual output of the core algorithm
 data CoreOut =
       CoreObsWeight (V.Vector ObsWeight)
     | CoreSearchResult SearchResult
@@ -163,7 +163,7 @@ data CoreOut =
 
 instance NFData CoreOut
 
--- | A datatype for observation weights per core permutation
+-- | A data type for observation weights per core permutation
 data ObsWeight = ObsWeight {
       _powCorePermutation :: CorePermutation
     , _powObsWeights      :: ObsWithWeights
@@ -177,7 +177,7 @@ instance Csv.ToRecord ObsWeight where
     toRecord (ObsWeight corePermutation obsWithWeights) =
         Csv.toRecord corePermutation <> Csv.toRecord obsWithWeights
 
--- | A datatype for search results produced by the core algorithm
+-- | A data type for search results produced by the core algorithm
 data SearchResult =
       SearchResult {
         _srCorePermutation :: CorePermutation
@@ -197,7 +197,7 @@ instance Csv.ToRecord SearchResult where
     toRecord (SearchResult corePermutation interpolationResult (Just searchLikelihood)) =
         Csv.toRecord corePermutation <> Csv.toRecord interpolationResult <> Csv.toRecord searchLikelihood
 
--- | A datatype specifically for the likelihood output of the core search
+-- | A data type specifically for the likelihood output of the core search
 data SearchLikelihood = SearchLikelihood {
       _slhEuclideanDep  :: Double -- Euclidean distance in dependent variable space between interpolation and search depvar position
     , _slhLogLikelihood :: Double -- Likelihood of the search value
@@ -216,13 +216,13 @@ instance Csv.ToRecord SearchLikelihood where
     toRecord (SearchLikelihood depDist logLikelihood (Just prob)) =
         Csv.record [Csv.toField depDist, Csv.toField logLikelihood, Csv.toField prob]
 
--- | A datatype to specify a search position in independent and (for the search case) in depvar space
+-- | A data type to specify a search position in independent and (for the search case) in depvar space
 data SearchGrid = SearchGrid {
       _searchPosIndepVarsGrid :: IndepVarsPredGrid
     , _searchPosDepVarsGrid   :: Maybe DepVarsPredGrid
 }
 
--- | A datatype for the independent variable space prediction grid
+-- | A data type for the independent variable space prediction grid
 data IndepVarsPredGrid =
     SpaceTimeGrid {
       _stGridSpatPos         :: V.Vector SpatPos
@@ -235,14 +235,14 @@ data IndepVarsPredGrid =
       _adGridPos  :: V.Vector ArbitraryDimPos
     }
 
--- | A datatype for supplementary information used in the core algorithm
+-- | A data type for supplementary information used in the core algorithm
 data CoreSupplement = CoreSupplement {
       _csSpaceTimeFilter :: Maybe (Double, Double)
     , _csSpatDist        :: Maybe SpatDistMatrix
     , _csTempSamp        :: Maybe TempSampleMatrix
 }
 
--- | A datatype with core-algorithm settings (for one run of the core algorithm)
+-- | A data type with core-algorithm settings (for one run of the core algorithm)
 data CorePermutation = CorePermutation {
       _casIndepVarsPos          :: IndepVarsPos
     , _casSearchObs             :: Maybe DepVarsPredPos
@@ -272,10 +272,10 @@ instance Csv.ToRecord CorePermutation where
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
 
--- | A datatype for a dependent variable space prediction grid
+-- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
 
--- | A datatype for individual dependent variable positions
+-- | A data type for individual dependent variable positions
 data DepVarsPredPos =
       DepVarsPredPosDirect DepVarsPos
     | DepVarsPredPosSearchObs Observation
@@ -293,7 +293,7 @@ instance Csv.ToRecord DepVarsPredPos where
     toRecord (DepVarsPredPosSearchObs searchObs) =
            Csv.toRecord searchObs
 
--- | A datatype to specify a kernel across multiple depvars and indepvars
+-- | A data type to specify a kernel across multiple depvars and indepvars
 newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
@@ -320,7 +320,7 @@ instance PseudoMap KernelDefinition KernelLengths where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = map _kodvLengths l
 
--- | A datatype for a component of a kernel definition for one depvar
+-- | A data type for a component of a kernel definition for one depvar
 data KernelOneDepVar = KernelOneDepVar {
       _kodvDepVarName :: DepVarName
     , _kodvShape      :: KernelShape
@@ -354,7 +354,7 @@ type DepVarName   = String
 type IndepVarName = String
 type KernelNugget = Double
 
--- | A datatype for kernel lengthscale parameters for multiple indepvars
+-- | A data type for kernel lengthscale parameters for multiple indepvars
 newtype KernelLengths = KernelLengths ArbitraryDimLengths
     deriving (Show, Eq, Ord, Generic)
 
@@ -369,7 +369,7 @@ instance PseudoMap KernelLengths Double where
     getKeys   (KernelLengths arbitraryDimLengths) = getKeys arbitraryDimLengths
     getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
 
--- | A datatype for kernel shapes
+-- | A data type for kernel shapes
 data KernelShape =
       SquaredExponential
     | Linear
@@ -387,7 +387,7 @@ makeKernelShape "SqEx"   = pure SquaredExponential
 makeKernelShape "Linear" = pure Linear
 makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
--- | A datatype for a observation with a distance and weight in relation to a point of interest
+-- | A data type for a observation with a distance and weight in relation to a point of interest
 data ObsWithWeights = ObsWithWeights {
       _owdObservation      :: Observation
     , _owdSpatTempDist     :: IndepVarsDist
@@ -402,7 +402,7 @@ instance Csv.ToRecord ObsWithWeights where
     toRecord (ObsWithWeights obs dists depVarWeights) =
         Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
 
--- | A datatype for a per-dimension distances in independent variable space
+-- | A data type for a per-dimension distances in independent variable space
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimDists
     deriving (Generic)
 
@@ -418,7 +418,7 @@ instance Csv.ToRecord IndepVarsDist where
     toRecord (IndepArbitraryDimDist arbitraryDimDists) =
         Csv.toRecord arbitraryDimDists
 
--- | A datatype for observations with id and position
+-- | A data type for observations with id and position
 data Observation = Observation {
       _obsIndex :: Int
     , _obsID    :: String
@@ -447,7 +447,7 @@ instance Identifiable Observation where
     getIndex (Observation index _ _) = index
     setIndex x i = x {_obsIndex = i}
 
--- | A datatype for positions in independent and dependent var space
+-- | A data type for positions in independent and dependent var space
 data HyperPos = HyperPos {
       _hyposIndepVarsPos :: IndepVarsPos
     , _hyposDepVarsPos   :: DepVarsPos
@@ -470,7 +470,7 @@ instance Csv.ToRecord HyperPos where
     toRecord (HyperPos indepVarsPos depVarsPos) =
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
--- | A datatype for the interpolation output
+-- | A data type for the interpolation output
 newtype InterpolationResult = InterpolationResult [InterpolationResultOneDepVar]
     deriving (Eq, Show, Generic)
 
@@ -484,7 +484,7 @@ getLogLikelihood :: InterpolationResultOneDepVar -> Maybe Double
 getLogLikelihood (InterpolationResultOneDepVarShort {}) = error "should never happen"
 getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood i
 
--- | A datatype for interpolation output for one dependent variable
+-- | A data type for interpolation output for one dependent variable
 data InterpolationResultOneDepVar =
       InterpolationResultOneDepVarShort {
           _irodvsDepVarName :: DepVarName   -- name of the dependent variable
@@ -529,7 +529,7 @@ resOneDepvar2Short (InterpolationResultOneDepVarFull n _ _ _ _ lb m ub _) =
     InterpolationResultOneDepVarShort n lb m ub
 resOneDepvar2Short x = x
 
--- | A datatype that wraps around bools to modify the way they are rendered in the .tsv output
+-- | A data type that wraps around bools to modify the way they are rendered in the .tsv output
 -- This is specifically done to make it easily readable in R
 newtype OutBool = OutBool Bool
     deriving (Eq, Show, Generic)
@@ -538,7 +538,7 @@ instance Csv.ToField OutBool where
     toField (OutBool True)  = "TRUE"
     toField (OutBool False) = "FALSE"
 
--- | A datatype that wraps around Doubles to modify the way they are rendered in the .tsv output.
+-- | A data type that wraps around Doubles to modify the way they are rendered in the .tsv output.
 -- This is specifically done for the representation of infinity to make it easily readable in R
 newtype OutInfDouble = OutInfDouble Double
     deriving (Eq, Show, Generic)
@@ -549,7 +549,7 @@ instance Csv.ToField OutInfDouble where
         | x == (-infinity) = "-Inf"
         | otherwise        = Bchs.pack $ show x
 
--- | A datatype for dependent vars with some value
+-- | A data type for dependent vars with some value
 type DepVarsPos = ValuesPerDepVar
 type DepVarsWeights = ValuesPerDepVar
 newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
@@ -573,7 +573,7 @@ instance PseudoMap ValuesPerDepVar Double where
     getKeys (ValuesPerDepVar l) = map fst l
     getValues (ValuesPerDepVar l) = map snd l
 
--- | A datatype for independent vars with some value
+-- | A data type for independent vars with some value
 type ArbitraryDimPos = ValuesPerIndepVar
 type ArbitraryDimDists = ValuesPerIndepVar
 type ArbitraryDimLengths = ValuesPerIndepVar
@@ -598,7 +598,7 @@ instance PseudoMap ValuesPerIndepVar Double where
     getKeys (ValuesPerIndepVar l) = map fst l
     getValues (ValuesPerIndepVar l) = map snd l
 
--- A datatype for positions independent variable space, so here either a spatiotemporal or an arbitrary space
+-- A data type for positions independent variable space, so here either a spatiotemporal or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos
     deriving (Eq, Show, Generic)
 
@@ -614,7 +614,7 @@ instance Csv.ToRecord IndepVarsPos where
     toRecord (IndepSpatTempPos x)     = Csv.toRecord x
     toRecord (IndepArbitraryDimPos x) = Csv.toRecord x
 
--- | A datatype for distances in space and time
+-- | A data type for distances in space and time
 data SpatTempDist = SpatTempDist {
       _spatDist :: Double
     , _tempDist :: Double
@@ -628,7 +628,7 @@ instance Csv.ToRecord SpatTempDist where
     toRecord (SpatTempDist spatDist tempDist) =
         Csv.record [Csv.toField spatDist, Csv.toField tempDist]
 
--- | A datatype for spatio-temporal positions
+-- | A data type for spatio-temporal positions
 data SpatTempPos = SpatTempPos {
       _spatialPos  :: SpatPos
     , _temporalPos :: TempPos
@@ -651,7 +651,7 @@ instance Csv.ToRecord SpatTempPos where
     toRecord (SpatTempPos spatPos tempPos) =
         Csv.toRecord spatPos <> Csv.record [Csv.toField tempPos]
 
--- | A datatype for a matrix with age samples for observations
+-- | A data type for a matrix with age samples for observations
 data TempSampleMatrix = TempSampleMatrix {
       _tSMNrSamples :: Int -- column number
     , _tSMNrObs     :: Int -- row number
@@ -663,7 +663,7 @@ instance S.Serialise TempSampleMatrix
 lookUpTempSample :: TempSampleMatrix -> Int -> Int -> YearBCAD
 lookUpTempSample (TempSampleMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
 
--- | A datatype for one age sample (used for reading from .tsv)
+-- | A data type for one age sample (used for reading from .tsv)
 data TempSample = TempSample {
       _tempSampObsID :: String
     , _tempSampAge   :: YearBCAD
@@ -674,7 +674,7 @@ instance Csv.FromNamedRecord TempSample where
     parseNamedRecord m =
         TempSample <$> filterLookupMulti m ["obsID", "id"] <*> filterLookup m "yearBCAD"
 
--- | A datatype for temporal positions
+-- | A data type for temporal positions
 newtype TempPos = TempPos YearBCAD
     deriving (Eq, Show, Generic)
 
@@ -691,7 +691,7 @@ type YearBP = Word
 type YearBCAD = Int
 type YearRange = Word
 
--- | A datatype for spatial positions
+-- | A data type for spatial positions
 data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
     deriving (Eq, Show, Generic)
 
@@ -714,7 +714,7 @@ instance Identifiable SpatPos where
     setIndex (SpatPosCartesian x) i = SpatPosCartesian (setIndex x i)
     setIndex (SpatPosLongLat x) i   = SpatPosLongLat (setIndex x i)
 
--- | A datatype for projected coordinates
+-- | A data type for projected coordinates
 data CartesianPos = CartesianPos Int (Maybe String) Double Double
     deriving (Eq, Show, Generic)
 
@@ -735,7 +735,7 @@ instance Identifiable CartesianPos where
     getIndex (CartesianPos index _ _ _) = index
     setIndex (CartesianPos _ n c1 c2) i = CartesianPos i n c1 c2
 
--- | A datatype for Long-Lat coordinates
+-- | A data type for Long-Lat coordinates
 data LongLatPos = LongLatPos Int (Maybe String) Longitude Latitude
     deriving (Eq, Show, Generic)
 
@@ -756,7 +756,7 @@ instance Identifiable LongLatPos where
     getIndex (LongLatPos index _ _ _) = index
     setIndex (LongLatPos _ n c1 c2) i = LongLatPos i n c1 c2
 
--- | A datatype for Longitudes
+-- | A data type for Longitudes
 newtype Longitude = Longitude Double
     deriving (Eq, Show, Generic)
 
@@ -772,7 +772,7 @@ instance Csv.ToField Longitude where
 instance Csv.FromField Longitude where
     parseField x = Csv.parseField x >>= makeLongitude
 
--- | A datatype for Latitudes
+-- | A data type for Latitudes
 newtype Latitude = Latitude Double
     deriving (Eq, Show, Generic)
 
