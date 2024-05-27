@@ -6,6 +6,7 @@ import           LocEst.CLI.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
+import LocEst.Exceptions
 
 import           Conduit                       ((.|))
 import           Control.Monad                 (replicateM, zipWithM_)
@@ -110,7 +111,7 @@ perBin sortedIndepDists depDists (mid, startSorted, stopSorted) =
 binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [(Double, Int, Int)]
 binIndepVarForNugget sortedVec (ValuesPerIndepVar m) indepVarName =
     let threshold = case lookup indepVarName m of
-            Nothing -> error "indep var not there"
+            Nothing -> throwL $ "Indepedent variable " ++ indepVarName ++ " not defined in --outMode"
             Just x  -> x
         stop = case VU.findIndexR (\(_,x) -> x <= threshold) sortedVec of
             Nothing -> VU.length sortedVec - 1
@@ -198,7 +199,7 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
             -- write distances to mutable vector
             VUM.write spaceVec i spaceDist
             VUM.write timeVec  i timeDist
-        distSpaceTime _ _ _ = error "Impossible state in indep distance calculation"
+        distSpaceTime _ _ _ = error "impossible state in spatial independent variable distance calculation"
         distArbitrary :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
         distArbitrary
             arbitraryVecs
@@ -209,7 +210,7 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
             -- this assumes that p1 and p2 have the same order of indep variables
             let arbitraryDists = allDistances (getValues p1) (getValues p2)
             zipWithM_ (`VUM.write` i) arbitraryVecs arbitraryDists
-        distArbitrary _ _ = error "Impossible state in indep distance calculation"
+        distArbitrary _ _ = error "impossible state in arbitrary independent variable distance calculation"
         distArbitraryMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distArbitraryMerged
             distVec
@@ -220,7 +221,7 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
             -- this assumes that p1 and p2 have the same order of indep variables
             let arbitraryDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
             VUM.write distVec i arbitraryDistEuclidean
-        distArbitraryMerged _ _ = error "Impossible state in indep distance calculation"
+        distArbitraryMerged _ _ = error "impossible state in merged arbitrary independent variable distance calculation"
 
 calcDepVarPairwiseDistances :: Bool -> V.Vector Observation -> IO [(DepVarName, SUDistMatrix)]
 calcDepVarPairwiseDistances merge obs = do
@@ -228,35 +229,25 @@ calcDepVarPairwiseDistances merge obs = do
         nrPairs = length obsPairs
         (Observation _ _ (HyperPos _ pos@(ValuesPerDepVar l))) = V.head obs
     -- writing distances to mutable vectors
-    case merge of
-        False -> do
-            depVecs <- replicateM (length l) (VUM.new nrPairs)
-            mapM_ (distDep depVecs) obsPairs
-            depVecsNonMut <- mapM VU.unsafeFreeze depVecs
-            return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
-        True -> do
-            distVec <- VUM.new nrPairs
-            mapM_ (distDepMerged distVec) obsPairs
-            distVecNonMut <- VU.unsafeFreeze distVec
-            return [("all", SUDistMatrix distVecNonMut)]
+    if merge
+    then do
+        distVec <- VUM.new nrPairs
+        mapM_ (distDepMerged distVec) obsPairs
+        distVecNonMut <- VU.unsafeFreeze distVec
+        return [("all", SUDistMatrix distVecNonMut)]
+    else do
+        depVecs <- replicateM (length l) (VUM.new nrPairs)
+        mapM_ (distDep depVecs) obsPairs
+        depVecsNonMut <- mapM VU.unsafeFreeze depVecs
+        return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
     where
         distDep :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
-        distDep
-            depVecs
-            (i,
-            (Observation _ _ (HyperPos _ p1),
-            Observation _ _ (HyperPos _ p2))
-            ) = do
+        distDep depVecs (i, (Observation _ _ (HyperPos _ p1), Observation _ _ (HyperPos _ p2))) = do
             -- this assumes that p1 and p2 have the same order of dep variables
             let depDists = allDistances (getValues p1) (getValues p2)
             zipWithM_ (`VUM.write` i) depVecs depDists
         distDepMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
-        distDepMerged
-            distVec
-            (i,
-            (Observation _ _ (HyperPos _ p1),
-            Observation _ _ (HyperPos _ p2))
-            ) = do
+        distDepMerged distVec (i, (Observation _ _ (HyperPos _ p1), Observation _ _ (HyperPos _ p2))) = do
             -- this assumes that p1 and p2 have the same order of dep variables
             let depDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
             VUM.write distVec i depDistEuclidean
