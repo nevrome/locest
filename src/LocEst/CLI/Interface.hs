@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module LocEst.CLI.Interface where
 
@@ -17,6 +18,12 @@ import qualified Options.Applicative   as OP
 import qualified Text.Parsec           as P
 import qualified Text.Parsec.String    as P
 import           Text.Read             (readMaybe)
+import qualified Options.Applicative.Help     as OH
+
+-- helper functions for optparse applicative help text
+
+s2d :: String -> OH.Doc
+s2d str = OH.fillSep $ map OH.pretty $ words str
 
 -- config file that uses the optparse interface
 
@@ -78,14 +85,14 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             <$> optParseInSpatDistMapFile
                             <*> optParseInObservationFile
                             <*> optParseInSpatDistNoOrderCheck
-                            )) (OP.progDesc "Serialise --spatDistFile for the obs-obs case."))
+                            )) (OP.progDesc "Serialise --spatDistFile for the observation-observation distance case in cross."))
                      <> OP.command "spatdist" (OP.info (OP.helper <*> (
                             SerialiseSpatDistFile
                             <$> optParseInSpatDistMapFile
                             <*> optParseInObservationFile
                             <*> optParseInSpatGridFile
                             <*> optParseInSpatDistNoOrderCheck
-                            )) (OP.progDesc "Serialise --spatDistFile."))
+                            )) (OP.progDesc "Serialise --spatDistFile for the observation-spatial grid case in search."))
                      <> OP.command "tempsamp" (OP.info (OP.helper <*> (
                             SerialiseObsTempSamplesFile
                             <$> optParseInObservationFile
@@ -287,7 +294,25 @@ optParseInObservationFile = OP.strOption (
        OP.long    "obsFile"
     <> OP.short   'i'
     <> OP.metavar "FILE"
-    <> OP.help    "Path to the .tsv file with input observations to inform the field."
+    -- <> OP.help    "Path to the .tsv file with input observations to inform the field."
+    <> OP.helpDoc ( Just (
+           "---"
+        <> OH.hardline <> s2d "Path to the .tsv file with the input observations that should inform \
+                              \the field."
+        <> OH.hardline
+        <> OH.hardline <> s2d "Columns:"
+        <> OH.hardline <> "Identifier: [obsID]"
+        <> OH.hardline <> "Independent variable position:"
+        <> OH.hardline <> s2d "[x, y, yearBCAD] or [longitude, langitude, yearBCAD] or \
+                              \[indepDim1, indepDim2, ...] where the first two options belong to \
+                              \the spatiotemporal interpolation setup, and the last to the arbitrary \
+                              \dimension interpolation setup. Here all dimensions require the prefix \
+                              \\"indep\"."
+        
+                
+        <> OH.hardline
+        <> "---"
+    ))
     )
 
 optParseInObsTempSamplesFile :: OP.Parser FilePath
