@@ -74,8 +74,7 @@ runSearch (
     hPutStrLn stderr "Preparing prediction grid"
     indepVarsPredGrid <- readIndepVarsPredGrid kernelDefinition observations indepVarsPredGridSettings
     depVarsPredGrid   <- traverse (readDepVarsPredGrid kernelDefinition observations) depVarsPredGridSettings
-    let searchGrid = SearchGrid indepVarsPredGrid depVarsPredGrid
-        supplement = createCoreSupplement searchGrid
+    let supplement = createCoreSupplement indepVarsPredGrid
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
     let permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
@@ -204,32 +203,40 @@ readDepVarsPredGrid
     kernelDefinition
     observations
     (DirectDepVarsGridSettings depVarsPos) = do
-    let depVarsFromObs = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
+    -- get search positions
     let depVarsFromGrid = getKeys $ head depVarsPos
+    -- validation obsFile
+    let depVarsFromObs = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
     OP.when (depVarsFromObs /= depVarsFromGrid) $ do
         throwLIO "dep vars in --obsFile and --depVars not equal"
+    -- validation kernelDefinition
     let depVarsFromAlg = getKeys kernelDefinition
     OP.unless (depVarsFromAlg == depVarsFromGrid) $
         throwLIO "dep vars in --depVars and --algorithm not equal"
+    -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPos
 readDepVarsPredGrid
     kernelDefinition
     observations
     (SearchObsDepVarsGridSettings path) = do
-    let depVarsFromObs = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
+    -- read search observations
     searchObservations <- V.toList <$> readObservations path
     let depVarsFromGrid = getKeys $ (_hyposDepVarsPos . _obsPos) $ head searchObservations
+    -- validation obsFile
+    let depVarsFromObs = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
     OP.when (depVarsFromObs /= depVarsFromGrid) $ do
         throwLIO "dep vars in --obsFile and --searchObsFile not equal"
+    -- validation kernelDefinition
     let depVarsFromAlg = getKeys kernelDefinition
     OP.unless (depVarsFromAlg == depVarsFromGrid) $
         throwLIO "dep vars in --searchObsFile and --algorithm not equal"
+    -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 
-createCoreSupplement :: SearchGrid -> CoreSupplement
-createCoreSupplement (SearchGrid (SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples) _) =
+createCoreSupplement :: IndepVarsPredGrid -> CoreSupplement
+createCoreSupplement (SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples) =
     CoreSupplement spaceTimeFilter maybeSpatDistMap maybeTempSamples
-createCoreSupplement (SearchGrid (ArbitraryDimGrid _) _) =
+createCoreSupplement (ArbitraryDimGrid _) =
     CoreSupplement Nothing Nothing Nothing
 
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
@@ -245,6 +252,7 @@ createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid d
 createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
     [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
     | indepPos <- V.toList gridPos]
+
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n

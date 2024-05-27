@@ -216,12 +216,6 @@ instance Csv.ToRecord SearchLikelihood where
     toRecord (SearchLikelihood depDist logLikelihood (Just prob)) =
         Csv.record [Csv.toField depDist, Csv.toField logLikelihood, Csv.toField prob]
 
--- | A data type to specify a search position in independent and (for the search case) in depvar space
-data SearchGrid = SearchGrid {
-      _searchPosIndepVarsGrid :: IndepVarsPredGrid
-    , _searchPosDepVarsGrid   :: Maybe DepVarsPredGrid
-}
-
 -- | A data type for the independent variable space prediction grid
 data IndepVarsPredGrid =
     SpaceTimeGrid {
