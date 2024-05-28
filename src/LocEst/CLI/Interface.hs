@@ -294,12 +294,9 @@ optParseInObservationFile = OP.strOption (
        OP.long    "obsFile"
     <> OP.short   'i'
     <> OP.metavar "FILE"
-    -- <> OP.help    "Path to the .tsv file with input observations to inform the field."
     <> OP.helpDoc ( Just (
-           "---"
-        <> OH.hardline <> s2d "Path to the .tsv file with the input observations that should inform \
+                          s2d "Path to the .tsv file with the input observations that should inform \
                               \the field. Columns:"
-        <> OH.hardline
         <> OH.hardline <> s2d "> [obsID]: Observation identifier"
         <> OH.hardline <> s2d "> [x, y, yearBCAD] or [longitude, langitude, yearBCAD] or \
                               \[indepC1, indepC2, ...]: Independent variable position where the \
@@ -310,7 +307,6 @@ optParseInObservationFile = OP.strOption (
         <> OH.hardline <> s2d "> [depC1, depC2, ...]: Dependent variable position. All variables require \
                               \the prefix \"dep\" followed by any variable name, e.g. \"C1\" and \"C2\"."
         <> OH.hardline
-        <> "---"
     ))
     )
 
@@ -397,7 +393,13 @@ optParseInSpatGridFile = OP.strOption (
        OP.long    "spatGridFile"
     <> OP.short   'g'
     <> OP.metavar "FILE"
-    <> OP.help    "Path to the .tsv file with the spatial coordinates to be queried."
+    <> OP.helpDoc ( Just (
+                      s2d "Path to the .tsv file with the spatial coordinates where interpolation \
+                          \and search should be performed. Columns:"
+    <> OH.hardline <> s2d "> [spatID]: Spatial coordinate identifier"
+    <> OH.hardline <> s2d "> [x, y] or [longitude, langitude]: Spatial coordinates"
+    <> OH.hardline
+    ))
     )
 
 optParseTempGridString :: OP.Parser [Int]
@@ -405,7 +407,18 @@ optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
        OP.long    "tempGrid"
     <> OP.short   't'
     <> OP.metavar "YEAR|c(YEAR1,YEAR2,...)|START:STOP:BY"
-    <> OP.help    "Temporal positions that should be queried."
+    -- <> OP.help    "Temporal positions that should be queried."
+    <> OP.helpDoc ( Just (
+                      s2d "Temporal positions in years BC/AD where interpolation and search should \
+                          \be performed. Negative integer numbers mark years BC, positive numbers years AD. \
+                          \Can be given in three forms:"
+    <> OH.hardline <> s2d "> YEAR: One year, e.g. \"-3000\" for 3000BC"
+    <> OH.hardline <> s2d "> c(YEAR1,YEAR2,...): A list of years, e.g. \"c(-3000, 1000)\" for 3000BC \
+                          \and 1000AD"
+    <> OH.hardline <> s2d "> START:STOP:BY: A sequence  of years, e.g. \"-3000:1000:1000\" for 3000BC, \
+                          \2000BC, 1000BC, 0AD and 1000AD"
+    <> OH.hardline
+    ))
     )
     where
         readTempGridString :: String -> Either String [Int]
