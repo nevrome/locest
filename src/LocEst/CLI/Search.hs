@@ -27,8 +27,8 @@ data SearchOptions = SearchOptions
     , _searchAlgorithm          :: KernelDefinition
     , _normalize                :: Normalization
     , _numThreads               :: NumberOfThreads
-    , _searchOutMode            :: CoreOutMode
     , _searchOutFile            :: FilePath
+    , _searchOutMode            :: CoreOutMode
     }
 
 data SearchGridSettings = SearchGridSettings {
@@ -63,8 +63,8 @@ runSearch (
         kernelDefinition
         normalization
         threads
-        outMode
         outFile
+        outMode
     ) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads

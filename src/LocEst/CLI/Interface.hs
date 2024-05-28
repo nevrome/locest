@@ -108,8 +108,8 @@ searchOptParser = SearchOptions
                         <*> optParseKernDefString
                         <*> optParseNormalization
                         <*> optParseNumberOfThreads
-                        <*> optParseCoreOutMode
                         <*> optParseOutFile
+                        <*> optParseCoreOutMode
 
 varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
@@ -191,9 +191,13 @@ optParseCoreOutMode :: OP.Parser CoreOutMode
 optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     OP.long "outMode" <>
     OP.metavar "Short|Full|Obs(n)" <>
-    OP.help "Output options." <>
-    OP.value CoreOutShort <>
-    OP.showDefault
+    OP.value CoreOutShort
+    <> OP.helpDoc ( Just (
+                      s2d "The type of output that should be written to the --outFile."
+    <> OH.hardline <> s2d ""
+    <> OH.hardline <> s2d ""
+    <> OH.hardline
+    ))
     )
     where
         readOutMode :: String -> Either String CoreOutMode
@@ -590,18 +594,20 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
     <> OP.helpDoc ( Just (
                       s2d "Kernel parameter settings that should be applied for the interpolation. \
                           \This follows the following syntax:"
-    <> OH.hardline <>     "c(                # named list of dependent variables"
-    <> OH.hardline <>     "  depC1 = k(      # first dependent variable"
-    <> OH.hardline <>     "    shape = SqEx, # either SqEx = Squared exponential"
-    <> OH.hardline <>     "                  #     or Linear = Linear kernel"
-    <> OH.hardline <>     "    nugget = ..., # nugget parameter"
-    <> OH.hardline <>     "    lengths = c(  # named list with lengthscale "
-    <> OH.hardline <>     "      space = ... # for each independent variable"
-    <> OH.hardline <>     "      time = ..."
-    <> OH.hardline <>     "    )"
-    <> OH.hardline <>     "  ),"
-    <> OH.hardline <>     "  depC2 = k(...)  # second dependent variable"
-    <> OH.hardline <>     ")"
+    <> OH.hardline <>     "┌───────────────────┐"
+    <> OH.hardline <>     "│ c(                │- named list of dependent variables"
+    <> OH.hardline <>     "│   depC1 = k(      │- first dependent variable"
+    <> OH.hardline <>     "│     shape = SqEx, │- either SqEx = Squared exponential"
+    <> OH.hardline <>     "│                   │      or Linear = Linear kernel"
+    <> OH.hardline <>     "│     nugget = ..., │- nugget parameter"
+    <> OH.hardline <>     "│     lengths = c(  │- named list with lengthscale"
+    <> OH.hardline <>     "│       space = ... │  for each independent variable"
+    <> OH.hardline <>     "│       time = ...  │"
+    <> OH.hardline <>     "│     )             │"
+    <> OH.hardline <>     "│   ),              │"
+    <> OH.hardline <>     "│   depC2 = k(...)  │- second dependent variable"
+    <> OH.hardline <>     "│ )                 │"
+    <> OH.hardline <>     "└───────────────────┘ )"
     <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified like this.\
                           \ \"space\" and \"time\" are a special case for the independent variable. \
                           \Use indepC1, indepC2, etc. for the arbitrary variables case."
