@@ -295,7 +295,7 @@ optParseInObservationFile = OP.strOption (
     <> OP.short   'i'
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
-                          s2d "Path to the .tsv file with the input observations that should inform \
+                          s2d "Path to a .tsv/.cbor file with the input observations that should inform \
                               \the field. Columns:"
     <> OH.hardline <>    "┌───────┬───┬───┬──────────┬───────┬───────┐"
     <> OH.hardline <>    "│ obsID │ x │ y │ yearBCAD │ depC1 │ depC2 │"
@@ -320,8 +320,26 @@ optParseInObsTempSamplesFile :: OP.Parser FilePath
 optParseInObsTempSamplesFile = OP.strOption (
     OP.long "tempSampFile" <>
     OP.metavar "FILE" <>
-    OP.help "Path to file with the random age permutations per sample, \
-            \e.g. produced with currycarbon."
+    OP.helpDoc ( Just (
+                      s2d "Path to a .tsv/.cbor file with random age permutations per observation \
+                          \e.g. produced with currycarbon --samplesFile. If this is given, then the \
+                          \temporal position of each sample is not read from the --obsFile, but looked \
+                          \up in this table. The pairs must be ordered like and by --obsFile and then \
+                          \include the same amount of age samples per observation, so that the table looks like this:"
+    <> OH.hardline <>     "┌───────┬──────────┐"
+    <> OH.hardline <>     "│ obsID │ yearBCAD │"
+    <> OH.hardline <>     "├───────┼──────────┤"
+    <> OH.hardline <>     "│     a │          │"
+    <> OH.hardline <>     "│     a │          │"
+    <> OH.hardline <>     "│     a │          │"
+    <> OH.hardline <>     "│     b │          │"
+    <> OH.hardline <>     "│     b │          │"
+    <> OH.hardline <>     "│     b │          │"
+    <> OH.hardline <>     "└───────┴──────────┘"
+    <> OH.hardline <> s2d "> [obsID]: Observations identifier"
+    <> OH.hardline <> s2d "> [yearBCAD]: Age sample"
+    <> OH.hardline
+    ))
     )
 
 optParseSearchGridSettings :: OP.Parser SearchGridSettings
@@ -375,20 +393,18 @@ optParseSpaceTimeFilter = OP.option (OP.eitherReader readSpaceTime) (
             parseRecordType "filter" $ do
                 a <- parseArgument "spatialRadius" parseDouble
                 b <- parseArgument "temporalRadius" parseDouble
-                return $ (a, b)
+                return (a, b)
 
 optParseInSpatDistMapFile :: OP.Parser FilePath
 optParseInSpatDistMapFile = OP.strOption (
        OP.long    "spatDistFile"
     <> OP.metavar "FILE"
-    <> OP.help    "Path to a .tsv file with spatial distances between observations and the spatial \
-                   \positions of interest. Must be ordered as --obsFile and --spatGridFile."
     <> OP.helpDoc ( Just (
-                      s2d "Path to a .tsv file with spatial distances between pairs of observations and spatial \
+                      s2d "Path to a .tsv/.cbor file with spatial distances between pairs of observations and spatial \
                           \prediction grid points. If this is given, then the spatial distances will \
                           \not be calculated from the respective coordinates, but looked up in this \
-                          \table. The pairs must be ordered first by --obsFile and then by --spatGridFile, \
-                          \so that the table looks like this:"
+                          \table. The pairs must be ordered first like and by --obsFile and then like \
+                          \and by --spatGridFile, so that the table looks like this:"
     <> OH.hardline <>     "┌───────┬────────┬──────┐"
     <> OH.hardline <>     "│ obsID │ spatID │ dist │"
     <> OH.hardline <>     "├───────┼────────┼──────┤"
@@ -408,16 +424,33 @@ optParseInSpatDistMapFile = OP.strOption (
 
 optParseInSpatDistNoOrderCheck :: OP.Parser Bool
 optParseInSpatDistNoOrderCheck = OP.switch (
-    OP.long "noOrderCheck" <>
-    OP.help "Don't validate the order of the spatDistFile and the tempSampFile to speed up the reading. \
-             \Should only be set if the order is certainly correct."
+    OP.long "noOrderCheck"
+    <> OP.helpDoc ( Just (
+                    s2d "The input files --spatDistFile and --tempSampFile undergo an order validation \
+                        \when read from .tsv (not from .cbor!). This validation is computationally \
+                        \expensive for large files and can be turned off with this flag to speed up the reading. \
+                        \This should only be set if the order is certainly correct, e.g. if it was \
+                        \validated previously."
+    <> OH.hardline
+    ))
     )
 
 optParseInArbitraryDimFile :: OP.Parser FilePath
 optParseInArbitraryDimFile = OP.strOption (
        OP.long    "anyGridFile"
     <> OP.metavar "FILE"
-    <> OP.help    "Path to the .tsv file with the arbitrary dimension coordinates to be queried."
+    <> OP.helpDoc ( Just (
+                      s2d "Path to a .tsv/.cbor file with arbitrary dimension coordinates where interpolation \
+                          \and search should be performed. Columns:"
+    <> OH.hardline <>     "┌─────────┬─────────┐"
+    <> OH.hardline <>     "│ indepC1 │ indepC2 │"
+    <> OH.hardline <>     "├─────────┼─────────┤"
+    <> OH.hardline <>     "│         │         │"
+    <> OH.hardline <>     "│         │         │"
+    <> OH.hardline <>     "└─────────┴─────────┘"
+    <> OH.hardline <> s2d "> [indepC1, indepC2, ...]: Independent variable position"
+    <> OH.hardline
+    ))
     )
 
 optParseInSpatGridFile :: OP.Parser FilePath
@@ -426,7 +459,7 @@ optParseInSpatGridFile = OP.strOption (
     <> OP.short   'g'
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
-                      s2d "Path to the .tsv file with the spatial coordinates where interpolation \
+                      s2d "Path to a .tsv/.cbor file with spatial coordinates where interpolation \
                           \and search should be performed. Columns:"
     <> OH.hardline <>     "┌────────┬───┬───┐"
     <> OH.hardline <>     "│ spatID │ x │ y │"
@@ -445,7 +478,6 @@ optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
        OP.long    "tempGrid"
     <> OP.short   't'
     <> OP.metavar "YEAR|c(YEAR1,YEAR2,...)|START:STOP:BY"
-    -- <> OP.help    "Temporal positions that should be queried."
     <> OP.helpDoc ( Just (
                       s2d "Temporal positions in years BC/AD where interpolation and search should \
                           \be performed. Negative integer numbers mark years BC, positive numbers years AD. \
@@ -478,6 +510,14 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
     <> OP.short   'd'
     <> OP.metavar "c(depX=DOUBLE,depY=c(DOUBLE,DOUBLE,...),depZ=START:STOP:BY,...)"
     <> OP.help    "Dependent variable positions that should be queried."
+    <> OP.helpDoc ( Just (
+                      s2d "Dependent variable positions that should be \"searched\" for, so for which \
+                          \similarity probabilities in the interpolated field should be computed. \
+                          \Each dependent variable must be specified in a named list \"c(depC1 = ..., depC2 = ..., ...)\". \
+                          \And for each dependent variable either a single coordinate, a list of coordinates, \
+                          \or a sequence of coordinates can be listed."
+    <> OH.hardline
+    ))
     )
     where
         readSearchDepVarsPos :: String -> Either String [DepVarsPos]
@@ -502,7 +542,7 @@ optParseInSearchObservationFile = OP.strOption (
        OP.long    "searchObsFile"
     <> OP.short   's'
     <> OP.metavar "FILE"
-    <> OP.help    "Path to the .tsv file with search observations."
+    <> OP.help    "Path to the .tsv/.cbor file with search observations."
     )
 
 optParseOutFile :: OP.Parser FilePath
