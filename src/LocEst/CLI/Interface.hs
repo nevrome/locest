@@ -350,8 +350,13 @@ optParseSpaceTimeFilter :: OP.Parser (Double,Double)
 optParseSpaceTimeFilter = OP.option (OP.eitherReader readSpaceTime) (
        OP.long    "spaceTimeFilter"
     <> OP.metavar "filter(spatialRadius = DOUBLE, temporalRadius = DOUBLE)"
-    <> OP.help    "Filter list of relevant observations for each prediction point by space and time. \
-                   \ This can be set to speed up the calculation."
+    <> OP.helpDoc ( Just (
+                      s2d "Spatiotemporal radius filter to reduce the number of observations that \
+                          \should be considered for each prediction grid point. This is primarily \
+                          \a performance feature to speed up the calculation by ignoring far away \
+                          \observations."
+    <> OH.hardline
+    ))
     )
     where
         readSpaceTime :: String -> Either String (Double, Double)
@@ -372,6 +377,27 @@ optParseInSpatDistMapFile = OP.strOption (
     <> OP.metavar "FILE"
     <> OP.help    "Path to a .tsv file with spatial distances between observations and the spatial \
                    \positions of interest. Must be ordered as --obsFile and --spatGridFile."
+    <> OP.helpDoc ( Just (
+                      s2d "Path to a .tsv file with spatial distances between pairs of observations and spatial \
+                          \prediction grid points. If this is given, then the spatial distances will \
+                          \not be calculated from the respective coordinates, but looked up in this \
+                          \table. The pairs must be ordered first by --obsFile and then by --spatGridFile, \
+                          \so that the table looks like this:"
+    <> OH.hardline <>    "-------------------------"
+    <> OH.hardline <>    "| obsID | spatID | dist |"
+    <> OH.hardline <>    "|-------|--------|------|"    
+    <> OH.hardline <>    "|     a |      x |  ... |"
+    <> OH.hardline <>    "|     a |      y |  ... |"
+    <> OH.hardline <>    "|     a |      z |  ... |"
+    <> OH.hardline <>    "|     b |      x |  ... |"
+    <> OH.hardline <>    "|     b |      y |  ... |"
+    <> OH.hardline <>    "|   ... |    ... |  ... |"
+    <> OH.hardline <>    "-------------------------"                      
+    <> OH.hardline <> s2d "> [obsID]: Observations identifier"
+    <> OH.hardline <> s2d "> [spatID]: Spatial coordinate identifier"
+    <> OH.hardline <> s2d "> [dist]: Spatial distance"
+    <> OH.hardline
+    ))
     )
 
 optParseInSpatDistNoOrderCheck :: OP.Parser Bool
