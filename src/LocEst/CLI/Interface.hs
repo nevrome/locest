@@ -283,9 +283,14 @@ optParseNumberOfThreads :: OP.Parser NumberOfThreads
 optParseNumberOfThreads = OP.option (OP.eitherReader readNumberOfThreads) (
     OP.long "threads" <>
     OP.metavar "INT|Detect" <>
-    OP.help "Maximum number of worker threads." <>
-    OP.value SingleThread <>
-    OP.showDefault
+    OP.value SingleThread
+    <> OP.helpDoc ( Just (
+                      s2d "Maximum number of worker threads. Either just an integer number to request \
+                          \a concrete number of threads or \"Detect\" to make locest automatically \
+                          \determine the available number of threads and use all of them. \
+                          \The default is to use only one thread."
+    <> OH.hardline
+    ))
     ) where
         readNumberOfThreads :: String -> Either String NumberOfThreads
         readNumberOfThreads s = do
@@ -564,7 +569,10 @@ optParseOutFile = OP.strOption (
        OP.long  "outFile"
     <> OP.short 'o'
     <> OP.metavar "FILE"
-    <> OP.help  "Path to the output file."
+    <> OP.helpDoc ( Just (
+                      s2d "Path to an output .tsv file. See --outMode for details."
+    <> OH.hardline
+    ))
     )
 
 optParseVariogramOutFile :: OP.Parser (Maybe FilePath)
