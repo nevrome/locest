@@ -297,16 +297,22 @@ optParseInObservationFile = OP.strOption (
     <> OP.helpDoc ( Just (
                           s2d "Path to the .tsv file with the input observations that should inform \
                               \the field. Columns:"
-        <> OH.hardline <> s2d "> [obsID]: Observation identifier"
-        <> OH.hardline <> s2d "> [x, y, yearBCAD] or [longitude, langitude, yearBCAD] or \
-                              \[indepC1, indepC2, ...]: Independent variable position where the \
-                              \first two options belong to the spatiotemporal interpolation setup, \
-                              \and the last to the arbitrary dimension interpolation setup. There all \
-                              \variables require the prefix \"indep\" followed by any variable name, \
-                              \e.g. \"C1\" and \"C2\"."
-        <> OH.hardline <> s2d "> [depC1, depC2, ...]: Dependent variable position. All variables require \
-                              \the prefix \"dep\" followed by any variable name, e.g. \"C1\" and \"C2\"."
-        <> OH.hardline
+    <> OH.hardline <>    "┌───────┬───┬───┬──────────┬───────┬───────┐"
+    <> OH.hardline <>    "│ obsID │ x │ y │ yearBCAD │ depC1 │ depC2 │"
+    <> OH.hardline <>    "├───────┼───┼───┼──────────┼───────┼───────┤"
+    <> OH.hardline <>    "│       │   │   │          │       │       │"
+    <> OH.hardline <>    "│       │   │   │          │       │       │"
+    <> OH.hardline <>    "└───────┴───┴───┴──────────┴───────┴───────┘"
+    <> OH.hardline <> s2d "> [obsID]: Observation identifier"
+    <> OH.hardline <> s2d "> [x, y, yearBCAD] or [longitude, langitude, yearBCAD] or \
+                          \[indepC1, indepC2, ...]: Independent variable position where the \
+                          \first two options belong to the spatiotemporal interpolation setup, \
+                          \and the last to the arbitrary dimension interpolation setup. There all \
+                          \variables require the prefix \"indep\" followed by any variable name, \
+                          \e.g. \"C1\" and \"C2\"."
+    <> OH.hardline <> s2d "> [depC1, depC2, ...]: Dependent variable position. All variables require \
+                          \the prefix \"dep\" followed by any variable name, e.g. \"C1\" and \"C2\"."
+    <> OH.hardline
     ))
     )
 
@@ -383,16 +389,16 @@ optParseInSpatDistMapFile = OP.strOption (
                           \not be calculated from the respective coordinates, but looked up in this \
                           \table. The pairs must be ordered first by --obsFile and then by --spatGridFile, \
                           \so that the table looks like this:"
-    <> OH.hardline <>    "-------------------------"
-    <> OH.hardline <>    "| obsID | spatID | dist |"
-    <> OH.hardline <>    "|-------|--------|------|"    
-    <> OH.hardline <>    "|     a |      x |  ... |"
-    <> OH.hardline <>    "|     a |      y |  ... |"
-    <> OH.hardline <>    "|     a |      z |  ... |"
-    <> OH.hardline <>    "|     b |      x |  ... |"
-    <> OH.hardline <>    "|     b |      y |  ... |"
-    <> OH.hardline <>    "|   ... |    ... |  ... |"
-    <> OH.hardline <>    "-------------------------"                      
+    <> OH.hardline <>     "┌───────┬────────┬──────┐"
+    <> OH.hardline <>     "│ obsID │ spatID │ dist │"
+    <> OH.hardline <>     "├───────┼────────┼──────┤"
+    <> OH.hardline <>     "│     a │      x │      │"
+    <> OH.hardline <>     "│     a │      y │      │"
+    <> OH.hardline <>     "│     a │      z │      │"
+    <> OH.hardline <>     "│     b │      x │      │"
+    <> OH.hardline <>     "│     b │      y │      │"
+    <> OH.hardline <>     "│     b │      z │      │"
+    <> OH.hardline <>     "└───────┴────────┴──────┘"
     <> OH.hardline <> s2d "> [obsID]: Observations identifier"
     <> OH.hardline <> s2d "> [spatID]: Spatial coordinate identifier"
     <> OH.hardline <> s2d "> [dist]: Spatial distance"
@@ -422,6 +428,12 @@ optParseInSpatGridFile = OP.strOption (
     <> OP.helpDoc ( Just (
                       s2d "Path to the .tsv file with the spatial coordinates where interpolation \
                           \and search should be performed. Columns:"
+    <> OH.hardline <>     "┌────────┬───┬───┐"
+    <> OH.hardline <>     "│ spatID │ x │ y │"
+    <> OH.hardline <>     "├────────┼───┼───┤"
+    <> OH.hardline <>     "│        │   │   │"
+    <> OH.hardline <>     "│        │   │   │"
+    <> OH.hardline <>     "└────────┴───┴───┘"
     <> OH.hardline <> s2d "> [spatID]: Spatial coordinate identifier"
     <> OH.hardline <> s2d "> [x, y] or [longitude, langitude]: Spatial coordinates"
     <> OH.hardline
