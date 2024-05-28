@@ -258,10 +258,16 @@ optParseAcrossDepVars = OP.switch (
 optParseNormalization :: OP.Parser Normalization
 optParseNormalization = OP.option (OP.eitherReader readNormalization) (
     OP.long "normalization" <>
-    OP.metavar "NormBySpace|NoNorm" <>
-    OP.help "How the output probabilities should be normalized." <>
-    OP.value NoNorm <>
-    OP.showDefault
+    OP.metavar "NoNorm|NormBySpace" <>
+    OP.value NoNorm
+    <> OP.helpDoc ( Just (
+                      s2d "If the output likelihoods from the search algorithm should be normalized. \
+                          \Normalization adds a column [probability] to the output table."
+    <> OH.hardline <> s2d "NoNorm (default): Apply no normalization, so don't calculate a probability"
+    <> OH.hardline <> s2d "NormBySpace: Normalize across all spatial positions at one point in time \
+                          \so across one \"time slice\". Only relevant for spatiotemporal interpolation."
+    <> OH.hardline
+    ))
     )
     where
         readNormalization :: String -> Either String Normalization
@@ -542,8 +548,16 @@ optParseInSearchObservationFile = OP.strOption (
        OP.long    "searchObsFile"
     <> OP.short   's'
     <> OP.metavar "FILE"
-    <> OP.help    "Path to the .tsv/.cbor file with search observations."
+    <> OP.helpDoc ( Just (
+                      s2d "Path to a .tsv/.cbor file with input observations whose dependent variable \
+                          \positions should be \"searched\" for, so for which similarity probabilities \
+                          \in the interpolated field should be computed. The structure of this input \
+                          \file is identical to the one of --obsFile."
+    <> OH.hardline
+    ))
     )
+
+
 
 optParseOutFile :: OP.Parser FilePath
 optParseOutFile = OP.strOption (
@@ -560,19 +574,31 @@ optParseVariogramOutFile = OP.optional $ OP.strOption (
     <> OP.help  "Path to the variogram output file."
     )
 
---optParseQuiet :: OP.Parser Bool
---optParseQuiet = OP.switch (
---    OP.long "quiet" <>
---    OP.short 'q' <>
---    OP.help "Suppress the printing of ..."
---    )
-
 optParseKernDefString :: OP.Parser KernelDefinition
 optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
        OP.long    "kerndef"
     <> OP.short   'k'
     <> OP.metavar "DSL"
-    <> OP.help    "Kernel parameter settings that should be applied for the interpolation"
+    <> OP.helpDoc ( Just (
+                      s2d "Kernel parameter settings that should be applied for the interpolation. \
+                          \This follows the following syntax:"
+    <> OH.hardline <>     "c(                # named list of dependent variables"
+    <> OH.hardline <>     "  depC1 = k(      # first dependent variable"
+    <> OH.hardline <>     "    shape = SqEx, # either SqEx = Squared exponential"
+    <> OH.hardline <>     "                  #     or Linear = Linear kernel"
+    <> OH.hardline <>     "    nugget = ..., # nugget parameter"
+    <> OH.hardline <>     "    lengths = c(  # named list with lengthscale "
+    <> OH.hardline <>     "      space = ... # for each independent variable"
+    <> OH.hardline <>     "      time = ..."
+    <> OH.hardline <>     "    )"
+    <> OH.hardline <>     "  ),"
+    <> OH.hardline <>     "  depC2 = k(...)  # second dependent variable"
+    <> OH.hardline <>     ")"
+    <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified like this.\
+                          \ \"space\" and \"time\" are a special case for the independent variable. \
+                          \Use indepC1, indepC2, etc. for the arbitrary variables case."
+    <> OH.hardline
+    ))
     )
     where
         readKernDefString :: String -> Either String KernelDefinition
