@@ -298,18 +298,17 @@ optParseInObservationFile = OP.strOption (
     <> OP.helpDoc ( Just (
            "---"
         <> OH.hardline <> s2d "Path to the .tsv file with the input observations that should inform \
-                              \the field."
+                              \the field. Columns:"
         <> OH.hardline
-        <> OH.hardline <> s2d "Columns:"
-        <> OH.hardline <> "Identifier: [obsID]"
-        <> OH.hardline <> "Independent variable position:"
-        <> OH.hardline <> s2d "[x, y, yearBCAD] or [longitude, langitude, yearBCAD] or \
-                              \[indepDim1, indepDim2, ...] where the first two options belong to \
-                              \the spatiotemporal interpolation setup, and the last to the arbitrary \
-                              \dimension interpolation setup. Here all dimensions require the prefix \
-                              \\"indep\"."
-        
-                
+        <> OH.hardline <> s2d "> [obsID]: Observation identifier"
+        <> OH.hardline <> s2d "> [x, y, yearBCAD] or [longitude, langitude, yearBCAD] or \
+                              \[indepC1, indepC2, ...]: Independent variable position where the \
+                              \first two options belong to the spatiotemporal interpolation setup, \
+                              \and the last to the arbitrary dimension interpolation setup. There all \
+                              \variables require the prefix \"indep\" followed by any variable name, \
+                              \e.g. \"C1\" and \"C2\"."
+        <> OH.hardline <> s2d "> [depC1, depC2, ...]: Dependent variable position. All variables require \
+                              \the prefix \"dep\" followed by any variable name, e.g. \"C1\" and \"C2\"."
         <> OH.hardline
         <> "---"
     ))
