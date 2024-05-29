@@ -135,7 +135,7 @@ optParseSpatDistSetting = SpatDistSettings
 optParseVarioOutMode :: OP.Parser BinModeSettings
 optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
     OP.long "outMode" <>
-    OP.metavar "EqualSize(n=INT)|OneBinMax(max = c(indepC1=DOUBLE,indepC2=DOUBLE,...)" <>
+    OP.metavar "EqualSize(n=INT)|OneBinMax(max = c(indepV1=DOUBLE,indepV2=DOUBLE,...)" <>
     OP.value (BinByNrBins 100)
     <> OP.helpDoc ( Just (
                       s2d "The binning procedure that should be applied for the variogram. \
@@ -155,7 +155,7 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline 
     <> OH.hardline <> s2d "EqualSize(n): Bins the observations into n bins with an equal amount of \
                           \observations."
-    <> OH.hardline <> s2d "OneBinMax(max = c(indepC1=DOUBLE,indepC2=DOUBLE,...): Only create one bin \
+    <> OH.hardline <> s2d "OneBinMax(max = c(indepV1=DOUBLE,indepV2=DOUBLE,...): Only create one bin \
                           \per independent and dependent variable with a given upper limit. \
                           \This is useful to get an estimate for the nugget parameter."
     <> OH.hardline
@@ -199,13 +199,13 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
                           \settings and the summed crossvalidation output:"
     <> OH.hardline <>     "Kernel parameter settings            "
     <> OH.hardline <>     "┌────────┬───────┬──────────────────┐"
-    <> OH.hardline <>     "│ kernel │ depC1 │ shape            │ From --kerndef:"
-    <> OH.hardline <>     "│        │ depC2 │ nugget           │ Kernel shape and"
+    <> OH.hardline <>     "│ kernel │ depV1 │ shape            │ From --kerndef:"
+    <> OH.hardline <>     "│        │ depV2 │ nugget           │ Kernel shape and"
     <> OH.hardline <>     "│        │ ...   ├─────────┬────────┤ nugget for each"
     <> OH.hardline <>     "│        │       │ space   │ length │ dependent variable;"
     <> OH.hardline <>     "│        │       │ time OR │        │ lengthscale"
-    <> OH.hardline <>     "│        │       │ indepC1 │        │ parameters for" 
-    <> OH.hardline <>     "│        │       │ indepC2 │        │ each dependent and"
+    <> OH.hardline <>     "│        │       │ indepV1 │        │ parameters for" 
+    <> OH.hardline <>     "│        │       │ indepV2 │        │ each dependent and"
     <> OH.hardline <>     "│        │       │ ...     │        │ independent one"
     <> OH.hardline <>     "└────────┴───────┴─────────┴────────┘"
     <> OH.hardline <>     "Crossvalidation result               "
@@ -240,15 +240,15 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
                           \For Short (default) and Full the following columns are produced:"
     <> OH.hardline <>     "Prediction position                  "
     <> OH.hardline <>     "┌────────────────┐    ┌─────────────┐"
-    <> OH.hardline <>     "│ spatID         │    │ indepC1     │ Prediction grid"
-    <> OH.hardline <>     "│ x or longitude │ OR │ indepC2     │ for the spatio-"
+    <> OH.hardline <>     "│ spatID         │    │ indepV1     │ Prediction grid"
+    <> OH.hardline <>     "│ x or longitude │ OR │ indepV2     │ for the spatio-"
     <> OH.hardline <>     "│ y or latitude  │    │ ...         │ temporal or the"
     <> OH.hardline <>     "│ yearBCAD       │    │             │ any space case"
     <> OH.hardline <>     "└────────────────┘    └─────────────┘"
     <> OH.hardline <>     "Search positions *                   "
     <> OH.hardline <>     "┌────────┬──────────────────────────┐"
-    <> OH.hardline <>     "│ search │ depC1                    │ with"
-    <> OH.hardline <>     "│        │ depC2                    │ --searchDepVarsPos"
+    <> OH.hardline <>     "│ search │ depV1                    │ with"
+    <> OH.hardline <>     "│        │ depV2                    │ --searchDepVarsPos"
     <> OH.hardline <>     "│        │ ...                      │"
     <> OH.hardline <>     "│        │ OR                       │"
     <> OH.hardline <>     "│        │ the input columns from   │ with"
@@ -256,13 +256,13 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "└────────┴──────────────────────────┘"
     <> OH.hardline <>     "Kernel parameter settings            "
     <> OH.hardline <>     "┌────────┬───────┬──────────────────┐"
-    <> OH.hardline <>     "│ kernel │ depC1 │ shape            │ From --kerndef:"
-    <> OH.hardline <>     "│        │ depC2 │ nugget           │ Kernel shape and"
+    <> OH.hardline <>     "│ kernel │ depV1 │ shape            │ From --kerndef:"
+    <> OH.hardline <>     "│        │ depV2 │ nugget           │ Kernel shape and"
     <> OH.hardline <>     "│        │ ...   ├─────────┬────────┤ nugget for each"
     <> OH.hardline <>     "│        │       │ space   │ length │ dependent variable;"
     <> OH.hardline <>     "│        │       │ time OR │        │ lengthscale"
-    <> OH.hardline <>     "│        │       │ indepC1 │        │ parameters for" 
-    <> OH.hardline <>     "│        │       │ indepC2 │        │ each dependent and"
+    <> OH.hardline <>     "│        │       │ indepV1 │        │ parameters for" 
+    <> OH.hardline <>     "│        │       │ indepV2 │        │ each dependent and"
     <> OH.hardline <>     "│        │       │ ...     │        │ independent one"
     <> OH.hardline <>     "└────────┴───────┴─────────┴────────┘"
     <> OH.hardline <>     "Temporal resampling iteration counter"
@@ -271,8 +271,8 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "└───────────────────────────────────┘"
     <> OH.hardline <>     "Interpolation output                 "
     <> OH.hardline <>     "┌──────────┬───────┬────────────────┐"
-    <> OH.hardline <>     "│ interpol │ depC1 │ neff           │ See supplementary"
-    <> OH.hardline <>     "│          │ depC2 │ avg            │ documentation for"
+    <> OH.hardline <>     "│ interpol │ depV1 │ neff           │ See supplementary"
+    <> OH.hardline <>     "│          │ depV2 │ avg            │ documentation for"
     <> OH.hardline <>     "│          │ ...   │ var            │ how these values"
     <> OH.hardline <>     "│          │       │ low +          │ are calculated"
     <> OH.hardline <>     "│          │       │ median +       │"
@@ -425,22 +425,22 @@ optParseInObservationFile = OP.strOption (
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
                           s2d "Path to a .tsv/.cbor file with the input observations that should inform \
-                              \the field. Columns:"
-    <> OH.hardline <>    "┌───────┬───┬───┬──────────┬───────┬───────┐"
-    <> OH.hardline <>    "│ obsID │ x │ y │ yearBCAD │ depC1 │ depC2 │"
-    <> OH.hardline <>    "├───────┼───┼───┼──────────┼───────┼───────┤"
-    <> OH.hardline <>    "│       │   │   │          │       │       │"
-    <> OH.hardline <>    "│       │   │   │          │       │       │"
-    <> OH.hardline <>    "└───────┴───┴───┴──────────┴───────┴───────┘"
+                              \the field. Columns for the basic spatiotemporal case:"
+    <> OH.hardline <>    "┌───────┬───┬───┬──────────┬───────┬───────┬────────┐"
+    <> OH.hardline <>    "│ obsID │ x │ y │ yearBCAD │ depV1 │ depV2 │ dep... │"
+    <> OH.hardline <>    "├───────┼───┼───┼──────────┼───────┼───────┼────────┤"
+    <> OH.hardline <>    "│       │   │   │          │       │       │        │"
+    <> OH.hardline <>    "│       │   │   │          │       │       │        │"
+    <> OH.hardline <>    "└───────┴───┴───┴──────────┴───────┴───────┴────────┘"
     <> OH.hardline <> s2d "> [obsID]: Observation identifier"
     <> OH.hardline <> s2d "> [x, y, yearBCAD] or [longitude, langitude, yearBCAD] or \
-                          \[indepC1, indepC2, ...]: Independent variable position where the \
+                          \[indepV1, indepV2, ...]: Independent variable position where the \
                           \first two options belong to the spatiotemporal interpolation setup, \
                           \and the last to the arbitrary dimension interpolation setup. There all \
                           \variables require the prefix \"indep\" followed by any variable name, \
-                          \e.g. \"C1\" and \"C2\"."
-    <> OH.hardline <> s2d "> [depC1, depC2, ...]: Dependent variable position. All variables require \
-                          \the prefix \"dep\" followed by any variable name, e.g. \"C1\" and \"C2\"."
+                          \e.g. \"V1\" and \"V2\"."
+    <> OH.hardline <> s2d "> [depV1, depV2, ...]: Dependent variable position. All variables require \
+                          \the prefix \"dep\" followed by any variable name, e.g. \"V1\" and \"V2\"."
     <> OH.hardline
     ))
     )
@@ -456,17 +456,15 @@ optParseInObsTempSamplesFile = OP.strOption (
                           \up in this table. The pairs must be ordered like and by --obsFile and then \
                           \include the same amount of age samples per observation, so that the table looks like this:"
     <> OH.hardline <>     "┌───────┬──────────┐"
-    <> OH.hardline <>     "│ obsID │ yearBCAD │"
-    <> OH.hardline <>     "├───────┼──────────┤"
-    <> OH.hardline <>     "│     a │          │"
-    <> OH.hardline <>     "│     a │          │"
+    <> OH.hardline <>     "│ obsID │ yearBCAD │ > [obsID]:"
+    <> OH.hardline <>     "├───────┼──────────┤   Observations identifier"
+    <> OH.hardline <>     "│     a │          │ > [yearBCAD]"
+    <> OH.hardline <>     "│     a │          │   Age sample"
     <> OH.hardline <>     "│     a │          │"
     <> OH.hardline <>     "│     b │          │"
     <> OH.hardline <>     "│     b │          │"
     <> OH.hardline <>     "│     b │          │"
     <> OH.hardline <>     "└───────┴──────────┘"
-    <> OH.hardline <> s2d "> [obsID]: Observations identifier"
-    <> OH.hardline <> s2d "> [yearBCAD]: Age sample"
     <> OH.hardline
     ))
     )
@@ -535,18 +533,15 @@ optParseInSpatDistMapFile = OP.strOption (
                           \table. The pairs must be ordered first like and by --obsFile and then like \
                           \and by --spatGridFile, so that the table looks like this:"
     <> OH.hardline <>     "┌───────┬────────┬──────┐"
-    <> OH.hardline <>     "│ obsID │ spatID │ dist │"
-    <> OH.hardline <>     "├───────┼────────┼──────┤"
-    <> OH.hardline <>     "│     a │      x │      │"
-    <> OH.hardline <>     "│     a │      y │      │"
-    <> OH.hardline <>     "│     a │      z │      │"
-    <> OH.hardline <>     "│     b │      x │      │"
+    <> OH.hardline <>     "│ obsID │ spatID │ dist │ > [obsID]:"
+    <> OH.hardline <>     "├───────┼────────┼──────┤   Observations identifier"
+    <> OH.hardline <>     "│     a │      x │      │ > [spatID]:"
+    <> OH.hardline <>     "│     a │      y │      │   Spatial coordinate identifier"
+    <> OH.hardline <>     "│     a │      z │      │ > [dist]:"
+    <> OH.hardline <>     "│     b │      x │      │   Spatial distance"
     <> OH.hardline <>     "│     b │      y │      │"
     <> OH.hardline <>     "│     b │      z │      │"
     <> OH.hardline <>     "└───────┴────────┴──────┘"
-    <> OH.hardline <> s2d "> [obsID]: Observations identifier"
-    <> OH.hardline <> s2d "> [spatID]: Spatial coordinate identifier"
-    <> OH.hardline <> s2d "> [dist]: Spatial distance"
     <> OH.hardline
     ))
     )
@@ -571,13 +566,12 @@ optParseInArbitraryDimFile = OP.strOption (
     <> OP.helpDoc ( Just (
                       s2d "Path to a .tsv/.cbor file with arbitrary dimension coordinates where interpolation \
                           \and search should be performed. Columns:"
-    <> OH.hardline <>     "┌─────────┬─────────┐"
-    <> OH.hardline <>     "│ indepC1 │ indepC2 │"
-    <> OH.hardline <>     "├─────────┼─────────┤"
-    <> OH.hardline <>     "│         │         │"
-    <> OH.hardline <>     "│         │         │"
-    <> OH.hardline <>     "└─────────┴─────────┘"
-    <> OH.hardline <> s2d "> [indepC1, indepC2, ...]: Independent variable position"
+    <> OH.hardline <>     "┌─────────┬─────────┬──────────┐"
+    <> OH.hardline <>     "│ indepV1 │ indepV2 │ indep... │ > [indepV1, ...]:"
+    <> OH.hardline <>     "├─────────┼─────────┼──────────┤   Independent variable"
+    <> OH.hardline <>     "│         │         │          │   position"
+    <> OH.hardline <>     "│         │         │          │"
+    <> OH.hardline <>     "└─────────┴─────────┴──────────┘"
     <> OH.hardline
     ))
     )
@@ -591,13 +585,11 @@ optParseInSpatGridFile = OP.strOption (
                       s2d "Path to a .tsv/.cbor file with spatial coordinates where interpolation \
                           \and search should be performed. Columns:"
     <> OH.hardline <>     "┌────────┬───┬───┐"
-    <> OH.hardline <>     "│ spatID │ x │ y │"
-    <> OH.hardline <>     "├────────┼───┼───┤"
-    <> OH.hardline <>     "│        │   │   │"
-    <> OH.hardline <>     "│        │   │   │"
+    <> OH.hardline <>     "│ spatID │ x │ y │ > [spatID]:"
+    <> OH.hardline <>     "├────────┼───┼───┤   Spatial coordinate identifier"
+    <> OH.hardline <>     "│        │   │   │ > [x, y] or [longitude, latitude]"
+    <> OH.hardline <>     "│        │   │   │   Spatial coordinates"
     <> OH.hardline <>     "└────────┴───┴───┘"
-    <> OH.hardline <> s2d "> [spatID]: Spatial coordinate identifier"
-    <> OH.hardline <> s2d "> [x, y] or [longitude, langitude]: Spatial coordinates"
     <> OH.hardline
     ))
     )
@@ -637,12 +629,12 @@ optParseSearchDepVarsPos :: OP.Parser [DepVarsPos]
 optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
        OP.long    "searchDepVarsPos"
     <> OP.short   'd'
-    <> OP.metavar "c(depX=DOUBLE,depY=c(DOUBLE,DOUBLE,...),depZ=START:STOP:BY,...)"
+    <> OP.metavar "c(depV1=DOUBLE,depV1=c(DOUBLE,DOUBLE,...),depV3=START:STOP:BY,...)"
     <> OP.help    "Dependent variable positions that should be queried."
     <> OP.helpDoc ( Just (
                       s2d "Dependent variable positions that should be \"searched\" for, so for which \
                           \similarity probabilities in the interpolated field should be computed. \
-                          \Each dependent variable must be specified in a named list \"c(depC1 = ..., depC2 = ..., ...)\". \
+                          \Each dependent variable must be specified in a named list \"c(depV1 = ..., depV2 = ..., ...)\". \
                           \And for each dependent variable either a single coordinate, a list of coordinates, \
                           \or a sequence of coordinates can be listed."
     <> OH.hardline
@@ -701,7 +693,7 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
                           \This follows the following syntax:"
     <> OH.hardline <>     "┌───────────────────┐"
     <> OH.hardline <>     "│ c(                │- named list of dependent variables"
-    <> OH.hardline <>     "│   depC1 = k(      │- first dependent variable"
+    <> OH.hardline <>     "│   depV1 = k(      │- first dependent variable"
     <> OH.hardline <>     "│     shape = SqEx, │- either SqEx = Squared exponential"
     <> OH.hardline <>     "│                   │      or Linear = Linear kernel"
     <> OH.hardline <>     "│     nugget = ..., │- nugget parameter"
@@ -710,13 +702,13 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
     <> OH.hardline <>     "│       time = ...  │"
     <> OH.hardline <>     "│     )             │"
     <> OH.hardline <>     "│   ),              │"
-    <> OH.hardline <>     "│   depC2 = k(...)  │- second dependent variable"
+    <> OH.hardline <>     "│   depV2 = k(...)  │- second dependent variable"
     <> OH.hardline <>     "│ )                 │"
     <> OH.hardline <>     "└───────────────────┘ )"
     <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified like this.\
                           \ \"space\" and \"time\" are a special case for the independent variable. \
-                          \Use \"indepC1\", \"indepC2\", etc. for the arbitrary variables case, where \
-                          \ \"C1\" and \"C2\" can be any name."
+                          \Use \"indepV1\", \"indepV2\", etc. for the arbitrary variables case, where \
+                          \ \"V1\" and \"V2\" can be any name."
     <> OH.hardline <> s2d "All variables descripted here must also exist in the input in --obsFile and \
                           \--spatGridFile or --anyGridFile."
     <> OH.hardline
@@ -753,7 +745,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
                           \This follows the following syntax:"
     <> OH.hardline <>     "┌───────────────────┐"
     <> OH.hardline <>     "│ c(                │- named list of dependent variables"
-    <> OH.hardline <>     "│   depC1 = k(      │- first dependent variable"
+    <> OH.hardline <>     "│   depV1 = k(      │- first dependent variable"
     <> OH.hardline <>     "│     shape = SqEx, │- either SqEx = Squared exponential"
     <> OH.hardline <>     "│                   │      or Linear = Linear kernel"
     <> OH.hardline <>     "│     nugget = ..., │- nugget parameters *"
@@ -762,13 +754,13 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
     <> OH.hardline <>     "│       time = ...  │"
     <> OH.hardline <>     "│     )             │"
     <> OH.hardline <>     "│   ),              │"
-    <> OH.hardline <>     "│   depC2 = k(...)  │- second dependent variable"
+    <> OH.hardline <>     "│   depV2 = k(...)  │- second dependent variable"
     <> OH.hardline <>     "│ )                 │"
     <> OH.hardline <>     "└───────────────────┘ )"
     <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified like this.\
                           \ \"space\" and \"time\" are a special case for the independent variable. \
-                          \Use \"indepC1\", \"indepC2\", etc. for the arbitrary variables case, where\
-                          \ \"C1\" and \"C2\" can be any name."
+                          \Use \"indepV1\", \"indepV2\", etc. for the arbitrary variables case, where\
+                          \ \"V1\" and \"V2\" can be any name."
     <> OH.hardline <> s2d "All variables descripted here must also exist in the input in --obsFile."
     <> OH.hardline
     <> OH.hardline <> s2d "* Unlike for search, in cross multiple values can be given for the nugget \
