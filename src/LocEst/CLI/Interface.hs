@@ -274,18 +274,25 @@ optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
 optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (
        OP.long  "seed"
     <> OP.metavar "INT"
-    <> OP.help  "Seed for the random number generator for group splitting. \
-                \The default causes locest to fall back to a random seed."
     <> OP.value Nothing
-    <> OP.showDefault
+    <> OP.helpDoc ( Just (
+                      s2d "Seed for the random number generator used to create test and training data \
+                          \subsets. Default: A random seed (not reproducible)."
+    <> OH.hardline
+    ))
     )
 
 optParseTestTrainingFraction :: OP.Parser Double
 optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
        OP.long    "testFraction"
     <> OP.metavar "DOUBLE"
-    <> OP.help    "Fraction of the observations that should be used as test data for the crossvalidation.\
-                  \ 1 - testFraction will be used as training data. The fraction must be between 0 and 1."
+    <> OP.value 0.2
+    <> OP.helpDoc ( Just (
+                      s2d "Fraction of the observations that should be used as test data for the crossvalidation. \
+                          \1 - testFraction will be used as training data. The fraction must be between 0 and 1. \
+                          \Default: 0.2"
+    <> OH.hardline
+    ))
     )
     where
         readFraction :: String -> Either String Double
@@ -298,8 +305,13 @@ optParseCrossvalIterations :: OP.Parser Int
 optParseCrossvalIterations = OP.option OP.auto (
        OP.long    "iterations"
     <> OP.metavar "INT"
-    <> OP.help    "Number of crossvalidation iterations, so how often should the input observations be\
-                  \ reshuffled and split into test and training data for each kernel parameter set."
+    <> OP.value 100
+    <> OP.helpDoc ( Just (
+                      s2d "Number of crossvalidation iterations. How often should the input observations \
+                          \be reshuffled and split into test and training data for each kernel parameter \
+                          \setting. Default: 100"
+    <> OH.hardline
+    ))
     )
 
 optParseAcrossIndepVars :: OP.Parser Bool
