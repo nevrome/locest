@@ -240,14 +240,18 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "Search results *                     "
     <> OH.hardline <>     "┌───────────────────────────────────┐"
     <> OH.hardline <>     "│dep_dist_euclidean                 │ Summary search"
-    <> OH.hardline <>     "│log_likelihood                     │ results across all"
-    <> OH.hardline <>     "│probability %                      │ variables"
+    <> OH.hardline <>     "│log_likelihood                     │ results across"
+    <> OH.hardline <>     "│probability %                      │ all variables"
     <> OH.hardline <>     "└───────────────────────────────────┘"
     <> OH.hardline <>     "* for the search case                "
-    <> OH.hardline <>     "+ with --outMode Short only these    "
-    <> OH.hardline <>     "interpol_... variables are returned  "
-    <> OH.hardline <>     "% when normalisation is active       "    
-    
+    <> OH.hardline <> s2d "+ with --outMode Short only these interpol_... variables are returned"
+    <> OH.hardline <>     "% when normalisation is active       "
+    <> OH.hardline 
+    <> OH.hardline <> s2d "With Obs(n) the n input observations with the heighest weight for the \
+                          \prediction grid point (summed across dependent variables) are returned. \
+                          \In this case the sections Interpolation output and Search results are \
+                          \replaced by a section with the columns and weights of the respective \
+                          \observations."
     <> OH.hardline
     ))
     )
