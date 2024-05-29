@@ -6,6 +6,8 @@ import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise (SerialiseOptions (..), runSerialise)
 import           LocEst.CLI.Vario     (VarioOptions (..), runVario)
 import           LocEst.Exceptions
+import LocEst.Types (NumberOfThreads)
+import LocEst.CLI.Utils (setNumberOfThreads)
 
 import           Control.Exception    (catch)
 import           Data.List            (isInfixOf)
@@ -17,7 +19,12 @@ import           System.Exit          (exitFailure)
 import           System.IO            (hPutStrLn, stderr)
 
 -- data types
-data Options = Options { _subcommand :: Subcommand }
+data Options = Options {
+    _subcommand :: Subcommand,
+    _threads :: NumberOfThreads
+    }
+
+
 
 data Subcommand =
       CmdSerialise SerialiseOptions
@@ -41,11 +48,13 @@ main = do
             configFileArgs <- catch (parseConfigFile configFilePath) handler
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
-    (Options subcommand) <-
+    (Options subcommand threads) <-
         OP.handleParseResult $
             OP.execParserPure (OP.prefs OP.showHelpOnEmpty) optParserInfo mergedCmdArgs
+    -- number of threads
+    numThreads <- setNumberOfThreads threads
     -- run requested subcommand
-    catch (runCmd subcommand) handler
+    catch (runCmd subcommand numThreads) handler
     where
         -- handling the special --configFile argument
         getConfigFilePath :: [String] -> Maybe FilePath
@@ -67,15 +76,15 @@ main = do
             hPutStrLn stderr $ renderLocEstException e
             exitFailure
 
-runCmd :: Subcommand -> IO ()
-runCmd o = case o of
+runCmd :: Subcommand -> Int -> IO ()
+runCmd o numThreads = case o of
     CmdSerialise opts -> runSerialise opts
-    CmdSearch opts    -> runSearch opts
-    CmdVario opts     -> runVario opts
-    CmdCross opts     -> runCross opts
+    CmdSearch opts    -> runSearch opts numThreads
+    CmdVario opts     -> runVario opts numThreads
+    CmdCross opts     -> runCross opts numThreads
 
 optParserInfo :: OP.ParserInfo Options
-optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser)) (
+optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser <*> optParseNumberOfThreads)) (
     OP.briefDesc <>
     OP.progDesc "Spatiotemporal interpolation and search for macroscale archaeological data."
     )

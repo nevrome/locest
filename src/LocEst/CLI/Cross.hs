@@ -28,7 +28,6 @@ data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath
     , _crossSupplementSettings :: SpaceTimeCoreSupplementSettings
     , _crossSettings           :: CrossSettings
-    , _crossNumThreads         :: NumberOfThreads
     , _crossOutFile            :: FilePath
     , _crossOutMode            :: CrossOutModeSettings
     }
@@ -45,14 +44,12 @@ data CrossOutModeSettings =
     | IndividualSearchObsResults
     deriving (Show)
 
-runCross :: CrossOptions -> IO ()
+runCross :: CrossOptions -> Int -> IO ()
 runCross (
     CrossOptions inObsFile
     spaceTimeSuppSettings
-    (CrossSettings kernDefs testFraction iterations maybeSeed) threads outFile outMode
-    ) = do
-    -- number of threads
-    numThreads <- setNumberOfThreads threads
+    (CrossSettings kernDefs testFraction iterations maybeSeed) outFile outMode
+    ) numThreads = do
     -- read observations
     observations <- readObservations inObsFile
     -- read core supplements

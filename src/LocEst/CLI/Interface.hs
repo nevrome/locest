@@ -107,7 +107,6 @@ searchOptParser = SearchOptions
                         <*> optParseSearchGridSettings
                         <*> optParseKernDefString
                         <*> optParseNormalization
-                        <*> optParseNumberOfThreads
                         <*> optParseOutFile
                         <*> optParseCoreOutMode
 
@@ -117,7 +116,6 @@ varioOptParser = VarioOptions
                         <*> OP.optional optParseSpatDistSetting
                         <*> optParseAcrossIndepVars
                         <*> optParseAcrossDepVars
-                        <*> optParseNumberOfThreads
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
 
@@ -126,7 +124,6 @@ crossOptParser = CrossOptions
                         <$> optParseInObservationFile
                         <*> optParseSpaceTimeCoreSupplementSettings
                         <*> optParseCrossSettings
-                        <*> optParseNumberOfThreads
                         <*> optParseOutFile
                         <*> optParseCrossOutMode
 
@@ -408,13 +405,10 @@ optParseNumberOfThreads = OP.option (OP.eitherReader readNumberOfThreads) (
     OP.long "threads" <>
     OP.metavar "INT|Detect" <>
     OP.value SingleThread
-    <> OP.helpDoc ( Just (
-                      s2d "Maximum number of worker threads. Either just an integer number to request \
-                          \a concrete number of threads or \"Detect\" to make locest automatically \
-                          \determine the available number of threads and use all of them. \
-                          \The default is to use only one thread."
-    <> OH.hardline
-    ))
+    <> OP.help "Maximum number of worker threads. Either just an integer number to request \
+               \a concrete number of threads or \"Detect\" to make locest automatically \
+               \determine the available number of threads and use all of them. \
+               \The default is to use only one thread."
     ) where
         readNumberOfThreads :: String -> Either String NumberOfThreads
         readNumberOfThreads s = do

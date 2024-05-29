@@ -26,7 +26,6 @@ data SearchOptions = SearchOptions
     , _searchSearchGridSettings :: SearchGridSettings
     , _searchAlgorithm          :: KernelDefinition
     , _normalize                :: Normalization
-    , _numThreads               :: NumberOfThreads
     , _searchOutFile            :: FilePath
     , _searchOutMode            :: CoreOutMode
     }
@@ -55,19 +54,16 @@ data SpaceTimeCoreSupplementSettings = SpaceTimeCoreSupplementSettings {
     , _stcsNoOrderCheck         :: Bool
 }
 
-runSearch :: SearchOptions -> IO ()
+runSearch :: SearchOptions -> Int -> IO ()
 runSearch (
     SearchOptions
         inObsFile
         (SearchGridSettings indepVarsPredGridSettings depVarsPredGridSettings)
         kernelDefinition
         normalization
-        threads
         outFile
         outMode
-    ) = do
-    -- number of threads
-    numThreads <- setNumberOfThreads threads
+    ) numThreads = do
     -- read observations
     observations <- readObservations inObsFile
     -- read and prepare prediction grids

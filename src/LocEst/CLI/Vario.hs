@@ -27,7 +27,6 @@ data VarioOptions = VarioOptions {
     , _voSpatDistSetting   :: Maybe SpatDistSettings
     , _voInAcrossIndepVars :: Bool
     , _voInAcrossDepVars   :: Bool
-    , _voInThreads         :: NumberOfThreads
     , _voOutFile           :: FilePath
     , _voInNrBins          :: BinModeSettings
 }
@@ -42,10 +41,8 @@ data BinModeSettings =
     | BinForNugget ArbitraryDimPos
     deriving (Show)
 
-runVario :: VarioOptions -> IO ()
-runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars acrossDepVars threads outFile binModeSettings) = do
-    -- number of threads
-    numThreads <- setNumberOfThreads threads
+runVario :: VarioOptions -> Int -> IO ()
+runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars acrossDepVars outFile binModeSettings) numThreads = do
     -- read observations
     observations <- readObservations inObsFile
     -- read spat dist file
