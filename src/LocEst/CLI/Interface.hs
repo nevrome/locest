@@ -666,7 +666,10 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
     <> OH.hardline <>     "└───────────────────┘ )"
     <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified like this.\
                           \ \"space\" and \"time\" are a special case for the independent variable. \
-                          \Use indepC1, indepC2, etc. for the arbitrary variables case."
+                          \Use \"indepC1\", \"indepC2\", etc. for the arbitrary variables case, where \
+                          \ \"C1\" and \"C2\" can be any name."
+    <> OH.hardline <> s2d "All variables descripted here must also exist in the input in --obsFile and \
+                          \--spatGridFile or --anyGridFile."
     <> OH.hardline
     ))
     )
@@ -696,7 +699,36 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
        OP.long    "kerndef"
     <> OP.short   'k'
     <> OP.metavar "DSL"
-    <> OP.help    "Kernel parameter settings that should be tested with the crossvalidation."
+    <> OP.helpDoc ( Just (
+                      s2d "Kernel parameter settings that should be tested with the crossvalidation. \
+                          \This follows the following syntax:"
+    <> OH.hardline <>     "┌───────────────────┐"
+    <> OH.hardline <>     "│ c(                │- named list of dependent variables"
+    <> OH.hardline <>     "│   depC1 = k(      │- first dependent variable"
+    <> OH.hardline <>     "│     shape = SqEx, │- either SqEx = Squared exponential"
+    <> OH.hardline <>     "│                   │      or Linear = Linear kernel"
+    <> OH.hardline <>     "│     nugget = ..., │- nugget parameters *"
+    <> OH.hardline <>     "│     lengths = c(  │- named list with lengthscales"
+    <> OH.hardline <>     "│       space = ... │  for each independent variable *"
+    <> OH.hardline <>     "│       time = ...  │"
+    <> OH.hardline <>     "│     )             │"
+    <> OH.hardline <>     "│   ),              │"
+    <> OH.hardline <>     "│   depC2 = k(...)  │- second dependent variable"
+    <> OH.hardline <>     "│ )                 │"
+    <> OH.hardline <>     "└───────────────────┘ )"
+    <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified like this.\
+                          \ \"space\" and \"time\" are a special case for the independent variable. \
+                          \Use \"indepC1\", \"indepC2\", etc. for the arbitrary variables case, where\
+                          \ \"C1\" and \"C2\" can be any name."
+    <> OH.hardline <> s2d "All variables descripted here must also exist in the input in --obsFile."
+    <> OH.hardline
+    <> OH.hardline <> s2d "* Unlike for search, in cross multiple values can be given for the nugget \
+                          \and the independent variables' lengthscale parameters. They can be provided \
+                          \either as a list with \"c(100,200,...)\" or as a sequence using the \
+                          \START:STOP:BY syntax, e.g. \"100:1000:100\". The crossvalidation will try \
+                          \all permutations of these parameters."
+    <> OH.hardline
+    ))
     )
     where
         readKernDefString :: String -> Either String [KernelDefinition]
