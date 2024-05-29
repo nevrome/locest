@@ -42,7 +42,7 @@ readr::write_tsv(prediction_points, "data/2D/grid.tsv")
 # stack exec --profile -- locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv +RTS -p
 # profiteur locest.prof
 
-system('locest vario -i data/2D/obs.tsv --variogramOutFile data/2D/vario.tsv')
+system('locest vario -i data/2D/obs.tsv --outFile data/2D/vario.tsv')
 
 vario <- readr::read_tsv("data/2D/vario.tsv")
 

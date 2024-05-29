@@ -137,11 +137,32 @@ optParseSpatDistSetting = SpatDistSettings
 
 optParseVarioOutMode :: OP.Parser BinModeSettings
 optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
-    OP.long "binMode" <>
-    OP.metavar "EqualSize(n=INT)|OneBinMax(max = c(indepX=DOUBLE,indepY=DOUBLE,...))" <>
-    OP.help "..." <>
-    OP.value (BinByNrBins 100) <>
-    OP.showDefault
+    OP.long "outMode" <>
+    OP.metavar "EqualSize(n=INT)|OneBinMax(max = c(indepC1=DOUBLE,indepC2=DOUBLE,...)" <>
+    OP.value (BinByNrBins 100)
+    <> OP.helpDoc ( Just (
+                      s2d "The binning procedure that should be applied for the variogram. \
+                          \The output of vario depends to some degree on the binning, but generally \
+                          \it returns a table like this:"
+    <> OH.hardline <>     "┌──────────┬────────┬─────┬──────────────┐"
+    <> OH.hardline <>     "│ indepVar │ depVar │ bin │ semivariance │"
+    <> OH.hardline <>     "├──────────┼────────┼─────┼──────────────┤"
+    <> OH.hardline <>     "│          │        │     │              │"
+    <> OH.hardline <>     "│          │        │     │              │"
+    <> OH.hardline <>     "└──────────┴────────┴─────┴──────────────┘"
+    <> OH.hardline <>     "> [indepVar]: Independent variable"
+    <> OH.hardline <>     "> [depVar]: Dependent variable"
+    <> OH.hardline <>     "> [bin]: center point of each independent variable bin"
+    <> OH.hardline <> s2d "> [semivariance]: semivariance calculated for the dependent variable \
+                          \based on all observations in the respective bin"
+    <> OH.hardline 
+    <> OH.hardline <> s2d "EqualSize(n): Bins the observations into n bins with an equal amount of \
+                          \observations."
+    <> OH.hardline <> s2d "OneBinMax(max = c(indepC1=DOUBLE,indepC2=DOUBLE,...): Only create one bin \
+                          \per independent and dependent variable with a given upper limit. \
+                          \This is useful to get an estimate for the nugget parameter."
+    <> OH.hardline
+    ))
     )
     where
         readOutMode :: String -> Either String BinModeSettings
