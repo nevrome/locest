@@ -127,8 +127,8 @@ crossOptParser = CrossOptions
                         <*> optParseSpaceTimeCoreSupplementSettings
                         <*> optParseCrossSettings
                         <*> optParseNumberOfThreads
-                        <*> optParseCrossOutMode
                         <*> optParseOutFile
+                        <*> optParseCrossOutMode
 
 optParseSpatDistSetting :: OP.Parser SpatDistSettings
 optParseSpatDistSetting = SpatDistSettings
@@ -173,9 +173,34 @@ optParseCrossOutMode :: OP.Parser CrossOutModeSettings
 optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
     OP.long "outMode" <>
     OP.metavar "Summed|Obs" <>
-    OP.help "Output options." <>
-    OP.value SummedLikelihoodPerKernelSetting <>
-    OP.showDefault
+    OP.value SummedLikelihoodPerKernelSetting
+    <> OP.helpDoc ( Just (
+                      s2d "The type of output that should be written to the --outFile. \
+                          \For Summed (default) the individual crossvalidation iterations are \
+                          \summarised to a short table with only the tested kernel parameter \
+                          \settings and the summed crossvalidation output:"
+    <> OH.hardline <>     "Kernel parameter settings            "
+    <> OH.hardline <>     "┌────────┬───────┬──────────────────┐"
+    <> OH.hardline <>     "│ kernel │ depC1 │ shape            │ From --kerndef:"
+    <> OH.hardline <>     "│        │ depC2 │ nugget           │ Kernel shape and"
+    <> OH.hardline <>     "│        │ ...   ├─────────┬────────┤ nugget for each"
+    <> OH.hardline <>     "│        │       │ space   │ length │ dependent variable;"
+    <> OH.hardline <>     "│        │       │ time OR │        │ lengthscale"
+    <> OH.hardline <>     "│        │       │ indepC1 │        │ parameters for" 
+    <> OH.hardline <>     "│        │       │ indepC2 │        │ each dependent and"
+    <> OH.hardline <>     "│        │       │ ...     │        │ independent one"
+    <> OH.hardline <>     "└────────┴───────┴─────────┴────────┘"
+    <> OH.hardline <>     "Crossvalidation result               "
+    <> OH.hardline <>     "┌───────────────────────────────────┐"
+    <> OH.hardline <>     "│sum_dep_dist_euclidean             │ Distance to and"
+    <> OH.hardline <>     "│sum_log_likelihood                 │ likelihood of test"
+    <> OH.hardline <>     "└───────────────────────────────────┘"
+    <> OH.hardline 
+    <> OH.hardline <> s2d "With Obs the output is as --outMode Full for the search subcommand \
+                          \where the search observations (--searchObsFile) are set as the test fraction \
+                          \of the crossvalidation data split. Here each iteration is given separately."
+    <> OH.hardline
+    ))
     )
     where
         readOutMode :: String -> Either String CrossOutModeSettings
@@ -633,8 +658,6 @@ optParseInSearchObservationFile = OP.strOption (
     <> OH.hardline
     ))
     )
-
-
 
 optParseOutFile :: OP.Parser FilePath
 optParseOutFile = OP.strOption (

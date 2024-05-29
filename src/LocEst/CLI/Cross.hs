@@ -29,8 +29,8 @@ data CrossOptions = CrossOptions
     , _crossSupplementSettings :: SpaceTimeCoreSupplementSettings
     , _crossSettings           :: CrossSettings
     , _crossNumThreads         :: NumberOfThreads
-    , _crossOutMode            :: CrossOutModeSettings
     , _crossOutFile            :: FilePath
+    , _crossOutMode            :: CrossOutModeSettings
     }
 
 data CrossSettings = CrossSettings {
@@ -49,7 +49,7 @@ runCross :: CrossOptions -> IO ()
 runCross (
     CrossOptions inObsFile
     spaceTimeSuppSettings
-    (CrossSettings kernDefs testFraction iterations maybeSeed) threads outMode outFile
+    (CrossSettings kernDefs testFraction iterations maybeSeed) threads outFile outMode
     ) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
