@@ -25,11 +25,11 @@ import           System.IO                     (hPutStrLn, stderr)
 data VarioOptions = VarioOptions {
       _voInObservationFile :: FilePath
     , _voSpatDistSetting   :: Maybe SpatDistSettings
-    , _voInNrBins          :: BinModeSettings
     , _voInAcrossIndepVars :: Bool
     , _voInAcrossDepVars   :: Bool
     , _voInThreads         :: NumberOfThreads
-    , _voVariogramOutFile  :: Maybe FilePath
+    , _voOutFile           :: FilePath
+    , _voInNrBins          :: BinModeSettings
 }
 
 data SpatDistSettings = SpatDistSettings {
@@ -43,7 +43,7 @@ data BinModeSettings =
     deriving (Show)
 
 runVario :: VarioOptions -> IO ()
-runVario (VarioOptions inObsFile maybeSpatDist binModeSettings acrossIndepVars acrossDepVars threads outVariogramFile) = do
+runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars acrossDepVars threads outFile binModeSettings) = do
     -- number of threads
     numThreads <- setNumberOfThreads threads
     -- read observations
@@ -88,12 +88,11 @@ runVario (VarioOptions inObsFile maybeSpatDist binModeSettings acrossIndepVars a
                 hPutStrLn stderr ("-> " ++ depVarName)
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
-    writeVariograms empiricalVariograms outVariogramFile
+    writeVariograms empiricalVariograms outFile
 
 -- write variograms to the file system
-writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
-writeVariograms _ Nothing        = return ()
-writeVariograms vars (Just path) = Con.runConduitRes $ ConC.yieldMany (concatMap varToLong vars) .| sinkNamedCSV path
+writeVariograms :: [EmpiricalVariogramOneVarCombination] -> FilePath -> IO ()
+writeVariograms vars path = Con.runConduitRes $ ConC.yieldMany (concatMap varToLong vars) .| sinkNamedCSV path
     where
         varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]
         varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =

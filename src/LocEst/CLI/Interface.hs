@@ -115,11 +115,11 @@ varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
                         <$> optParseInObservationFile
                         <*> OP.optional optParseSpatDistSetting
-                        <*> optParseBinModeSettings
                         <*> optParseAcrossIndepVars
                         <*> optParseAcrossDepVars
                         <*> optParseNumberOfThreads
-                        <*> optParseVariogramOutFile
+                        <*> optParseOutFile
+                        <*> optParseVarioOutMode
 
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions
@@ -135,9 +135,9 @@ optParseSpatDistSetting = SpatDistSettings
                         <$> optParseInSpatDistMapFile
                         <*> optParseInSpatDistNoOrderCheck
 
-optParseBinModeSettings :: OP.Parser BinModeSettings
-optParseBinModeSettings = OP.option (OP.eitherReader readOutMode) (
-    OP.long "outMode" <>
+optParseVarioOutMode :: OP.Parser BinModeSettings
+optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
+    OP.long "binMode" <>
     OP.metavar "EqualSize(n=INT)|OneBinMax(max = c(indepX=DOUBLE,indepY=DOUBLE,...))" <>
     OP.help "..." <>
     OP.value (BinByNrBins 100) <>
@@ -341,15 +341,21 @@ optParseCrossvalIterations = OP.option OP.auto (
 
 optParseAcrossIndepVars :: OP.Parser Bool
 optParseAcrossIndepVars = OP.switch (
-    OP.long "acrossIndepVars" <>
-    OP.help "Calculate the variogram for Euclidean distances across all independent variables.\
-             \ Only applies for the arbitrary dimension setting, not the spatiotemporal setting."
+    OP.long "acrossIndepVars"
+    <> OP.helpDoc ( Just (
+                      s2d "Calculate the variogram for Euclidean distances across all independent variables. \
+                          \Only applies for the arbitrary dimension setting, not the spatiotemporal setting."
+    <> OH.hardline
+    ))
     )
 
 optParseAcrossDepVars :: OP.Parser Bool
 optParseAcrossDepVars = OP.switch (
-    OP.long "acrossDepVars" <>
-    OP.help "Calculate the variogram for Euclidean distances across all dependent variables."
+    OP.long "acrossDepVars"
+    <> OP.helpDoc ( Just (
+                      s2d "Calculate the variogram for Euclidean distances across all dependent variables."
+    <> OH.hardline
+    ))
     )
 
 optParseNormalization :: OP.Parser Normalization
@@ -668,13 +674,6 @@ optParseOutFile = OP.strOption (
                       s2d "Path to an output .tsv file. See --outMode for details."
     <> OH.hardline
     ))
-    )
-
-optParseVariogramOutFile :: OP.Parser (Maybe FilePath)
-optParseVariogramOutFile = OP.optional $ OP.strOption (
-       OP.long  "variogramOutFile"
-    <> OP.metavar "FILE"
-    <> OP.help  "Path to the variogram output file."
     )
 
 optParseKernDefString :: OP.Parser KernelDefinition
