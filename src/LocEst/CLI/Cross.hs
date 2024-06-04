@@ -6,7 +6,7 @@ import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings 
                                                 mapOnlySearchResult)
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
-import           LocEst.MathUtils              (foldSum)
+import           LocEst.MathUtils              (foldSum, avg)
 import           LocEst.Parsers
 import           LocEst.Types
 
@@ -147,9 +147,11 @@ summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =
     let oneProb  = _srCorePermutation $ head xs
         kerndef  = _casKernelDefinition oneProb
-        sumDists = foldSum $ mapMaybe (fmap _slhEuclideanDep  . _srLikelihood) xs
+        dists = mapMaybe (fmap _slhEuclideanDep  . _srLikelihood) xs
+        sumDists = foldSum dists
+        meanSquaredDists = avg $ map (**2) dists
         sumLogLs = foldSum $ mapMaybe (fmap _slhLogLikelihood . _srLikelihood) xs
-    in CrossvalOutput kerndef sumDists sumLogLs
+    in CrossvalOutput kerndef sumDists meanSquaredDists sumLogLs
 
 
 groupFunc :: SearchResult -> SearchResult -> Bool

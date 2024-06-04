@@ -63,16 +63,17 @@ filterLookupMulti m names =
 data CrossvalOutput = CrossvalOutput {
       _crossoutKernelDefinition :: KernelDefinition
     , _crossoutDistSum          :: Double
+    , _crossoutDistMeanSquared  :: Double
     , _crossoutProbSum          :: Double
 } deriving (Show, Generic)
 
 instance NFData CrossvalOutput
 instance Csv.DefaultOrdered CrossvalOutput where
-    headerOrder (CrossvalOutput algo _ _) =
-        Csv.headerOrder algo <> Csv.header ["sum_dep_dist_euclidean"] <> Csv.header ["sum_log_likelihood"]
+    headerOrder (CrossvalOutput algo _ _ _) =
+        Csv.headerOrder algo <> Csv.header ["sum_dep_dist_euclidean"] <> Csv.header ["mean_squared_dep_dist_euclidean"] <> Csv.header ["sum_log_likelihood"]
 instance Csv.ToRecord CrossvalOutput where
-    toRecord (CrossvalOutput algo sumDist sumProb) =
-        Csv.toRecord algo <> Csv.record [Csv.toField sumDist] <> Csv.record [Csv.toField sumProb]
+    toRecord (CrossvalOutput algo sumDist meanSquaredDist sumProb) =
+        Csv.toRecord algo <> Csv.record [Csv.toField sumDist] <> Csv.record [Csv.toField meanSquaredDist] <> Csv.record [Csv.toField sumProb]
 
 -- special types for the vario subcommands
 

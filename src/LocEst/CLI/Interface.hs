@@ -211,7 +211,8 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "Crossvalidation result               "
     <> OH.hardline <>     "┌───────────────────────────────────┐"
     <> OH.hardline <>     "│sum_dep_dist_euclidean             │ Distance to and"
-    <> OH.hardline <>     "│sum_log_likelihood                 │ likelihood of test"
+    <> OH.hardline <>     "│mean_squared_dep_dist_euclidean    │ likelihood of test"
+    <> OH.hardline <>     "│sum_log_likelihood                 │"
     <> OH.hardline <>     "└───────────────────────────────────┘"
     <> OH.hardline 
     <> OH.hardline <> s2d "With Obs the output is as --outMode Full for the search subcommand \
