@@ -158,7 +158,7 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
         (Observation _ _ (HyperPos indepPos _)) = V.head obs
     case (indepPos,merge) of
         -- spatiotemporal system
-        (IndepSpatTempPos _,_) -> do
+        (IndepSpatTempPos _,False) -> do
             -- create mutable vectors to write distances directly
             spaceVec <- VUM.new nrPairs
             timeVec  <- VUM.new nrPairs
@@ -168,6 +168,12 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
             spaceVecNonMut <- VU.unsafeFreeze spaceVec
             timeVecNonMut  <- VU.unsafeFreeze timeVec
             return [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
+        (IndepSpatTempPos _,True) -> do
+            hPutStrLn stderr "Warning: Assuming scaling as 1km == 1year"
+            distVec <- VUM.new nrPairs
+            mapM_ (distSpaceTimeMerged distVec) obsPairs
+            distVecNonMut <- VU.unsafeFreeze distVec
+            return [("indepAll", SUDistMatrix distVecNonMut)]
         -- arbitrary dimension system
         (IndepArbitraryDimPos pos@(ValuesPerIndepVar l),False) -> do
             arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
@@ -179,7 +185,7 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
             distVec <- VUM.new nrPairs
             mapM_ (distArbitraryMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
-            return [("all", SUDistMatrix distVecNonMut)]
+            return [("indepAll", SUDistMatrix distVecNonMut)]
     where
         distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distSpaceTime
@@ -196,6 +202,20 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
             VUM.write spaceVec i spaceDist
             VUM.write timeVec  i timeDist
         distSpaceTime _ _ _ = error "impossible state in spatial independent variable distance calculation"
+        distSpaceTimeMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
+        distSpaceTimeMerged
+            distVec
+            (i,
+            (Observation i1 _ (HyperPos (IndepSpatTempPos p1) _),
+            Observation i2 _ (HyperPos (IndepSpatTempPos p2) _))
+            ) = do
+            let timeDist  = temporalDistSpatTempPos p1 p2
+                spaceDist = case maybeSpatDistMatrix of
+                    Nothing             -> spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
+                    Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
+                mergedDist = sqrt ( (timeDist ** 2) + (spaceDist ** 2) )
+            VUM.write distVec i mergedDist
+        distSpaceTimeMerged _ _ = error "impossible state in spatial independent variable distance calculation"
         distArbitrary :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
         distArbitrary
             arbitraryVecs

@@ -362,7 +362,7 @@ optParseAcrossIndepVars = OP.switch (
     OP.long "acrossIndepVars"
     <> OP.helpDoc ( Just (
                       s2d "Calculate the variogram for Euclidean distances across all independent variables. \
-                          \Only applies for the arbitrary dimension setting, not the spatiotemporal setting."
+                          \For the spatiotemporal setting this assumes a scaling of 1km == 1year."
     <> OH.hardline
     ))
     )
