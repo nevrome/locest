@@ -242,29 +242,34 @@ data CorePermutation = CorePermutation {
     , _casSearchObs             :: Maybe DepVarsPredPos
     , _casKernelDefinition      :: KernelDefinition
     , _casTempSamplingIteration :: Int
+    , _casCrossIteration        :: Int
 } deriving (Show, Generic)
 
 instance NFData CorePermutation
 instance Csv.DefaultOrdered CorePermutation where
-    headerOrder (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm _) =
+    headerOrder (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm _ _) =
            Csv.headerOrder indepVarsPos
         <> Csv.headerOrder depVarsPredPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["temp_sampling_iteration"]
-    headerOrder (CorePermutation indepVarsPos Nothing algorithm _) =
+        <> Csv.header ["cross_iteration"]
+    headerOrder (CorePermutation indepVarsPos Nothing algorithm _ _) =
            Csv.headerOrder indepVarsPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["temp_sampling_iteration"]
+        <> Csv.header ["cross_iteration"]
 instance Csv.ToRecord CorePermutation where
-    toRecord (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm tempSamplingIteration) =
+    toRecord (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm tempSamplingIteration crossIteration) =
            Csv.toRecord indepVarsPos
         <> Csv.toRecord depVarsPredPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
-    toRecord (CorePermutation indepVarsPos Nothing algorithm tempSamplingIteration) =
+        <> Csv.record [Csv.toField crossIteration]
+    toRecord (CorePermutation indepVarsPos Nothing algorithm tempSamplingIteration crossIteration) =
            Csv.toRecord indepVarsPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
+        <> Csv.record [Csv.toField crossIteration]
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]

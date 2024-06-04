@@ -238,16 +238,16 @@ createCoreSupplement (ArbitraryDimGrid _) =
 
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
-    [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp
+    [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
     | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos <- V.toList inSpatGrid]
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
-    [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp
+    [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
     | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- V.toList inSpatGrid]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
-    [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0
+    [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0 0
     | indepPos <- V.toList gridPos, depPos <- depVarPos]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
-    [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0
+    [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0 0
     | indepPos <- V.toList gridPos]
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
@@ -263,8 +263,8 @@ normalize NormBySpace =
     where
     groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria
-        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1) _ _)
-        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2) _ _) =
+        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1 _) _ _)
+        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2 _) _ _) =
             t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
     groupingCriteria _ _ = False
     scaleProbs :: [SearchResult] -> [SearchResult]

@@ -64,7 +64,7 @@ runCross (
                     let (seed,_) = R.genWord32 rng
                     return $ fromIntegral seed
                 Just seed -> pure seed
-    let testTrainingIterations = V.map (\i -> splitTestTraining observations numTestObs (seed + i)) (V.generate iterations id)
+    let testTrainingIterations = V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
     -- determine nr of permutations
     let numKernDefs = length kernDefs
         numPerms = iterations * numTestObs * numKernDefs
@@ -99,21 +99,22 @@ runCross (
         oneIterationConduit ::
                CoreSupplement
             -> Int
-            -> (V.Vector Observation, V.Vector Observation)
-            -> ConduitT (V.Vector Observation, V.Vector Observation) CoreOut (ResourceT IO) ()
-        oneIterationConduit coreSupp maxNumThreads (testData,trainingData) = do
+            -> (Int, V.Vector Observation, V.Vector Observation)
+            -> ConduitT (Int, V.Vector Observation, V.Vector Observation) CoreOut (ResourceT IO) ()
+        oneIterationConduit coreSupp maxNumThreads (iteration,testData,trainingData) = do
             ConC.yieldMany testData
                 -- multiply multidimensional positions by algorithms
-                .| ConC.concatMap (multiplyByAlgorithms kernDefs)
+                .| ConC.concatMap (multiplyByAlgorithms iteration kernDefs)
                 -- main search algorithm
                 .| ConAA.asyncMapC maxNumThreads (core CoreOutFull coreSupp trainingData)
         multiplyByAlgorithms ::
-               [KernelDefinition]
+               Int
+            -> [KernelDefinition]
             -> Observation
             -> [CorePermutation]
-        multiplyByAlgorithms kernelDefs obs =
+        multiplyByAlgorithms iteration kernelDefs obs =
             for kernelDefs $
-                \a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) a 0
+                \a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) a 0 iteration
 
 readSpaceTimeSupp ::
        SpaceTimeCoreSupplementSettings
@@ -152,19 +153,20 @@ summarizeFunc xs =
 
 
 groupFunc :: SearchResult -> SearchResult -> Bool
-groupFunc (SearchResult (CorePermutation _ _ kernDefA _) _ _)
-          (SearchResult (CorePermutation _ _ kernDefB _) _ _) =
+groupFunc (SearchResult (CorePermutation _ _ kernDefA _ _) _ _)
+          (SearchResult (CorePermutation _ _ kernDefB _ _) _ _) =
     kernDefA == kernDefB
 
 sortFunc :: SearchResult -> SearchResult -> Ordering
-sortFunc (SearchResult (CorePermutation _ _ kernDefA _) _ _)
-         (SearchResult (CorePermutation _ _ kernDefB _) _ _) =
+sortFunc (SearchResult (CorePermutation _ _ kernDefA _ _) _ _)
+         (SearchResult (CorePermutation _ _ kernDefB _ _) _ _) =
     compare kernDefA kernDefB
 
-splitTestTraining :: V.Vector a -> Int -> Int -> (V.Vector a, V.Vector a)
-splitTestTraining observations numTestObs seedOneIteration =
+splitTestTraining :: Int -> V.Vector a -> Int -> Int -> (Int, V.Vector a, V.Vector a)
+splitTestTraining iteration observations numTestObs seedOneIteration =
     let rng = R.mkStdGen seedOneIteration
         (observationsShuffled,_) = shuffle observations rng
-    in V.splitAt numTestObs observationsShuffled
+        (test, training) = V.splitAt numTestObs observationsShuffled
+    in (iteration, test, training)
 
 

@@ -20,7 +20,7 @@ core ::
 -- weights-per-obs application
 core (CoreOutObsWeight nrTopObs)
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
-     observations sett@(CorePermutation _ _ kernelDefinition _) =
+     observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
@@ -37,7 +37,7 @@ core (CoreOutObsWeight nrTopObs)
 core
     outMode
     (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
-     observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _) =
+     observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
@@ -78,7 +78,7 @@ getDists ::
 -- spatiotemporal distances
 getDists
     maybeSpatDistMap maybeTempSamples
-    (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration)
+    (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration _)
     (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) =
         let spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
@@ -105,7 +105,7 @@ getDists
 -- arbitrary dim distances
 getDists
     _ _
-    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _)
+    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
     (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) =
         let keys = getKeys obsArbitraryDimPos
             obsPos = getValues obsArbitraryDimPos
