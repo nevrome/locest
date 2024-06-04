@@ -63,9 +63,8 @@ weightedSEM values weights =
         neff1 = totalWeight - 1
         totalWeight = foldSum weights
 
-posteriorMu :: [Double] -> [Double] -> LinearTransform StudentT
-posteriorMu values weights =
-    generalizedStudentT mu scale dof
+posteriorMu :: [Double] -> [Double] ->  Either String (LinearTransform StudentT)
+posteriorMu values weights = generalizedStudentT mu scale dof
     where
         mu = weightedAvg values weights
         scale = weightedSD values weights / sqrt neff
@@ -75,10 +74,7 @@ posteriorMu values weights =
         totalWeight = foldSum weights
 
 posteriorPredictive :: [Double] -> [Double] -> Either String (LinearTransform StudentT)
-posteriorPredictive values weights =
-    if scale > 0
-    then Right $ generalizedStudentT mu scale dof
-    else Left "sigma must be > 0"
+posteriorPredictive values weights = generalizedStudentT mu scale dof
     where
         mu = weightedAvg values weights
         scale = sqrt ((1 + 1/neff) * weightedVar values weights)
@@ -86,10 +82,7 @@ posteriorPredictive values weights =
         neff = foldSum weights
 
 posteriorPredictive_ :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
-posteriorPredictive_ totalWeight weightedM weightedV =
-    if scale > 0
-    then Right $ generalizedStudentT mu scale dof
-    else Left "sigma must be > 0"
+posteriorPredictive_ totalWeight weightedM weightedV = generalizedStudentT mu scale dof
     where
         mu = weightedM
         scale = sqrt ((1 + 1/neff) * weightedV)
@@ -98,8 +91,11 @@ posteriorPredictive_ totalWeight weightedM weightedV =
 
 -- mapping Mathematica's StudentTDistribution interface to the interface in the
 -- Haskell statistics package
-generalizedStudentT :: Double -> Double -> Double -> LinearTransform StudentT
-generalizedStudentT mu scale dof = studentTUnstandardized dof mu scale
+generalizedStudentT :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
+generalizedStudentT mu scale dof
+    | scale <= 0 = Left "sigma must be > 0"
+    | dof   <= 0 = Left "degree of freedoms must be > 0"
+    | otherwise  = Right $ studentTUnstandardized dof mu scale
 
 -- | get the density of student's-t distribution at a point x
 -- dof: number of degrees of freedom
