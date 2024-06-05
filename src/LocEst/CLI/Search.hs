@@ -95,6 +95,14 @@ runSearch (
     hPutStrLn stderr "Done"
 
 processBasedOnSetting :: CoreOutMode -> FilePath -> Normalization -> Con.ConduitT CoreOut Con.Void (ResourceT IO) ()
+processBasedOnSetting (CoreOutObsWeight _) outFile _ =
+       mapOnlyObsWeights
+    .| ConC.concatMap id
+    .| sinkNamedCSV outFile
+processBasedOnSetting (CoreOutInterpolSample _) outFile _ =
+       mapOnlyInterpolSamples
+    .| ConC.concatMap id
+    .| sinkNamedCSV outFile
 processBasedOnSetting CoreOutShort outFile normalization =
        mapOnlySearchResult
     .| normalize normalization
@@ -103,15 +111,16 @@ processBasedOnSetting CoreOutFull outFile normalization =
        mapOnlySearchResult
     .| normalize normalization
     .| sinkNamedCSV outFile
-processBasedOnSetting (CoreOutObsWeight _) outFile _ =
-       mapOnlyObsWeights
-    .| ConC.concatMap id
-    .| sinkNamedCSV outFile
 
+mapOnlyInterpolSamples :: Con.ConduitT CoreOut (V.Vector InterpolationSample) (ResourceT IO) ()
+mapOnlyInterpolSamples = ConC.concatMap coreOutToInterpolSamples -- this translates to a mapMaybe
 mapOnlyObsWeights :: Con.ConduitT CoreOut (V.Vector ObsWeight) (ResourceT IO) ()
-mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights -- this translates to a mapMaybe
+mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights
 mapOnlySearchResult :: Con.ConduitT CoreOut SearchResult (ResourceT IO) ()
 mapOnlySearchResult = ConC.concatMap coreOutToSearchResult
+coreOutToInterpolSamples :: CoreOut -> Maybe (V.Vector InterpolationSample)
+coreOutToInterpolSamples (CoreInterpolSample x) = Just x
+coreOutToInterpolSamples _                      = Nothing
 coreOutToObsWeights :: CoreOut -> Maybe (V.Vector ObsWeight)
 coreOutToObsWeights (CoreObsWeight x) = Just x
 coreOutToObsWeights _                 = Nothing

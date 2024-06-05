@@ -10,6 +10,8 @@ import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (logDensity, quantile)
+import Statistics.Distribution.Transform (LinearTransform)
+import Statistics.Distribution.StudentT (StudentT)
 
 core ::
        CoreOutMode
@@ -33,9 +35,18 @@ core (CoreOutObsWeight nrTopObs)
         obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
         obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
     in CoreObsWeight (V.map (ObsWeight sett) obsWithWeightsSubset)
+-- random interpolation sampling application
+core (CoreOutInterpolSample sampleRandom)
+    (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
+     observations sett@(CorePermutation _ _ kernelDefinition _ _) =
+    let depVars = getKeys kernelDefinition
+        dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
+        obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
+        kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
+        samplesPerDepVar = zipWith (getRandomSampleOneDepVar obsWithDistFiltered) depVars kernelsPerDepVar
+    in CoreInterpolSample $ V.map (InterpolationSample sett) samplesPerDepVar
 -- interpolation and search application
-core
-    outMode
+core outMode
     (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let depVars = getKeys kernelDefinition
@@ -129,6 +140,22 @@ getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
     case find (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
         Just (KernelOneDepVar _ s n k) -> (s, n, k)
         Nothing                        -> throwL $ "dependent variable " ++ depVar ++ " not defined in --kerndef"
+
+getRandomSampleOneDepVar ::
+       V.Vector (Observation, IndepVarsDist)
+    -> DepVarName
+    -> (KernelShape, KernelNugget, KernelLengths)
+    -> (DepVarName, Double)
+getRandomSampleOneDepVar obsWithDist depVar kernelPerDepVar = do
+    let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
+        weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelPerDepVar) obsWithDist
+        totalWeight = VU.sum weights
+        neff        = totalWeight
+        weightedA   = weightedAvg_ totalWeight values weights
+        weightedV   = weightedVar_ totalWeight weightedA values weights
+    case posteriorPredictive_ totalWeight weightedA weightedV of
+        Right distribution -> (depVar, quantile distribution 0.5)
+        Left _             -> (depVar,nan)
 
 interpolAndSearchOneDepVar ::
        V.Vector (Observation, IndepVarsDist)

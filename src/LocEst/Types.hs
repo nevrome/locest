@@ -151,14 +151,16 @@ data NumberOfThreads =
 
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
-      CoreOutShort
+      CoreOutObsWeight Int
+    | CoreOutInterpolSample Int
+    | CoreOutShort
     | CoreOutFull
-    | CoreOutObsWeight Int
     deriving Show
 
 -- | A data type for the actual output of the core algorithm
 data CoreOut =
       CoreObsWeight (V.Vector ObsWeight)
+    | CoreInterpolSample (V.Vector InterpolationSample)
     | CoreSearchResult SearchResult
     deriving (Generic)
 
@@ -177,6 +179,21 @@ instance Csv.DefaultOrdered ObsWeight where
 instance Csv.ToRecord ObsWeight where
     toRecord (ObsWeight corePermutation obsWithWeights) =
         Csv.toRecord corePermutation <> Csv.toRecord obsWithWeights
+
+-- | A datatype for interpolation samples produced by the core algorithm
+data InterpolationSample =
+      InterpolationSample {
+        _isCorePermutation :: CorePermutation
+      , _isInterpolSamples :: DepVarSamples
+      } deriving (Show, Generic)
+
+instance NFData InterpolationSample
+instance Csv.DefaultOrdered InterpolationSample where
+    headerOrder (InterpolationSample corePermutation depVarSamples) =
+        Csv.headerOrder corePermutation <> Csv.headerOrder depVarSamples
+instance Csv.ToRecord InterpolationSample where
+    toRecord (InterpolationSample corePermutation depVarSamples) =
+        Csv.toRecord corePermutation <> Csv.toRecord depVarSamples
 
 -- | A data type for search results produced by the core algorithm
 data SearchResult =
@@ -554,6 +571,7 @@ instance Csv.ToField OutInfDouble where
 -- | A data type for dependent vars with some value
 type DepVarsPos = ValuesPerDepVar
 type DepVarsWeights = ValuesPerDepVar
+type DepVarSamples = ValuesPerDepVar
 newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
     deriving (Eq, Show, Generic)
 
