@@ -155,10 +155,9 @@ interpolAndSearchOneDepVar obsWithDist depVar kernelPerDepVar maybeValueDepVar =
         Left _ ->
             case maybeValueDepVar of
                 Just _ ->
-                    -- is setting the probability to 0 a good idea?
                     InterpolationResultOneDepVarFull
                         depVar neff weightedA weightedV (OutBool False)
-                        (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just 0)
+                        (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just (-infinity)) -- requires a proper prior
                 Nothing ->
                     InterpolationResultOneDepVarFull
                         depVar neff weightedA weightedV (OutBool False)
