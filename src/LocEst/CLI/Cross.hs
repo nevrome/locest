@@ -122,7 +122,8 @@ readSpaceTimeSupp ::
     -> IO CoreSupplement
 readSpaceTimeSupp
     (SpaceTimeCoreSupplementSettings
-            inSpaceTimeFilter
+            inSpaceTimeMinFilter
+            inSpaceTimeMaxFilter
             inSpatDistFile
             inObsTempSamplesFile
             noOrderCheck
@@ -141,7 +142,7 @@ readSpaceTimeSupp
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
             _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
-    return $ CoreSupplement inSpaceTimeFilter inSpatDists inObsTempSamples
+    return $ CoreSupplement inSpaceTimeMinFilter inSpaceTimeMaxFilter inSpatDists inObsTempSamples
 
 summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =

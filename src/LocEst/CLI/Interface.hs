@@ -19,6 +19,7 @@ import qualified Text.Parsec           as P
 import qualified Text.Parsec.String    as P
 import           Text.Read             (readMaybe)
 import qualified Options.Applicative.Help     as OH
+import LocEst.MathUtils (infinity)
 
 -- helper functions for optparse applicative help text
 
@@ -493,15 +494,29 @@ optParseIndepVarsPredGridSettings =
 optParseSpaceTimeCoreSupplementSettings :: OP.Parser SpaceTimeCoreSupplementSettings
 optParseSpaceTimeCoreSupplementSettings =
     SpaceTimeCoreSupplementSettings
-        <$> OP.optional optParseSpaceTimeFilter
+        <$> optParseSpaceTimeMinFilter
+        <*> optParseSpaceTimeMaxFilter
         <*> OP.optional optParseInSpatDistMapFile
         <*> OP.optional optParseInObsTempSamplesFile
         <*> optParseInSpatDistNoOrderCheck
 
-optParseSpaceTimeFilter :: OP.Parser (Double,Double)
-optParseSpaceTimeFilter = OP.option (OP.eitherReader readSpaceTime) (
-       OP.long    "spaceTimeFilter"
+optParseSpaceTimeMinFilter :: OP.Parser (Double,Double)
+optParseSpaceTimeMinFilter = OP.option (OP.eitherReader readSpaceTime) (
+       OP.long    "spaceTimeMinFilter"
     <> OP.metavar "filter(spatialRadius = DOUBLE, temporalRadius = DOUBLE)"
+    <> OP.value (0,0)
+    <> OP.helpDoc ( Just (
+                      s2d "Spatiotemporal radius filter to reduce the number of observations that \
+                          \should be considered for each prediction grid point."
+    <> OH.hardline
+    ))
+    )
+
+optParseSpaceTimeMaxFilter :: OP.Parser (Double,Double)
+optParseSpaceTimeMaxFilter = OP.option (OP.eitherReader readSpaceTime) (
+       OP.long    "spaceTimeMaxFilter"
+    <> OP.metavar "filter(spatialRadius = DOUBLE, temporalRadius = DOUBLE)"
+    <> OP.value (infinity,infinity)
     <> OP.helpDoc ( Just (
                       s2d "Spatiotemporal radius filter to reduce the number of observations that \
                           \should be considered for each prediction grid point. This is primarily \
@@ -510,18 +525,18 @@ optParseSpaceTimeFilter = OP.option (OP.eitherReader readSpaceTime) (
     <> OH.hardline
     ))
     )
-    where
-        readSpaceTime :: String -> Either String (Double, Double)
-        readSpaceTime s =
-            case P.runParser parseSpaceTime () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-        parseSpaceTime :: P.Parser (Double, Double)
-        parseSpaceTime = do
-            parseRecordType "filter" $ do
-                a <- parseArgument "spatialRadius" parseDouble
-                b <- parseArgument "temporalRadius" parseDouble
-                return (a, b)
+    
+readSpaceTime :: String -> Either String (Double, Double)
+readSpaceTime s =
+    case P.runParser parseSpaceTime () "" s of
+        Left err -> Left $ showParsecErr err
+        Right x  -> Right x
+parseSpaceTime :: P.Parser (Double, Double)
+parseSpaceTime = do
+    parseRecordType "filter" $ do
+        a <- parseArgument "spatialRadius" parseDouble
+        b <- parseArgument "temporalRadius" parseDouble
+        return (a, b)
 
 optParseInSpatDistMapFile :: OP.Parser FilePath
 optParseInSpatDistMapFile = OP.strOption (

@@ -48,7 +48,8 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
 }
 
 data SpaceTimeCoreSupplementSettings = SpaceTimeCoreSupplementSettings {
-      _stcsSpaceTimeFilter      :: Maybe (Double,Double)
+      _stcsSpaceTimeMinFilter   :: (Double,Double)
+    , _stcsSpaceTimeMaxFilter   :: (Double,Double)
     , _stcsInSpatDistFile       :: Maybe FilePath
     , _stcsInObsTempSamplesFile :: Maybe FilePath
     , _stcsNoOrderCheck         :: Bool
@@ -131,7 +132,8 @@ readIndepVarsPredGrid
         inSpatGridFile
         inTempGrid
         (SpaceTimeCoreSupplementSettings
-            inSpaceTimeFilter
+            inSpaceTimeMinFilter
+            inSpaceTimeMaxFilter
             inSpatDistFile
             inObsTempSamplesFile
             noOrderCheck
@@ -165,7 +167,7 @@ readIndepVarsPredGrid
         throwLIO "independent variable names in --kerndef not all equal across kernel \
                  \definitions for all dependent variables"
     -- return grid
-    return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeFilter inSpatDists inObsTempSamples
+    return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeMinFilter inSpaceTimeMaxFilter inSpatDists inObsTempSamples
 -- arbitrary dimension case
 readIndepVarsPredGrid
     (KernelDefinition kernelsPerDepVars)
@@ -231,16 +233,16 @@ readDepVarsPredGrid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 
 createCoreSupplement :: IndepVarsPredGrid -> CoreSupplement
-createCoreSupplement (SpaceTimeGrid _ _ spaceTimeFilter maybeSpatDistMap maybeTempSamples) =
-    CoreSupplement spaceTimeFilter maybeSpatDistMap maybeTempSamples
+createCoreSupplement (SpaceTimeGrid _ _ spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples) =
+    CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples
 createCoreSupplement (ArbitraryDimGrid _) =
-    CoreSupplement Nothing Nothing Nothing
+    CoreSupplement (0,0) (infinity, infinity) Nothing Nothing
 
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
-createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
+createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
     [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
     | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos <- V.toList inSpatGrid]
-createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing =
+createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTempSamples) Nothing =
     [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
     | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- V.toList inSpatGrid]
 createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =

@@ -19,11 +19,11 @@ core ::
     -> CoreOut
 -- weights-per-obs application
 core (CoreOutObsWeight nrTopObs)
-    (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
+    (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
-        obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
+        obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
         kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
         weights = V.map
             (\obs -> ValuesPerDepVar $ zipWith
@@ -36,11 +36,11 @@ core (CoreOutObsWeight nrTopObs)
 -- interpolation and search application
 core
     outMode
-    (CoreSupplement maybeSpaceTimeFilter maybeSpatDistMap maybeTempSamples)
+    (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
-        obsWithDistFiltered = V.filter (inFilterRange maybeSpaceTimeFilter) $ V.zip observations dists
+        obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
         kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
         valuePerDepVar = case searchDepVarPos of
             Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
@@ -115,12 +115,14 @@ getDists
 -- wrong input
 getDists _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
 
-inFilterRange :: Maybe (Double, Double) -> (Observation, IndepVarsDist) -> Bool
+inFilterRange :: (Double, Double) -> (Double, Double) -> (Observation, IndepVarsDist) -> Bool
 inFilterRange
-    (Just (spaceFilter,timeFilter))
+    (spaceMinFilter,timeMinFilter)
+    (spaceMaxFilter,timeMaxFilter)
     (_,IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
-    spatDistsKM <= spaceFilter && tempDist <= timeFilter
-inFilterRange _ _ = True
+    spatDistsKM <= spaceMaxFilter && spatDistsKM >= spaceMinFilter &&
+    tempDist <= timeMaxFilter && tempDist >= timeMinFilter
+inFilterRange _ _ _ = True
 
 getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugget, KernelLengths)
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do

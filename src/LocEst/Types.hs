@@ -222,7 +222,8 @@ data IndepVarsPredGrid =
     SpaceTimeGrid {
       _stGridSpatPos         :: V.Vector SpatPos
     , _stGridTempPos         :: [Int]
-    , _stGridSpaceTimeFilter :: Maybe (Double, Double)
+    , _stGridSpaceTimeMinFilter :: (Double, Double)
+    , _stGridSpaceTimeMaxFilter :: (Double, Double)
     , _stGridSpatDist        :: Maybe SpatDistMatrix
     , _stGridTempSamples     :: Maybe TempSampleMatrix
     } |
@@ -232,7 +233,8 @@ data IndepVarsPredGrid =
 
 -- | A data type for supplementary information used in the core algorithm
 data CoreSupplement = CoreSupplement {
-      _csSpaceTimeFilter :: Maybe (Double, Double)
+      _csSpaceTimeMinFilter :: (Double, Double)
+    , _csSpaceTimeMaxFilter :: (Double, Double)
     , _csSpatDist        :: Maybe SpatDistMatrix
     , _csTempSamp        :: Maybe TempSampleMatrix
 }
