@@ -114,6 +114,10 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations
                 .| ConAA.asyncMapC numThreads (coreNormal CoreOutFull supplement observations)
+                -- probably faster:
+                -- .| ConC.conduitVector 1000
+                -- .| ConAA.asyncMapC numThreads (V.map (coreNormal CoreOutFull supplement observations))
+                -- .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| normalize normalization
                 .| sinkNamedCSV outFile
