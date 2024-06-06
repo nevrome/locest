@@ -30,10 +30,10 @@ coreOutObsWeight nrTopObs
     in V.map (ObsWeight sett) obsWithWeightsSubset
     
 -- random interpolation sampling application
-coreOutInterpolSamples :: [(Int, DepVarsRands)] -> CoreSupplement -> V.Vector Observation -> CorePermutation -> V.Vector InterpolationSample
-coreOutInterpolSamples randIterations
+coreOutInterpolSamples :: CoreSupplement -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)]) -> V.Vector InterpolationSample
+coreOutInterpolSamples
     (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
-     observations sett@(CorePermutation _ _ kernelDefinition _ _) =
+     observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists

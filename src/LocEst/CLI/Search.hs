@@ -92,14 +92,16 @@ runSearch (
             rng <- case maybeSeed of
                 Nothing   -> newIOGenM =<< R.getStdGen
                 Just seed -> newIOGenM $ mkStdGen seed
-            randomIts <- forM  [0..nrRandomIts-1] $ \i -> do
+            randomIts <- forM permutations $ \p -> do
+                 rss <- forM  [0..nrRandomIts-1] $ \i -> do
                     rs <- forM depVarsFromAlg $ \d -> do
                             r <- R.uniformDouble01M rng
                             return (d, r)
                     return (i, ValuesPerDepVar rs)
+                 return (p, rss)
             Con.runConduitRes $
-                ConC.yieldMany permutations
-                .| ConAA.asyncMapC numThreads (coreOutInterpolSamples randomIts supplement observations)
+                ConC.yieldMany randomIts
+                .| ConAA.asyncMapC numThreads (coreOutInterpolSamples supplement observations)
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
