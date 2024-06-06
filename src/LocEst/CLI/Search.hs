@@ -19,6 +19,7 @@ import           Data.Maybe                    (catMaybes)
 import qualified Data.Vector                   as V
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
+import System.Random.Stateful as R
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
@@ -86,10 +87,19 @@ runSearch (
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
-        CoreOutInterpolSamples nrRandomIts -> do
+        CoreOutInterpolSamples nrRandomIts maybeSeed -> do
+            let depVarsFromAlg = getKeys kernelDefinition
+            rng <- case maybeSeed of
+                Nothing   -> newIOGenM =<< R.getStdGen
+                Just seed -> newIOGenM $ mkStdGen seed
+            randomIts <- forM  [0..nrRandomIts-1] $ \i -> do
+                    rs <- forM depVarsFromAlg $ \d -> do
+                            r <- R.uniformDouble01M rng
+                            return (d, r)
+                    return (i, ValuesPerDepVar rs)
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                .| ConAA.asyncMapC numThreads (coreOutInterpolSamples nrRandomIts supplement observations)
+                .| ConAA.asyncMapC numThreads (coreOutInterpolSamples randomIts supplement observations)
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile

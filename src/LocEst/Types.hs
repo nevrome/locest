@@ -152,7 +152,7 @@ data NumberOfThreads =
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutObsWeight Int
-    | CoreOutInterpolSamples [(Int,DepVarsRands)]
+    | CoreOutInterpolSamples Int (Maybe Int)
     | CoreOutShort
     | CoreOutFull
     deriving Show
