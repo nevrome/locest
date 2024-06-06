@@ -152,7 +152,7 @@ data NumberOfThreads =
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutObsWeight Int
-    | CoreOutInterpolSample Int
+    | CoreOutInterpolSamples [(Int,DepVarsRands)]
     | CoreOutShort
     | CoreOutFull
     deriving Show
@@ -160,7 +160,7 @@ data CoreOutMode =
 -- | A data type for the actual output of the core algorithm
 data CoreOut =
       CoreObsWeight (V.Vector ObsWeight)
-    | CoreInterpolSample (V.Vector InterpolationSample)
+    | CoreInterpolSamples (V.Vector InterpolationSample)
     | CoreSearchResult SearchResult
     deriving (Generic)
 
@@ -183,17 +183,18 @@ instance Csv.ToRecord ObsWeight where
 -- | A datatype for interpolation samples produced by the core algorithm
 data InterpolationSample =
       InterpolationSample {
-        _isCorePermutation :: CorePermutation
-      , _isInterpolSamples :: DepVarSamples
+        _isCorePermutation       :: CorePermutation
+      , _isInterpolRandIteration :: Int
+      , _isInterpolRandSamples   :: DepVarSamples
       } deriving (Show, Generic)
 
 instance NFData InterpolationSample
 instance Csv.DefaultOrdered InterpolationSample where
-    headerOrder (InterpolationSample corePermutation depVarSamples) =
-        Csv.headerOrder corePermutation <> Csv.headerOrder depVarSamples
+    headerOrder (InterpolationSample corePermutation _ depVarSamples) =
+        Csv.headerOrder corePermutation <> Csv.header ["random_iteration"] <> Csv.headerOrder depVarSamples
 instance Csv.ToRecord InterpolationSample where
-    toRecord (InterpolationSample corePermutation depVarSamples) =
-        Csv.toRecord corePermutation <> Csv.toRecord depVarSamples
+    toRecord (InterpolationSample corePermutation randIteration depVarSamples) =
+        Csv.toRecord corePermutation <>  Csv.record [Csv.toField randIteration] <> Csv.toRecord depVarSamples
 
 -- | A data type for search results produced by the core algorithm
 data SearchResult =
@@ -571,6 +572,7 @@ instance Csv.ToField OutInfDouble where
 -- | A data type for dependent vars with some value
 type DepVarsPos = ValuesPerDepVar
 type DepVarsWeights = ValuesPerDepVar
+type DepVarsRands = ValuesPerDepVar
 type DepVarSamples = ValuesPerDepVar
 newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
     deriving (Eq, Show, Generic)

@@ -6,7 +6,7 @@ import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings 
                                                 mapOnlySearchResult)
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
-import           LocEst.MathUtils              (foldSum, avg, nan, infinity)
+import           LocEst.MathUtils              (foldSum, avg)
 import           LocEst.Parsers
 import           LocEst.Types
 

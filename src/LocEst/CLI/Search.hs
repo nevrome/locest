@@ -99,7 +99,7 @@ processBasedOnSetting (CoreOutObsWeight _) outFile _ =
        mapOnlyObsWeights
     .| ConC.concatMap id
     .| sinkNamedCSV outFile
-processBasedOnSetting (CoreOutInterpolSample _) outFile _ =
+processBasedOnSetting (CoreOutInterpolSamples _) outFile _ =
        mapOnlyInterpolSamples
     .| ConC.concatMap id
     .| sinkNamedCSV outFile
@@ -119,8 +119,8 @@ mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights
 mapOnlySearchResult :: Con.ConduitT CoreOut SearchResult (ResourceT IO) ()
 mapOnlySearchResult = ConC.concatMap coreOutToSearchResult
 coreOutToInterpolSamples :: CoreOut -> Maybe (V.Vector InterpolationSample)
-coreOutToInterpolSamples (CoreInterpolSample x) = Just x
-coreOutToInterpolSamples _                      = Nothing
+coreOutToInterpolSamples (CoreInterpolSamples x) = Just x
+coreOutToInterpolSamples _                       = Nothing
 coreOutToObsWeights :: CoreOut -> Maybe (V.Vector ObsWeight)
 coreOutToObsWeights (CoreObsWeight x) = Just x
 coreOutToObsWeights _                 = Nothing
