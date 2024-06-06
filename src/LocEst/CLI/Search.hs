@@ -9,7 +9,6 @@ import           LocEst.MathUtils
 import           LocEst.Parsers
 import           LocEst.Types
 
-import           Conduit                       (ResourceT)
 import qualified Control.Monad                 as OP
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
@@ -79,54 +78,36 @@ runSearch (
     -- run analysis pipeline
     hPutStrLn stderr "All preparations ready"
     hPutStrLn stderr "Running analysis"
-    Con.runConduitRes $
-        ConC.yieldMany permutations
-        -- main search algorithm
-        -- 1. sequential
-        -- .| ConL.map core
-        -- 2. normal parallel
-        .| ConAA.asyncMapC numThreads (core outMode supplement observations)
-        -- 3. chunked parallel
-        -- .| Con.conduitVector 100 .| ConAA.asyncMapC 5 (V.map core) .| ConL.concat
-        -- print progress information
-        .| progress 1000 (Just numPerms)
-        -- split stream for different output cases
-        .| processBasedOnSetting outMode outFile normalization
+    case outMode of
+        CoreOutObsWeight nrTopObs -> do
+            Con.runConduitRes $
+                ConC.yieldMany permutations
+                .| ConAA.asyncMapC numThreads (coreOutObsWeight nrTopObs supplement observations)
+                .| progress 1000 (Just numPerms)
+                .| ConC.concatMap id
+                .| sinkNamedCSV outFile
+        CoreOutInterpolSamples nrRandomIts -> do
+            Con.runConduitRes $
+                ConC.yieldMany permutations
+                .| ConAA.asyncMapC numThreads (coreOutInterpolSamples nrRandomIts supplement observations)
+                .| progress 1000 (Just numPerms)
+                .| ConC.concatMap id
+                .| sinkNamedCSV outFile
+        CoreOutShort -> do
+            Con.runConduitRes $
+                ConC.yieldMany permutations
+                .| ConAA.asyncMapC numThreads (coreNormal CoreOutShort supplement observations)
+                .| progress 1000 (Just numPerms)
+                .| normalize normalization
+                .| sinkNamedCSV outFile
+        CoreOutFull -> do
+            Con.runConduitRes $
+                ConC.yieldMany permutations
+                .| ConAA.asyncMapC numThreads (coreNormal CoreOutFull supplement observations)
+                .| progress 1000 (Just numPerms)
+                .| normalize normalization
+                .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
-
-processBasedOnSetting :: CoreOutMode -> FilePath -> Normalization -> Con.ConduitT CoreOut Con.Void (ResourceT IO) ()
-processBasedOnSetting (CoreOutObsWeight _) outFile _ =
-       mapOnlyObsWeights
-    .| ConC.concatMap id
-    .| sinkNamedCSV outFile
-processBasedOnSetting (CoreOutInterpolSamples _) outFile _ =
-       mapOnlyInterpolSamples
-    .| ConC.concatMap id
-    .| sinkNamedCSV outFile
-processBasedOnSetting CoreOutShort outFile normalization =
-       mapOnlySearchResult
-    .| normalize normalization
-    .| sinkNamedCSV outFile
-processBasedOnSetting CoreOutFull outFile normalization =
-       mapOnlySearchResult
-    .| normalize normalization
-    .| sinkNamedCSV outFile
-
-mapOnlyInterpolSamples :: Con.ConduitT CoreOut (V.Vector InterpolationSample) (ResourceT IO) ()
-mapOnlyInterpolSamples = ConC.concatMap coreOutToInterpolSamples -- this translates to a mapMaybe
-mapOnlyObsWeights :: Con.ConduitT CoreOut (V.Vector ObsWeight) (ResourceT IO) ()
-mapOnlyObsWeights = ConC.concatMap coreOutToObsWeights
-mapOnlySearchResult :: Con.ConduitT CoreOut SearchResult (ResourceT IO) ()
-mapOnlySearchResult = ConC.concatMap coreOutToSearchResult
-coreOutToInterpolSamples :: CoreOut -> Maybe (V.Vector InterpolationSample)
-coreOutToInterpolSamples (CoreInterpolSamples x) = Just x
-coreOutToInterpolSamples _                       = Nothing
-coreOutToObsWeights :: CoreOut -> Maybe (V.Vector ObsWeight)
-coreOutToObsWeights (CoreObsWeight x) = Just x
-coreOutToObsWeights _                 = Nothing
-coreOutToSearchResult :: CoreOut -> Maybe SearchResult
-coreOutToSearchResult (CoreSearchResult x) = Just x
-coreOutToSearchResult _                    = Nothing
 
 readIndepVarsPredGrid ::
        KernelDefinition

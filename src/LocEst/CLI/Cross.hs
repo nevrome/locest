@@ -2,8 +2,7 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings),
-                                                mapOnlySearchResult)
+import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings))
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (foldSum, avg)
@@ -78,8 +77,6 @@ runCross (
         .| Con.awaitForever (oneIterationConduit coreSupp numThreads)
         -- print progress information
         .| progress 1000 (Just numPerms)
-        -- split stream to report the error cases and add the good ones to the result list
-        .| mapOnlySearchResult
         .| ConC.sinkList
     case outMode of
         IndividualSearchObsResults -> do
@@ -100,13 +97,13 @@ runCross (
                CoreSupplement
             -> Int
             -> (Int, V.Vector Observation, V.Vector Observation)
-            -> ConduitT (Int, V.Vector Observation, V.Vector Observation) CoreOut (ResourceT IO) ()
+            -> ConduitT (Int, V.Vector Observation, V.Vector Observation) SearchResult (ResourceT IO) ()
         oneIterationConduit coreSupp maxNumThreads (iteration,testData,trainingData) = do
             ConC.yieldMany testData
                 -- multiply multidimensional positions by algorithms
                 .| ConC.concatMap (multiplyByAlgorithms iteration kernDefs)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (core CoreOutFull coreSupp trainingData)
+                .| ConAA.asyncMapC maxNumThreads (coreNormal CoreOutFull coreSupp trainingData)
         multiplyByAlgorithms ::
                Int
             -> [KernelDefinition]

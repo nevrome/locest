@@ -11,14 +11,9 @@ import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (logDensity, quantile)
 
-core ::
-       CoreOutMode
-    -> CoreSupplement
-    -> V.Vector Observation
-    -> CorePermutation
-    -> CoreOut
 -- weights-per-obs application
-core (CoreOutObsWeight nrTopObs)
+coreOutObsWeight :: Int -> CoreSupplement -> V.Vector Observation -> CorePermutation -> V.Vector ObsWeight
+coreOutObsWeight nrTopObs
     (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let depVars = getKeys kernelDefinition
@@ -32,9 +27,11 @@ core (CoreOutObsWeight nrTopObs)
             obsWithDistFiltered
         obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
         obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
-    in CoreObsWeight (V.map (ObsWeight sett) obsWithWeightsSubset)
+    in V.map (ObsWeight sett) obsWithWeightsSubset
+    
 -- random interpolation sampling application
-core (CoreOutInterpolSamples randIterations)
+coreOutInterpolSamples :: [(Int, DepVarsRands)] -> CoreSupplement -> V.Vector Observation -> CorePermutation -> V.Vector InterpolationSample
+coreOutInterpolSamples randIterations
     (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let depVars = getKeys kernelDefinition
@@ -42,9 +39,11 @@ core (CoreOutInterpolSamples randIterations)
         obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
         kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
         samplesPerDepVar = map (\(i,r) -> (i, zipWith (getRandomSampleOneDepVar obsWithDistFiltered r) depVars kernelsPerDepVar)) randIterations
-    in CoreInterpolSamples $ V.fromList $ map (\(i,s) -> InterpolationSample sett i (ValuesPerDepVar s)) samplesPerDepVar
+    in V.fromList $ map (\(i,s) -> InterpolationSample sett i (ValuesPerDepVar s)) samplesPerDepVar
+
 -- interpolation and search application
-core outMode
+coreNormal :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation -> SearchResult
+coreNormal outMode
     (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let depVars = getKeys kernelDefinition
@@ -59,7 +58,8 @@ core outMode
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull  -> interpolPerDepVarFull
-    in CoreSearchResult $ SearchResult {
+            _            -> undefined
+    in SearchResult {
            _srCorePermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srLikelihood      = case mapMaybe getLogLikelihood interpolPerDepVarFull of

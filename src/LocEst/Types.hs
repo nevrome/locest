@@ -157,15 +157,6 @@ data CoreOutMode =
     | CoreOutFull
     deriving Show
 
--- | A data type for the actual output of the core algorithm
-data CoreOut =
-      CoreObsWeight (V.Vector ObsWeight)
-    | CoreInterpolSamples (V.Vector InterpolationSample)
-    | CoreSearchResult SearchResult
-    deriving (Generic)
-
-instance NFData CoreOut
-
 -- | A data type for observation weights per core permutation
 data ObsWeight = ObsWeight {
       _powCorePermutation :: CorePermutation
