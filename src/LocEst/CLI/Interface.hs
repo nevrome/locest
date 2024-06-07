@@ -317,7 +317,12 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
             parseRecordType "Samples" $ do
                 n <- parseArgument "n" parseInt
                 s <- parseArgumentOptional "seed" parseInt
-                return $ CoreOutInterpolSamples n s
+                r <- parseArgumentOptional "range" parseSamplingRange 
+                return $ CoreOutInterpolSamples n s r
+        parseSamplingRange = P.try parseOneSigma P.<|> P.try parseTwoSigma P.<|> parseFullDistribution
+        parseOneSigma = P.string "1sigma" >> return OneSigma
+        parseTwoSigma = P.string "2sigma" >> return TwoSigma
+        parseFullDistribution = P.string "Full" >> return FullDistribution
 
 optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
 optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (

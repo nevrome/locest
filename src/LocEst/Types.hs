@@ -152,10 +152,14 @@ data NumberOfThreads =
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutObsWeight Int
-    | CoreOutInterpolSamples Int (Maybe Int)
+    | CoreOutInterpolSamples Int (Maybe Int) (Maybe SamplingRange)
     | CoreOutShort
     | CoreOutFull
-    deriving Show
+
+data SamplingRange =
+      OneSigma
+    | TwoSigma
+    | FullDistribution
 
 -- | A data type for observation weights per core permutation
 data ObsWeight = ObsWeight {

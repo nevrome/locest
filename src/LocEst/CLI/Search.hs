@@ -87,16 +87,21 @@ runSearch (
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
-        CoreOutInterpolSamples nrRandomIts maybeSeed -> do
+        CoreOutInterpolSamples nrRandomIts maybeSeed maybeSamplingRange -> do
             let depVarsFromAlg = getKeys kernelDefinition
+            let range = case maybeSamplingRange of
+                    Just OneSigma         -> (0.159, 0.841)
+                    Just TwoSigma         -> (0.025, 0.975)
+                    Just FullDistribution -> (0,1)
+                    Nothing               -> (0,1)
             rng <- case maybeSeed of
-                Nothing   -> newIOGenM =<< R.getStdGen
-                Just seed -> newIOGenM $ mkStdGen seed
+                    Nothing   -> newIOGenM =<< R.getStdGen
+                    Just seed -> newIOGenM $ mkStdGen seed
             randomIts <- forM permutations $ \p -> do
                  rss <- forM  [0..nrRandomIts-1] $ \i -> do
                     rs <- forM depVarsFromAlg $ \d -> do
                             -- r <- R.uniformDouble01M rng
-                            r <- R.uniformRM (0.159, 0.841) rng
+                            r <- R.uniformRM range rng
                             return (d, r)
                     return (i, ValuesPerDepVar rs)
                  return (p, rss)
