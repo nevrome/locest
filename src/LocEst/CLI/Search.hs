@@ -95,7 +95,8 @@ runSearch (
             randomIts <- forM permutations $ \p -> do
                  rss <- forM  [0..nrRandomIts-1] $ \i -> do
                     rs <- forM depVarsFromAlg $ \d -> do
-                            r <- R.uniformDouble01M rng
+                            -- r <- R.uniformDouble01M rng
+                            r <- R.uniformRM (0.159, 0.841) rng
                             return (d, r)
                     return (i, ValuesPerDepVar rs)
                  return (p, rss)
