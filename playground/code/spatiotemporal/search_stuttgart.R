@@ -9,7 +9,7 @@ obs <- readr::read_tsv("data/spatiotemporal/obs.tsv")
 # stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -p
 # profiteur locest.prof
 
-system('time locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv')
+system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario.tsv')
 
 vario <- readr::read_tsv("data/spatiotemporal/vario.tsv")
 
