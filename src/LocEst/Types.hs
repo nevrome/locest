@@ -234,7 +234,7 @@ instance Csv.ToRecord SearchLikelihood where
 data IndepVarsPredGrid =
     SpaceTimeGrid {
       _stGridSpatPos         :: V.Vector SpatPos
-    , _stGridTempPos         :: [Int]
+    , _stGridTempPos         :: [AbsRelTempPos]
     , _stGridSpaceTimeMinFilter :: (Double, Double)
     , _stGridSpaceTimeMaxFilter :: (Double, Double)
     , _stGridSpatDist        :: Maybe SpatDistMatrix
@@ -691,6 +691,21 @@ instance Csv.FromNamedRecord TempSample where
     parseNamedRecord m =
         TempSample <$> filterLookupMulti m ["obsID", "id"] <*> filterLookup m "yearBCAD"
 
+-- | A data type for temporal position input
+data AbsRelTempPos = AbsTempPos YearBCAD | RelTempPos YearDist
+    deriving (Eq, Show, Generic)
+
+instance S.Serialise AbsRelTempPos
+instance NFData AbsRelTempPos
+instance Csv.FromNamedRecord AbsRelTempPos where
+    parseNamedRecord m = (AbsTempPos <$> filterLookup m "yearBCAD") <|> (RelTempPos <$> filterLookup m "yearDist")
+instance Csv.DefaultOrdered AbsRelTempPos where
+    headerOrder (AbsTempPos _) = Csv.header ["yearBCAD"]
+    headerOrder (RelTempPos _) = Csv.header ["yearDist"]
+instance Csv.ToField AbsRelTempPos where
+    toField (AbsTempPos x) = Csv.toField x
+    toField (RelTempPos x) = Csv.toField x
+
 -- | A data type for temporal positions
 newtype TempPos = TempPos YearBCAD
     deriving (Eq, Show, Generic)
@@ -706,6 +721,7 @@ instance Csv.ToField TempPos where
 
 type YearBP = Word
 type YearBCAD = Int
+type YearDist = Int
 type YearRange = Word
 
 -- | A data type for spatial positions

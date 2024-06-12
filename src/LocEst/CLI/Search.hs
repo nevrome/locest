@@ -41,7 +41,7 @@ data DepVarsPredGridSettings =
 
 data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _stgsInSpatGridFile     :: FilePath
-    , _stgsInTempGrid         :: [Int]
+    , _stgsInTempGrid         :: [AbsRelTempPos]
     , _stgsSupplementSettings :: SpaceTimeCoreSupplementSettings
 } | ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
@@ -251,15 +251,32 @@ createCoreSupplement (ArbitraryDimGrid _) =
     CoreSupplement (0,0) (infinity, infinity) Nothing Nothing
 
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
-createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) =
-    [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
-    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], depPos <- depVarPos, tempPos <- inTempGrid, spatPos <- V.toList inSpatGrid]
-createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTempSamples) Nothing =
-    [ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
-    | tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)], tempPos <- inTempGrid, spatPos  <- V.toList inSpatGrid]
+-- spatiotemporal, search
+createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) = do
+    tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
+    absRelTempPos <- inTempGrid
+    depPos <- depVarPos
+    let tempPos = case absRelTempPos of
+            AbsTempPos x -> x
+            RelTempPos x -> case depPos of
+                    (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _))) -> obsAge + x
+                    _ -> throwL ""
+    spatPos <- V.toList inSpatGrid
+    return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
+-- spatiotemporal, no search
+createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTempSamples) Nothing = do
+    tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
+    absRelTempPos <- inTempGrid
+    let tempPos = case absRelTempPos of
+            AbsTempPos x -> x
+            RelTempPos _ -> throwL ""
+    spatPos  <- V.toList inSpatGrid
+    return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
+-- arbitrary dims, search
 createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
     [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0 0
     | indepPos <- V.toList gridPos, depPos <- depVarPos]
+-- arbitrary dims, no search
 createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
     [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0 0
     | indepPos <- V.toList gridPos]
