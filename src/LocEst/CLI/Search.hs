@@ -260,7 +260,7 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTem
             AbsTempPos x -> x
             RelTempPos x -> case depPos of
                     (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _))) -> obsAge + x
-                    _ -> throwL ""
+                    _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
     spatPos <- V.toList inSpatGrid
     return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
 -- spatiotemporal, no search
@@ -269,7 +269,7 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTem
     absRelTempPos <- inTempGrid
     let tempPos = case absRelTempPos of
             AbsTempPos x -> x
-            RelTempPos _ -> throwL ""
+            RelTempPos _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
     spatPos  <- V.toList inSpatGrid
     return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
 -- arbitrary dims, search

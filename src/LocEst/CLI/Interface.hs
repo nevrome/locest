@@ -619,15 +619,19 @@ optParseInSpatGridFile = OP.strOption (
     ))
     )
 
-optParseTempGridString :: OP.Parser [Int]
+optParseTempGridString :: OP.Parser [AbsRelTempPos]
 optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
        OP.long    "tempGrid"
     <> OP.short   't'
-    <> OP.metavar "YEAR|c(YEAR1,YEAR2,...)|START:STOP:BY"
+    <> OP.metavar "absolute(years = YEAR|c(YEAR1,YEAR2,...)|START:STOP:BY) | relative(years = ...)"
     <> OP.helpDoc ( Just (
                       s2d "Temporal positions in years BC/AD where interpolation and search should \
-                          \be performed. Negative integer numbers mark years BC, positive numbers years AD. \
-                          \Can be given in three forms:"
+                          \be performed. absolute(...) means absolute years BC/AD. relative(...) only \
+                          \works with --searchObsFile and means before or after the age of the respective \
+                          \search sample. For both a list of years can be given. \
+                          \Here negative integer numbers mark years BC or before the search sample, \
+                          \positive numbers years AD or after the search sample.\
+                          \A list of years can be defined in three ways:"
     <> OH.hardline <> s2d "> YEAR: One year, e.g. \"-3000\" for 3000BC"
     <> OH.hardline <> s2d "> c(YEAR1,YEAR2,...): A list of years, e.g. \"c(-3000, 1000)\" for 3000BC \
                           \and 1000AD"
@@ -637,11 +641,25 @@ optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
     ))
     )
     where
-        readTempGridString :: String -> Either String [Int]
+        readTempGridString :: String -> Either String [AbsRelTempPos]
         readTempGridString s =
-            case P.runParser parseTempGridString () "" s of
+            case P.runParser parseAbsRelString () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
+        parseAbsRelString :: P.Parser [AbsRelTempPos]
+        parseAbsRelString = do
+            P.try parseAbs P.<|> parseRel
+        parseAbs :: P.Parser [AbsRelTempPos]
+        parseAbs = do
+            res <- parseRecordType "absolute" $ do
+                y <- parseArgument "years" parseTempGridString
+                return y
+            return $ map AbsTempPos res
+        parseRel = do
+            res <- parseRecordType "relative" $ do
+                y <- parseArgument "years" parseTempGridString
+                return y
+            return $ map RelTempPos res
         parseTempGridString :: P.Parser [Int]
         parseTempGridString = do
             P.try parseYearSequence P.<|> P.try parseYearList P.<|> parseSingleYear
