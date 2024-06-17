@@ -556,13 +556,18 @@ instance Csv.ToField OutBool where
 -- | A data type that wraps around Doubles to modify the way they are rendered in the .tsv output.
 -- This is specifically done for the representation of infinity to make it easily readable in R
 newtype OutInfDouble = OutInfDouble Double
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Generic)
 instance NFData OutInfDouble
 instance Csv.ToField OutInfDouble where
     toField (OutInfDouble x)
         | x == infinity    = "Inf"
         | x == (-infinity) = "-Inf"
         | otherwise        = Bchs.pack $ show x
+instance Show OutInfDouble where
+    show (OutInfDouble x)
+        | x == infinity    = "Inf"
+        | x == (-infinity) = "-Inf"
+        | otherwise        = show x
 
 -- | A data type for dependent vars with some value
 type DepVarsPos = ValuesPerDepVar
@@ -585,7 +590,7 @@ instance Csv.DefaultOrdered ValuesPerDepVar where
         V.map Bchs.pack $ V.fromList $ map fst l
 instance Csv.ToRecord ValuesPerDepVar where
     toRecord (ValuesPerDepVar l) =
-        V.map (Bchs.pack . show) $ V.fromList $ map snd l
+        V.map (Bchs.pack . show) $ V.map OutInfDouble $ V.fromList $ map snd l
 instance PseudoMap ValuesPerDepVar Double where
     getKeys (ValuesPerDepVar l) = map fst l
     getValues (ValuesPerDepVar l) = map snd l

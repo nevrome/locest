@@ -630,7 +630,7 @@ optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
                           \works with --searchObsFile and means before or after the age of the respective \
                           \search sample. For both a list of years can be given. \
                           \Here negative integer numbers mark years BC or before the search sample, \
-                          \positive numbers years AD or after the search sample.\
+                          \positive numbers years AD or after the search sample. \
                           \A list of years can be defined in three ways:"
     <> OH.hardline <> s2d "> YEAR: One year, e.g. \"-3000\" for 3000BC"
     <> OH.hardline <> s2d "> c(YEAR1,YEAR2,...): A list of years, e.g. \"c(-3000, 1000)\" for 3000BC \
