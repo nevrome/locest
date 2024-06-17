@@ -38,19 +38,19 @@ weightedAvg_ totalWeight values weights =
 
 weightedVar :: [Double] -> [Double] -> Double
 weightedVar values weights =
-    numerator / neff1
+    numerator / neff
     where
         numerator = foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights)
         weightedMean = weightedAvg values weights
-        neff1 = totalWeight - 1
+        neff = totalWeight
         totalWeight = foldSum weights
 
 weightedVar_ :: Double -> Double -> VU.Vector Double -> VU.Vector Double -> Double
 weightedVar_ totalWeight weightedMean values weights =
-    numerator / neff1
+    numerator / neff
     where
         numerator = VU.foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (VU.zip values weights)
-        neff1 = totalWeight - 1
+        neff = totalWeight
 
 weightedSD :: [Double] -> [Double] -> Double
 weightedSD values weights =
@@ -58,9 +58,9 @@ weightedSD values weights =
 
 weightedSEM :: [Double] -> [Double] -> Double
 weightedSEM values weights =
-    sqrt (weightedVar values weights / neff1)
+    sqrt (weightedVar values weights / neff)
     where
-        neff1 = totalWeight - 1
+        neff = totalWeight
         totalWeight = foldSum weights
 
 posteriorMu :: [Double] -> [Double] ->  Either String (LinearTransform StudentT)
@@ -70,7 +70,7 @@ posteriorMu values weights = generalizedStudentT mu scale dof
         scale = weightedSD values weights / sqrt neff
         dof = neff1
         neff1 = neff - 1
-        neff = totalWeight
+        neff = totalWeight + 1
         totalWeight = foldSum weights
 
 posteriorPredictive :: [Double] -> [Double] -> Either String (LinearTransform StudentT)
@@ -79,7 +79,7 @@ posteriorPredictive values weights = generalizedStudentT mu scale dof
         mu = weightedAvg values weights
         scale = sqrt ((1 + 1/neff) * weightedVar values weights)
         dof = neff - 1
-        neff = foldSum weights
+        neff = foldSum weights + 1
 
 posteriorPredictive_ :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
 posteriorPredictive_ totalWeight weightedM weightedV = generalizedStudentT mu scale dof
@@ -87,7 +87,7 @@ posteriorPredictive_ totalWeight weightedM weightedV = generalizedStudentT mu sc
         mu = weightedM
         scale = sqrt ((1 + 1/neff) * weightedV)
         dof = neff - 1
-        neff = totalWeight
+        neff = totalWeight + 1
 
 -- mapping Mathematica's StudentTDistribution interface to the interface in the
 -- Haskell statistics package
