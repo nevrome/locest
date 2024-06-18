@@ -67,12 +67,17 @@ weightedVar values weights =
         nu0 = 1
         sigma02 = varSample values
 
-weightedVar_ :: Double -> Double -> VU.Vector Double -> VU.Vector Double -> Double
-weightedVar_ totalWeight weightedMean values weights =
-    numerator / neff
+weightedVar_ :: Double -> Double -> Double -> VU.Vector Double -> VU.Vector Double -> Double
+weightedVar_ sampleVariance totalWeight weightedMean values weights =
+    (nu0 * sigma02 + scaledS2) / (nu0 + neff)
     where
-        numerator = VU.foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (VU.zip values weights)
+        scaledS2 = if neff < 1
+                   then 0
+                   else (neff - 1) * s2
+        s2 = VU.foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (VU.zip values weights)
         neff = totalWeight
+        nu0 = 1
+        sigma02 = sampleVariance
 
 weightedSD :: [Double] -> [Double] -> Double
 weightedSD values weights =

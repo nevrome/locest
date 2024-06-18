@@ -152,8 +152,10 @@ getRandomSampleOneDepVar obsWithDist (ValuesPerDepVar depVarsRands) depVar kerne
             Just x  -> x
             Nothing -> throwL $ "no random number for dependent variable " ++ depVar
         totalWeight = VU.sum weights
+        nrSamples = fromIntegral $ VU.length values
+        sampleVariance = varSample_ nrSamples values
         weightedA   = weightedAvg_ totalWeight values weights
-        weightedV   = weightedVar_ totalWeight weightedA values weights
+        weightedV   = weightedVar_ sampleVariance totalWeight weightedA values weights
     case posteriorPredictive_ totalWeight weightedA weightedV of
         Right distribution -> (depVar, quantile distribution random01)
         Left _             -> (depVar,nan)
@@ -168,9 +170,11 @@ interpolAndSearchOneDepVar obsWithDist depVar kernelPerDepVar maybeValueDepVar =
     let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
         weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelPerDepVar) obsWithDist
         totalWeight = VU.sum weights
+        nrSamples = fromIntegral $ VU.length values
+        sampleVariance = varSample_ nrSamples values -- this could be calculated further up
         neff        = totalWeight
         weightedA   = weightedAvg_ totalWeight values weights
-        weightedV   = weightedVar_ totalWeight weightedA values weights
+        weightedV   = weightedVar_ sampleVariance totalWeight weightedA values weights
     case posteriorPredictive_ totalWeight weightedA weightedV of
         Right distribution ->
             let lower  = quantile distribution 0.025
