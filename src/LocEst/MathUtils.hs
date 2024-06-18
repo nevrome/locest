@@ -20,14 +20,31 @@ foldSum = foldl' (+) 0
 foldProduct :: [Double] -> Double
 foldProduct = foldl' (*) 1
 
+-- some of the following functions are available in independent versions and some also
+-- in versions with a _ suffix that try to avoid re-computation of shared values
 avg :: [Double] -> Double
 avg xs = foldSum xs / fromIntegral (length xs)
 
-sd :: [Double] -> Double
-sd xs = sqrt . avg . map ((**2) . (-) (avg xs)) $ xs
+avg_ :: Double -> VU.Vector Double -> Double
+avg_ xslength xs = VU.sum xs / xslength
 
--- the following functions are available in independent versions and some also
--- in versions with a _ suffix that try to avoid re-computation of shared values
+-- with Bessel's correction
+-- https://en.wikipedia.org/wiki/Variance#Unbiased_sample_variance
+varSample :: [Double] -> Double
+varSample xs = (1/(n-1)) * foldl' (\o x -> o + (x - mean)**2) 0 xs
+    where
+        mean = avg xs
+        n = fromIntegral $ length xs
+
+varSample_ :: Double -> VU.Vector Double -> Double
+varSample_ xslength xs = (1/(n-1)) * VU.foldl' (\o x -> o + (x - mean)**2) 0 xs
+    where
+        mean = avg_ xslength xs
+        n = xslength
+
+sdSample :: [Double] -> Double
+sdSample xs = sqrt $ varSample xs
+
 weightedAvg :: [Double] -> [Double] -> Double
 weightedAvg values weights =
     foldl' (\o (v,w) -> o + v * w) 0 (zip values weights) / foldSum weights
@@ -38,12 +55,17 @@ weightedAvg_ totalWeight values weights =
 
 weightedVar :: [Double] -> [Double] -> Double
 weightedVar values weights =
-    numerator / neff
+    (nu0 * sigma02 + scaledS2) / (nu0 + neff)
     where
-        numerator = foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights)
+        scaledS2 = if neff < 1
+                   then 0
+                   else (neff - 1) * s2
+        s2 = foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights)
         weightedMean = weightedAvg values weights
         neff = totalWeight
         totalWeight = foldSum weights
+        nu0 = 2
+        sigma02 = varSample values
 
 weightedVar_ :: Double -> Double -> VU.Vector Double -> VU.Vector Double -> Double
 weightedVar_ totalWeight weightedMean values weights =
