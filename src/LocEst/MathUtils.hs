@@ -64,7 +64,7 @@ weightedVar values weights =
         weightedMean = weightedAvg values weights
         neff = totalWeight
         totalWeight = foldSum weights
-        nu0 = 2
+        nu0 = 1
         sigma02 = varSample values
 
 weightedVar_ :: Double -> Double -> VU.Vector Double -> VU.Vector Double -> Double
