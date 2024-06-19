@@ -2,7 +2,7 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings))
+import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings), calculateVariances)
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (foldSum, avg)
@@ -51,6 +51,10 @@ runCross (
     ) numThreads = do
     -- read observations
     observations <- readObservations inObsFile
+    -- variance
+    hPutStrLn stderr "Calculating total variances"
+    let depVarsFromAlg = getKeys $ head kernDefs
+        variancesPerDepVar = calculateVariances depVarsFromAlg observations
     -- read core supplements
     coreSupp <- readSpaceTimeSupp spaceTimeSuppSettings observations
     -- prepare permutations
@@ -74,7 +78,7 @@ runCross (
         -- begin to stream iterations
            ConC.yieldMany testTrainingIterations
         -- run per-iteration conduit until no iterations left
-        .| Con.awaitForever (oneIterationConduit coreSupp numThreads)
+        .| Con.awaitForever (oneIterationConduit coreSupp variancesPerDepVar numThreads)
         -- print progress information
         .| progress 1000 (Just numPerms)
         .| ConC.sinkList
@@ -95,15 +99,16 @@ runCross (
     where
         oneIterationConduit ::
                CoreSupplement
+            -> DepVarVariances
             -> Int
             -> (Int, V.Vector Observation, V.Vector Observation)
             -> ConduitT (Int, V.Vector Observation, V.Vector Observation) SearchResult (ResourceT IO) ()
-        oneIterationConduit coreSupp maxNumThreads (iteration,testData,trainingData) = do
+        oneIterationConduit coreSupp variancesPerDepVar maxNumThreads (iteration,testData,trainingData) = do
             ConC.yieldMany testData
                 -- multiply multidimensional positions by algorithms
                 .| ConC.concatMap (multiplyByAlgorithms iteration kernDefs)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (coreNormal CoreOutFull coreSupp trainingData)
+                .| ConAA.asyncMapC maxNumThreads (coreNormal CoreOutFull variancesPerDepVar coreSupp trainingData)
         multiplyByAlgorithms ::
                Int
             -> [KernelDefinition]

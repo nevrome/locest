@@ -30,20 +30,22 @@ coreOutObsWeight nrTopObs
     in V.map (ObsWeight sett) obsWithWeightsSubset
     
 -- random interpolation sampling application
-coreOutInterpolSamples :: CoreSupplement -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)]) -> V.Vector InterpolationSample
+coreOutInterpolSamples :: DepVarVariances -> CoreSupplement -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)]) -> V.Vector InterpolationSample
 coreOutInterpolSamples
+    depVarVariances
     (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
      observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
     let depVars = getKeys kernelDefinition
         dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
         kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
-        samplesPerDepVar = map (\(i,r) -> (i, zipWith (getRandomSampleOneDepVar obsWithDistFiltered r) depVars kernelsPerDepVar)) randIterations
+        samplesPerDepVar = map (\(i,r) -> (i, zipWith (getRandomSampleOneDepVar obsWithDistFiltered r depVarVariances) depVars kernelsPerDepVar)) randIterations
     in V.fromList $ map (\(i,s) -> InterpolationSample sett i (ValuesPerDepVar s)) samplesPerDepVar
 
 -- interpolation and search application
-coreNormal :: CoreOutMode -> CoreSupplement -> V.Vector Observation -> CorePermutation -> SearchResult
+coreNormal :: CoreOutMode -> DepVarVariances -> CoreSupplement -> V.Vector Observation -> CorePermutation -> SearchResult
 coreNormal outMode
+    depVarVariances
     (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
      observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let depVars = getKeys kernelDefinition
@@ -54,7 +56,7 @@ coreNormal outMode
             Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
             Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
             Nothing                          -> replicate (length depVars) Nothing
-        interpolPerDepVarFull = zipWith3 (interpolAndSearchOneDepVar obsWithDistFiltered) depVars kernelsPerDepVar valuePerDepVar
+        interpolPerDepVarFull = zipWith3 (interpolAndSearchOneDepVar obsWithDistFiltered depVarVariances) depVars kernelsPerDepVar valuePerDepVar
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull  -> interpolPerDepVarFull
@@ -142,18 +144,18 @@ getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
 getRandomSampleOneDepVar ::
        V.Vector (Observation, IndepVarsDist)
     -> DepVarsRands
+    -> DepVarVariances
     -> DepVarName
     -> (KernelShape, KernelNugget, KernelLengths)
     -> (DepVarName, Double)
-getRandomSampleOneDepVar obsWithDist (ValuesPerDepVar depVarsRands) depVar kernelPerDepVar = do
+getRandomSampleOneDepVar obsWithDist (ValuesPerDepVar depVarsRands) depVarVariances depVar kernelPerDepVar = do
     let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
         weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelPerDepVar) obsWithDist
         random01 = case lookup depVar depVarsRands of
             Just x  -> x
             Nothing -> throwL $ "no random number for dependent variable " ++ depVar
+        sampleVariance = getVarianceForOneDepVar depVarVariances depVar
         totalWeight = VU.sum weights
-        nrSamples = fromIntegral $ VU.length values
-        sampleVariance = varSample_ nrSamples values
         weightedA   = weightedAvg_ totalWeight values weights
         weightedV   = weightedVar_ sampleVariance totalWeight weightedA values weights
     case posteriorPredictive_ totalWeight weightedA weightedV of
@@ -162,16 +164,16 @@ getRandomSampleOneDepVar obsWithDist (ValuesPerDepVar depVarsRands) depVar kerne
 
 interpolAndSearchOneDepVar ::
        V.Vector (Observation, IndepVarsDist)
+    -> DepVarVariances
     -> DepVarName
     -> (KernelShape, KernelNugget, KernelLengths)
     -> Maybe Double
     -> InterpolationResultOneDepVar
-interpolAndSearchOneDepVar obsWithDist depVar kernelPerDepVar maybeValueDepVar = do
+interpolAndSearchOneDepVar obsWithDist depVarVariances depVar kernelPerDepVar maybeValueDepVar = do
     let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
         weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelPerDepVar) obsWithDist
+        sampleVariance = getVarianceForOneDepVar depVarVariances depVar
         totalWeight = VU.sum weights
-        nrSamples = fromIntegral $ VU.length values
-        sampleVariance = varSample_ nrSamples values -- this could be calculated further up
         neff        = totalWeight
         weightedA   = weightedAvg_ totalWeight values weights
         weightedV   = weightedVar_ sampleVariance totalWeight weightedA values weights
@@ -197,6 +199,12 @@ interpolAndSearchOneDepVar obsWithDist depVar kernelPerDepVar maybeValueDepVar =
 
 getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
 getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (ValuesPerDepVar m)), _) =
+    case lookup depVar m of
+        Just x  -> x
+        Nothing -> throwL $ "dependent variable " ++ depVar ++ " not defined in --obsFile"
+
+getVarianceForOneDepVar :: DepVarVariances -> DepVarName -> Double
+getVarianceForOneDepVar (ValuesPerDepVar m) depVar =
     case lookup depVar m of
         Just x  -> x
         Nothing -> throwL $ "dependent variable " ++ depVar ++ " not defined in --obsFile"

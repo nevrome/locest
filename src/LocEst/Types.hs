@@ -574,6 +574,7 @@ type DepVarsPos = ValuesPerDepVar
 type DepVarsWeights = ValuesPerDepVar
 type DepVarsRands = ValuesPerDepVar
 type DepVarSamples = ValuesPerDepVar
+type DepVarVariances = ValuesPerDepVar
 newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
     deriving (Eq, Show, Generic)
 

@@ -20,6 +20,7 @@ import qualified Data.Vector                   as V
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import System.Random.Stateful as R
+import qualified Data.Vector.Unboxed     as VU
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
@@ -67,6 +68,10 @@ runSearch (
     ) numThreads = do
     -- read observations
     observations <- readObservations inObsFile
+    -- variance
+    hPutStrLn stderr "Calculating total variances"
+    let depVarsFromAlg = getKeys kernelDefinition
+        variancesPerDepVar = calculateVariances depVarsFromAlg observations
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
     indepVarsPredGrid <- readIndepVarsPredGrid kernelDefinition observations indepVarsPredGridSettings
@@ -88,7 +93,6 @@ runSearch (
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
         CoreOutInterpolSamples nrRandomIts maybeSeed maybeSamplingRange -> do
-            let depVarsFromAlg = getKeys kernelDefinition
             let range = case maybeSamplingRange of
                     Just OneSigma         -> (0.159, 0.841)
                     Just TwoSigma         -> (0.025, 0.975)
@@ -107,21 +111,21 @@ runSearch (
                  return (p, rss)
             Con.runConduitRes $
                 ConC.yieldMany randomIts
-                .| ConAA.asyncMapC numThreads (coreOutInterpolSamples supplement observations)
+                .| ConAA.asyncMapC numThreads (coreOutInterpolSamples variancesPerDepVar supplement observations)
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
         CoreOutShort -> do
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                .| ConAA.asyncMapC numThreads (coreNormal CoreOutShort supplement observations)
+                .| ConAA.asyncMapC numThreads (coreNormal CoreOutShort variancesPerDepVar supplement observations)
                 .| progress 1000 (Just numPerms)
                 .| normalize normalization
                 .| sinkNamedCSV outFile
         CoreOutFull -> do
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                .| ConAA.asyncMapC numThreads (coreNormal CoreOutFull supplement observations)
+                .| ConAA.asyncMapC numThreads (coreNormal CoreOutFull variancesPerDepVar supplement observations)
                 -- probably faster:
                 -- .| ConC.conduitVector 1000
                 -- .| ConAA.asyncMapC numThreads (V.map (coreNormal CoreOutFull supplement observations))
@@ -130,6 +134,21 @@ runSearch (
                 .| normalize normalization
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
+
+calculateVariances :: [DepVarName] -> V.Vector Observation -> DepVarVariances
+calculateVariances depVars obs =
+    let valuesPerDepVar = map (\depVar -> (depVar, VU.convert $ V.map (getValueOneBasicObsOneDepVar depVar) obs)) depVars
+    in ValuesPerDepVar $ map calculateVariance valuesPerDepVar
+    where
+        getValueOneBasicObsOneDepVar :: DepVarName -> Observation -> Double
+        getValueOneBasicObsOneDepVar depVar (Observation _ _ (HyperPos _ (ValuesPerDepVar m))) =
+            case lookup depVar m of
+                Just x  -> x
+                Nothing -> throwL $ "dependent variable " ++ depVar ++ " not defined in --obsFile"
+        calculateVariance :: (DepVarName, VU.Vector Double) -> (DepVarName, Double)
+        calculateVariance (depVar,values) =
+            let nrSamples = fromIntegral $ VU.length values
+            in (depVar, varSample_ nrSamples values)
 
 readIndepVarsPredGrid ::
        KernelDefinition
