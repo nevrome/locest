@@ -73,7 +73,7 @@ instance Csv.DefaultOrdered CrossvalOutput where
         Csv.headerOrder algo <> Csv.header ["sum_dep_dist_euclidean"] <> Csv.header ["mean_squared_dep_dist_euclidean"] <> Csv.header ["sum_log_likelihood"]
 instance Csv.ToRecord CrossvalOutput where
     toRecord (CrossvalOutput algo sumDist meanSquaredDist sumProb) =
-        Csv.toRecord algo <> Csv.record [Csv.toField sumDist] <> Csv.record [Csv.toField meanSquaredDist] <> Csv.record [Csv.toField sumProb]
+        Csv.toRecord algo <> Csv.record [Csv.toField sumDist] <> Csv.record [Csv.toField meanSquaredDist] <> Csv.record [Csv.toField $ OutInfDouble sumProb]
 
 -- special types for the vario subcommands
 
@@ -574,6 +574,7 @@ type DepVarsPos = ValuesPerDepVar
 type DepVarsWeights = ValuesPerDepVar
 type DepVarsRands = ValuesPerDepVar
 type DepVarSamples = ValuesPerDepVar
+type DepVarVariances = ValuesPerDepVar
 newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
     deriving (Eq, Show, Generic)
 

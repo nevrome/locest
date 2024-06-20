@@ -66,7 +66,7 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars acrossDepVars out
             -- remove dists that are not to be binned
             let minDist = VU.minimum indepDists
                 maxDist = VU.maximum indepDists
-                endVario = minDist + (maxDist - minDist)/3
+                endVario = minDist + (maxDist - minDist)
                 indepDistsIndexed = VU.indexed indepDists
                 binnableIndepDists = VU.filter (\(_,v) -> v <= endVario) indepDistsIndexed
             -- sort indep distance vector for easy binning
