@@ -150,14 +150,14 @@ readSpaceTimeSupp
 
 summarizeFunc :: [SearchResult] -> CrossvalOutput
 summarizeFunc xs =
-    let oneProb  = _srCorePermutation $ head xs
-        kerndef  = _casKernelDefinition oneProb
-        dists = mapMaybe (fmap _slhEuclideanDep  . _srLikelihood) xs
-        sumDists = foldSum dists
+    let oneProb = _srCorePermutation $ head xs
+        kerndef = _casKernelDefinition oneProb
+        dists   = mapMaybe (fmap _slhEuclideanDep  . _srLikelihood) xs
+        logLs   = mapMaybe (fmap _slhLogLikelihood . _srLikelihood) xs
+        sumDists         = foldSum dists
         meanSquaredDists = avg $ map (**2) dists
-        sumLogLs = foldSum $ mapMaybe (fmap _slhLogLikelihood . _srLikelihood) xs
+        sumLogLs         = foldSum logLs
     in CrossvalOutput kerndef sumDists meanSquaredDists sumLogLs
-
 
 groupFunc :: SearchResult -> SearchResult -> Bool
 groupFunc (SearchResult (CorePermutation _ _ kernDefA _ _) _ _)
