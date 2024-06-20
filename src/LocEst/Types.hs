@@ -78,20 +78,25 @@ instance Csv.ToRecord CrossvalOutput where
 -- special types for the vario subcommands
 
 -- | A data type for an empirical variogram
-newtype EmpiricalVariogram = EmpiricalVariogram [(Double, Double)]
+newtype EmpiricalVariogram = EmpiricalVariogram [((Double,Double,Double), Double)]
     deriving Show
 
 data EmpiricalVariogramOneVarCombination = EmpiricalVariogramOneVarCombination IndepVarName DepVarName EmpiricalVariogram
     deriving Show
 
-data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin IndepVarName DepVarName Double Double
+data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin {
+    _evIndepVar :: IndepVarName,
+    _evDepVar :: DepVarName,
+    _evBin :: (Double,Double,Double),
+    _evVariance :: Double
+    }
     deriving Show
 
 instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
-    headerOrder _ = Csv.header ["indepVar", "depVar", "bin", "semivariance"]
+    headerOrder _ = Csv.header ["indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance"]
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
-    toRecord (EmpiricalVariogramSingleBin i d iv dv) =
-        Csv.record [Csv.toField i, Csv.toField d, Csv.toField iv, Csv.toField dv]
+    toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv) =
+        Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax, Csv.toField dv]
 
 -- general types or types specifically relevant for the search subcommand
 
