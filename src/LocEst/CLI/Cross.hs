@@ -90,8 +90,10 @@ runCross (
                 .| sinkNamedCSV outFile
         SummedLikelihoodPerKernelSetting -> do
             -- summarize crossvalidation result per kernel parameter setting
+            hPutStrLn stderr "Summarizing crossvalidation results"
             Con.runConduitRes $
                    ConC.yieldMany (sortBy sortFunc perPointRes)
+                .| progress 100000 (Just $ length perPointRes)
                 .| ConL.groupBy groupFunc
                 .| ConC.map summarizeFunc
                 .| sinkNamedCSV outFile
