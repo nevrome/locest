@@ -78,12 +78,12 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars acrossDepVars out
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
-                semivariancesPerBin <- Con.runConduitRes $
+                variancesPerBin <- Con.runConduitRes $
                         ConC.yieldMany startStopPerBin
                         .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
                         .| ConC.sinkList
                 hPutStrLn stderr ("-> " ++ depVarName)
-                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
+                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outFile
 
@@ -99,9 +99,9 @@ perBin :: VU.Vector (Int, Double) -> VU.Vector Double -> (Double, Int, Int) -> (
 perBin sortedIndepDists depDists (mid, startSorted, stopSorted) =
     let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
         depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
-        -- calculate semivariance per bin
-        semivariance = calcMatheron depDistsPerBin
-    in (mid, semivariance)
+        -- calculate variance per bin
+        variance = calcMeanSquared depDistsPerBin
+    in (mid, variance)
 
 -- perform binning of an indepVar
 binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [(Double, Int, Int)]
@@ -128,11 +128,11 @@ calcMean sortedVec start stop =
         (_,hi) = sortedVec VU.! stop
     in (lo+hi)/2
 
--- half mean squared distance within one bin
-calcMatheron :: VU.Vector Double -> Double
-calcMatheron dists = (1 / (2 * n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
-    where
-        n = fromIntegral $ VU.length dists
+-- mean squared distance within one bin
+calcMeanSquared :: VU.Vector Double -> Double
+calcMeanSquared dists =
+    let n = fromIntegral $ VU.length dists
+    in (1 / n) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
 
 sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
 sortWithIndices v = do
