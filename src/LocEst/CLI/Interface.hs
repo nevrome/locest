@@ -116,6 +116,7 @@ varioOptParser = VarioOptions
                         <$> optParseInObservationFile
                         <*> OP.optional optParseSpatDistSetting
                         <*> optParseAcrossIndepVars
+                        <*> optParseSpaceTimeScaling
                         <*> optParseAcrossDepVars
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
@@ -370,17 +371,29 @@ optParseCrossvalIterations = OP.option OP.auto (
 
 optParseAcrossIndepVars :: OP.Parser Bool
 optParseAcrossIndepVars = OP.switch (
-    OP.long "acrossIndepVars"
+       OP.long "acrossIndepVars"
     <> OP.helpDoc ( Just (
                       s2d "Calculate the variogram for Euclidean distances across all independent variables. \
-                          \For the spatiotemporal setting this assumes a scaling of 1km == 1year."
+                          \For the spatiotemporal setting this assumes the space-time in --spaceTimeScale."
+    <> OH.hardline
+    ))
+    )
+
+optParseSpaceTimeScaling :: OP.Parser Double
+optParseSpaceTimeScaling = OP.option OP.auto (
+       OP.long "spaceTimeScale"
+    <> OP.metavar "DOUBLE"
+    <> OP.helpDoc ( Just (
+                      s2d "Space-time scaling factor. All spatial distances will be multiplied by \
+                          \spaceTimeScale before combining the distances as one Euclidean distance. \
+                          \Only relevant for the spatiotemporal setting. Default: 1"
     <> OH.hardline
     ))
     )
 
 optParseAcrossDepVars :: OP.Parser Bool
 optParseAcrossDepVars = OP.switch (
-    OP.long "acrossDepVars"
+       OP.long "acrossDepVars"
     <> OP.helpDoc ( Just (
                       s2d "Calculate the variogram for Euclidean distances across all dependent variables."
     <> OH.hardline

@@ -26,6 +26,7 @@ data VarioOptions = VarioOptions {
       _voInObservationFile :: FilePath
     , _voSpatDistSetting   :: Maybe SpatDistSettings
     , _voInAcrossIndepVars :: Bool
+    , _voSpaceTimeScaling  :: Double
     , _voInAcrossDepVars   :: Bool
     , _voOutFile           :: FilePath
     , _voInNrBins          :: BinModeSettings
@@ -42,7 +43,7 @@ data BinModeSettings =
     deriving (Show)
 
 runVario :: VarioOptions -> Int -> IO ()
-runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars acrossDepVars outFile binModeSettings) numThreads = do
+runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars spaceTimeScaling acrossDepVars outFile binModeSettings) numThreads = do
     -- read observations
     observations <- readObservations inObsFile
     -- read spat dist file
@@ -54,7 +55,7 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars acrossDepVars out
                 _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
-    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars inSpatDists observations
+    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars spaceTimeScaling inSpatDists observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
     !distsPerDepVar   <- calcDepVarPairwiseDistances acrossDepVars observations
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
@@ -107,7 +108,7 @@ perBin sortedIndepDists depDists (mid, startSorted, stopSorted) =
 binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [(Double, Int, Int)]
 binIndepVarForNugget sortedVec (ValuesPerIndepVar m) indepVarName =
     let threshold = case lookup indepVarName m of
-            Nothing -> throwL $ "Indepedent variable " ++ indepVarName ++ " not defined in --outMode"
+            Nothing -> throwL $ "Independent variable " ++ indepVarName ++ " not defined in --outMode"
             Just x  -> x
         stop = case VU.findIndexR (\(_,x) -> x <= threshold) sortedVec of
             Nothing -> VU.length sortedVec - 1
@@ -151,8 +152,8 @@ makeObsPairs obs =
     in zip [0..] obsPairs
 
 -- distance calculation functions
-calcIndepVarPairwiseDistances :: Bool -> Maybe SpatDistMatrix -> V.Vector Observation -> IO [(IndepVarName, SUDistMatrix)]
-calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
+calcIndepVarPairwiseDistances :: Bool -> Double -> Maybe SpatDistMatrix -> V.Vector Observation -> IO [(IndepVarName, SUDistMatrix)]
+calcIndepVarPairwiseDistances merge spaceTimeScaling maybeSpatDistMatrix obs = do
     let obsPairs = makeObsPairs obs
         nrPairs = length obsPairs
         (Observation _ _ (HyperPos indepPos _)) = V.head obs
@@ -169,7 +170,7 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
             timeVecNonMut  <- VU.unsafeFreeze timeVec
             return [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
         (IndepSpatTempPos _,True) -> do
-            hPutStrLn stderr "Warning: Assuming scaling as 1km == 1year"
+            hPutStrLn stderr $ "Using space-time scaling: " ++ show spaceTimeScaling
             distVec <- VUM.new nrPairs
             mapM_ (distSpaceTimeMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
@@ -213,7 +214,7 @@ calcIndepVarPairwiseDistances merge maybeSpatDistMatrix obs = do
                 spaceDist = case maybeSpatDistMatrix of
                     Nothing             -> spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
-                mergedDist = sqrt ( (timeDist ** 2) + (spaceDist ** 2) )
+                mergedDist = sqrt ( (timeDist ** 2) + ((spaceDist * spaceTimeScaling) ** 2) )
             VUM.write distVec i mergedDist
         distSpaceTimeMerged _ _ = error "impossible state in spatial independent variable distance calculation"
         distArbitrary :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
