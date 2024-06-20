@@ -98,7 +98,7 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars spaceTimeScaling 
 getThresholdForIndepVar :: ArbitraryDimPos -> IndepVarName -> Double
 getThresholdForIndepVar (ValuesPerIndepVar m) indepVar = case lookup indepVar m of
         Just x  -> x
-        Nothing -> throwL $ "independent variable " ++ indepVar ++ " not specified"
+        Nothing -> throwL $ "Independent variable " ++ indepVar ++ " not specified"
 
 -- write variograms to the file system
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> FilePath -> IO ()
@@ -108,16 +108,16 @@ writeVariograms vars path = Con.runConduitRes $ ConC.yieldMany (concatMap varToL
         varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
             map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
 
-perBin :: VU.Vector (Int, Double) -> VU.Vector Double -> (Double, Int, Int) -> (Double, Double)
-perBin sortedIndepDists depDists (mid, startSorted, stopSorted) =
+perBin :: VU.Vector (Int, Double) -> VU.Vector Double -> ((Double,Double,Double), Int, Int) -> ((Double,Double,Double), Double)
+perBin sortedIndepDists depDists (minMidMax, startSorted, stopSorted) =
     let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
         depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
         -- calculate variance per bin
         variance = calcMeanSquared depDistsPerBin
-    in (mid, variance)
+    in (minMidMax, variance)
 
 -- perform binning of an indepVar
-binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [(Double, Int, Int)]
+binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [((Double, Double, Double), Int, Int)]
 binIndepVarForNugget sortedVec (ValuesPerIndepVar m) indepVarName =
     let threshold = case lookup indepVarName m of
             Nothing -> throwL $ "Independent variable " ++ indepVarName ++ " not defined in --outMode"
@@ -125,21 +125,21 @@ binIndepVarForNugget sortedVec (ValuesPerIndepVar m) indepVarName =
         stop = case VU.findIndexR (\(_,x) -> x <= threshold) sortedVec of
             Nothing -> VU.length sortedVec - 1
             Just i  -> i
-    in singleton (calcMean sortedVec 0 stop, 0, stop)
+    in singleton (binMinMidMax sortedVec 0 stop, 0, stop)
 
-binIndepVarByNrBins :: VU.Vector (Int, Double) -> Int -> [(Double, Int, Int)]
+binIndepVarByNrBins :: VU.Vector (Int, Double) -> Int -> [((Double, Double, Double), Int, Int)]
 binIndepVarByNrBins sortedVec nrBins =
     let len = VU.length sortedVec
         stepWidth = len `div` nrBins -- in nr of distances
         starts = [0,stepWidth..(len - stepWidth)]
         stops = map (\x -> x-1) [stepWidth,2*stepWidth..len]
-    in zipWith (\start stop -> (calcMean sortedVec start stop, start, stop)) starts stops
+    in zipWith (\start stop -> (binMinMidMax sortedVec start stop, start, stop)) starts stops
 
-calcMean :: VU.Vector (Int, Double) -> Int -> Int -> Double
-calcMean sortedVec start stop =
+binMinMidMax :: VU.Vector (Int, Double) -> Int -> Int -> (Double, Double, Double)
+binMinMidMax sortedVec start stop =
     let (_,lo) = sortedVec VU.! start
         (_,hi) = sortedVec VU.! stop
-    in (lo+hi)/2
+    in (lo,(lo+hi)/2,hi)
 
 -- mean squared distance within one bin
 calcMeanSquared :: VU.Vector Double -> Double
