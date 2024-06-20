@@ -14,7 +14,7 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import           Data.Function                 (on)
-import           Data.List                     (singleton)
+import           Data.List                     (singleton, sort)
 import qualified Data.Vector                   as V
 import qualified Data.Vector.Algorithms.Intro  as VA
 import qualified Data.Vector.Unboxed           as VU
@@ -74,8 +74,15 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars spaceTimeScaling 
             sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
             -- get start index and stop index for each bin in the sorted indep vector
             let startStopPerBin = case binModeSettings of
-                    BinByNrBins nrBins -> binIndepVarByNrBins sortedIndepDists nrBins
-                    BinForNugget thresholds -> binIndepVarForNugget sortedIndepDists thresholds indepVarName
+                    BinByNrBins nrBins      -> binIndepVarByNrBins sortedIndepDists nrBins
+                    BinForNugget thresholds ->
+                        if acrossIndepVars && (sort (getKeys thresholds) == ["space", "time"])
+                        then
+                            let spaceThreshold  = getThresholdForIndepVar thresholds "space"
+                                timeThreshold   = getThresholdForIndepVar thresholds "time"
+                                mergedThreshold = sqrt ( (timeThreshold ** 2) + ((spaceThreshold * spaceTimeScaling) ** 2) )
+                            in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("indepAll", mergedThreshold)]) indepVarName
+                        else binIndepVarForNugget sortedIndepDists thresholds indepVarName
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
@@ -87,6 +94,11 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars spaceTimeScaling 
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outFile
+
+getThresholdForIndepVar :: ArbitraryDimPos -> IndepVarName -> Double
+getThresholdForIndepVar (ValuesPerIndepVar m) indepVar = case lookup indepVar m of
+        Just x  -> x
+        Nothing -> throwL $ "independent variable " ++ indepVar ++ " not specified"
 
 -- write variograms to the file system
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> FilePath -> IO ()
