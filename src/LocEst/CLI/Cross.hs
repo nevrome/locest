@@ -110,7 +110,12 @@ runCross (
                 -- multiply multidimensional positions by algorithms
                 .| ConC.concatMap (multiplyByAlgorithms iteration kernDefs)
                 -- main search algorithm
-                .| ConAA.asyncMapC maxNumThreads (coreNormal CoreOutFull variancesPerDepVar coreSupp trainingData)
+                -- operate element-by-element
+                -- .| ConAA.asyncMapC maxNumThreads (coreNormal CoreOutFull variancesPerDepVar coreSupp trainingData)
+                -- operate on chunks (faster and more efficient use of cores)
+                .| ConC.conduitVector 1000
+                .| ConAA.asyncMapC maxNumThreads (V.map (coreNormal CoreOutFull variancesPerDepVar coreSupp trainingData))
+                .| ConC.concat
         multiplyByAlgorithms ::
                Int
             -> [KernelDefinition]
