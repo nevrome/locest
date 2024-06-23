@@ -381,7 +381,7 @@ optParseAcrossIndepVars = OP.switch (
 
 optParseSpaceTimeScaling :: OP.Parser Double
 optParseSpaceTimeScaling = OP.option OP.auto (
-       OP.long "spaceTimeScale"
+       OP.long "spaceTimeScaling"
     <> OP.metavar "DOUBLE"
     <> OP.helpDoc ( Just (
                       s2d "Space-time scaling factor. All spatial distances will be multiplied by \
@@ -389,6 +389,7 @@ optParseSpaceTimeScaling = OP.option OP.auto (
                           \Only relevant for the spatiotemporal setting. Default: 1"
     <> OH.hardline
     ))
+    <> OP.value 1
     )
 
 optParseAcrossDepVars :: OP.Parser Bool
