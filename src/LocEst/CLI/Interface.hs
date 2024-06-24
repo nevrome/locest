@@ -176,7 +176,7 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 return n
             return (BinByNrBins res)
         parseOneBinMax = do
-            res <- parseRecordType "OneBinMax" $ do
+            res <- parseRecordType "Nugget" $ do
                 maxPerIndepVar <- parseArgument "max" (parseNamedVector parseIndepVarName parseDouble)
                 return $ ValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
