@@ -80,7 +80,7 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
                         then
                             let spaceThreshold  = getThresholdForIndepVar thresholds "space"
                                 timeThreshold   = getThresholdForIndepVar thresholds "time"
-                                mergedThreshold = sqrt (((spaceThreshold * spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
+                                mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
                             in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("indepAll", mergedThreshold)]) indepVarName
                         else binIndepVarForNugget sortedIndepDists thresholds indepVarName
             -- loop over depVars
