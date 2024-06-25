@@ -379,17 +379,18 @@ optParseAcrossIndepVars = OP.switch (
     ))
     )
 
-optParseSpaceTimeScaling :: OP.Parser Double
-optParseSpaceTimeScaling = OP.option OP.auto (
+optParseSpaceTimeScaling :: OP.Parser (Double,Double)
+optParseSpaceTimeScaling = OP.option (OP.eitherReader readSpaceTime) (
        OP.long "spaceTimeScaling"
     <> OP.metavar "DOUBLE"
+    <> OP.metavar "c(space = DOUBLE, time = DOUBLE)"
     <> OP.helpDoc ( Just (
-                      s2d "Space-time scaling factor. All spatial distances will be multiplied by \
-                          \spaceTimeScale before combining the distances as one Euclidean distance. \
-                          \Only relevant for the spatiotemporal setting. Default: 1"
+                      s2d "Space-time scaling factors. All temporal and spatial distances will be divided by \
+                          \the respective factors before combining the distances as one Euclidean distance. \
+                          \Only relevant for the spatiotemporal setting. Default: scaling(space = 1, time = 1)"
     <> OH.hardline
     ))
-    <> OP.value 1
+    <> OP.value (1,1)
     )
 
 optParseAcrossDepVars :: OP.Parser Bool
@@ -526,7 +527,7 @@ optParseSpaceTimeCoreSupplementSettings =
 optParseSpaceTimeMinFilter :: OP.Parser (Double,Double)
 optParseSpaceTimeMinFilter = OP.option (OP.eitherReader readSpaceTime) (
        OP.long    "spaceTimeMinFilter"
-    <> OP.metavar "filter(spatialRadius = DOUBLE, temporalRadius = DOUBLE)"
+    <> OP.metavar "c(space = DOUBLE, time = DOUBLE)"
     <> OP.value (0,0)
     <> OP.helpDoc ( Just (
                       s2d "Spatiotemporal radius filter to reduce the number of observations that \
@@ -538,7 +539,7 @@ optParseSpaceTimeMinFilter = OP.option (OP.eitherReader readSpaceTime) (
 optParseSpaceTimeMaxFilter :: OP.Parser (Double,Double)
 optParseSpaceTimeMaxFilter = OP.option (OP.eitherReader readSpaceTime) (
        OP.long    "spaceTimeMaxFilter"
-    <> OP.metavar "filter(spatialRadius = DOUBLE, temporalRadius = DOUBLE)"
+    <> OP.metavar "c(space = DOUBLE, time = DOUBLE)"
     <> OP.value (infinity,infinity)
     <> OP.helpDoc ( Just (
                       s2d "Spatiotemporal radius filter to reduce the number of observations that \
@@ -556,9 +557,9 @@ readSpaceTime s =
         Right x  -> Right x
 parseSpaceTime :: P.Parser (Double, Double)
 parseSpaceTime = do
-    parseRecordType "filter" $ do
-        a <- parseArgument "spatialRadius" parseDouble
-        b <- parseArgument "temporalRadius" parseDouble
+    parseRecordType "c" $ do
+        a <- parseArgument "space" parseDouble
+        b <- parseArgument "time" parseDouble
         return (a, b)
 
 optParseInSpatDistMapFile :: OP.Parser FilePath

@@ -26,7 +26,7 @@ data VarioOptions = VarioOptions {
       _voInObservationFile :: FilePath
     , _voSpatDistSetting   :: Maybe SpatDistSettings
     , _voInAcrossIndepVars :: Bool
-    , _voSpaceTimeScaling  :: Double
+    , _voSpaceTimeScaling  :: (Double,Double)
     , _voInAcrossDepVars   :: Bool
     , _voOutFile           :: FilePath
     , _voInNrBins          :: BinModeSettings
@@ -43,7 +43,7 @@ data BinModeSettings =
     deriving (Show)
 
 runVario :: VarioOptions -> Int -> IO ()
-runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars spaceTimeScaling acrossDepVars outFile binModeSettings) numThreads = do
+runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,timeScaling) acrossDepVars outFile binModeSettings) numThreads = do
     -- read observations
     observations <- readObservations inObsFile
     -- read spat dist file
@@ -55,7 +55,7 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars spaceTimeScaling 
                 _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
-    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars spaceTimeScaling inSpatDists observations
+    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars (spaceScaling,timeScaling) inSpatDists observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
     !distsPerDepVar   <- calcDepVarPairwiseDistances acrossDepVars observations
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
@@ -80,7 +80,7 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars spaceTimeScaling 
                         then
                             let spaceThreshold  = getThresholdForIndepVar thresholds "space"
                                 timeThreshold   = getThresholdForIndepVar thresholds "time"
-                                mergedThreshold = sqrt ( (timeThreshold ** 2) + ((spaceThreshold * spaceTimeScaling) ** 2) )
+                                mergedThreshold = sqrt (((spaceThreshold * spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
                             in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("indepAll", mergedThreshold)]) indepVarName
                         else binIndepVarForNugget sortedIndepDists thresholds indepVarName
             -- loop over depVars
@@ -164,8 +164,8 @@ makeObsPairs obs =
     in zip [0..] obsPairs
 
 -- distance calculation functions
-calcIndepVarPairwiseDistances :: Bool -> Double -> Maybe SpatDistMatrix -> V.Vector Observation -> IO [(IndepVarName, SUDistMatrix)]
-calcIndepVarPairwiseDistances merge spaceTimeScaling maybeSpatDistMatrix obs = do
+calcIndepVarPairwiseDistances :: Bool -> (Double,Double) -> Maybe SpatDistMatrix -> V.Vector Observation -> IO [(IndepVarName, SUDistMatrix)]
+calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMatrix obs = do
     let obsPairs = makeObsPairs obs
         nrPairs = length obsPairs
         (Observation _ _ (HyperPos indepPos _)) = V.head obs
@@ -182,7 +182,7 @@ calcIndepVarPairwiseDistances merge spaceTimeScaling maybeSpatDistMatrix obs = d
             timeVecNonMut  <- VU.unsafeFreeze timeVec
             return [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
         (IndepSpatTempPos _,True) -> do
-            hPutStrLn stderr $ "Using space-time scaling: " ++ show spaceTimeScaling
+            hPutStrLn stderr $ "Using space-time scaling: space = " ++ show spaceScaling ++ ", time = " ++ show timeScaling
             distVec <- VUM.new nrPairs
             mapM_ (distSpaceTimeMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
@@ -226,7 +226,7 @@ calcIndepVarPairwiseDistances merge spaceTimeScaling maybeSpatDistMatrix obs = d
                 spaceDist = case maybeSpatDistMatrix of
                     Nothing             -> spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
-                mergedDist = sqrt ( (timeDist ** 2) + ((spaceDist * spaceTimeScaling) ** 2) )
+                mergedDist = sqrt (((spaceDist / spaceScaling) ** 2) + ((timeDist / timeScaling) ** 2))
             VUM.write distVec i mergedDist
         distSpaceTimeMerged _ _ = error "impossible state in spatial independent variable distance calculation"
         distArbitrary :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
