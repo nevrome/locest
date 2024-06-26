@@ -88,7 +88,9 @@ runSearch (
         CoreOutObsWeight nrTopObs -> do
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                .| ConAA.asyncMapC numThreads (coreOutObsWeight nrTopObs supplement observations)
+                .| ConC.conduitVector 1000
+                .| ConAA.asyncMapC numThreads (V.map (coreOutObsWeight nrTopObs supplement observations))
+                .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
@@ -111,14 +113,18 @@ runSearch (
                  return (p, rss)
             Con.runConduitRes $
                 ConC.yieldMany randomIts
-                .| ConAA.asyncMapC numThreads (coreOutInterpolSamples variancesPerDepVar supplement observations)
+                .| ConC.conduitVector 1000
+                .| ConAA.asyncMapC numThreads (V.map (coreOutInterpolSamples variancesPerDepVar supplement observations))
+                .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
         CoreOutShort -> do
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                .| ConAA.asyncMapC numThreads (coreNormal CoreOutShort variancesPerDepVar supplement observations)
+                .| ConC.conduitVector 1000
+                .| ConAA.asyncMapC numThreads (V.map (coreNormal CoreOutShort variancesPerDepVar supplement observations))
+                .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| normalize normalization
                 .| sinkNamedCSV outFile
