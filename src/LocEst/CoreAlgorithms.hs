@@ -116,7 +116,7 @@ getDists
     (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
     (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) =
         let keys = getKeys obsArbitraryDimPos
-            obsPos = getValues obsArbitraryDimPos
+            obsPos  = getValues obsArbitraryDimPos
             gridPos = getValues gridAbritryDimPos
             arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
@@ -194,8 +194,7 @@ getWeightOneObsOneDepVar ::
     -> (Observation, IndepVarsDist)
     -> Double
 getWeightOneObsOneDepVar (KernelOneDepVar _ shape nugget lengths) (_,dists) =
-    let sqWeiDist = squaredWeightedDistForOneObs lengths dists
-    in weightForOneObs shape nugget sqWeiDist
+    weightForOneObs shape nugget (squaredWeightedDistForOneObs lengths dists)
     where
         weightForOneObs :: KernelShape -> KernelNugget -> Double -> Double
         weightForOneObs SquaredExponential n d = n / (n + exp d - 1)
@@ -208,7 +207,8 @@ getWeightOneObsOneDepVar (KernelOneDepVar _ shape nugget lengths) (_,dists) =
         squaredWeightedDistForOneObs
             kernLengths
             (IndepArbitraryDimDist namedDists) =
-            let ds = getValues namedDists
-            in foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues kernLengths))
+            let distances = getValues namedDists
+                thetas    = getValues kernLengths
+            in foldSum (zipWith (\d t -> (d / t) ** 2) distances thetas)
         squaredWeightedDistForOneObs _ _ =
             throwL "mismatch of independent variable definitions in weight calculation"
