@@ -20,7 +20,6 @@ import qualified Data.Vector.Unboxed           as VU
 import qualified Data.Vector.Unboxed.Mutable   as VUM
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
-import Data.Maybe (fromJust)
 
 data VarioOptions = VarioOptions {
       _voInObservationFile :: FilePath

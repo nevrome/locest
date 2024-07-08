@@ -338,9 +338,9 @@ instance Csv.ToRecord KernelDefinition where
             oneColSet :: KernelOneDepVar -> Csv.Record
             oneColSet (KernelOneDepVar _ shape nugget lengths) =
                 Csv.record [Csv.toField shape] <> Csv.record [Csv.toField nugget] <> Csv.toRecord lengths
-instance PseudoMap KernelDefinition KernelLengths where
+instance PseudoMap KernelDefinition KernelOneDepVar where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
-    getValues (KernelDefinition l) = map _kodvLengths l
+    getValues (KernelDefinition l) = l
     lookupUnsafe kernDef@(KernelDefinition _) k =
         let kernList = zip (getKeys kernDef) (getValues kernDef)
         in case lookup k kernList of

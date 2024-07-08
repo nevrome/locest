@@ -5,7 +5,7 @@ import           LocEst.Exceptions
 import           LocEst.MathUtils
 import           LocEst.Types
 
-import           Data.List               (find, sortBy)
+import           Data.List               (sortBy)
 import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
@@ -18,7 +18,7 @@ coreOutObsWeight nrTopObs
      depVars observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
-        kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
+        kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
         weights = V.map
             (\obs -> ValuesPerDepVar $ zipWith
                 (\depVar kernelPerDepVar -> (depVar, getWeightOneObsOneDepVar kernelPerDepVar obs))
@@ -36,7 +36,7 @@ coreOutInterpolSamples
      depVars observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
     let dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
-        kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
+        kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
         samplesPerDepVar = map (\(i,r) -> (i, zipWith (getRandomSampleOneDepVar obsWithDistFiltered r depVarVariances) depVars kernelsPerDepVar)) randIterations
     in V.fromList $ map (\(i,s) -> InterpolationSample sett i (ValuesPerDepVar s)) samplesPerDepVar
 
@@ -48,7 +48,7 @@ coreNormal outMode
      depVars observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let dists = V.map (getDists maybeSpatDistMap maybeTempSamples sett) observations
         obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
-        kernelsPerDepVar = map (getKernelForOneDepVar kernelDefinition) depVars
+        kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
         valuePerDepVar = case searchDepVarPos of
             Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
             Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
@@ -132,18 +132,12 @@ inFilterRange
     tempDist <= timeMaxFilter && tempDist >= timeMinFilter
 inFilterRange _ _ _ = True
 
-getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugget, KernelLengths)
-getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
-    case find (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
-        Just (KernelOneDepVar _ s n k) -> (s, n, k)
-        Nothing                        -> throwL $ "dependent variable " ++ depVar ++ " not defined"
-
 getRandomSampleOneDepVar ::
        V.Vector (Observation, IndepVarsDist)
     -> DepVarsRands
     -> DepVarVariances
     -> DepVarName
-    -> (KernelShape, KernelNugget, KernelLengths)
+    -> KernelOneDepVar
     -> (DepVarName, Double)
 getRandomSampleOneDepVar obsWithDist depVarsRands depVarVariances depVar kernelPerDepVar = do
     let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
@@ -161,7 +155,7 @@ interpolAndSearchOneDepVar ::
        V.Vector (Observation, IndepVarsDist)
     -> DepVarVariances
     -> DepVarName
-    -> (KernelShape, KernelNugget, KernelLengths)
+    -> KernelOneDepVar
     -> Maybe Double
     -> InterpolationResultOneDepVar
 interpolAndSearchOneDepVar obsWithDist depVarVariances depVar kernelPerDepVar maybeValueDepVar = do
@@ -196,26 +190,25 @@ getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
 getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarsPos), _) = lookupUnsafe depVarsPos depVar
 
 getWeightOneObsOneDepVar ::
-       (KernelShape, KernelNugget, KernelLengths)
+       KernelOneDepVar
     -> (Observation, IndepVarsDist)
     -> Double
-getWeightOneObsOneDepVar kernelPerDepVar (_,dists) =
-    let (shape,nugget,lengths) = kernelPerDepVar
-        sqWeiDist = squaredWeightedDistForOneObs lengths dists
+getWeightOneObsOneDepVar (KernelOneDepVar _ shape nugget lengths) (_,dists) =
+    let sqWeiDist = squaredWeightedDistForOneObs lengths dists
     in weightForOneObs shape nugget sqWeiDist
     where
         weightForOneObs :: KernelShape -> KernelNugget -> Double -> Double
-        weightForOneObs SquaredExponential nugget d = nugget / (nugget + exp d - 1)
-        weightForOneObs Linear             nugget d = nugget / (nugget + sqrt d)
+        weightForOneObs SquaredExponential n d = n / (n + exp d - 1)
+        weightForOneObs Linear             n d = n / (n + sqrt d)
         squaredWeightedDistForOneObs :: KernelLengths -> IndepVarsDist -> Double
         squaredWeightedDistForOneObs
             (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
             (IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
             (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
         squaredWeightedDistForOneObs
-            lengths
+            kernLengths
             (IndepArbitraryDimDist namedDists) =
             let ds = getValues namedDists
-            in foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues lengths))
+            in foldSum (zipWith (\d t -> (d / t) ** 2) ds (getValues kernLengths))
         squaredWeightedDistForOneObs _ _ =
             throwL "mismatch of independent variable definitions in weight calculation"
