@@ -25,19 +25,25 @@ setNumberOfThreads x = do
 
 progress :: (MonadIO m) => Int -> Maybe Int -> ConduitT i i m ()
 progress reportNum goal = do
-    let goalString = case goal of
-            Nothing -> ""
-            Just x  -> "/" ++ show x
     counterRef <- liftIO $ newIORef (1 :: Int)
     ConC.mapM $ \val -> do
         n <- liftIO $ readIORef counterRef
-        liftIO $ logProgress n goalString
+        liftIO $ logProgress n
         liftIO $ modifyIORef counterRef (+1)
         return val
     where
-        logProgress :: Int -> String -> IO ()
-        logProgress c g
-            | c `rem` reportNum == 0 = hPutStrLn stderr $ "Iterations done: " ++ padLeft 9 (show c) ++ g
+        logProgress :: Int -> IO ()
+        logProgress c
+            | c `rem` reportNum == 0 = do
+                let stringDone = padLeft 9 (show c)
+                    stringGoal = case goal of
+                        Nothing -> ""
+                        Just g  -> do
+                            let division = (fromIntegral c / fromIntegral g) :: Double
+                                percent = (fromInteger (round (division * 1000) :: Integer) / 10.0) :: Double
+                                stringPercent = padLeft 8 (show percent) ++ "%"
+                            "/" ++ show g ++ stringPercent
+                hPutStrLn stderr $ "Iterations done: " ++ stringDone ++ stringGoal
             | otherwise = return ()
 
 padLeft :: Int -> String -> String

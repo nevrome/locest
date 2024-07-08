@@ -136,7 +136,7 @@ getKernelForOneDepVar :: KernelDefinition -> String -> (KernelShape, KernelNugge
 getKernelForOneDepVar (KernelDefinition kernelsPerDepVar) depVar = do
     case find (\(KernelOneDepVar name _ _ _) -> name == depVar) kernelsPerDepVar of
         Just (KernelOneDepVar _ s n k) -> (s, n, k)
-        Nothing                        -> throwL $ "dependent variable " ++ depVar ++ " not defined in --kerndef"
+        Nothing                        -> throwL $ "dependent variable " ++ depVar ++ " not defined"
 
 getRandomSampleOneDepVar ::
        V.Vector (Observation, IndepVarsDist)
