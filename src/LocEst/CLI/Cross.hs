@@ -2,10 +2,11 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings), calculateVariances)
+import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings),
+                                                calculateVariances)
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
-import           LocEst.MathUtils              (foldSum, avg)
+import           LocEst.MathUtils              (avg, foldSum)
 import           LocEst.Parsers
 import           LocEst.Types
 

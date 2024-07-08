@@ -17,10 +17,10 @@ import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import           Data.Maybe                    (catMaybes)
 import qualified Data.Vector                   as V
+import qualified Data.Vector.Unboxed           as VU
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
-import System.Random.Stateful as R
-import qualified Data.Vector.Unboxed     as VU
+import           System.Random.Stateful        as R
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath

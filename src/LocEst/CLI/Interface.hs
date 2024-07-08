@@ -1,6 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 
 module LocEst.CLI.Interface where
 
@@ -12,14 +12,14 @@ import           LocEst.CLI.Vario
 import           LocEst.Exceptions
 import           LocEst.Types
 
-import           Data.Char             (isSpace, toLower)
-import           Data.List             (groupBy, singleton)
-import qualified Options.Applicative   as OP
-import qualified Text.Parsec           as P
-import qualified Text.Parsec.String    as P
-import           Text.Read             (readMaybe)
-import qualified Options.Applicative.Help     as OH
-import LocEst.MathUtils (infinity)
+import           Data.Char                (isSpace, toLower)
+import           Data.List                (groupBy, singleton)
+import           LocEst.MathUtils         (infinity)
+import qualified Options.Applicative      as OP
+import qualified Options.Applicative.Help as OH
+import qualified Text.Parsec              as P
+import qualified Text.Parsec.String       as P
+import           Text.Read                (readMaybe)
 
 -- helper functions for optparse applicative help text
 
@@ -154,7 +154,7 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "> [bin]: center point of each independent variable bin"
     <> OH.hardline <> s2d "> [semivariance]: semivariance calculated for the dependent variable \
                           \based on all observations in the respective bin"
-    <> OH.hardline 
+    <> OH.hardline
     <> OH.hardline <> s2d "EqualSize(n): Bins the observations into n bins with an equal amount of \
                           \observations."
     <> OH.hardline <> s2d "OneBinMax(max = c(indepV1=DOUBLE,indepV2=DOUBLE,...): Only create one bin \
@@ -206,7 +206,7 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "│        │ ...   ├─────────┬────────┤ nugget for each"
     <> OH.hardline <>     "│        │       │ space   │ length │ dependent variable;"
     <> OH.hardline <>     "│        │       │ time OR │        │ lengthscale"
-    <> OH.hardline <>     "│        │       │ indepV1 │        │ parameters for" 
+    <> OH.hardline <>     "│        │       │ indepV1 │        │ parameters for"
     <> OH.hardline <>     "│        │       │ indepV2 │        │ each dependent and"
     <> OH.hardline <>     "│        │       │ ...     │        │ independent one"
     <> OH.hardline <>     "└────────┴───────┴─────────┴────────┘"
@@ -216,7 +216,7 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "│mean_squared_dep_dist_euclidean    │ likelihood of test"
     <> OH.hardline <>     "│sum_log_likelihood                 │"
     <> OH.hardline <>     "└───────────────────────────────────┘"
-    <> OH.hardline 
+    <> OH.hardline
     <> OH.hardline <> s2d "With Obs the output is as --outMode Full for the search subcommand \
                           \where the search observations (--searchObsFile) are set as the test fraction \
                           \of the crossvalidation data split. Here each iteration is given separately."
@@ -264,7 +264,7 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "│        │ ...   ├─────────┬────────┤ nugget for each"
     <> OH.hardline <>     "│        │       │ space   │ length │ dependent variable;"
     <> OH.hardline <>     "│        │       │ time OR │        │ lengthscale"
-    <> OH.hardline <>     "│        │       │ indepV1 │        │ parameters for" 
+    <> OH.hardline <>     "│        │       │ indepV1 │        │ parameters for"
     <> OH.hardline <>     "│        │       │ indepV2 │        │ each dependent and"
     <> OH.hardline <>     "│        │       │ ...     │        │ independent one"
     <> OH.hardline <>     "└────────┴───────┴─────────┴────────┘"
@@ -292,7 +292,7 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "* for the search case                "
     <> OH.hardline <> s2d "+ with --outMode Short only these interpol_... variables are returned"
     <> OH.hardline <>     "% when normalisation is active       "
-    <> OH.hardline 
+    <> OH.hardline
     <> OH.hardline <> s2d "With Obs(n) the n input observations with the heighest weight for the \
                           \prediction grid point (summed across dependent variables) are returned. \
                           \In this case the sections Interpolation output and Search results are \
@@ -318,7 +318,7 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
             parseRecordType "Samples" $ do
                 n <- parseArgument "n" parseInt
                 s <- parseArgumentOptional "seed" parseInt
-                r <- parseArgumentOptional "range" parseSamplingRange 
+                r <- parseArgumentOptional "range" parseSamplingRange
                 return $ CoreOutInterpolSamples n s r
         parseSamplingRange = P.try parseOneSigma P.<|> P.try parseTwoSigma P.<|> parseFullDistribution
         parseOneSigma = P.string "1sigma" >> return OneSigma
@@ -549,7 +549,7 @@ optParseSpaceTimeMaxFilter = OP.option (OP.eitherReader readSpaceTime) (
     <> OH.hardline
     ))
     )
-    
+
 readSpaceTime :: String -> Either String (Double, Double)
 readSpaceTime s =
     case P.runParser parseSpaceTime () "" s of

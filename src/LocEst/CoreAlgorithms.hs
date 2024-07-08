@@ -28,7 +28,7 @@ coreOutObsWeight nrTopObs
         obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
         obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
     in V.map (ObsWeight sett) obsWithWeightsSubset
-    
+
 -- random interpolation sampling application
 coreOutInterpolSamples :: DepVarVariances -> CoreSupplement -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)]) -> V.Vector InterpolationSample
 coreOutInterpolSamples

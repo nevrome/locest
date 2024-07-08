@@ -6,8 +6,8 @@
 
 module LocEst.Types where
 
+import           LocEst.Exceptions     (throwL)
 import           LocEst.MathUtils
-import LocEst.Exceptions (throwL)
 
 import qualified Codec.Serialise       as S
 import           Control.Applicative   (empty, (<|>))
@@ -88,8 +88,8 @@ data EmpiricalVariogramOneVarCombination = EmpiricalVariogramOneVarCombination I
 
 data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin {
     _evIndepVar :: IndepVarName,
-    _evDepVar :: DepVarName,
-    _evBin :: (Double,Double,Double),
+    _evDepVar   :: DepVarName,
+    _evBin      :: (Double,Double,Double),
     _evVariance :: Double
     }
     deriving Show
@@ -240,12 +240,12 @@ instance Csv.ToRecord SearchLikelihood where
 -- | A data type for the independent variable space prediction grid
 data IndepVarsPredGrid =
     SpaceTimeGrid {
-      _stGridSpatPos         :: V.Vector SpatPos
-    , _stGridTempPos         :: [AbsRelTempPos]
+      _stGridSpatPos            :: V.Vector SpatPos
+    , _stGridTempPos            :: [AbsRelTempPos]
     , _stGridSpaceTimeMinFilter :: (Double, Double)
     , _stGridSpaceTimeMaxFilter :: (Double, Double)
-    , _stGridSpatDist        :: Maybe SpatDistMatrix
-    , _stGridTempSamples     :: Maybe TempSampleMatrix
+    , _stGridSpatDist           :: Maybe SpatDistMatrix
+    , _stGridTempSamples        :: Maybe TempSampleMatrix
     } |
     ArbitraryDimGrid {
       _adGridPos  :: V.Vector ArbitraryDimPos
@@ -255,8 +255,8 @@ data IndepVarsPredGrid =
 data CoreSupplement = CoreSupplement {
       _csSpaceTimeMinFilter :: (Double, Double)
     , _csSpaceTimeMaxFilter :: (Double, Double)
-    , _csSpatDist        :: Maybe SpatDistMatrix
-    , _csTempSamp        :: Maybe TempSampleMatrix
+    , _csSpatDist           :: Maybe SpatDistMatrix
+    , _csTempSamp           :: Maybe TempSampleMatrix
 }
 
 -- | A data type with core-algorithm settings (for one run of the core algorithm)
