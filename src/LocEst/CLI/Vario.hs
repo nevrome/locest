@@ -21,6 +21,7 @@ import qualified Data.Vector.Unboxed           as VU
 import qualified Data.Vector.Unboxed.Mutable   as VUM
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
+import Data.Maybe (fromJust)
 
 data VarioOptions = VarioOptions {
       _voInObservationFile :: FilePath
@@ -64,6 +65,18 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
         -- loop over indepVars
         forM distsPerIndepVar $ \(indepVarName, SUDistMatrix indepDists) -> do
             hPutStrLn stderr ("Working on " ++ indepVarName)
+            -- cross-filtering
+            -- hacky solution for testing
+            --let indepDistsFiltered = case indepVarName of
+            --        "space" -> 
+            --            let (SUDistMatrix timeDists) = fromJust $ lookup "time" distsPerIndepVar
+            --                inRange = VU.map (<1000) timeDists
+            --            in VU.map snd $ VU.filter fst $ VU.zip inRange indepDists
+            --        "time" -> 
+            --            let (SUDistMatrix spaceDists) = fromJust $ lookup "space" distsPerIndepVar
+            --                inRange = VU.map (<1000) spaceDists
+            --            in VU.map snd $ VU.filter fst $ VU.zip inRange indepDists
+            --        _ -> indepDists
             -- remove dists that are not to be binned
             let minDist = VU.minimum indepDists
                 maxDist = VU.maximum indepDists
