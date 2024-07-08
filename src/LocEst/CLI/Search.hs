@@ -9,7 +9,6 @@ import           LocEst.MathUtils
 import           LocEst.Parsers
 import           LocEst.Types
 
-import qualified Control.Monad                 as OP
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
@@ -74,8 +73,8 @@ runSearch (
         variancesPerDepVar = calculateVariances depVarsFromAlg observations
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
-    indepVarsPredGrid <- readIndepVarsPredGrid kernelDefinition observations indepVarsPredGridSettings
-    depVarsPredGrid   <- traverse (readDepVarsPredGrid kernelDefinition observations) depVarsPredGridSettings
+    indepVarsPredGrid <- readIndepVarsPredGrid observations indepVarsPredGridSettings
+    depVarsPredGrid   <- traverse readDepVarsPredGrid depVarsPredGridSettings
     let supplement = createCoreSupplement indepVarsPredGrid
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
@@ -152,14 +151,9 @@ calculateVariances depVars obs =
             let nrSamples = fromIntegral $ VU.length values
             in (depVar, varSample_ nrSamples values)
 
-readIndepVarsPredGrid ::
-       KernelDefinition
-    -> V.Vector Observation
-    -> IndepVarsPredGridSettings
-    -> IO IndepVarsPredGrid
+readIndepVarsPredGrid :: V.Vector Observation -> IndepVarsPredGridSettings -> IO IndepVarsPredGrid
 -- spatiotemporal case
 readIndepVarsPredGrid
-    (KernelDefinition kernelsPerDepVars)
     observations
     (SpaceTimeGridSettings
         inSpatGridFile
@@ -187,81 +181,25 @@ readIndepVarsPredGrid
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
             _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
-    -- validation obsFile
-    case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
-            IndepSpatTempPos _     -> return ()
-            IndepArbitraryDimPos _ ->
-                throwLIO "spatiotemporal positions in --obsFile not readable"
-    -- validation kernelDefinition
-    let indepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
-    OP.unless (head indepVarsFromAlg == ["space", "time"]) $
-        throwLIO "independent variable names in --kerndef not equal to \"space\" and \"time\""
-    OP.unless (allEqual indepVarsFromAlg) $
-        throwLIO "independent variable names in --kerndef not all equal across kernel \
-                 \definitions for all dependent variables"
     -- return grid
     return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeMinFilter inSpaceTimeMaxFilter inSpatDists inObsTempSamples
 -- arbitrary dimension case
 readIndepVarsPredGrid
-    (KernelDefinition kernelsPerDepVars)
-    observations
+    _
     (ArbitraryDimGridSettings inArbitraryDimGridFile) = do
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     -- read arbitrary-dimension grid
     inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
-    -- validation obsFile
-    let indepVarsFromObs = case (_hyposIndepVarsPos . _obsPos) $ V.head observations of
-            IndepSpatTempPos _     -> []
-            IndepArbitraryDimPos x -> getKeys x
-    let indepVarsFromGrid = getKeys $ V.head inArbitraryDimPos
-    OP.when (indepVarsFromObs /= indepVarsFromGrid) $ do
-        throwLIO "independent variable names in --obsFile and --anyGridFile not equal"
-    -- validation kernelDefinition
-    let indepVarsFromAlg = map (getKeys . _kodvLengths) kernelsPerDepVars
-    OP.unless (head indepVarsFromAlg == indepVarsFromGrid) $
-        throwLIO "independent variable names in --kerndef and --anyGridFile not equal"
-    OP.unless (allEqual indepVarsFromAlg) $
-        throwLIO "independent variable names in --kerndef not all equal across kernel \
-                 \definitions for all dependent variables"
     -- return grid
     return $ ArbitraryDimGrid inArbitraryDimPos
 
-readDepVarsPredGrid ::
-       KernelDefinition
-    -> V.Vector Observation
-    -> DepVarsPredGridSettings
-    -> IO DepVarsPredGrid
-readDepVarsPredGrid
-    kernelDefinition
-    observations
-    (DirectDepVarsGridSettings depVarsPos) = do
-    -- get search positions
-    let depVarsFromGrid = getKeys $ head depVarsPos
-    -- validation obsFile
-    let depVarsFromObs = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
-    OP.when (depVarsFromObs /= depVarsFromGrid) $ do
-        throwLIO "dependent variable names in --obsFile and --searchDepVarsPos not equal"
-    -- validation kernelDefinition
-    let depVarsFromAlg = getKeys kernelDefinition
-    OP.unless (depVarsFromAlg == depVarsFromGrid) $
-        throwLIO "dependent variable names in --kerndef and --searchDepVarsPos not equal"
+readDepVarsPredGrid :: DepVarsPredGridSettings -> IO DepVarsPredGrid
+readDepVarsPredGrid (DirectDepVarsGridSettings depVarsPos) = do
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPos
-readDepVarsPredGrid
-    kernelDefinition
-    observations
-    (SearchObsDepVarsGridSettings path) = do
+readDepVarsPredGrid (SearchObsDepVarsGridSettings path) = do
     -- read search observations
     searchObservations <- V.toList <$> readObservations path
-    let depVarsFromGrid = getKeys $ (_hyposDepVarsPos . _obsPos) $ head searchObservations
-    -- validation obsFile
-    let depVarsFromObs = getKeys $ (_hyposDepVarsPos . _obsPos) $ V.head observations
-    OP.when (depVarsFromObs /= depVarsFromGrid) $ do
-        throwLIO "dependent variable names in --obsFile and --searchObsFile not equal"
-    -- validation kernelDefinition
-    let depVarsFromAlg = getKeys kernelDefinition
-    OP.unless (depVarsFromAlg == depVarsFromGrid) $
-        throwLIO  "dependent variable names in --kerndef and --searchObsFile not equal"
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 
