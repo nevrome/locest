@@ -86,12 +86,12 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
-                variancesPerBin <- Con.runConduitRes $
+                semivariancesPerBin <- Con.runConduitRes $
                         ConC.yieldMany startStopPerBin
                         .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
                         .| ConC.sinkList
                 hPutStrLn stderr ("-> " ++ depVarName)
-                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
+                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outFile
 
@@ -113,8 +113,8 @@ perBin sortedIndepDists depDists (minMidMax, startSorted, stopSorted) =
     let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
         depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
         -- calculate variance per bin
-        variance = calcMeanSquared depDistsPerBin
-    in (minMidMax, variance)
+        semivariance = calcHalfMeanSquared depDistsPerBin
+    in (minMidMax, semivariance)
 
 -- perform binning of an indepVar
 binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [((Double, Double, Double), Int, Int)]
@@ -142,10 +142,11 @@ binMinMidMax sortedVec start stop =
     in (lo,(lo+hi)/2,hi)
 
 -- mean squared distance within one bin
-calcMeanSquared :: VU.Vector Double -> Double
-calcMeanSquared dists =
+-- matheron estimator
+calcHalfMeanSquared :: VU.Vector Double -> Double
+calcHalfMeanSquared dists =
     let n = fromIntegral $ VU.length dists
-    in (1 / n) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
+    in (1 / (2*n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
 
 sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
 sortWithIndices v = do
