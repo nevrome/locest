@@ -4,10 +4,10 @@ import           LocEst.CLI.Cross     (CrossOptions (..), runCross)
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise (SerialiseOptions (..), runSerialise)
+import           LocEst.CLI.Utils     (setNumberOfThreads)
 import           LocEst.CLI.Vario     (VarioOptions (..), runVario)
 import           LocEst.Exceptions
-import LocEst.Types (NumberOfThreads)
-import LocEst.CLI.Utils (setNumberOfThreads)
+import           LocEst.Types         (NumberOfThreads)
 
 import           Control.Exception    (catch)
 import           Data.List            (isInfixOf)
@@ -21,7 +21,7 @@ import           System.IO            (hPutStrLn, stderr)
 -- data types
 data Options = Options {
     _subcommand :: Subcommand,
-    _threads :: NumberOfThreads
+    _threads    :: NumberOfThreads
     }
 
 

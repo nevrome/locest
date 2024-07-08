@@ -6,6 +6,7 @@
 
 module LocEst.Types where
 
+import           LocEst.Exceptions     (throwL)
 import           LocEst.MathUtils
 
 import qualified Codec.Serialise       as S
@@ -26,6 +27,7 @@ import           GHC.Generics          (Generic)
 class PseudoMap a b | a -> b where
     getKeys :: a -> [String]
     getValues :: a -> [b]
+    lookupUnsafe :: a -> String -> b
 
 -- a typeclass for data types with ids
 class Identifiable a where
@@ -86,8 +88,8 @@ data EmpiricalVariogramOneVarCombination = EmpiricalVariogramOneVarCombination I
 
 data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin {
     _evIndepVar :: IndepVarName,
-    _evDepVar :: DepVarName,
-    _evBin :: (Double,Double,Double),
+    _evDepVar   :: DepVarName,
+    _evBin      :: (Double,Double,Double),
     _evVariance :: Double
     }
     deriving Show
@@ -238,12 +240,12 @@ instance Csv.ToRecord SearchLikelihood where
 -- | A data type for the independent variable space prediction grid
 data IndepVarsPredGrid =
     SpaceTimeGrid {
-      _stGridSpatPos         :: V.Vector SpatPos
-    , _stGridTempPos         :: [AbsRelTempPos]
+      _stGridSpatPos            :: V.Vector SpatPos
+    , _stGridTempPos            :: [AbsRelTempPos]
     , _stGridSpaceTimeMinFilter :: (Double, Double)
     , _stGridSpaceTimeMaxFilter :: (Double, Double)
-    , _stGridSpatDist        :: Maybe SpatDistMatrix
-    , _stGridTempSamples     :: Maybe TempSampleMatrix
+    , _stGridSpatDist           :: Maybe SpatDistMatrix
+    , _stGridTempSamples        :: Maybe TempSampleMatrix
     } |
     ArbitraryDimGrid {
       _adGridPos  :: V.Vector ArbitraryDimPos
@@ -253,8 +255,8 @@ data IndepVarsPredGrid =
 data CoreSupplement = CoreSupplement {
       _csSpaceTimeMinFilter :: (Double, Double)
     , _csSpaceTimeMaxFilter :: (Double, Double)
-    , _csSpatDist        :: Maybe SpatDistMatrix
-    , _csTempSamp        :: Maybe TempSampleMatrix
+    , _csSpatDist           :: Maybe SpatDistMatrix
+    , _csTempSamp           :: Maybe TempSampleMatrix
 }
 
 -- | A data type with core-algorithm settings (for one run of the core algorithm)
@@ -339,6 +341,11 @@ instance Csv.ToRecord KernelDefinition where
 instance PseudoMap KernelDefinition KernelLengths where
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = map _kodvLengths l
+    lookupUnsafe kernDef@(KernelDefinition _) k =
+        let kernList = zip (getKeys kernDef) (getValues kernDef)
+        in case lookup k kernList of
+            Just x  -> x
+            Nothing -> throwL $ "Failed lookup. Kernel definition must be incomplete. Missing key: " ++ k
 
 -- | A data type for a component of a kernel definition for one depvar
 data KernelOneDepVar = KernelOneDepVar {
@@ -388,6 +395,7 @@ instance Csv.ToRecord KernelLengths where
 instance PseudoMap KernelLengths Double where
     getKeys   (KernelLengths arbitraryDimLengths) = getKeys arbitraryDimLengths
     getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
+    lookupUnsafe (KernelLengths arbitraryDimLengths) k = lookupUnsafe arbitraryDimLengths k
 
 -- | A data type for kernel shapes
 data KernelShape =
@@ -600,6 +608,10 @@ instance Csv.ToRecord ValuesPerDepVar where
 instance PseudoMap ValuesPerDepVar Double where
     getKeys (ValuesPerDepVar l) = map fst l
     getValues (ValuesPerDepVar l) = map snd l
+    lookupUnsafe (ValuesPerDepVar l) k =
+        case lookup k l of
+            Just x  -> x
+            Nothing -> throwL $ "Failed lookup. Some input must be incomplete. Missing key: " ++ k
 
 -- | A data type for independent vars with some value
 type ArbitraryDimPos = ValuesPerIndepVar
@@ -625,6 +637,10 @@ instance Csv.ToRecord ValuesPerIndepVar where
 instance PseudoMap ValuesPerIndepVar Double where
     getKeys (ValuesPerIndepVar l) = map fst l
     getValues (ValuesPerIndepVar l) = map snd l
+    lookupUnsafe (ValuesPerIndepVar l) k =
+        case lookup k l of
+            Just x  -> x
+            Nothing -> throwL $ "Failed lookup. Some input must be incomplete. Missing key: " ++ k
 
 -- A data type for positions independent variable space, so here either a spatiotemporal or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos

@@ -6,7 +6,6 @@ import           LocEst.CLI.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
-import LocEst.Exceptions
 
 import           Conduit                       ((.|))
 import           Control.Monad                 (replicateM, zipWithM_)
@@ -91,27 +90,22 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
                     BinForNugget thresholds ->
                         if acrossIndepVars && (sort (getKeys thresholds) == ["space", "time"])
                         then
-                            let spaceThreshold  = getThresholdForIndepVar thresholds "space"
-                                timeThreshold   = getThresholdForIndepVar thresholds "time"
+                            let spaceThreshold  = lookupUnsafe thresholds "space"
+                                timeThreshold   = lookupUnsafe thresholds "time"
                                 mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
                             in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("indepAll", mergedThreshold)]) indepVarName
                         else binIndepVarForNugget sortedIndepDists thresholds indepVarName
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
-                variancesPerBin <- Con.runConduitRes $
+                semivariancesPerBin <- Con.runConduitRes $
                         ConC.yieldMany startStopPerBin
                         .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
                         .| ConC.sinkList
                 hPutStrLn stderr ("-> " ++ depVarName)
-                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
+                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outFile
-
-getThresholdForIndepVar :: ArbitraryDimPos -> IndepVarName -> Double
-getThresholdForIndepVar (ValuesPerIndepVar m) indepVar = case lookup indepVar m of
-        Just x  -> x
-        Nothing -> throwL $ "Independent variable " ++ indepVar ++ " not specified"
 
 -- write variograms to the file system
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> FilePath -> IO ()
@@ -126,15 +120,13 @@ perBin sortedIndepDists depDists (minMidMax, startSorted, stopSorted) =
     let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
         depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
         -- calculate variance per bin
-        variance = calcMeanSquared depDistsPerBin
-    in (minMidMax, variance)
+        semivariance = calcHalfMeanSquared depDistsPerBin
+    in (minMidMax, semivariance)
 
 -- perform binning of an indepVar
 binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [((Double, Double, Double), Int, Int)]
-binIndepVarForNugget sortedVec (ValuesPerIndepVar m) indepVarName =
-    let threshold = case lookup indepVarName m of
-            Nothing -> throwL $ "Independent variable " ++ indepVarName ++ " not defined in --outMode"
-            Just x  -> x
+binIndepVarForNugget sortedVec thresholds indepVarName =
+    let threshold = lookupUnsafe thresholds indepVarName
         stop = case VU.findIndexR (\(_,x) -> x <= threshold) sortedVec of
             Nothing -> VU.length sortedVec - 1
             Just i  -> i
@@ -155,10 +147,11 @@ binMinMidMax sortedVec start stop =
     in (lo,(lo+hi)/2,hi)
 
 -- mean squared distance within one bin
-calcMeanSquared :: VU.Vector Double -> Double
-calcMeanSquared dists =
+-- matheron estimator
+calcHalfMeanSquared :: VU.Vector Double -> Double
+calcHalfMeanSquared dists =
     let n = fromIntegral $ VU.length dists
-    in (1 / n) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
+    in (1 / (2*n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
 
 sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
 sortWithIndices v = do
