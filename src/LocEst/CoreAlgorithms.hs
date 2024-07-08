@@ -148,13 +148,11 @@ getRandomSampleOneDepVar ::
     -> DepVarName
     -> (KernelShape, KernelNugget, KernelLengths)
     -> (DepVarName, Double)
-getRandomSampleOneDepVar obsWithDist (ValuesPerDepVar depVarsRands) depVarVariances depVar kernelPerDepVar = do
+getRandomSampleOneDepVar obsWithDist depVarsRands depVarVariances depVar kernelPerDepVar = do
     let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
         weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelPerDepVar) obsWithDist
-        random01 = case lookup depVar depVarsRands of
-            Just x  -> x
-            Nothing -> throwL $ "no random number for dependent variable " ++ depVar
-        sampleVariance = getVarianceForOneDepVar depVarVariances depVar
+        random01 = lookupUnsafe depVarsRands depVar
+        sampleVariance = lookupUnsafe depVarVariances depVar
         totalWeight = VU.sum weights
         weightedA   = weightedAvg_ totalWeight values weights
         weightedV   = weightedVar_ sampleVariance totalWeight weightedA values weights
@@ -172,7 +170,7 @@ interpolAndSearchOneDepVar ::
 interpolAndSearchOneDepVar obsWithDist depVarVariances depVar kernelPerDepVar maybeValueDepVar = do
     let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
         weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelPerDepVar) obsWithDist
-        sampleVariance = getVarianceForOneDepVar depVarVariances depVar
+        sampleVariance = lookupUnsafe depVarVariances depVar
         totalWeight = VU.sum weights
         neff        = totalWeight
         weightedA   = weightedAvg_ totalWeight values weights
@@ -198,16 +196,7 @@ interpolAndSearchOneDepVar obsWithDist depVarVariances depVar kernelPerDepVar ma
                         (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
 getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
-getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ (ValuesPerDepVar m)), _) =
-    case lookup depVar m of
-        Just x  -> x
-        Nothing -> throwL $ "dependent variable " ++ depVar ++ " not defined in --obsFile"
-
-getVarianceForOneDepVar :: DepVarVariances -> DepVarName -> Double
-getVarianceForOneDepVar (ValuesPerDepVar m) depVar =
-    case lookup depVar m of
-        Just x  -> x
-        Nothing -> throwL $ "dependent variable " ++ depVar ++ " not defined in --obsFile"
+getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarsPos), _) = lookupUnsafe depVarsPos depVar
 
 getWeightOneObsOneDepVar ::
        (KernelShape, KernelNugget, KernelLengths)

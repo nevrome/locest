@@ -146,10 +146,7 @@ calculateVariances depVars obs =
     in ValuesPerDepVar $ map calculateVariance valuesPerDepVar
     where
         getValueOneBasicObsOneDepVar :: DepVarName -> Observation -> Double
-        getValueOneBasicObsOneDepVar depVar (Observation _ _ (HyperPos _ (ValuesPerDepVar m))) =
-            case lookup depVar m of
-                Just x  -> x
-                Nothing -> throwL $ "dependent variable " ++ depVar ++ " not defined in --obsFile"
+        getValueOneBasicObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarPos)) = lookupUnsafe depVarPos depVar
         calculateVariance :: (DepVarName, VU.Vector Double) -> (DepVarName, Double)
         calculateVariance (depVar,values) =
             let nrSamples = fromIntegral $ VU.length values

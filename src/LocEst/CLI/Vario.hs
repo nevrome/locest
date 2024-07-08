@@ -6,7 +6,6 @@ import           LocEst.CLI.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
-import LocEst.Exceptions
 
 import           Conduit                       ((.|))
 import           Control.Monad                 (replicateM, zipWithM_)
@@ -78,8 +77,8 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
                     BinForNugget thresholds ->
                         if acrossIndepVars && (sort (getKeys thresholds) == ["space", "time"])
                         then
-                            let spaceThreshold  = getThresholdForIndepVar thresholds "space"
-                                timeThreshold   = getThresholdForIndepVar thresholds "time"
+                            let spaceThreshold  = lookupUnsafe thresholds "space"
+                                timeThreshold   = lookupUnsafe thresholds "time"
                                 mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
                             in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("indepAll", mergedThreshold)]) indepVarName
                         else binIndepVarForNugget sortedIndepDists thresholds indepVarName
@@ -94,11 +93,6 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
                 return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outFile
-
-getThresholdForIndepVar :: ArbitraryDimPos -> IndepVarName -> Double
-getThresholdForIndepVar (ValuesPerIndepVar m) indepVar = case lookup indepVar m of
-        Just x  -> x
-        Nothing -> throwL $ "Independent variable " ++ indepVar ++ " not specified"
 
 -- write variograms to the file system
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> FilePath -> IO ()
@@ -118,10 +112,8 @@ perBin sortedIndepDists depDists (minMidMax, startSorted, stopSorted) =
 
 -- perform binning of an indepVar
 binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [((Double, Double, Double), Int, Int)]
-binIndepVarForNugget sortedVec (ValuesPerIndepVar m) indepVarName =
-    let threshold = case lookup indepVarName m of
-            Nothing -> throwL $ "Independent variable " ++ indepVarName ++ " not defined in --outMode"
-            Just x  -> x
+binIndepVarForNugget sortedVec thresholds indepVarName =
+    let threshold = lookupUnsafe thresholds indepVarName
         stop = case VU.findIndexR (\(_,x) -> x <= threshold) sortedVec of
             Nothing -> VU.length sortedVec - 1
             Just i  -> i
