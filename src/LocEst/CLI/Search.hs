@@ -65,12 +65,13 @@ runSearch (
         outFile
         outMode
     ) numThreads = do
+    -- list of dependent variables
+    let depVars = getKeys kernelDefinition
     -- read observations
     observations <- readObservations inObsFile
     -- variance
     hPutStrLn stderr "Calculating total variances"
-    let depVarsFromAlg = getKeys kernelDefinition
-        variancesPerDepVar = calculateVariances depVarsFromAlg observations
+    let variancesPerDepVar = calculateVariances depVars observations
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
     indepVarsPredGrid <- readIndepVarsPredGrid observations indepVarsPredGridSettings
@@ -88,7 +89,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreOutObsWeight nrTopObs supplement observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreOutObsWeight nrTopObs supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
@@ -104,7 +105,7 @@ runSearch (
                     Just seed -> newIOGenM $ mkStdGen seed
             randomIts <- forM permutations $ \p -> do
                  rss <- forM  [0..nrRandomIts-1] $ \i -> do
-                    rs <- forM depVarsFromAlg $ \d -> do
+                    rs <- forM depVars $ \d -> do
                             -- r <- R.uniformDouble01M rng
                             r <- R.uniformRM range rng
                             return (d, r)
@@ -113,7 +114,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany randomIts
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreOutInterpolSamples variancesPerDepVar supplement observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreOutInterpolSamples variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
@@ -122,7 +123,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal CoreOutShort variancesPerDepVar supplement observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreNormal CoreOutShort variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| normalize normalization
@@ -132,7 +133,7 @@ runSearch (
                 ConC.yieldMany permutations
                 -- .| ConAA.asyncMapC numThreads (coreNormal CoreOutFull variancesPerDepVar supplement observations)
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal CoreOutFull variancesPerDepVar supplement observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreNormal CoreOutFull variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| normalize normalization
