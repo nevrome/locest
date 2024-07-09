@@ -40,10 +40,7 @@ class Identifiable a where
 
 -- general helper functions
 reorderAndFilterList :: Eq a => [(String,a)] -> [String] -> [(String,a)]
-reorderAndFilterList m keys = [
-    maybe (throwL $ "Failed lookup. Missing key: " ++ k) (k,) $ lookup k m
-    | k <- keys
-    ]
+reorderAndFilterList m keys = [ maybe (throwL $ "Failed lookup. Missing key: " ++ k) (k,) $ lookup k m | k <- keys ]
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
@@ -368,7 +365,7 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
         let kernList = zip (getKeys kernDef) (getValues kernDef)
         in case lookup k kernList of
             Just x  -> x
-            Nothing -> throwL $ "Failed lookup. Kernel definition is incomplete. Missing key: " ++ k
+            Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map (\(KernelDefinition l) -> l) xs
     reorderAndFilter kernDef@(KernelDefinition _) k =
         let kernList = zip (getKeys kernDef) (getValues kernDef)
@@ -641,7 +638,7 @@ instance PseudoMap ValuesPerDepVar Double where
     lookupUnsafe (ValuesPerDepVar l) k =
         case lookup k l of
             Just x  -> x
-            Nothing -> throwL $ "Failed lookup. Some input is incomplete. Missing key: " ++ k
+            Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
     reorderAndFilter (ValuesPerDepVar l) k = ValuesPerDepVar (reorderAndFilterList l k)
 
@@ -672,7 +669,7 @@ instance PseudoMap ValuesPerIndepVar Double where
     lookupUnsafe (ValuesPerIndepVar l) k =
         case lookup k l of
             Just x  -> x
-            Nothing -> throwL $ "Failed lookup. Some input is incomplete. Missing key: " ++ k
+            Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
     reorderAndFilter (ValuesPerIndepVar l) k = ValuesPerIndepVar (reorderAndFilterList l k)
 
