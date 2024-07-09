@@ -156,26 +156,24 @@ readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path) = do
 
 -- simpler parsers without additional file requirements
 
-
-
-readObservations :: [String] -> [String] -> FilePath -> IO (V.Vector Observation)
-readObservations depVarsWanted indepVarsWanted path = do
+readObservations :: FilePath -> IO (V.Vector Observation)
+readObservations path = do
     hPutStrLn stderr "Reading observations"
     res <- readToVector path
     let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)
-        resAdjust = V.map reorderAndFilterObsVars resWithID
-    return resAdjust
+    return resWithID
+reorderVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
+reorderVarsInObs depVarsWanted indepVarsWanted obs =
+        V.map reorderAndFilterObsVars obs
     where
         reorderAndFilterObsVars :: Observation -> Observation
-        reorderAndFilterObsVars obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs)) =
+        reorderAndFilterObsVars o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs)) =
             let depRes   = reorderAndFilter depInObs depVarsWanted
                 indepRes = reorderAndFilter indepInObs indepVarsWanted
-            in obs {
-                 _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes
-               }
+            in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
         -- for the spatial case this is not necessary, because the spatial coordinates are modelled
         -- as a proper type anyway
-        reorderAndFilterObsVars obs = obs
+        reorderAndFilterObsVars o = o
 
 readArbitraryDimPos :: FilePath -> IO (V.Vector ArbitraryDimPos)
 readArbitraryDimPos path = do

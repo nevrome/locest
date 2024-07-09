@@ -69,7 +69,8 @@ runSearch (
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     -- read observations
-    observations <- readObservations depVars indepVars inObsFile
+    observationsRaw <- readObservations inObsFile
+    let observations = reorderVarsInObs depVars indepVars observationsRaw
     -- variance
     hPutStrLn stderr "Calculating total variances"
     let variancesPerDepVar = calculateVariances depVars observations
@@ -201,7 +202,9 @@ readDepVarsPredGrid _ _ (DirectDepVarsGridSettings depVarsPos) = do
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPos
 readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     -- read search observations
-    searchObservations <- V.toList <$> readObservations depVars indepVars path
+    obsVec <- readObservations path
+    let obsVecReordered = reorderVarsInObs depVars indepVars obsVec
+        searchObservations = V.toList obsVecReordered
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 

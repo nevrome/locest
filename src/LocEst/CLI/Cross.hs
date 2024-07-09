@@ -54,7 +54,8 @@ runCross (
     let depVars   = getKeys $ head $ kernDefs
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
     -- read observations
-    observations <- readObservations depVars indepVars inObsFile
+    observationsRaw <- readObservations inObsFile
+    let observations = reorderVarsInObs depVars indepVars observationsRaw
     -- variance
     hPutStrLn stderr "Calculating total variances"
     let variancesPerDepVar = calculateVariances depVars observations
