@@ -326,7 +326,9 @@ instance Csv.ToRecord DepVarsPredPos where
            Csv.toRecord searchObs
 
 -- | A data type to specify a kernel across multiple depvars and indepvars
-newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
+newtype KernelDefinition = KernelDefinition {
+        _kdefPerDepVar :: [KernelOneDepVar]
+    }
     deriving (Show, Eq, Ord, Generic)
 
 makeKernelDefinition :: [KernelOneDepVar] -> KernelDefinition

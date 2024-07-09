@@ -50,10 +50,11 @@ runCross (
     spaceTimeSuppSettings
     (CrossSettings kernDefs testFraction iterations maybeSeed) outFile outMode
     ) numThreads = do
-    -- list of dependent variables
-    let depVars = getKeys $ head kernDefs
+    -- list of variables
+    let depVars   = getKeys $ head $ kernDefs
+        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
     -- read observations
-    observations <- readObservations inObsFile
+    observations <- readObservations depVars indepVars inObsFile
     -- variance
     hPutStrLn stderr "Calculating total variances"
     let variancesPerDepVar = calculateVariances depVars observations

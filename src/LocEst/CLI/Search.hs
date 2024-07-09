@@ -60,14 +60,14 @@ runSearch (
     SearchOptions
         inObsFile
         (SearchGridSettings indepVarsPredGridSettings depVarsPredGridSettings)
-        kernelDefinition@(KernelDefinition kernDefsPerDepVar)
+        kernelDefinition
         normalization
         outFile
         outMode
     ) numThreads = do
     -- list of variables
     let depVars   = getKeys kernelDefinition
-        indepVars = getKeys $ _kodvLengths $ head kernDefsPerDepVar
+        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     -- read observations
     observations <- readObservations depVars indepVars inObsFile
     -- variance
@@ -76,7 +76,7 @@ runSearch (
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
     indepVarsPredGrid <- readIndepVarsPredGrid observations indepVarsPredGridSettings
-    depVarsPredGrid   <- traverse readDepVarsPredGrid depVarsPredGridSettings
+    depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
     let supplement = createCoreSupplement indepVarsPredGrid
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
@@ -195,13 +195,13 @@ readIndepVarsPredGrid
     -- return grid
     return $ ArbitraryDimGrid inArbitraryDimPos
 
-readDepVarsPredGrid :: DepVarsPredGridSettings -> IO DepVarsPredGrid
-readDepVarsPredGrid (DirectDepVarsGridSettings depVarsPos) = do
+readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
+readDepVarsPredGrid _ _ (DirectDepVarsGridSettings depVarsPos) = do
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPos
-readDepVarsPredGrid (SearchObsDepVarsGridSettings path) = do
+readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     -- read search observations
-    searchObservations <- V.toList <$> readObservations path
+    searchObservations <- V.toList <$> readObservations depVars indepVars path
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 

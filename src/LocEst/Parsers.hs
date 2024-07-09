@@ -162,16 +162,20 @@ readObservations :: [String] -> [String] -> FilePath -> IO (V.Vector Observation
 readObservations depVarsWanted indepVarsWanted path = do
     hPutStrLn stderr "Reading observations"
     res <- readToVector path
-    let resWithID     = V.zipWith setIndex res (V.generate (V.length res) id)
-        resSubsetVars = V.map subsetObsVars resWithID
-    return resSubsetVars
+    let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)
+        resAdjust = V.map reorderAndFilterObsVars resWithID
+    return resAdjust
     where
-        subsetObsVars :: Observation -> Observation
-        subsetObsVars obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs)) =
-            let indepRes = map (lookupUnsafe indepInObs) indepVarsWanted
+        reorderAndFilterObsVars :: Observation -> Observation
+        reorderAndFilterObsVars obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs)) =
+            let depRes   = reorderAndFilter depInObs depVarsWanted
+                indepRes = reorderAndFilter indepInObs indepVarsWanted
             in obs {
-                _obsPos = undefined
-                }
+                 _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes
+               }
+        -- for the spatial case this is not necessary, because the spatial coordinates are modelled
+        -- as a proper type anyway
+        reorderAndFilterObsVars obs = obs
 
 readArbitraryDimPos :: FilePath -> IO (V.Vector ArbitraryDimPos)
 readArbitraryDimPos path = do
