@@ -56,7 +56,3 @@ forM :: Monad m => [a] -> (a -> m b) -> m [b]
 forM = flip mapM
 for :: [a] -> (a -> b) -> [b]
 for = flip map
-
-allEqual :: Eq a => [a] -> Bool
-allEqual []     = True
-allEqual (x:xs) = all (== x) xs

@@ -156,12 +156,23 @@ readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path) = do
 
 -- simpler parsers without additional file requirements
 
-readObservations :: FilePath -> IO (V.Vector Observation)
-readObservations path = do
+
+
+readObservations :: [String] -> [String] -> FilePath -> IO (V.Vector Observation)
+readObservations depVarsWanted indepVarsWanted path = do
     hPutStrLn stderr "Reading observations"
     res <- readToVector path
-    let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)
-    return resWithID
+    let resWithID     = V.zipWith setIndex res (V.generate (V.length res) id)
+        resSubsetVars = V.map subsetObsVars resWithID
+    return resSubsetVars
+    where
+        subsetObsVars :: Observation -> Observation
+        subsetObsVars obs@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs)) =
+            let indepRes = map (lookupUnsafe indepInObs) indepVarsWanted
+            in obs {
+                _obsPos = undefined
+                }
+
 readArbitraryDimPos :: FilePath -> IO (V.Vector ArbitraryDimPos)
 readArbitraryDimPos path = do
     hPutStrLn stderr "Reading arbitrary-dimension grid positions"

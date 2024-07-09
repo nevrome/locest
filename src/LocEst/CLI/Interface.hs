@@ -781,7 +781,7 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
         parseAKernDefString :: P.Parser KernelDefinition
         parseAKernDefString = do
                     nested <- parseNamedVector parseDepVarName parseShapeNuggetLengths
-                    return $ KernelDefinition $ map (\(name,(s,n,l)) -> KernelOneDepVar name s n l) nested
+                    return $ makeKernelDefinition $ map (\(name,(s,n,l)) -> KernelOneDepVar name s n l) nested
         parseShapeNuggetLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes

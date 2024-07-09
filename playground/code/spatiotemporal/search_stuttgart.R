@@ -15,7 +15,7 @@ vario <- readr::read_tsv("data/spatiotemporal/vario.tsv")
 
 vario %>%
   ggplot() +
-  geom_point(aes(bin, semivariance)) +
+  geom_point(aes(bin_mid, variance)) +
   facet_grid(
     rows = dplyr::vars(depVar),
     cols = dplyr::vars(indepVar),

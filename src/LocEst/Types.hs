@@ -28,12 +28,22 @@ class PseudoMap a b | a -> b where
     getKeys :: a -> [String]
     getValues :: a -> [b]
     lookupUnsafe :: a -> String -> b
+    allSameVars :: [a] -> Bool
+    reorderAndFilter :: a -> [String] -> a
 
 -- a typeclass for data types with ids
 class Identifiable a where
     getID :: a -> String
     getIndex :: a -> Int
     setIndex :: a -> Int -> a
+
+-- general helper functions
+reorderAndFilterList :: Eq a => [(String,a)] -> [String] -> [(String,a)]
+reorderAndFilterList m keys = [(k, v) | k <- keys, (mk, v) <- m, mk == k]
+
+allEqual :: Eq a => [a] -> Bool
+allEqual []     = True
+allEqual (x:xs) = all (== x) xs
 
 -- helper functions for cassava
 
@@ -319,6 +329,13 @@ instance Csv.ToRecord DepVarsPredPos where
 newtype KernelDefinition = KernelDefinition [KernelOneDepVar]
     deriving (Show, Eq, Ord, Generic)
 
+makeKernelDefinition :: [KernelOneDepVar] -> KernelDefinition
+makeKernelDefinition []       = throwL "No kernel settings provided"
+makeKernelDefinition kerndefs =
+    if allSameVars $ map _kodvLengths kerndefs
+    then KernelDefinition kerndefs
+    else throwL "Different independent variables across dependent variables in --kerndef"
+
 instance NFData KernelDefinition
 -- the following instances differ and don't use the KernelOneDepVar instance definitions:
 -- there is a conceptual difference between looking at the complete KernelDefinition, which typically exists
@@ -345,7 +362,12 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
         let kernList = zip (getKeys kernDef) (getValues kernDef)
         in case lookup k kernList of
             Just x  -> x
-            Nothing -> throwL $ "Failed lookup. Kernel definition must be incomplete. Missing key: " ++ k
+            Nothing -> throwL $ "Failed lookup. Kernel definition is incomplete. Missing key: " ++ k
+    allSameVars xs = allEqual $ map (\(KernelDefinition l) -> l) xs
+    reorderAndFilter kernDef@(KernelDefinition _) k =
+        let kernList = zip (getKeys kernDef) (getValues kernDef)
+            reorderdAndFiltered = reorderAndFilterList kernList k
+        in KernelDefinition $ map snd reorderdAndFiltered
 
 -- | A data type for a component of a kernel definition for one depvar
 data KernelOneDepVar = KernelOneDepVar {
@@ -395,7 +417,9 @@ instance Csv.ToRecord KernelLengths where
 instance PseudoMap KernelLengths Double where
     getKeys   (KernelLengths arbitraryDimLengths) = getKeys arbitraryDimLengths
     getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
-    lookupUnsafe (KernelLengths arbitraryDimLengths) k = lookupUnsafe arbitraryDimLengths k
+    lookupUnsafe (KernelLengths arbitraryDimLengths) = lookupUnsafe arbitraryDimLengths
+    allSameVars xs = allSameVars $ map (\(KernelLengths x) -> x) xs
+    reorderAndFilter (KernelLengths arbitraryDimLengths) k = KernelLengths (reorderAndFilter arbitraryDimLengths k)
 
 -- | A data type for kernel shapes
 data KernelShape =
@@ -611,7 +635,9 @@ instance PseudoMap ValuesPerDepVar Double where
     lookupUnsafe (ValuesPerDepVar l) k =
         case lookup k l of
             Just x  -> x
-            Nothing -> throwL $ "Failed lookup. Some input must be incomplete. Missing key: " ++ k
+            Nothing -> throwL $ "Failed lookup. Some input is incomplete. Missing key: " ++ k
+    allSameVars xs = allEqual $ map getKeys xs
+    reorderAndFilter (ValuesPerDepVar l) k = ValuesPerDepVar (reorderAndFilterList l k)
 
 -- | A data type for independent vars with some value
 type ArbitraryDimPos = ValuesPerIndepVar
@@ -640,7 +666,9 @@ instance PseudoMap ValuesPerIndepVar Double where
     lookupUnsafe (ValuesPerIndepVar l) k =
         case lookup k l of
             Just x  -> x
-            Nothing -> throwL $ "Failed lookup. Some input must be incomplete. Missing key: " ++ k
+            Nothing -> throwL $ "Failed lookup. Some input is incomplete. Missing key: " ++ k
+    allSameVars xs = allEqual $ map getKeys xs
+    reorderAndFilter (ValuesPerIndepVar l) k = ValuesPerIndepVar (reorderAndFilterList l k)
 
 -- A data type for positions independent variable space, so here either a spatiotemporal or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos

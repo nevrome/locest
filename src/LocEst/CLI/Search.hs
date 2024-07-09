@@ -60,15 +60,16 @@ runSearch (
     SearchOptions
         inObsFile
         (SearchGridSettings indepVarsPredGridSettings depVarsPredGridSettings)
-        kernelDefinition
+        kernelDefinition@(KernelDefinition kernDefsPerDepVar)
         normalization
         outFile
         outMode
     ) numThreads = do
-    -- list of dependent variables
-    let depVars = getKeys kernelDefinition
+    -- list of variables
+    let depVars   = getKeys kernelDefinition
+        indepVars = getKeys $ _kodvLengths $ head kernDefsPerDepVar
     -- read observations
-    observations <- readObservations inObsFile
+    observations <- readObservations depVars indepVars inObsFile
     -- variance
     hPutStrLn stderr "Calculating total variances"
     let variancesPerDepVar = calculateVariances depVars observations
