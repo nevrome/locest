@@ -3,6 +3,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE StrictData             #-}
+{-# LANGUAGE TupleSections #-}
 
 module LocEst.Types where
 
@@ -39,7 +40,10 @@ class Identifiable a where
 
 -- general helper functions
 reorderAndFilterList :: Eq a => [(String,a)] -> [String] -> [(String,a)]
-reorderAndFilterList m keys = [(k, v) | k <- keys, (mk, v) <- m, mk == k]
+reorderAndFilterList m keys = [
+    maybe (throwL $ "Failed lookup. Missing key: " ++ k) (k,) $ lookup k m
+    | k <- keys
+    ]
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
