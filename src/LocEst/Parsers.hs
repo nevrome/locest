@@ -163,23 +163,30 @@ readObservations path = do
     let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)
     return resWithID
 reorderVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
-reorderVarsInObs depVarsWanted indepVarsWanted obs =
-        V.map reorderAndFilterObsVars obs
+reorderVarsInObs depVarsWanted indepVarsWanted = V.map reorderVarsInOneObs
     where
-        reorderAndFilterObsVars :: Observation -> Observation
-        reorderAndFilterObsVars o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs)) =
+        reorderVarsInOneObs :: Observation -> Observation
+        -- spatiotemporal case
+        reorderVarsInOneObs o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs)) =
+            let depRes   = reorderAndFilter depInObs depVarsWanted
+            in o { _obsPos = HyperPos std depRes }
+        -- arbitrary dimension case
+        reorderVarsInOneObs o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs)) =
             let depRes   = reorderAndFilter depInObs depVarsWanted
                 indepRes = reorderAndFilter indepInObs indepVarsWanted
             in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
-        -- for the spatial case this is not necessary, because the spatial coordinates are modelled
-        -- as a proper type anyway
-        reorderAndFilterObsVars o = o
 
 readArbitraryDimPos :: FilePath -> IO (V.Vector ArbitraryDimPos)
 readArbitraryDimPos path = do
     hPutStrLn stderr "Reading arbitrary-dimension grid positions"
     res <- readToVector path
     return res
+reorderVarsInArbitraryPos :: [String] -> V.Vector ArbitraryDimPos -> V.Vector ArbitraryDimPos
+reorderVarsInArbitraryPos indepVarsWanted = V.map reorderVarsInOneArbitraryDimPos
+    where
+        reorderVarsInOneArbitraryDimPos :: ArbitraryDimPos -> ArbitraryDimPos
+        reorderVarsInOneArbitraryDimPos x = reorderAndFilter x indepVarsWanted
+
 readSpatPos :: FilePath -> IO (V.Vector SpatPos)
 readSpatPos path = do
     hPutStrLn stderr "Reading spatial grid positions"

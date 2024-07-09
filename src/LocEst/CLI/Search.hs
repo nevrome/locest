@@ -76,7 +76,7 @@ runSearch (
     let variancesPerDepVar = calculateVariances depVars observations
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
-    indepVarsPredGrid <- readIndepVarsPredGrid observations indepVarsPredGridSettings
+    indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
     depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
     let supplement = createCoreSupplement indepVarsPredGrid
     -- prepare permutations
@@ -154,9 +154,10 @@ calculateVariances depVars obs =
             let nrSamples = fromIntegral $ VU.length values
             in (depVar, varSample_ nrSamples values)
 
-readIndepVarsPredGrid :: V.Vector Observation -> IndepVarsPredGridSettings -> IO IndepVarsPredGrid
+readIndepVarsPredGrid :: [String] -> V.Vector Observation -> IndepVarsPredGridSettings -> IO IndepVarsPredGrid
 -- spatiotemporal case
 readIndepVarsPredGrid
+    _
     observations
     (SpaceTimeGridSettings
         inSpatGridFile
@@ -188,18 +189,21 @@ readIndepVarsPredGrid
     return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeMinFilter inSpaceTimeMaxFilter inSpatDists inObsTempSamples
 -- arbitrary dimension case
 readIndepVarsPredGrid
+    indepVarsWanted
     _
     (ArbitraryDimGridSettings inArbitraryDimGridFile) = do
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     -- read arbitrary-dimension grid
-    inArbitraryDimPos <- readArbitraryDimPos inArbitraryDimGridFile
+    inArbitraryDimPosRaw <- readArbitraryDimPos inArbitraryDimGridFile
+    let inArbitraryDimPos = reorderVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
     -- return grid
     return $ ArbitraryDimGrid inArbitraryDimPos
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
-readDepVarsPredGrid _ _ (DirectDepVarsGridSettings depVarsPos) = do
+readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
     -- return grid
-    return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPos
+    let depVarsPosReordered = map (\x -> reorderAndFilter x depVars) depVarsPos  
+    return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPosReordered
 readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     -- read search observations
     obsVec <- readObservations path
