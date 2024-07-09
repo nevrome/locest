@@ -105,7 +105,7 @@ data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin {
     deriving Show
 
 instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
-    headerOrder _ = Csv.header ["indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance"]
+    headerOrder _ = Csv.header ["indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "semivariance"]
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
     toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv) =
         Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax, Csv.toField dv]
