@@ -108,7 +108,6 @@ runSearch (
             randomIts <- forM permutations $ \p -> do
                  rss <- forM  [0..nrRandomIts-1] $ \i -> do
                     rs <- forM depVars $ \d -> do
-                            -- r <- R.uniformDouble01M rng
                             r <- R.uniformRM range rng
                             return (d, r)
                     return (i, ValuesPerDepVar rs)
@@ -201,8 +200,9 @@ readIndepVarsPredGrid
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
+    -- reorder depVarsPos
+    let depVarsPosReordered = map (`reorderAndFilter` depVars) depVarsPos
     -- return grid
-    let depVarsPosReordered = map (\x -> reorderAndFilter x depVars) depVarsPos  
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPosReordered
 readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     -- read search observations
