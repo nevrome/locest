@@ -66,3 +66,20 @@ executable locest
       Haskell2010
     ghc-options:
       -threaded -with-rtsopts=-N -O2
+
+test-suite spec
+    hs-source-dirs:
+      tests
+    main-is:
+      Spec.hs
+    other-modules:
+        MainSpec
+    type:
+      exitcode-stdio-1.0
+    default-language:
+      Haskell2010
+    build-depends:
+        base >= 4.14 && < 5
+      , locest
+      , hspec
+      , process
