@@ -27,7 +27,7 @@ data VarioOptions = VarioOptions {
     , _voInAcrossIndepVars :: Bool
     , _voSpaceTimeScaling  :: (Double,Double)
     , _voInAcrossDepVars   :: Bool
-    , _voOutFile           :: FilePath
+    , _voOutFile           :: Maybe FilePath
     , _voInNrBins          :: BinModeSettings
 }
 
@@ -107,7 +107,7 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
     writeVariograms empiricalVariograms outFile
 
 -- write variograms to the file system
-writeVariograms :: [EmpiricalVariogramOneVarCombination] -> FilePath -> IO ()
+writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
 writeVariograms vars path = Con.runConduitRes $ ConC.yieldMany (concatMap varToLong vars) .| sinkNamedCSV path
     where
         varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]

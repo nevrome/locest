@@ -100,7 +100,7 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             <*> optParseInObsTempSamplesFile
                             <*> optParseInSpatDistNoOrderCheck
                             )) (OP.progDesc "Serialise --tempSampFile."))
-                     ) <*> optParseOutFile
+                     ) <*> optParseOutFileCbor
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions
@@ -730,13 +730,26 @@ optParseInSearchObservationFile = OP.strOption (
     ))
     )
 
-optParseOutFile :: OP.Parser FilePath
-optParseOutFile = OP.strOption (
+optParseOutFileCbor :: OP.Parser FilePath
+optParseOutFileCbor = OP.strOption (
        OP.long  "outFile"
     <> OP.short 'o'
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
-                      s2d "Path to an output .tsv file. See --outMode for details."
+                      s2d "Path to an output .cbor file."
+    <> OH.hardline
+    ))
+    )
+
+optParseOutFile :: OP.Parser (Maybe FilePath)
+optParseOutFile = OP.option (Just <$> OP.str) (
+       OP.long  "outFile"
+    <> OP.short 'o'
+    <> OP.metavar "FILE"
+    <> OP.value Nothing
+    <> OP.helpDoc ( Just (
+                      s2d "Path to an output .tsv file. If not provided, then the output will be written \
+                          \to stdout. See --outMode to set the desired type of output."
     <> OH.hardline
     ))
     )

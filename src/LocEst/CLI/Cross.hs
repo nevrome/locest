@@ -28,7 +28,7 @@ data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath
     , _crossSupplementSettings :: SpaceTimeCoreSupplementSettings
     , _crossSettings           :: CrossSettings
-    , _crossOutFile            :: FilePath
+    , _crossOutFile            :: Maybe FilePath
     , _crossOutMode            :: CrossOutModeSettings
     }
 

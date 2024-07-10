@@ -26,7 +26,7 @@ data SearchOptions = SearchOptions
     , _searchSearchGridSettings :: SearchGridSettings
     , _searchAlgorithm          :: KernelDefinition
     , _normalize                :: Normalization
-    , _searchOutFile            :: FilePath
+    , _searchOutFile            :: Maybe FilePath
     , _searchOutMode            :: CoreOutMode
     }
 

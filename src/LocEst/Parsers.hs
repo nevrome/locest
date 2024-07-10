@@ -24,7 +24,7 @@ import           Data.IORef                (modifyIORef, newIORef, readIORef)
 import qualified Data.Vector               as V
 import           System.FilePath           (takeExtension)
 import           System.IO                 (Handle, IOMode (..), hClose,
-                                            hPutStrLn, openFile, stderr)
+                                            hPutStrLn, openFile, stderr, stdout)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -232,24 +232,29 @@ sourceCSV path =
     .| ConCsv.fromNamedCsvStreamErrorNoThrow decodingOptions
     .| progress 1000000 Nothing
 
-sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => FilePath -> ConduitT a Void m ()
-sinkNamedCSV path =
+sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => Maybe FilePath -> ConduitT a Void m ()
+sinkNamedCSV Nothing =
+    Con.bracketP (return stdout) (const $ return ()) $ \handle ->
+           writeHeaderCSV handle
+        .| ConCsv.toCsv encodingOptions
+        .| ConC.mapM_ (liftIO . Bchs.hPutStr handle)
+sinkNamedCSV (Just path) =
     Con.bracketP (openFile path WriteMode) hClose $ \handle ->
            writeHeaderCSV handle
         .| ConCsv.toCsv encodingOptions
         .| ConC.mapM_ (liftIO . Bchs.hPutStr handle)
-    where
-        writeHeaderCSV :: (MonadIO m, Csv.DefaultOrdered i) => Handle -> ConduitT i i m ()
-        writeHeaderCSV handle = do
-            flagRef <- liftIO $ newIORef True
-            ConC.mapM $ \val -> do
-                -- run the action only for the first element
-                flag <- liftIO $ readIORef flagRef
-                when flag $ do
-                    liftIO $ BB.hPutBuilder handle $ CsvB.encodeHeaderWith encodingOptions $ Csv.headerOrder val
-                    liftIO $ modifyIORef flagRef not
-                -- continue processing the rest of the stream
-                return val
+
+writeHeaderCSV :: (MonadIO m, Csv.DefaultOrdered i) => Handle -> ConduitT i i m ()
+writeHeaderCSV handle = do
+    flagRef <- liftIO $ newIORef True
+    ConC.mapM $ \val -> do
+        -- run the action only for the first element
+        flag <- liftIO $ readIORef flagRef
+        when flag $ do
+            liftIO $ BB.hPutBuilder handle $ CsvB.encodeHeaderWith encodingOptions $ Csv.headerOrder val
+            liftIO $ modifyIORef flagRef not
+        -- continue processing the rest of the stream
+        return val
 
 sinkCSV :: (MonadResource m, Csv.ToRecord a) => FilePath -> ConduitT a Void m ()
 sinkCSV path =
