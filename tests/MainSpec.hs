@@ -15,7 +15,7 @@ locestSpec =
   describe "locest" $ do
 
     let goldenTests = [
-            "01_basic_spacetime"
+            "01_basic_spacetime", "02_spacetime_wrong_depvar_in_obs"
             ]
 
     runTestScripts goldenTests

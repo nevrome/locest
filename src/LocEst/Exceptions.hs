@@ -14,7 +14,7 @@ instance Exception LocEstException
 instance NFData LocEstException
 
 renderLocEstException :: LocEstException -> String
-renderLocEstException (LocEstException s) = "\nError: \n" ++ s
+renderLocEstException (LocEstException s) = "\nError:\n" ++ s
 
 throwL :: String -> a
 throwL s = throw $ LocEstException s

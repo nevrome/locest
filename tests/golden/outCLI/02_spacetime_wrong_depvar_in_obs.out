@@ -1,0 +1,18 @@
+locest v0.0.1.0
+
+Working with threads: 1
+Reading observations
+Parsing inData/03_obs_spacetime_wrong_depvar.tsv
+Done
+Calculating total variances
+Preparing prediction grid
+Assuming a spatiotemporal system
+Reading spatial grid positions
+Parsing inData/02_spatgrid_spacetime.tsv
+Done
+Preparing permutations
+All preparations ready
+Running analysis
+
+Error:
+Failed lookup. Missing key: depV2
