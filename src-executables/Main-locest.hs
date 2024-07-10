@@ -17,11 +17,13 @@ import           Paths_locest         (version)
 import           System.Environment   (getArgs)
 import           System.Exit          (exitFailure)
 import           System.IO            (hPutStrLn, stderr)
+import System.IO.Silently (hSilence)
 
 -- data types
 data Options = Options {
-    _subcommand :: Subcommand,
-    _threads    :: NumberOfThreads
+      _subcommand :: Subcommand
+    , _threads    :: NumberOfThreads
+    , _quiet      :: Bool
     }
 
 
@@ -48,13 +50,13 @@ main = do
             configFileArgs <- catch (parseConfigFile configFilePath) handler
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
-    (Options subcommand threads) <-
+    (Options subcommand threads quiet) <-
         OP.handleParseResult $
             OP.execParserPure (OP.prefs OP.showHelpOnEmpty) optParserInfo mergedCmdArgs
     -- number of threads
     numThreads <- setNumberOfThreads threads
     -- run requested subcommand
-    catch (runCmd subcommand numThreads) handler
+    catch (run subcommand numThreads quiet) handler
     where
         -- handling the special --configFile argument
         getConfigFilePath :: [String] -> Maybe FilePath
@@ -76,6 +78,13 @@ main = do
             hPutStrLn stderr $ renderLocEstException e
             exitFailure
 
+run :: Subcommand -> Int -> Bool -> IO ()
+run o numThreads False = 
+    runCmd o numThreads
+run o numThreads True  = do
+    hPutStrLn stderr "Working silently"
+    hSilence [stderr] (runCmd o numThreads)
+
 runCmd :: Subcommand -> Int -> IO ()
 runCmd o numThreads = case o of
     CmdSerialise opts -> runSerialise opts
@@ -84,7 +93,13 @@ runCmd o numThreads = case o of
     CmdCross opts     -> runCross opts numThreads
 
 optParserInfo :: OP.ParserInfo Options
-optParserInfo = OP.info (OP.helper <*> versionOption <*> (Options <$> subcommandParser <*> optParseNumberOfThreads)) (
+optParserInfo = OP.info (
+        OP.helper <*> versionOption <*> (
+            Options
+        <$> subcommandParser
+        <*> optParseNumberOfThreads
+        <*> optParseQuiet
+        )) (
     OP.briefDesc <>
     OP.progDesc "Spatiotemporal interpolation and search for macroscale archaeological data."
     )

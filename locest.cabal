@@ -60,6 +60,7 @@ executable locest
       , locest
       , optparse-applicative >= 0.16 && < 0.18
       , filepath
+      , silently
     other-modules:
       Paths_locest
     default-language:

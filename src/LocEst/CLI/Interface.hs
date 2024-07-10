@@ -444,6 +444,13 @@ optParseNumberOfThreads = OP.option (OP.eitherReader readNumberOfThreads) (
                 Just n  -> Right $ MultipleThreads n
                 Nothing -> Left "must be either \"Detect\" or an integer number"
 
+optParseQuiet :: OP.Parser Bool
+optParseQuiet = OP.switch (
+    OP.long "quiet" <>
+    OP.short 'q' <>
+    OP.help "Suppress the printing of progress messages to the stderr stream on the command line."
+    )
+
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (
        OP.long    "obsFile"
