@@ -665,6 +665,7 @@ instance PseudoMap ValuesPerDepVar Double where
     reorderAndFilter (ValuesPerDepVar l) k = ValuesPerDepVar (reorderAndFilterList l k)
 
 -- | A data type for independent vars with some value
+type IndepVarsThresholds = ValuesPerIndepVar
 type ArbitraryDimPos = ValuesPerIndepVar
 type ArbitraryDimDists = ValuesPerIndepVar
 type ArbitraryDimLengths = ValuesPerIndepVar

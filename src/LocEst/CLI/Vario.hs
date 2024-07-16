@@ -26,7 +26,7 @@ data VarioOptions = VarioOptions {
     , _voSpatDistSetting     :: Maybe SpatDistSettings
     , _voAcrossIndepVars     :: Bool
     , _voSpaceTimeScaling    :: (Double,Double)
-    , _voIndepVarsThresholds :: [(IndepVarName, Double)]
+    , _voIndepVarsThresholds :: IndepVarsThresholds
     , _voAcrossDepVars       :: Bool
     , _voOutFile             :: Maybe FilePath
     , _voBinMode             :: BinModeSettings
@@ -43,8 +43,8 @@ data BinModeSettings =
     deriving (Show)
 
 isBelowIndepVarsThreshold :: MatrixPerIndepVar -> (IndepVarName, Double) -> VU.Vector Bool
-isBelowIndepVarsThreshold distsPerIndepVar (indepVar, threshold) =
-    let (SUDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVar
+isBelowIndepVarsThreshold distsPerIndepVar (indepVarName, threshold) =
+    let (SUDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVarName
     in VU.map (<=threshold) dists
 
 runVario :: VarioOptions -> Int -> IO ()
@@ -72,7 +72,8 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
             -- indexing (must be done before any filtering)
             let indepDistsIndexed = VU.indexed indepDists
             -- indepVar cross-filtering
-                belowThresholdPerIndepVar = map (isBelowIndepVarsThreshold distsPerIndepVar) indepVarsThresholds
+                relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsThresholds
+                belowThresholdPerIndepVar = map (isBelowIndepVarsThreshold distsPerIndepVar) relevantThresholds
                 belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VU.length indepDists) True) belowThresholdPerIndepVar
                 indepDistsFiltered = VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsIndexed
             -- sort indep distance vector for easy binning

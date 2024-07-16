@@ -117,6 +117,7 @@ varioOptParser = VarioOptions
                         <*> OP.optional optParseSpatDistSetting
                         <*> optParseAcrossIndepVars
                         <*> optParseSpaceTimeScaling
+                        <*> optParseIndepVarsThresholds
                         <*> optParseAcrossDepVars
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
@@ -133,6 +134,20 @@ optParseSpatDistSetting :: OP.Parser SpatDistSettings
 optParseSpatDistSetting = SpatDistSettings
                         <$> optParseInSpatDistMapFile
                         <*> optParseInSpatDistNoOrderCheck
+
+optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
+optParseIndepVarsThresholds = OP.option (OP.eitherReader readOutMode) (
+     OP.long "indepVarsThresholds"
+    )
+    where
+        readOutMode :: String -> Either String IndepVarsThresholds
+        readOutMode s =
+            case P.runParser parseIndepVarsThresholds () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseIndepVarsThresholds = do
+            res <- parseNamedVector parseIndepVarName parsePositiveDouble
+            return (ValuesPerIndepVar res)
 
 optParseVarioOutMode :: OP.Parser BinModeSettings
 optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
