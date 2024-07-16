@@ -13,7 +13,7 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import           Data.Function                 (on)
-import           Data.List                     (singleton, sort)
+import           Data.List                     (singleton, sort, foldl')
 import qualified Data.Vector                   as V
 import qualified Data.Vector.Algorithms.Intro  as VA
 import qualified Data.Vector.Unboxed           as VU
@@ -22,13 +22,14 @@ import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 
 data VarioOptions = VarioOptions {
-      _voInObservationFile :: FilePath
-    , _voSpatDistSetting   :: Maybe SpatDistSettings
-    , _voInAcrossIndepVars :: Bool
-    , _voSpaceTimeScaling  :: (Double,Double)
-    , _voInAcrossDepVars   :: Bool
-    , _voOutFile           :: Maybe FilePath
-    , _voInNrBins          :: BinModeSettings
+      _voInObservationFile   :: FilePath
+    , _voSpatDistSetting     :: Maybe SpatDistSettings
+    , _voAcrossIndepVars     :: Bool
+    , _voSpaceTimeScaling    :: (Double,Double)
+    , _voIndepVarsThresholds :: [(IndepVarName, Double)]
+    , _voAcrossDepVars       :: Bool
+    , _voOutFile             :: Maybe FilePath
+    , _voBinMode             :: BinModeSettings
 }
 
 data SpatDistSettings = SpatDistSettings {
@@ -41,8 +42,13 @@ data BinModeSettings =
     | BinForNugget ArbitraryDimPos
     deriving (Show)
 
+isBelowIndepVarsThreshold :: MatrixPerIndepVar -> (IndepVarName, Double) -> VU.Vector Bool
+isBelowIndepVarsThreshold distsPerIndepVar (indepVar, threshold) =
+    let (SUDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVar
+    in VU.map (<=threshold) dists
+
 runVario :: VarioOptions -> Int -> IO ()
-runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,timeScaling) acrossDepVars outFile binModeSettings) numThreads = do
+runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,timeScaling) indepVarsThresholds acrossDepVars outFile binModeSettings) numThreads = do
     -- read observations
     observations <- readObservations inObsFile
     -- read spat dist file
@@ -61,28 +67,16 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
     hPutStrLn stderr "Calculating empirical variograms"
     empiricalVariograms <- fmap concat $
         -- loop over indepVars
-        forM distsPerIndepVar $ \(indepVarName, SUDistMatrix indepDists) -> do
+        forM (toList distsPerIndepVar) $ \(indepVarName, SUDistMatrix indepDists) -> do
             hPutStrLn stderr ("Working on " ++ indepVarName)
-            -- cross-filtering
-            -- hacky solution for testing
-            --let indepDistsFiltered = case indepVarName of
-            --        "space" -> 
-            --            let (SUDistMatrix timeDists) = fromJust $ lookup "time" distsPerIndepVar
-            --                inRange = VU.map (<1000) timeDists
-            --            in VU.map snd $ VU.filter fst $ VU.zip inRange indepDists
-            --        "time" -> 
-            --            let (SUDistMatrix spaceDists) = fromJust $ lookup "space" distsPerIndepVar
-            --                inRange = VU.map (<1000) spaceDists
-            --            in VU.map snd $ VU.filter fst $ VU.zip inRange indepDists
-            --        _ -> indepDists
-            -- remove dists that are not to be binned
-            let minDist = VU.minimum indepDists
-                maxDist = VU.maximum indepDists
-                endVario = minDist + (maxDist - minDist)
-                indepDistsIndexed = VU.indexed indepDists
-                binnableIndepDists = VU.filter (\(_,v) -> v <= endVario) indepDistsIndexed
+            -- indexing (must be done before any filtering)
+            let indepDistsIndexed = VU.indexed indepDists
+            -- indepVar cross-filtering
+                belowThresholdPerIndepVar = map (isBelowIndepVarsThreshold distsPerIndepVar) indepVarsThresholds
+                belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VU.length indepDists) True) belowThresholdPerIndepVar
+                indepDistsFiltered = VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsIndexed
             -- sort indep distance vector for easy binning
-            sortedIndepDists <- sortWithIndices binnableIndepDists -- very time-consuming!
+            sortedIndepDists <- sortWithIndices indepDistsFiltered -- very time-consuming!
             -- get start index and stop index for each bin in the sorted indep vector
             let startStopPerBin = case binModeSettings of
                     BinByNrBins nrBins      -> binIndepVarByNrBins sortedIndepDists nrBins
@@ -169,7 +163,7 @@ makeObsPairs obs =
     in zip [0..] obsPairs
 
 -- distance calculation functions
-calcIndepVarPairwiseDistances :: Bool -> (Double,Double) -> Maybe SpatDistMatrix -> V.Vector Observation -> IO [(IndepVarName, SUDistMatrix)]
+calcIndepVarPairwiseDistances :: Bool -> (Double,Double) -> Maybe SpatDistMatrix -> V.Vector Observation -> IO MatrixPerIndepVar
 calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMatrix obs = do
     let obsPairs = makeObsPairs obs
         nrPairs = length obsPairs
@@ -185,25 +179,25 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
             -- make result vectors immutable for easier handling
             spaceVecNonMut <- VU.unsafeFreeze spaceVec
             timeVecNonMut  <- VU.unsafeFreeze timeVec
-            return [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
+            return $ MatrixPerIndepVar [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
         (IndepSpatTempPos _,True) -> do
             hPutStrLn stderr $ "Using space-time scaling: space = " ++ show spaceScaling ++ ", time = " ++ show timeScaling
             distVec <- VUM.new nrPairs
             mapM_ (distSpaceTimeMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
-            return [("indepAll", SUDistMatrix distVecNonMut)]
+            return $ MatrixPerIndepVar [("indepAll", SUDistMatrix distVecNonMut)]
         -- arbitrary dimension system
         (IndepArbitraryDimPos pos@(ValuesPerIndepVar l),False) -> do
             arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
             mapM_ (distArbitrary arbitraryVecs) obsPairs
             arbitraryVecsNonMut <- mapM VU.unsafeFreeze arbitraryVecs
-            return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
+            return $ MatrixPerIndepVar $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
         -- arbitrary dimensions merged
         (IndepArbitraryDimPos (ValuesPerIndepVar _),True) -> do
             distVec <- VUM.new nrPairs
             mapM_ (distArbitraryMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
-            return [("indepAll", SUDistMatrix distVecNonMut)]
+            return $ MatrixPerIndepVar [("indepAll", SUDistMatrix distVecNonMut)]
     where
         distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distSpaceTime

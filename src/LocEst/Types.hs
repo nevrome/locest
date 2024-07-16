@@ -26,6 +26,7 @@ import           GHC.Generics          (Generic)
 
 -- a typeclass for data types with map-like properties
 class PseudoMap a b | a -> b where
+    toList :: a -> [(String,b)]
     getKeys :: a -> [String]
     getValues :: a -> [b]
     lookupUnsafe :: a -> String -> b
@@ -121,7 +122,7 @@ data Normalization = NormBySpace | NoNorm
 -- this matrix has (n*n)/2 - n entries and a triangular shape
 newtype SUDistMatrix = SUDistMatrix {
     _sudmMatrix     :: VU.Vector Double
-} deriving (Generic, Show)
+} deriving (Generic, Show, Eq)
 -- If you need a  lookup function for this matrix you must consider that the
 -- triangular matrix packs its values in a certain order. In the case of a
 -- lower triangular matrix, where every element above the principal diagonal
@@ -131,6 +132,24 @@ newtype SUDistMatrix = SUDistMatrix {
 -- The third row contains 2 elements,
 -- and so forth.
 -- See https://math.stackexchange.com/questions/646117/how-to-find-a-function-mapping-matrix-indices
+
+instance NFData SUDistMatrix
+
+-- | A data type for named lists of matrices
+newtype MatrixPerIndepVar = MatrixPerIndepVar [(IndepVarName, SUDistMatrix)]
+    deriving (Generic, Show, Eq)
+
+instance NFData MatrixPerIndepVar
+instance PseudoMap MatrixPerIndepVar SUDistMatrix where
+    toList (MatrixPerIndepVar l) = l
+    getKeys (MatrixPerIndepVar l) = map fst l
+    getValues (MatrixPerIndepVar l) = map snd l
+    lookupUnsafe (MatrixPerIndepVar l) k =
+        case lookup k l of
+            Just x  -> x
+            Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
+    allSameVars xs = allEqual $ map getKeys xs
+    reorderAndFilter (MatrixPerIndepVar l) k = MatrixPerIndepVar (reorderAndFilterList l k)
 
 -- | A data type for an asymmetric, unidirectional distance matrix
 -- this matrix has m*n different entries and a rectangular shape
@@ -359,6 +378,7 @@ instance Csv.ToRecord KernelDefinition where
             oneColSet (KernelOneDepVar _ shape nugget lengths) =
                 Csv.record [Csv.toField shape] <> Csv.record [Csv.toField nugget] <> Csv.toRecord lengths
 instance PseudoMap KernelDefinition KernelOneDepVar where
+    toList m = zip (getKeys m) (getValues m)
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = l
     lookupUnsafe kernDef@(KernelDefinition _) k =
@@ -418,6 +438,7 @@ instance Csv.DefaultOrdered KernelLengths where
 instance Csv.ToRecord KernelLengths where
     toRecord (KernelLengths arbitraryDimLengths) = Csv.toRecord arbitraryDimLengths
 instance PseudoMap KernelLengths Double where
+    toList    (KernelLengths arbitraryDimLengths) = toList arbitraryDimLengths
     getKeys   (KernelLengths arbitraryDimLengths) = getKeys arbitraryDimLengths
     getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
     lookupUnsafe (KernelLengths arbitraryDimLengths) = lookupUnsafe arbitraryDimLengths
@@ -633,6 +654,7 @@ instance Csv.ToRecord ValuesPerDepVar where
     toRecord (ValuesPerDepVar l) =
         V.map (Bchs.pack . show) $ V.map OutInfDouble $ V.fromList $ map snd l
 instance PseudoMap ValuesPerDepVar Double where
+    toList (ValuesPerDepVar l) = l
     getKeys (ValuesPerDepVar l) = map fst l
     getValues (ValuesPerDepVar l) = map snd l
     lookupUnsafe (ValuesPerDepVar l) k =
@@ -664,6 +686,7 @@ instance Csv.ToRecord ValuesPerIndepVar where
     toRecord (ValuesPerIndepVar l) =
         V.map (Bchs.pack . show) $ V.fromList $ map snd l
 instance PseudoMap ValuesPerIndepVar Double where
+    toList (ValuesPerIndepVar l) = l
     getKeys (ValuesPerIndepVar l) = map fst l
     getValues (ValuesPerIndepVar l) = map snd l
     lookupUnsafe (ValuesPerIndepVar l) k =
