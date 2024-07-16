@@ -226,7 +226,7 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
                 spaceDist = case maybeSpatDistMatrix of
                     Nothing             -> spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
-                mergedDist = sqrt (((spaceDist / spaceScaling) ** 2) + ((timeDist / timeScaling) ** 2))
+                mergedDist = sqrt (((spaceDist * spaceScaling) ** 2) + ((timeDist * timeScaling) ** 2))
             VUM.write distVec i mergedDist
         distSpaceTimeMerged _ _ = error "impossible state in spatial independent variable distance calculation"
         distArbitrary :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()

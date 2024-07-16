@@ -139,6 +139,7 @@ optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
 optParseIndepVarsThresholds = OP.option (OP.eitherReader readOutMode) (
        OP.long "indepVarsThresholds"
     <> OP.metavar "c(indepV1=DOUBLE,indepV2=DOUBLE,...)"
+    <> OP.value (ValuesPerIndepVar [])
     <> OP.helpDoc ( Just (
                       s2d "Thresholds for the filtering distances across independent variables. \
                           \When computing a variogram for temporal distances it might for example \
@@ -408,7 +409,7 @@ optParseSpaceTimeScaling = OP.option (OP.eitherReader readSpaceTime) (
     <> OP.metavar "DOUBLE"
     <> OP.metavar "c(space = DOUBLE, time = DOUBLE)"
     <> OP.helpDoc ( Just (
-                      s2d "Space-time scaling factors. All temporal and spatial distances will be divided by \
+                      s2d "Space-time scaling factors. All temporal and spatial distances will be multiplied by \
                           \the respective factors before combining the distances as one Euclidean distance. \
                           \Only relevant for the spatiotemporal setting. Default: scaling(space = 1, time = 1)"
     <> OH.hardline
