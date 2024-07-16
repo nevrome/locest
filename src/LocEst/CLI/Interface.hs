@@ -137,7 +137,15 @@ optParseSpatDistSetting = SpatDistSettings
 
 optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
 optParseIndepVarsThresholds = OP.option (OP.eitherReader readOutMode) (
-     OP.long "indepVarsThresholds"
+       OP.long "indepVarsThresholds"
+    <> OP.metavar "c(indepV1=DOUBLE,indepV2=DOUBLE,...)"
+    <> OP.helpDoc ( Just (
+                      s2d "Thresholds for the filtering distances across independent variables. \
+                          \When computing a variogram for temporal distances it might for example \
+                          \be desirable to constraint the spatial distances, so that only observations \
+                          \in spatial proximity are considered."
+    <> OH.hardline
+    ))
     )
     where
         readOutMode :: String -> Either String IndepVarsThresholds
