@@ -167,16 +167,16 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                       s2d "The binning procedure that should be applied for the variogram. \
                           \The output of vario depends to some degree on the binning, but generally \
                           \it returns a table like this:"
-    <> OH.hardline <>     "┌──────────┬────────┬─────┬──────────────┐"
-    <> OH.hardline <>     "│ indepVar │ depVar │ bin │ semivariance │"
-    <> OH.hardline <>     "├──────────┼────────┼─────┼──────────────┤"
-    <> OH.hardline <>     "│          │        │     │              │"
-    <> OH.hardline <>     "│          │        │     │              │"
-    <> OH.hardline <>     "└──────────┴────────┴─────┴──────────────┘"
+    <> OH.hardline <>     "┌──────────┬────────┬─────┬──────────┐"
+    <> OH.hardline <>     "│ indepVar │ depVar │ bin │ variance │"
+    <> OH.hardline <>     "├──────────┼────────┼─────┼──────────┤"
+    <> OH.hardline <>     "│          │        │     │          │"
+    <> OH.hardline <>     "│          │        │     │          │"
+    <> OH.hardline <>     "└──────────┴────────┴─────┴──────────┘"
     <> OH.hardline <>     "> [indepVar]: Independent variable"
     <> OH.hardline <>     "> [depVar]: Dependent variable"
     <> OH.hardline <>     "> [bin]: center point of each independent variable bin"
-    <> OH.hardline <> s2d "> [semivariance]: semivariance calculated for the dependent variable \
+    <> OH.hardline <> s2d "> [variance]: variance calculated for the dependent variable \
                           \based on all observations in the respective bin"
     <> OH.hardline
     <> OH.hardline <> s2d "EqualSize(n): Bins the observations into n bins with an equal amount of \

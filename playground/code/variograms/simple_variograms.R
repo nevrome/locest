@@ -19,7 +19,7 @@ vario_linear <- readr::read_tsv("data/variograms/vario_linear.tsv")
 
 vario_linear %>%
   ggplot() +
-  geom_point(aes(bin, semivariance))
+  geom_point(aes(bin, variance))
 
 ###
 
@@ -41,7 +41,7 @@ vario_constant <- readr::read_tsv("data/variograms/vario_constant.tsv")
 
 vario_constant %>%
   ggplot() +
-  geom_point(aes(bin, semivariance))
+  geom_point(aes(bin, variance))
 
 ###
 
@@ -63,5 +63,5 @@ vario_sin <- readr::read_tsv("data/variograms/vario_sin.tsv")
 
 vario_sin %>%
   ggplot() +
-  geom_point(aes(bin, semivariance))
+  geom_point(aes(bin, variance))
 

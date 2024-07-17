@@ -92,12 +92,12 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                 -- loop over bins
-                semivariancesPerBin <- Con.runConduitRes $
+                variancesPerBin <- Con.runConduitRes $
                         ConC.yieldMany startStopPerBin
                         .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
                         .| ConC.sinkList
                 hPutStrLn stderr ("-> " ++ depVarName)
-                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram semivariancesPerBin)
+                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
     -- write variograms to the file system
     writeVariograms empiricalVariograms outFile
 
@@ -114,8 +114,8 @@ perBin sortedIndepDists depDists (minMidMax, startSorted, stopSorted) =
     let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
         depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
         -- calculate variance per bin
-        semivariance = calcHalfMeanSquared depDistsPerBin
-    in (minMidMax, semivariance)
+        variance = calcHalfMeanSquared depDistsPerBin
+    in (minMidMax, variance)
 
 -- perform binning of an indepVar
 binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [((Double, Double, Double), Int, Int)]

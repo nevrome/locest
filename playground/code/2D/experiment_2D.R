@@ -48,7 +48,7 @@ vario <- readr::read_tsv("data/2D/vario.tsv")
 
 vario %>%
   ggplot() +
-  geom_point(aes(bin, semivariance))
+  geom_point(aes(bin, variance))
 
 system('locest cross --configFile code/2D/experiment_2D_cross.conf')
 
