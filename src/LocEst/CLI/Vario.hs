@@ -168,7 +168,7 @@ calcIndepVarPairwiseDistances :: Bool -> (Double,Double) -> Maybe SpatDistMatrix
 calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMatrix obs = do
     let obsPairs = makeObsPairs obs
         nrPairs = length obsPairs
-        (Observation _ _ (HyperPos indepPos _)) = V.head obs
+        (Observation _ _ (HyperPos indepPos _) _) = V.head obs
     case (indepPos,merge) of
         -- spatiotemporal system
         (IndepSpatTempPos _,False) -> do
@@ -204,8 +204,8 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
         distSpaceTime
             spaceVec timeVec
             (i,
-            (Observation i1 _ (HyperPos (IndepSpatTempPos p1) _),
-            Observation i2 _ (HyperPos (IndepSpatTempPos p2) _))
+            (Observation i1 _ (HyperPos (IndepSpatTempPos p1) _) _,
+            Observation i2 _ (HyperPos (IndepSpatTempPos p2) _) _)
             ) = do
             let timeDist  = temporalDistSpatTempPos p1 p2
                 spaceDist = case maybeSpatDistMatrix of
@@ -219,8 +219,8 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
         distSpaceTimeMerged
             distVec
             (i,
-            (Observation i1 _ (HyperPos (IndepSpatTempPos p1) _),
-            Observation i2 _ (HyperPos (IndepSpatTempPos p2) _))
+            (Observation i1 _ (HyperPos (IndepSpatTempPos p1) _) _,
+            Observation i2 _ (HyperPos (IndepSpatTempPos p2) _) _)
             ) = do
             let timeDist  = temporalDistSpatTempPos p1 p2
                 spaceDist = case maybeSpatDistMatrix of
@@ -233,8 +233,8 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
         distArbitrary
             arbitraryVecs
             (i,
-            (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _),
-            Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _))
+            (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _) _,
+            Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _) _)
             ) = do
             -- this assumes that p1 and p2 have the same order of indep variables
             let arbitraryDists = allDistances (getValues p1) (getValues p2)
@@ -244,8 +244,8 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
         distArbitraryMerged
             distVec
             (i,
-            (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _),
-            Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _))
+            (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _) _,
+            Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _) _)
             ) = do
             -- this assumes that p1 and p2 have the same order of indep variables
             let arbitraryDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
@@ -256,7 +256,7 @@ calcDepVarPairwiseDistances :: Bool -> V.Vector Observation -> IO [(DepVarName, 
 calcDepVarPairwiseDistances merge obs = do
     let obsPairs = makeObsPairs obs
         nrPairs = length obsPairs
-        (Observation _ _ (HyperPos _ pos@(ValuesPerDepVar l))) = V.head obs
+        (Observation _ _ (HyperPos _ pos@(ValuesPerDepVar l)) _) = V.head obs
     -- writing distances to mutable vectors
     if merge
     then do
@@ -271,12 +271,12 @@ calcDepVarPairwiseDistances merge obs = do
         return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
     where
         distDep :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
-        distDep depVecs (i, (Observation _ _ (HyperPos _ p1), Observation _ _ (HyperPos _ p2))) = do
+        distDep depVecs (i, (Observation _ _ (HyperPos _ p1) _, Observation _ _ (HyperPos _ p2) _)) = do
             -- this assumes that p1 and p2 have the same order of dep variables
             let depDists = allDistances (getValues p1) (getValues p2)
             zipWithM_ (`VUM.write` i) depVecs depDists
         distDepMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
-        distDepMerged distVec (i, (Observation _ _ (HyperPos _ p1), Observation _ _ (HyperPos _ p2))) = do
+        distDepMerged distVec (i, (Observation _ _ (HyperPos _ p1) _, Observation _ _ (HyperPos _ p2) _)) = do
             -- this assumes that p1 and p2 have the same order of dep variables
             let depDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
             VUM.write distVec i depDistEuclidean

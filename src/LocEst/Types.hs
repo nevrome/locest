@@ -71,6 +71,21 @@ filterLookupMulti m names =
 
 -- data types
 
+-- | A datatype to collect additional, unpecified .csv/tsv file columns (a hashmap in cassava/Data.Csv)
+newtype CsvNamedRecord = CsvNamedRecord Csv.NamedRecord deriving (Show, Eq, Generic)
+
+getCsvNR :: CsvNamedRecord -> Csv.NamedRecord
+getCsvNR (CsvNamedRecord x) = x
+
+instance S.Serialise CsvNamedRecord
+instance NFData CsvNamedRecord
+instance Csv.DefaultOrdered CsvNamedRecord where
+    headerOrder (CsvNamedRecord nr) =
+        V.fromList $ HM.keys nr
+instance Csv.ToRecord CsvNamedRecord where
+    toRecord (CsvNamedRecord nr) =
+        V.fromList $ HM.elems nr
+
 -- special types for the cross subcommand
 
 -- | A data type for crossvalidation output
@@ -499,6 +514,7 @@ data Observation = Observation {
       _obsIndex :: Int
     , _obsID    :: String
     , _obsPos   :: HyperPos
+    , _obsOther :: CsvNamedRecord
 } deriving (Show, Generic, Eq)
 
 instance S.Serialise Observation
@@ -507,20 +523,23 @@ instance Csv.FromNamedRecord Observation where
     parseNamedRecord m = do
         identifier <- filterLookup m "obsID"
         position <- Csv.parseNamedRecord m
+        let alreadyConsumed = "obsID" : V.toList (Csv.headerOrder position)
+            leftoverM = HM.mapMaybeWithKey (\k v -> if k `elem` alreadyConsumed then Nothing else Just v) m
         pure $ Observation {
               _obsIndex = 0
             , _obsID = identifier
             , _obsPos = position
+            , _obsOther = CsvNamedRecord leftoverM
             }
 instance Csv.DefaultOrdered Observation where
-    headerOrder (Observation _ _ position) =
-        Csv.header ["obsID"] <> Csv.headerOrder position
+    headerOrder (Observation _ _ position other) =
+        Csv.header ["obsID"] <> Csv.headerOrder position <> Csv.headerOrder other
 instance Csv.ToRecord Observation where
-    toRecord (Observation _ identifier position) =
-        Csv.record [Csv.toField identifier] <> Csv.toRecord position
+    toRecord (Observation _ identifier position other) =
+        Csv.record [Csv.toField identifier] <> Csv.toRecord position <> Csv.toRecord other
 instance Identifiable Observation where
-    getID (Observation _ identifier _) = identifier
-    getIndex (Observation index _ _) = index
+    getID (Observation _ identifier _ _) = identifier
+    getIndex (Observation index _ _ _) = index
     setIndex x i = x {_obsIndex = i}
 
 -- | A data type for positions in independent and dependent var space

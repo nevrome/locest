@@ -167,11 +167,11 @@ reorderVarsInObs depVarsWanted indepVarsWanted = V.map reorderVarsInOneObs
     where
         reorderVarsInOneObs :: Observation -> Observation
         -- spatiotemporal case
-        reorderVarsInOneObs o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs)) =
+        reorderVarsInOneObs o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs) _) =
             let depRes = reorderAndFilter depInObs depVarsWanted
             in o { _obsPos = HyperPos std depRes }
         -- arbitrary dimension case
-        reorderVarsInOneObs o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs)) =
+        reorderVarsInOneObs o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs) _) =
             let depRes   = reorderAndFilter depInObs depVarsWanted
                 indepRes = reorderAndFilter indepInObs indepVarsWanted
             in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }

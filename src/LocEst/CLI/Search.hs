@@ -147,7 +147,7 @@ calculateVariances depVars obs =
     in ValuesPerDepVar $ map calculateVariance valuesPerDepVar
     where
         getValueOneBasicObsOneDepVar :: DepVarName -> Observation -> Double
-        getValueOneBasicObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarPos)) = lookupUnsafe depVarPos depVar
+        getValueOneBasicObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarPos) _) = lookupUnsafe depVarPos depVar
         calculateVariance :: (DepVarName, VU.Vector Double) -> (DepVarName, Double)
         calculateVariance (depVar,values) =
             let nrSamples = fromIntegral $ VU.length values
@@ -227,7 +227,7 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTem
     let tempPos = case absRelTempPos of
             AbsTempPos x -> x
             RelTempPos x -> case depPos of
-                    (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _))) -> obsAge + x
+                    (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
                     _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
     spatPos <- V.toList inSpatGrid
     return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0

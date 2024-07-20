@@ -87,7 +87,7 @@ getDists ::
 getDists
     maybeSpatDistMap maybeTempSamples
     (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration _)
-    (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _)) =
+    (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _) _) =
         let spatDist = findSpatDist maybeSpatDistMap
             spatDistsKM = spatDist/1000
             tempDist = findTempDist maybeTempSamples
@@ -114,7 +114,7 @@ getDists
 getDists
     _ _
     (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
-    (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _)) =
+    (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _) =
         let keys = getKeys obsArbitraryDimPos
             obsPos  = getValues obsArbitraryDimPos
             gridPos = getValues gridAbritryDimPos
@@ -187,7 +187,7 @@ interpolAndSearchOneDepVar obsWithDist depVarVariances depVar kernelPerDepVar ma
                         (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
 getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
-getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarsPos), _) = lookupUnsafe depVarsPos depVar
+getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarsPos) _, _ ) = lookupUnsafe depVarsPos depVar
 
 getWeightOneObsOneDepVar ::
        KernelOneDepVar
