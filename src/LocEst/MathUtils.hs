@@ -31,16 +31,15 @@ avg_ xslength xs = VU.sum xs / xslength
 -- with Bessel's correction
 -- https://en.wikipedia.org/wiki/Variance#Unbiased_sample_variance
 varSample :: [Double] -> Double
-varSample xs = (1/(n-1)) * foldl' (\o x -> o + (x - mean)**2) 0 xs
+varSample xs = foldl' (\o x -> o + (x - mean)**2) 0 xs / (n-1)
     where
         mean = avg xs
         n = fromIntegral $ length xs
 
 varSample_ :: Double -> VU.Vector Double -> Double
-varSample_ xslength xs = (1/(n-1)) * VU.foldl' (\o x -> o + (x - mean)**2) 0 xs
+varSample_ n xs = VU.foldl' (\o x -> o + (x - mean)**2) 0 xs / (n-1)
     where
-        mean = avg_ xslength xs
-        n = xslength
+        mean = avg_ n xs
 
 sdSample :: [Double] -> Double
 sdSample xs = sqrt $ varSample xs
@@ -60,7 +59,7 @@ weightedVar values weights =
         scaledS2 = if neff < 1
                    then 0
                    else (neff - 1) * s2
-        s2 = foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights)
+        s2 = foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights) / (neff-1)
         weightedMean = weightedAvg values weights
         neff = totalWeight
         totalWeight = foldSum weights
@@ -74,7 +73,7 @@ weightedVar_ sampleVariance totalWeight weightedMean values weights =
         scaledS2 = if neff < 1
                    then 0
                    else (neff - 1) * s2
-        s2 = VU.foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (VU.zip values weights)
+        s2 = VU.foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (VU.zip values weights) / (neff-1)
         neff = totalWeight
         nu0 = 1
         sigma02 = sampleVariance
