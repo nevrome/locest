@@ -74,7 +74,7 @@ test-suite spec
     main-is:
       Spec.hs
     other-modules:
-        MainSpec
+        GoldenSpec, MathSpec
     type:
       exitcode-stdio-1.0
     default-language:
@@ -84,3 +84,4 @@ test-suite spec
       , locest
       , hspec
       , process
+      , vector

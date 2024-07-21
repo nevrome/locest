@@ -1,16 +1,16 @@
-module MainSpec (spec) where
+module GoldenSpec (spec) where
 
 import           Control.Applicative
 import           Control.Monad
 import           System.IO
 import           System.Process
-import           Test.Hspec          (Spec, describe, it, shouldReturn)
+import           Test.Hspec
 
 spec :: Spec
-spec = locestSpec
+spec = goldenSpec
 
-locestSpec :: Spec
-locestSpec =
+goldenSpec :: Spec
+goldenSpec =
 
   describe "locest" $ do
 
