@@ -181,7 +181,7 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline
     <> OH.hardline <> s2d "EqualSize(n): Bins the observations into n bins with an equal amount of \
                           \observations."
-    <> OH.hardline <> s2d "OneBinMax(max = c(indepV1=DOUBLE,indepV2=DOUBLE,...): Only create one bin \
+    <> OH.hardline <> s2d "Nugget(max = c(indepV1=DOUBLE,indepV2=DOUBLE,...): Only create one bin \
                           \per independent and dependent variable with a given upper limit. \
                           \This is useful to get an estimate for the nugget parameter."
     <> OH.hardline
