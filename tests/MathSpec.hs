@@ -16,26 +16,36 @@ testEqualityFullAndPartialFunctions = describe "LocEst.MathUtils: full and parti
     prop "avg == avg_" test_avg
     prop "varSample == varSample_" test_varSample
     prop "weightedAvg == weightedAvg_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedAvg vals weights
+    prop "weightedVar == weightedVar_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedVar vals weights
     where
         test_avg :: [Double] -> Bool
         test_avg [] = True
-        test_avg xs =
-            let vxs = VU.fromList xs
-                vxslength = fromIntegral $ VU.length vxs
-            in avg_ vxslength vxs == avg xs
+        test_avg vals =
+            let vvals = VU.fromList vals
+                vlength = fromIntegral $ VU.length vvals
+            in avg_ vlength vvals == avg vals
         test_varSample :: [Double] -> Bool
         test_varSample []  = True
         test_varSample [_] = True
-        test_varSample xs  =
-            let vxs = VU.fromList xs
-                vxslength = fromIntegral $ VU.length vxs
-            in varSample_ vxslength vxs == varSample xs
+        test_varSample vals  =
+            let vvals = VU.fromList vals
+                vlength = fromIntegral $ VU.length vvals
+            in varSample_ vlength vvals == varSample vals
         test_weightedAvg :: [Double] -> [Double] -> Bool
         test_weightedAvg vals weights =
             let vvals = VU.fromList vals
                 vweights = VU.fromList weights
                 totalWeight = VU.sum vweights
             in weightedAvg_ totalWeight vvals vweights == weightedAvg vals weights
+        test_weightedVar :: [Double] -> [Double] -> Bool
+        test_weightedVar vals weights =
+            let vvals = VU.fromList vals
+                vweights = VU.fromList weights
+                vlength = fromIntegral $ VU.length vvals
+                sampleVariance = varSample_ vlength vvals
+                totalWeight = VU.sum vweights
+                weightedMean = weightedAvg_ totalWeight vvals vweights
+            in weightedVar_ sampleVariance totalWeight weightedMean vvals vweights == weightedVar vals weights
 
 -- generators
 
