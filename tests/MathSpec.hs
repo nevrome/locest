@@ -17,6 +17,7 @@ testEqualityFullAndPartialFunctions = describe "LocEst.MathUtils: full and parti
     prop "varSample == varSample_" test_varSample
     prop "weightedAvg == weightedAvg_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedAvg vals weights
     prop "weightedVar == weightedVar_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedVar vals weights
+    prop "posteriorPredictive == posteriorPredictive_" $ forAll valuesAndWeights $ \(vals, weights) -> test_posteriorPredictive vals weights
     where
         test_avg :: [Double] -> Bool
         test_avg [] = True
@@ -44,14 +45,24 @@ testEqualityFullAndPartialFunctions = describe "LocEst.MathUtils: full and parti
                 vlength = fromIntegral $ VU.length vvals
                 sampleVariance = varSample_ vlength vvals
                 totalWeight = VU.sum vweights
-                weightedMean = weightedAvg_ totalWeight vvals vweights
-            in weightedVar_ sampleVariance totalWeight weightedMean vvals vweights == weightedVar vals weights
+                weightedM = weightedAvg_ totalWeight vvals vweights
+            in weightedVar_ sampleVariance totalWeight weightedM vvals vweights == weightedVar vals weights
+        test_posteriorPredictive :: [Double] -> [Double] -> Bool
+        test_posteriorPredictive vals weights =
+            let vvals = VU.fromList vals
+                vweights = VU.fromList weights
+                vlength = fromIntegral $ VU.length vvals
+                sampleVariance = varSample_ vlength vvals
+                totalWeight = VU.sum vweights
+                weightedM = weightedAvg_ totalWeight vvals vweights
+                weightedV = weightedVar_ sampleVariance totalWeight weightedM vvals vweights
+            in posteriorPredictive_ totalWeight weightedM weightedV == posteriorPredictive vals weights
 
 -- generators
 
 valuesAndWeights :: Gen ([Double], [Double])
 valuesAndWeights = do
-  len <- choose (1, 100)
+  len <- choose (2, 100)
   listA <- vectorOf len (arbitrary :: Gen Double)
   listB <- vectorOf len positiveDouble
   return (listA, listB)

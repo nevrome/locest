@@ -61,8 +61,7 @@ weightedVar values weights =
                    else (neff - 1) * s2
         s2 = foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights) / (neff-1)
         weightedMean = weightedAvg values weights
-        neff = totalWeight
-        totalWeight = foldSum weights
+        neff = foldSum weights
         nu0 = 1
         sigma02 = varSample values
 
