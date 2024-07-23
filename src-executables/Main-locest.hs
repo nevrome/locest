@@ -21,9 +21,10 @@ import System.IO.Silently (hSilence)
 
 -- data types
 data Options = Options {
-      _subcommand :: Subcommand
-    , _threads    :: NumberOfThreads
-    , _quiet      :: Bool
+      _subcommand  :: Subcommand
+    , _threads     :: NumberOfThreads
+    , _quiet       :: Bool
+    , _toKMScaling :: Double
     }
 
 
@@ -50,13 +51,13 @@ main = do
             configFileArgs <- catch (parseConfigFile configFilePath) handler
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
-    (Options subcommand threads quiet) <-
+    (Options subcommand threads quiet toKMScaling) <-
         OP.handleParseResult $
             OP.execParserPure (OP.prefs OP.showHelpOnEmpty) optParserInfo mergedCmdArgs
     -- number of threads
     numThreads <- setNumberOfThreads threads
     -- run requested subcommand
-    catch (run subcommand numThreads quiet) handler
+    catch (run subcommand numThreads quiet toKMScaling) handler
     where
         -- handling the special --configFile argument
         getConfigFilePath :: [String] -> Maybe FilePath
@@ -78,19 +79,19 @@ main = do
             hPutStrLn stderr $ renderLocEstException e
             exitFailure
 
-run :: Subcommand -> Int -> Bool -> IO ()
-run o numThreads False = 
-    runCmd o numThreads
-run o numThreads True  = do
+run :: Subcommand -> Int -> Bool -> Double -> IO ()
+run o numThreads False toKMScaling = 
+    runCmd o numThreads toKMScaling
+run o numThreads True toKMScaling = do
     hPutStrLn stderr "Working silently"
-    hSilence [stderr] (runCmd o numThreads)
+    hSilence [stderr] (runCmd o numThreads toKMScaling)
 
-runCmd :: Subcommand -> Int -> IO ()
-runCmd o numThreads = case o of
+runCmd :: Subcommand -> Int -> Double -> IO ()
+runCmd o numThreads toKMScaling = case o of
     CmdSerialise opts -> runSerialise opts
-    CmdSearch opts    -> runSearch opts numThreads
-    CmdVario opts     -> runVario opts numThreads
-    CmdCross opts     -> runCross opts numThreads
+    CmdSearch opts    -> runSearch opts numThreads toKMScaling
+    CmdVario opts     -> runVario opts numThreads toKMScaling
+    CmdCross opts     -> runCross opts numThreads toKMScaling
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (

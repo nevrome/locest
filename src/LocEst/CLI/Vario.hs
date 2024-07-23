@@ -47,8 +47,10 @@ isBelowIndepVarsThreshold distsPerIndepVar (indepVarName, threshold) =
     let (SUDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVarName
     in VU.map (<=threshold) dists
 
-runVario :: VarioOptions -> Int -> IO ()
-runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,timeScaling) indepVarsThresholds acrossDepVars outFile binModeSettings) numThreads = do
+runVario :: VarioOptions -> Int -> Double -> IO ()
+runVario
+    (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,timeScaling) indepVarsThresholds acrossDepVars outFile binModeSettings)
+    numThreads toKMScaling = do
     -- read observations
     observations <- readObservations inObsFile
     -- read spat dist file
@@ -209,7 +211,7 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
             ) = do
             let timeDist  = temporalDistSpatTempPos p1 p2
                 spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
+                    Nothing             -> spatialDistSpatTempPos p1 p2
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
             -- write distances to mutable vector
             VUM.write spaceVec i spaceDist
@@ -224,7 +226,7 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
             ) = do
             let timeDist  = temporalDistSpatTempPos p1 p2
                 spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
+                    Nothing             -> spatialDistSpatTempPos p1 p2
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
                 mergedDist = sqrt (((spaceDist * spaceScaling) ** 2) + ((timeDist * timeScaling) ** 2))
             VUM.write distVec i mergedDist

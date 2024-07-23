@@ -89,7 +89,7 @@ getDists
     (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration _)
     (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _) _) =
         let spatDist = findSpatDist maybeSpatDistMap
-            spatDistsKM = spatDist/1000
+            spatDistsKM = spatDist / 1000
             tempDist = findTempDist maybeTempSamples
         in IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)
         where
