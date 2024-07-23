@@ -16,6 +16,7 @@ testEqualityFullAndPartialFunctions = describe "LocEst.MathUtils: full and parti
     prop "avg == avg_" test_avg
     prop "varSample == varSample_" test_varSample
     prop "weightedAvg == weightedAvg_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedAvg vals weights
+    prop "weightedVarBasic == weightedVarBasic_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedVarBasic vals weights
     prop "weightedVar == weightedVar_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedVar vals weights
     prop "posteriorPredictive == posteriorPredictive_" $ forAll valuesAndWeights $ \(vals, weights) -> test_posteriorPredictive vals weights
     where
@@ -38,6 +39,13 @@ testEqualityFullAndPartialFunctions = describe "LocEst.MathUtils: full and parti
                 vweights = VU.fromList weights
                 totalWeight = VU.sum vweights
             in weightedAvg_ totalWeight vvals vweights == weightedAvg vals weights
+        test_weightedVarBasic :: [Double] -> [Double] -> Bool
+        test_weightedVarBasic vals weights =
+            let vvals = VU.fromList vals
+                vweights = VU.fromList weights
+                totalWeight = VU.sum vweights
+                weightedM = weightedAvg_ totalWeight vvals vweights
+            in weightedVarBasic_ totalWeight weightedM vvals vweights == weightedVarBasic vals weights
         test_weightedVar :: [Double] -> [Double] -> Bool
         test_weightedVar vals weights =
             let vvals = VU.fromList vals
@@ -46,7 +54,8 @@ testEqualityFullAndPartialFunctions = describe "LocEst.MathUtils: full and parti
                 sampleVariance = varSample_ vlength vvals
                 totalWeight = VU.sum vweights
                 weightedM = weightedAvg_ totalWeight vvals vweights
-            in weightedVar_ sampleVariance totalWeight weightedM vvals vweights == weightedVar vals weights
+                weightedVBase = weightedVarBasic_ totalWeight weightedM vvals vweights
+            in weightedVar_ sampleVariance weightedVBase totalWeight == weightedVar vals weights
         test_posteriorPredictive :: [Double] -> [Double] -> Bool
         test_posteriorPredictive vals weights =
             let vvals = VU.fromList vals
@@ -55,7 +64,8 @@ testEqualityFullAndPartialFunctions = describe "LocEst.MathUtils: full and parti
                 sampleVariance = varSample_ vlength vvals
                 totalWeight = VU.sum vweights
                 weightedM = weightedAvg_ totalWeight vvals vweights
-                weightedV = weightedVar_ sampleVariance totalWeight weightedM vvals vweights
+                weightedVBase = weightedVarBasic_ totalWeight weightedM vvals vweights
+                weightedV = weightedVar_ sampleVariance weightedVBase totalWeight
             in posteriorPredictive_ totalWeight weightedM weightedV == posteriorPredictive vals weights
 
 -- generators

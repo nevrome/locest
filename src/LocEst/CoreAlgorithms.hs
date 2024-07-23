@@ -146,7 +146,8 @@ getRandomSampleOneDepVar obsWithDist depVarsRands depVarVariances depVar kernelP
         sampleVariance = lookupUnsafe depVarVariances depVar
         totalWeight = VU.sum weights
         weightedA   = weightedAvg_ totalWeight values weights
-        weightedV   = weightedVar_ sampleVariance totalWeight weightedA values weights
+        weightedVBasic = weightedVarBasic_ totalWeight weightedA values weights
+        weightedV   = weightedVar_ sampleVariance weightedVBasic totalWeight
     case posteriorPredictive_ totalWeight weightedA weightedV of
         Right distribution -> (depVar, quantile distribution random01)
         Left _             -> (depVar,nan)
@@ -165,7 +166,8 @@ interpolAndSearchOneDepVar obsWithDist depVarVariances depVar kernelPerDepVar ma
         totalWeight = VU.sum weights
         neff        = totalWeight
         weightedA   = weightedAvg_ totalWeight values weights
-        weightedV   = weightedVar_ sampleVariance totalWeight weightedA values weights
+        weightedVBasic = weightedVarBasic_ totalWeight weightedA values weights
+        weightedV   = weightedVar_ sampleVariance weightedVBasic totalWeight
     case posteriorPredictive_ totalWeight weightedA weightedV of
         Right distribution ->
             let lower  = quantile distribution 0.025
@@ -173,17 +175,17 @@ interpolAndSearchOneDepVar obsWithDist depVarVariances depVar kernelPerDepVar ma
                 upper  = quantile distribution 0.975
                 logL   = fmap (logDensity distribution) maybeValueDepVar -- log-likelihood
             in InterpolationResultOneDepVarFull
-                depVar neff weightedA weightedV (OutBool True)
+                depVar neff weightedA weightedVBasic weightedV (OutBool True)
                 (OutInfDouble lower) median (OutInfDouble upper) logL
         Left _ ->
             case maybeValueDepVar of
                 Just _ ->
                     InterpolationResultOneDepVarFull
-                        depVar neff weightedA weightedV (OutBool False)
+                        depVar neff weightedA weightedVBasic weightedV (OutBool False)
                         (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just (-infinity)) -- requires a proper prior
                 Nothing ->
                     InterpolationResultOneDepVarFull
-                        depVar neff weightedA weightedV (OutBool False)
+                        depVar neff weightedA weightedVBasic weightedV (OutBool False)
                         (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
 getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
