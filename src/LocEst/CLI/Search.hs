@@ -55,7 +55,7 @@ data SpaceTimeCoreSupplementSettings = SpaceTimeCoreSupplementSettings {
     , _stcsNoOrderCheck         :: Bool
 }
 
-runSearch :: SearchOptions -> Int -> IO ()
+runSearch :: SearchOptions -> Int -> Double -> IO ()
 runSearch (
     SearchOptions
         inObsFile
@@ -64,7 +64,7 @@ runSearch (
         normalization
         outFile
         outMode
-    ) numThreads = do
+    ) numThreads spatDistUnitScaling = do
     -- list of variables
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
@@ -91,7 +91,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreOutObsWeight nrTopObs supplement depVars observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreOutObsWeight spatDistUnitScaling nrTopObs supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
@@ -115,7 +115,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany randomIts
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreOutInterpolSamples variancesPerDepVar supplement depVars observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreOutInterpolSamples spatDistUnitScaling variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
@@ -124,7 +124,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal CoreOutShort variancesPerDepVar supplement depVars observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling CoreOutShort variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| normalize normalization
@@ -134,7 +134,7 @@ runSearch (
                 ConC.yieldMany permutations
                 -- .| ConAA.asyncMapC numThreads (coreNormal CoreOutFull variancesPerDepVar supplement observations)
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal CoreOutFull variancesPerDepVar supplement depVars observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling CoreOutFull variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| normalize normalization

@@ -44,12 +44,12 @@ data CrossOutModeSettings =
     | IndividualSearchObsResults
     deriving (Show)
 
-runCross :: CrossOptions -> Int -> IO ()
+runCross :: CrossOptions -> Int -> Double -> IO ()
 runCross (
     CrossOptions inObsFile
     spaceTimeSuppSettings
     (CrossSettings kernDefs testFraction iterations maybeSeed) outFile outMode
-    ) numThreads = do
+    ) numThreads spatDistUnitScaling = do
     -- list of variables
     let depVars   = getKeys $ head $ kernDefs
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
@@ -119,7 +119,7 @@ runCross (
                 -- .| ConAA.asyncMapC maxNumThreads (coreNormal CoreOutFull variancesPerDepVar coreSupp trainingData)
                 -- operate on chunks (faster and more efficient use of cores)
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC maxNumThreads (V.map (coreNormal CoreOutFull variancesPerDepVar coreSupp depVars trainingData))
+                .| ConAA.asyncMapC maxNumThreads (V.map (coreNormal spatDistUnitScaling CoreOutFull variancesPerDepVar coreSupp depVars trainingData))
                 .| ConC.concat
         multiplyByAlgorithms ::
                Int

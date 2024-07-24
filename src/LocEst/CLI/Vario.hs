@@ -47,8 +47,10 @@ isBelowIndepVarsThreshold distsPerIndepVar (indepVarName, threshold) =
     let (SUDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVarName
     in VU.map (<=threshold) dists
 
-runVario :: VarioOptions -> Int -> IO ()
-runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,timeScaling) indepVarsThresholds acrossDepVars outFile binModeSettings) numThreads = do
+runVario :: VarioOptions -> Int -> Double -> IO ()
+runVario
+    (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,timeScaling) indepVarsThresholds acrossDepVars outFile binModeSettings)
+    numThreads spatDistUnitScaling = do
     -- read observations
     observations <- readObservations inObsFile
     -- read spat dist file
@@ -60,7 +62,7 @@ runVario (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,tim
                 _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
     -- calculate pairwise distances
     hPutStrLn stderr "Calculating pairwise distances for independent variables"
-    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars (spaceScaling,timeScaling) inSpatDists observations
+    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars spatDistUnitScaling (spaceScaling,timeScaling) inSpatDists observations
     hPutStrLn stderr "Calculating pairwise distances for dependent variables"
     !distsPerDepVar   <- calcDepVarPairwiseDistances acrossDepVars observations
     -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
@@ -164,8 +166,8 @@ makeObsPairs obs =
     in zip [0..] obsPairs
 
 -- distance calculation functions
-calcIndepVarPairwiseDistances :: Bool -> (Double,Double) -> Maybe SpatDistMatrix -> V.Vector Observation -> IO MatrixPerIndepVar
-calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMatrix obs = do
+calcIndepVarPairwiseDistances :: Bool -> Double -> (Double,Double) -> Maybe SpatDistMatrix -> V.Vector Observation -> IO MatrixPerIndepVar
+calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScaling) maybeSpatDistMatrix obs = do
     let obsPairs = makeObsPairs obs
         nrPairs = length obsPairs
         (Observation _ _ (HyperPos indepPos _) _) = V.head obs
@@ -209,10 +211,11 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
             ) = do
             let timeDist  = temporalDistSpatTempPos p1 p2
                 spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
+                    Nothing             -> spatialDistSpatTempPos p1 p2
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
+                spaceDistScaled = spaceDist * spatDistUnitScaling
             -- write distances to mutable vector
-            VUM.write spaceVec i spaceDist
+            VUM.write spaceVec i spaceDistScaled
             VUM.write timeVec  i timeDist
         distSpaceTime _ _ _ = error "impossible state in spatial independent variable distance calculation"
         distSpaceTimeMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
@@ -224,9 +227,10 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
             ) = do
             let timeDist  = temporalDistSpatTempPos p1 p2
                 spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatTempPos p1 p2 / 1000 -- scaling meters to kilometres
+                    Nothing             -> spatialDistSpatTempPos p1 p2
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
-                mergedDist = sqrt (((spaceDist * spaceScaling) ** 2) + ((timeDist * timeScaling) ** 2))
+                spaceDistScaled = spaceDist * spatDistUnitScaling
+                mergedDist = sqrt (((spaceDistScaled * spaceScaling) ** 2) + ((timeDist * timeScaling) ** 2))
             VUM.write distVec i mergedDist
         distSpaceTimeMerged _ _ = error "impossible state in spatial independent variable distance calculation"
         distArbitrary :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()

@@ -21,9 +21,10 @@ import System.IO.Silently (hSilence)
 
 -- data types
 data Options = Options {
-      _subcommand :: Subcommand
-    , _threads    :: NumberOfThreads
-    , _quiet      :: Bool
+      _subcommand          :: Subcommand
+    , _threads             :: NumberOfThreads
+    , _quiet               :: Bool
+    , _spatDistUnitScaling :: Double
     }
 
 
@@ -50,13 +51,13 @@ main = do
             configFileArgs <- catch (parseConfigFile configFilePath) handler
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
-    (Options subcommand threads quiet) <-
+    (Options subcommand threads quiet spatDistUnitScaling) <-
         OP.handleParseResult $
             OP.execParserPure (OP.prefs OP.showHelpOnEmpty) optParserInfo mergedCmdArgs
     -- number of threads
     numThreads <- setNumberOfThreads threads
     -- run requested subcommand
-    catch (run subcommand numThreads quiet) handler
+    catch (run subcommand numThreads quiet spatDistUnitScaling) handler
     where
         -- handling the special --configFile argument
         getConfigFilePath :: [String] -> Maybe FilePath
@@ -78,19 +79,19 @@ main = do
             hPutStrLn stderr $ renderLocEstException e
             exitFailure
 
-run :: Subcommand -> Int -> Bool -> IO ()
-run o numThreads False = 
-    runCmd o numThreads
-run o numThreads True  = do
+run :: Subcommand -> Int -> Bool -> Double -> IO ()
+run o numThreads False spatDistUnitScaling = 
+    runCmd o numThreads spatDistUnitScaling
+run o numThreads True spatDistUnitScaling = do
     hPutStrLn stderr "Working silently"
-    hSilence [stderr] (runCmd o numThreads)
+    hSilence [stderr] (runCmd o numThreads spatDistUnitScaling)
 
-runCmd :: Subcommand -> Int -> IO ()
-runCmd o numThreads = case o of
+runCmd :: Subcommand -> Int -> Double -> IO ()
+runCmd o numThreads spatDistUnitScaling = case o of
     CmdSerialise opts -> runSerialise opts
-    CmdSearch opts    -> runSearch opts numThreads
-    CmdVario opts     -> runVario opts numThreads
-    CmdCross opts     -> runCross opts numThreads
+    CmdSearch opts    -> runSearch opts numThreads spatDistUnitScaling
+    CmdVario opts     -> runVario opts numThreads spatDistUnitScaling
+    CmdCross opts     -> runCross opts numThreads spatDistUnitScaling
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (
@@ -99,6 +100,7 @@ optParserInfo = OP.info (
         <$> subcommandParser
         <*> optParseNumberOfThreads
         <*> optParseQuiet
+        <*> optParseSpatDistUnitScaling
         )) (
     OP.briefDesc <>
     OP.progDesc "Spatiotemporal interpolation and search for macroscale archaeological data."
