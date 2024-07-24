@@ -227,7 +227,7 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             ) = do
             let timeDist  = temporalDistSpatTempPos p1 p2
                 spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatTempPos p1 p2 * spatDistUnitScaling
+                    Nothing             -> spatialDistSpatTempPos p1 p2
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
                 spaceDistScaled = spaceDist * spatDistUnitScaling
                 mergedDist = sqrt (((spaceDistScaled * spaceScaling) ** 2) + ((timeDist * timeScaling) ** 2))
