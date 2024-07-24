@@ -34,10 +34,16 @@ data CrossOptions = CrossOptions
 
 data CrossSettings = CrossSettings {
       _crossvalInKernDef    :: [KernelDefinition]
-    , _crossvalTestFraction :: Double
+    , _crossvalInSubsetMode :: CrossSubsetMode
+    }
+
+data CrossSubsetMode =
+      CrossFull
+    | CrossFraction {
+      _crossvalTestFraction :: Double
     , _crossvalIterations   :: Int
     , _crossvalMaybeSeed    :: Maybe Int
-}
+    }
 
 data CrossOutModeSettings =
       SummedLikelihoodPerKernelSetting
@@ -48,7 +54,7 @@ runCross :: CrossOptions -> Int -> Double -> IO ()
 runCross (
     CrossOptions inObsFile
     spaceTimeSuppSettings
-    (CrossSettings kernDefs testFraction iterations maybeSeed) outFile outMode
+    (CrossSettings kernDefs subsetMode) outFile outMode
     ) numThreads spatDistUnitScaling = do
     -- list of variables
     let depVars   = getKeys $ head $ kernDefs
@@ -61,30 +67,39 @@ runCross (
     let variancesPerDepVar = calculateVariances depVars observations
     -- read core supplements
     coreSupp <- readSpaceTimeSupp spaceTimeSuppSettings observations
-    -- prepare permutations
-    hPutStrLn stderr "Splitting test and training data"
-    let numObs = fromIntegral $ length observations
-        numTestObs = round $ testFraction * numObs
-    seed <- case maybeSeed of
-                Nothing   -> do
-                    rng <- R.initStdGen
-                    let (seed,_) = R.genWord32 rng
-                    return $ fromIntegral seed
-                Just seed -> pure seed
-    let testTrainingIterations = V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
-    -- determine nr of permutations
+    -- prepare iterations
     let numKernDefs = length kernDefs
-        numPerms = iterations * numTestObs * numKernDefs
+    let numObs = length observations
+    -- permutation: one run of the core algorithm
+    -- iteration: one test/training split
+    (numberPermutations, iterations) <- case subsetMode of
+        CrossFull -> do
+            hPutStrLn stderr "Prepare all-by-all prediction"
+            let nr = numKernDefs * numObs
+                allByAll = V.singleton (0, observations, observations)
+            return (nr, allByAll)
+        CrossFraction testFraction iterations maybeSeed -> do
+            hPutStrLn stderr "Splitting test and training data"
+            let numTestObs = round $ testFraction * fromIntegral numObs
+                nr = numKernDefs * numTestObs * iterations
+            seed <- case maybeSeed of
+                        Nothing   -> do
+                            rng <- R.initStdGen
+                            let (seed,_) = R.genWord32 rng
+                            return $ fromIntegral seed
+                        Just seed -> pure seed
+            let testTrainingIterations = V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
+            return (nr, testTrainingIterations)
     -- run crossvalidation pipeline
     hPutStrLn stderr "All preparations ready"
     hPutStrLn stderr "Running analysis"
     perPointRes <- Con.runConduitRes $
         -- begin to stream iterations
-           ConC.yieldMany testTrainingIterations
+           ConC.yieldMany iterations
         -- run per-iteration conduit until no iterations left
         .| Con.awaitForever (oneIterationConduit coreSupp variancesPerDepVar numThreads depVars)
         -- print progress information
-        .| progress 1000 (Just numPerms)
+        .| progress 1000 (Just numberPermutations)
         .| ConC.sinkList
     case outMode of
         IndividualSearchObsResults -> do
