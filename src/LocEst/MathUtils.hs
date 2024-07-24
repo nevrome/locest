@@ -130,6 +130,7 @@ posteriorPredictive_ totalWeight weightedM weightedV = generalizedStudentT mu sc
 -- Haskell statistics package
 generalizedStudentT :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
 generalizedStudentT mu scale dof
-    | scale <= 0 = Left "sigma must be > 0"
-    | dof   <= 0 = Left "degree of freedoms must be > 0"
-    | otherwise  = Right $ studentTUnstandardized dof mu scale
+    | isNaN scale = Left "sigma is NaN"
+    | scale <= 0  = Left "sigma must be > 0"
+    | dof   <= 0  = Left "degree of freedoms must be > 0"
+    | otherwise   = Right $ studentTUnstandardized dof mu scale
