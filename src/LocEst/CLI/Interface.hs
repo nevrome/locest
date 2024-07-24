@@ -208,10 +208,27 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
 optParseCrossSettings :: OP.Parser CrossSettings
 optParseCrossSettings =
     CrossSettings
-        <$> optParseKernDefStringPermutations
-        <*> optParseTestTrainingFraction
-        <*> optParseCrossvalIterations
-        <*> optParseCrossvalConfSeed
+    <$> optParseKernDefStringPermutations
+    <*> optParseCrossSubsetMode
+
+optParseCrossSubsetMode :: OP.Parser CrossSubsetMode
+optParseCrossSubsetMode = optParseCrossFull OP.<|> optParseCrossFraction
+
+optParseCrossFull :: OP.Parser CrossSubsetMode
+optParseCrossFull = OP.flag' CrossFull (
+       OP.long "full"
+    <> OP.helpDoc ( Just (
+                      s2d "Use all input observations both as test and training data. \
+                          \This is faster than running through multiple test-training split iterations, \
+                          \but potentially also less reliable."
+    <> OH.hardline
+    )))
+
+optParseCrossFraction :: OP.Parser CrossSubsetMode
+optParseCrossFraction = CrossFraction
+                    <$> optParseTestTrainingFraction
+                    <*> optParseCrossvalIterations
+                    <*> optParseCrossvalConfSeed
 
 optParseCrossOutMode :: OP.Parser CrossOutModeSettings
 optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
