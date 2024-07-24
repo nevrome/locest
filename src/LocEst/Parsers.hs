@@ -156,8 +156,8 @@ readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path) = do
 
 -- simpler parsers without additional file requirements
 
-readObservations :: Double -> FilePath -> IO (V.Vector Observation)
-readObservations toKMScaling path = do
+readObservations :: FilePath -> IO (V.Vector Observation)
+readObservations path = do
     hPutStrLn stderr "Reading observations"
     res <- readToVector path
     let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)

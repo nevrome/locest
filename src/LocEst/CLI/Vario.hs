@@ -211,7 +211,7 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
             ) = do
             let timeDist  = temporalDistSpatTempPos p1 p2
                 spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatTempPos p1 p2
+                    Nothing             -> spatialDistSpatTempPos p1 p2 / 1000
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
             -- write distances to mutable vector
             VUM.write spaceVec i spaceDist
@@ -226,7 +226,7 @@ calcIndepVarPairwiseDistances merge (spaceScaling, timeScaling) maybeSpatDistMat
             ) = do
             let timeDist  = temporalDistSpatTempPos p1 p2
                 spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatTempPos p1 p2
+                    Nothing             -> spatialDistSpatTempPos p1 p2 / 1000
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
                 mergedDist = sqrt (((spaceDist * spaceScaling) ** 2) + ((timeDist * timeScaling) ** 2))
             VUM.write distVec i mergedDist
