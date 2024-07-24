@@ -3,7 +3,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE StrictData             #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections          #-}
 
 module LocEst.Types where
 

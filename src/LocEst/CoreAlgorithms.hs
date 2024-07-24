@@ -12,7 +12,7 @@ import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (logDensity, quantile)
 
 -- weights-per-obs application
-coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName] 
+coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
                     -> V.Vector Observation -> CorePermutation -> V.Vector ObsWeight
 coreOutObsWeight spatDistUnitScaling nrTopObs
     (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)

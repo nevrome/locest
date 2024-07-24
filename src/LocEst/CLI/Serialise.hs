@@ -25,7 +25,7 @@ data SerialiseSet =
       , _sooNoOrderCheck      :: Bool
       }
     | SerialiseSpatDistFile  {
-         _spfsInSpatDistFile    :: FilePath
+         _spfsInSpatDistFile   :: FilePath
       , _spfsInObservationFile :: FilePath
       , _spfsInSpatGridFile    :: FilePath
       , _spfsNoOrderCheck      :: Bool

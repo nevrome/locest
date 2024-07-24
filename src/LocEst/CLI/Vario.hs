@@ -13,7 +13,7 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import           Data.Function                 (on)
-import           Data.List                     (singleton, sort, foldl')
+import           Data.List                     (foldl', singleton, sort)
 import qualified Data.Vector                   as V
 import qualified Data.Vector.Algorithms.Intro  as VA
 import qualified Data.Vector.Unboxed           as VU

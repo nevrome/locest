@@ -17,7 +17,7 @@ import           Paths_locest         (version)
 import           System.Environment   (getArgs)
 import           System.Exit          (exitFailure)
 import           System.IO            (hPutStrLn, stderr)
-import System.IO.Silently (hSilence)
+import           System.IO.Silently   (hSilence)
 
 -- data types
 data Options = Options {
@@ -80,7 +80,7 @@ main = do
             exitFailure
 
 run :: Subcommand -> Int -> Bool -> Double -> IO ()
-run o numThreads False spatDistUnitScaling = 
+run o numThreads False spatDistUnitScaling =
     runCmd o numThreads spatDistUnitScaling
 run o numThreads True spatDistUnitScaling = do
     hPutStrLn stderr "Working silently"

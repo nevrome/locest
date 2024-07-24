@@ -1,11 +1,11 @@
 module MathSpec (spec) where
 
-import LocEst.MathUtils
+import           LocEst.MathUtils
 
+import qualified Data.Vector.Unboxed   as VU
 import           Test.Hspec
-import Test.Hspec.QuickCheck
-import qualified Data.Vector.Unboxed as VU
-import Test.QuickCheck
+import           Test.Hspec.QuickCheck
+import           Test.QuickCheck
 
 spec :: Spec
 spec = do
