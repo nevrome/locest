@@ -37,11 +37,11 @@ spatialDistCartesianPos :: CartesianPos -> CartesianPos -> Double
 spatialDistCartesianPos (CartesianPos _ _ x1 y1) (CartesianPos _ _ x2 y2) =
     sqrt (((x1 - x2) ** 2) + ((y1 - y2) ** 2))
 
--- Haversine distance in kilometers
+-- Haversine distance in metres
 spatialDistLongLatPos :: LongLatPos -> LongLatPos -> Double
 spatialDistLongLatPos (LongLatPos _ _ (Longitude lon1) (Latitude lat1))
                       (LongLatPos _ _ (Longitude lon2) (Latitude lat2)) =
-    let r = 6371  -- radius of Earth in kilometers
+    let r = 6371000  -- radius of Earth in metres
         toRadians n = n * pi / 180
         square x = x * x
         cosr = cos . toRadians

@@ -475,6 +475,16 @@ optParseQuiet = OP.switch (
     OP.help "Suppress the printing of progress messages to the stderr stream on the command line."
     )
 
+optParseSpatDistUnitScaling :: OP.Parser Double
+optParseSpatDistUnitScaling = OP.option OP.auto (
+    OP.long "spaceScaling" <>
+    OP.help "Spatial distances computed from input coordinates \
+            \or read from input tables are rescaled by this factor. By default set to 0.001 for the \
+            \common case of input data in meters and desired output in kilometres." <>
+    OP.metavar "DOUBLE" <>
+    OP.value 0.001
+    )
+
 optParseInObservationFile :: OP.Parser FilePath
 optParseInObservationFile = OP.strOption (
        OP.long    "obsFile"
