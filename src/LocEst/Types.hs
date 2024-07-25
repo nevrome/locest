@@ -129,8 +129,8 @@ instance Csv.ToRecord EmpiricalVariogramSingleBin where
 
 -- general types or types specifically relevant for the search subcommand
 
--- | A data type for normalization of search output
-data Normalization = NormBySpace | NoNorm
+-- | A data type for normalisation of search output
+data Normalisation = NormBySpace | NoNorm
     deriving (Show)
 
 -- | A data type for a symmetric, unidirectional distance matrix
@@ -267,7 +267,7 @@ instance Csv.ToRecord SearchResult where
 data SearchLikelihood = SearchLikelihood {
       _slhEuclideanDep  :: Double -- Euclidean distance in dependent variable space between interpolation and search depvar position
     , _slhLogLikelihood :: Double -- Likelihood of the search value
-    , _slhProbability   :: Maybe Double -- Normalized likelihood (= probability) of the search depvar position
+    , _slhProbability   :: Maybe Double -- Normalised likelihood (= probability) of the search depvar position
 } deriving (Show, Generic)
 
 instance NFData SearchLikelihood

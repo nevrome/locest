@@ -25,7 +25,7 @@ data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
     , _searchSearchGridSettings :: SearchGridSettings
     , _searchAlgorithm          :: KernelDefinition
-    , _normalize                :: Normalization
+    , _normalise                :: Normalisation
     , _searchOutFile            :: Maybe FilePath
     , _searchOutMode            :: CoreOutMode
     }
@@ -61,7 +61,7 @@ runSearch (
         inObsFile
         (SearchGridSettings indepVarsPredGridSettings depVarsPredGridSettings)
         kernelDefinition
-        normalization
+        normalisation
         outFile
         outMode
     ) numThreads spatDistUnitScaling = do
@@ -127,7 +127,7 @@ runSearch (
                 .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling CoreOutShort variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
-                .| normalize normalization
+                .| normalise normalisation
                 .| sinkNamedCSV outFile
         CoreOutFull -> do
             Con.runConduitRes $
@@ -137,7 +137,7 @@ runSearch (
                 .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling CoreOutFull variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
-                .| normalize normalization
+                .| normalise normalisation
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
@@ -253,9 +253,9 @@ nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
 
-normalize :: Monad m => Normalization -> Con.ConduitT SearchResult SearchResult m ()
-normalize NoNorm = ConC.map id
-normalize NormBySpace =
+normalise :: Monad m => Normalisation -> Con.ConduitT SearchResult SearchResult m ()
+normalise NoNorm = ConC.map id
+normalise NormBySpace =
        ConL.groupBy groupingCriteria
     .| ConC.map scaleProbs
     .| ConC.concat

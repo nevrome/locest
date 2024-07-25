@@ -107,7 +107,7 @@ searchOptParser = SearchOptions
                         <$> optParseInObservationFile
                         <*> optParseSearchGridSettings
                         <*> optParseKernDefString
-                        <*> optParseNormalization
+                        <*> optParseNormalisation
                         <*> optParseOutFile
                         <*> optParseCoreOutMode
 
@@ -428,26 +428,26 @@ optParseAcrossDepVars = OP.switch (
     ))
     )
 
-optParseNormalization :: OP.Parser Normalization
-optParseNormalization = OP.option (OP.eitherReader readNormalization) (
-    OP.long "normalization" <>
+optParseNormalisation :: OP.Parser Normalisation
+optParseNormalisation = OP.option (OP.eitherReader readNormalisation) (
+    OP.long "normalisation" <>
     OP.metavar "NoNorm|NormBySpace" <>
     OP.value NoNorm
     <> OP.helpDoc ( Just (
-                      s2d "If the output likelihoods from the search algorithm should be normalized. \
-                          \Normalization adds a column [probability] to the output table."
-    <> OH.hardline <> s2d "NoNorm (default): Apply no normalization, so don't calculate a probability"
-    <> OH.hardline <> s2d "NormBySpace: Normalize across all spatial positions at one point in time \
+                      s2d "Should the output likelihoods from the search algorithm should be normalised? \
+                          \Normalisation adds a column [probability] to the output table."
+    <> OH.hardline <> s2d "NoNorm (default): Apply no normalisation."
+    <> OH.hardline <> s2d "NormBySpace: Normalise across all spatial positions at one point in time \
                           \so across one \"time slice\". Only relevant for spatiotemporal interpolation."
     ))
     )
     where
-        readNormalization :: String -> Either String Normalization
-        readNormalization s =
-            case P.runParser parseNormalization () "" s of
+        readNormalisation :: String -> Either String Normalisation
+        readNormalisation s =
+            case P.runParser parseNormalisation () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
-        parseNormalization = P.try parseNormBySpace P.<|> parseNoNorm
+        parseNormalisation = P.try parseNormBySpace P.<|> parseNoNorm
         parseNormBySpace = P.string "NormBySpace" >> return NormBySpace
         parseNoNorm      = P.string "NoNorm"      >> return NoNorm
 
@@ -516,11 +516,10 @@ optParseInObsTempSamplesFile = OP.strOption (
     OP.long "tempSampFile" <>
     OP.metavar "FILE" <>
     OP.helpDoc ( Just (
-                      s2d "Path to a .tsv/.cbor file with random age permutations per observation \
-                          \e.g. produced with currycarbon --samplesFile. If this is given, then the \
-                          \temporal position of each sample is not read from the --obsFile, but looked \
-                          \up in this table. The pairs must be ordered like and by --obsFile and then \
-                          \include the same amount of age samples per observation, so that the table looks like this:"
+                      s2d "Path to a .tsv/.cbor file with random age permutations per observation. \
+                          \If this is given, then the temporal position of each sample is not read from \
+                          \--obsFile, but looked up in this table. The pairs must be ordered like and by \
+                          \--obsFile and include the same amount of age samples per observation."
     <> OH.hardline <>     "┌─────┬────────┐"
     <> OH.hardline <>     "│obsID│yearBCAD│ > [obsID]:"
     <> OH.hardline <>     "├─────┼────────┤   Observations identifier"
@@ -567,8 +566,9 @@ optParseSpaceTimeMinFilter = OP.option (OP.eitherReader readSpaceTime) (
     <> OP.metavar "c(space = DOUBLE, time = DOUBLE)"
     <> OP.value (0,0)
     <> OP.helpDoc ( Just (
-                      s2d "Spatiotemporal radius filter to reduce the number of observations that \
-                          \should be considered for each prediction grid point."
+                      s2d "Spatiotemporal radius filter. Only consider observations above \
+                          \a certain minimum distance for the interpolation at the prediction \
+                          \grid points."
     ))
     )
 
@@ -578,10 +578,8 @@ optParseSpaceTimeMaxFilter = OP.option (OP.eitherReader readSpaceTime) (
     <> OP.metavar "c(space = DOUBLE, time = DOUBLE)"
     <> OP.value (infinity,infinity)
     <> OP.helpDoc ( Just (
-                      s2d "Spatiotemporal radius filter to reduce the number of observations that \
-                          \should be considered for each prediction grid point. This is primarily \
-                          \a performance feature to speed up the calculation by ignoring far away \
-                          \observations."
+                      s2d "Spatiotemporal radius filter. Only consider observations below \
+                          \a certain maximum distance."
     ))
     )
 
@@ -606,7 +604,7 @@ optParseInSpatDistMapFile = OP.strOption (
                           \prediction grid points. If this is given, then the spatial distances will \
                           \not be calculated from the respective coordinates, but looked up in this \
                           \table. The pairs must be ordered first like and by --obsFile and then like \
-                          \and by --spatGridFile, so that the table looks like this:"
+                          \and by --spatGridFile."
     <> OH.hardline <>     "┌─────┬──────┬────┐"
     <> OH.hardline <>     "│obsID│spatID│dist│ > [obsID]:"
     <> OH.hardline <>     "├─────┼──────┼────┤   Observations identifier"
@@ -636,7 +634,7 @@ optParseInArbitraryDimFile = OP.strOption (
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
                       s2d "Path to a .tsv/.cbor file with arbitrary dimension coordinates where interpolation \
-                          \and search should be performed. Columns:"
+                          \should be performed."
     <> OH.hardline <>     "┌───────┬───────┬────────┐"
     <> OH.hardline <>     "│indepV1│indepV2│indep...│ > [indepV1, ...]:"
     <> OH.hardline <>     "├───────┼───────┼────────┤   Independent variable"
@@ -714,13 +712,12 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
        OP.long    "searchDepVarsPos"
     <> OP.short   'd'
     <> OP.metavar "c(depV1=DOUBLE,depV1=c(DOUBLE,DOUBLE,...),depV3=START:STOP:BY,...)"
-    <> OP.help    "Dependent variable positions that should be queried."
     <> OP.helpDoc ( Just (
                       s2d "Dependent variable positions that should be \"searched\" for, so for which \
                           \similarity probabilities in the interpolated field should be computed. \
-                          \Each dependent variable must be specified in a named list \"c(depV1 = ..., depV2 = ..., ...)\". \
-                          \And for each dependent variable either a single coordinate, a list of coordinates, \
-                          \or a sequence of coordinates can be listed."
+                          \Each dependent variable must be specified in a named list \"c(depV1 = ..., depV2 = ...)\". \
+                          \And for each one either a single coordinate, a list of coordinates, \
+                          \or a sequence of coordinates can be specified."
     ))
     )
     where
@@ -749,8 +746,7 @@ optParseInSearchObservationFile = OP.strOption (
     <> OP.helpDoc ( Just (
                       s2d "Path to a .tsv/.cbor file with input observations whose dependent variable \
                           \positions should be \"searched\" for, so for which similarity probabilities \
-                          \in the interpolated field should be computed. The structure of this input \
-                          \file is identical to the one of --obsFile."
+                          \in the interpolated field should be computed. Structured as --obsFile."
     ))
     )
 
@@ -782,28 +778,23 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
     <> OP.short   'k'
     <> OP.metavar "DSL"
     <> OP.helpDoc ( Just (
-                      s2d "Kernel parameter settings that should be applied for the interpolation. \
-                          \This follows the following syntax:"
+                      s2d "Kernel parameter settings for the interpolation."
     <> OH.hardline <>     "┌──────────────────┐"
-    <> OH.hardline <>     "│c(                │- named list of dependent variables"
-    <> OH.hardline <>     "│  depV1 = k(      │- first dependent variable"
-    <> OH.hardline <>     "│    shape = SqEx, │- either SqEx = Squared exponential"
-    <> OH.hardline <>     "│                  │      or Linear = Linear kernel"
-    <> OH.hardline <>     "│    nugget = ..., │- nugget parameter"
-    <> OH.hardline <>     "│    lengths = c(  │- named list with lengthscale"
-    <> OH.hardline <>     "│      space = ... │  for each independent variable"
-    <> OH.hardline <>     "│      time = ...  │"
+    <> OH.hardline <>     "│c(                │ named list of dependent variables"
+    <> OH.hardline <>     "│  depV1 = k(      │ - first dependent variable"
+    <> OH.hardline <>     "│    shape = SqEx, │   - either SqEx = Squared exponential"
+    <> OH.hardline <>     "│                  │         or Linear = Linear kernel"
+    <> OH.hardline <>     "│    nugget = ..., │   - nugget parameter"
+    <> OH.hardline <>     "│    lengths = c(  │   - named list with length scale"
+    <> OH.hardline <>     "│      space = ... │     for each independent variable"
+    <> OH.hardline <>     "│      time = ...  │     (can also be \"indep...\")"
     <> OH.hardline <>     "│    )             │"
     <> OH.hardline <>     "│  ),              │"
-    <> OH.hardline <>     "│  depV2 = k(...)  │- second dependent variable"
+    <> OH.hardline <>     "│  depV2 = k(...)  │ - second dependent variable"
     <> OH.hardline <>     "│)                 │"
     <> OH.hardline <>     "└──────────────────┘"
-    <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified like this.\
-                          \ \"space\" and \"time\" are a special case for the independent variable. \
-                          \Use \"indepV1\", \"indepV2\", etc. for the arbitrary variables case, where \
-                          \ \"V1\" and \"V2\" can be any name."
-    <> OH.hardline <> s2d "All variables descripted here must also exist in the input in --obsFile and \
-                          \--spatGridFile or --anyGridFile."
+    <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified, but \
+                          \all variables must also exist in --obsFile and --spatGridFile/--anyGridFile."
     ))
     )
     where
