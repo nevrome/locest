@@ -457,9 +457,8 @@ optParseNumberOfThreads = OP.option (OP.eitherReader readNumberOfThreads) (
     OP.metavar "INT|Detect" <>
     OP.value SingleThread
     <> OP.help "Maximum number of worker threads. Either just an integer number to request \
-               \a concrete number of threads or \"Detect\" to make locest automatically \
-               \determine the available number of threads and use all of them. \
-               \The default is to use only one thread."
+               \a concrete number of threads or \"Detect\" to automatically determine the maximum. \
+               \The default is to use one thread."
     ) where
         readNumberOfThreads :: String -> Either String NumberOfThreads
         readNumberOfThreads s = do
@@ -480,8 +479,8 @@ optParseSpatDistUnitScaling :: OP.Parser Double
 optParseSpatDistUnitScaling = OP.option OP.auto (
     OP.long "spaceScaling" <>
     OP.help "Spatial distances computed from input coordinates \
-            \or read from input tables are rescaled by this factor. By default set to 0.001 for the \
-            \common case of input data in meters and desired output in kilometres." <>
+            \or read from input tables are rescaled by this factor. By default set to 0.001 for \
+            \input data in metres and output in kilometres." <>
     OP.metavar "DOUBLE" <>
     OP.value 0.001
     )
@@ -492,22 +491,23 @@ optParseInObservationFile = OP.strOption (
     <> OP.short   'i'
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
-                          s2d "Path to a .tsv/.cbor file with the input observations that should inform \
-                              \the field. Columns for the basic spatiotemporal case:"
-    <> OH.hardline <>    "┌─────┬───┬───┬────────┬─────┬─────┬──────┐"
-    <> OH.hardline <>    "│obsID│ x │ y │yearBCAD│depV1│depV2│dep...│"
-    <> OH.hardline <>    "├─────┼───┼───┼────────┼─────┼─────┼──────┤"
-    <> OH.hardline <>    "│     │   │   │        │     │     │      │"
-    <> OH.hardline <>    "└─────┴───┴───┴────────┴─────┴─────┴──────┘"
+                          s2d "Path to a .tsv/.cbor file with the input observations to inform \
+                              \the interpolation. Columns for the basic spatiotemporal case:"
+    <> OH.hardline <>    "┌─────┬───┬───┬────────┬─────┬─────┬──────┬───┐"
+    <> OH.hardline <>    "│obsID│ x │ y │yearBCAD│depV1│depV2│dep...│...│"
+    <> OH.hardline <>    "├─────┼───┼───┼────────┼─────┼─────┼──────┼───┤"
+    <> OH.hardline <>    "│     │   │   │        │     │     │      │   │"
+    <> OH.hardline <>    "└─────┴───┴───┴────────┴─────┴─────┴──────┴───┘"
     <> OH.hardline <> s2d "> [obsID]: Observation identifier"
     <> OH.hardline <> s2d "> [x, y, yearBCAD] or [longitude, langitude, yearBCAD] or \
                           \[indepV1, indepV2, ...]: Independent variable position where the \
                           \first two options belong to the spatiotemporal interpolation setup, \
-                          \and the last to the arbitrary dimension interpolation setup. There all \
+                          \and the last to the arbitrary dimension setup. There all \
                           \variables require the prefix \"indep\" followed by any variable name, \
                           \e.g. \"V1\" and \"V2\"."
     <> OH.hardline <> s2d "> [depV1, depV2, ...]: Dependent variable position. All variables require \
                           \the prefix \"dep\" followed by any variable name, e.g. \"V1\" and \"V2\"."
+    <> OH.hardline <> s2d "> [...]: Additional variables are carried along."
     ))
     )
 
@@ -652,7 +652,7 @@ optParseInSpatGridFile = OP.strOption (
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
                       s2d "Path to a .tsv/.cbor file with spatial coordinates where interpolation \
-                          \and search should be performed. Columns:"
+                          \and search should be performed."
     <> OH.hardline <>     "┌──────┬───┬───┐"
     <> OH.hardline <>     "│spatID│ x │ y │ > [spatID]:"
     <> OH.hardline <>     "├──────┼───┼───┤   Spatial coordinate identifier"
@@ -671,15 +671,14 @@ optParseTempGridString = OP.option (OP.eitherReader readTempGridString) (
                       s2d "Temporal positions in years BC/AD where interpolation and search should \
                           \be performed. absolute(...) means absolute years BC/AD. relative(...) only \
                           \works with --searchObsFile and means before or after the age of the respective \
-                          \search sample. For both a list of years can be given. \
-                          \Here negative integer numbers mark years BC or before the search sample, \
+                          \search sample. Negative integer numbers mark years BC or before the search sample, \
                           \positive numbers years AD or after the search sample. \
                           \A list of years can be defined in three ways:"
     <> OH.hardline <> s2d "> YEAR: One year, e.g. \"-3000\" for 3000BC"
     <> OH.hardline <> s2d "> c(YEAR1,YEAR2,...): A list of years, e.g. \"c(-3000, 1000)\" for 3000BC \
                           \and 1000AD"
-    <> OH.hardline <> s2d "> START:STOP:BY: A sequence  of years, e.g. \"-3000:1000:1000\" for 3000BC, \
-                          \2000BC, 1000BC, 0AD and 1000AD"
+    <> OH.hardline <> s2d "> START:STOP:BY: A sequence  of years, e.g. \"-3000:1000:2000\" for 3000BC, \
+                          \1000BC and 1000AD"
     ))
     )
     where

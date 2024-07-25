@@ -126,5 +126,5 @@ subcommandParser = OP.subparser (
         crossOptInfo = OP.info (OP.helper <*> (CmdCross <$> crossOptParser))
             (OP.progDesc "Compare hyperparameter settings for the interpolation through crossvalidation.")
         serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
-            (OP.progDesc "Transform input data to compact binary files in .cbor format, which then can be \
-                         \used to load data faster in the other subcommands.")
+            (OP.progDesc "Transform input data to compact binary files in .cbor format \
+                         \to load it faster in the other subcommands.")
