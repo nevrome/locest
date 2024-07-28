@@ -69,9 +69,7 @@ weightedVar :: [Double] -> [Double] -> Double
 weightedVar values weights =
     (nu0 * sigma02 + scaledS2) / (nu0 + neff)
     where
-        scaledS2 = if neff < 1
-                   then 0
-                   else (neff - 1) * s2
+        scaledS2 = (neff - 1) * s2
         s2 = weightedVarBasic values weights
         neff = foldSum weights
         nu0 = 1
@@ -81,9 +79,7 @@ weightedVar_ :: Double -> Double -> Double -> Double
 weightedVar_ sampleVariance weightedVarBase totalWeight =
     (nu0 * sigma02 + scaledS2) / (nu0 + neff)
     where
-        scaledS2 = if neff < 1
-                   then 0
-                   else (neff - 1) * s2
+        scaledS2 = (neff - 1) * s2
         s2 = weightedVarBase
         neff = totalWeight
         nu0 = 1
