@@ -114,7 +114,7 @@ runVario
                                 let spaceThreshold  = lookupUnsafe thresholds "space"
                                     timeThreshold   = lookupUnsafe thresholds "time"
                                     mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
-                                in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("all", mergedThreshold)]) indepVarName
+                                in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("acrossIndep", mergedThreshold)]) indepVarName
                             else binIndepVarForNugget sortedIndepDists thresholds indepVarName
                 -- loop over depVars
                 forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
@@ -219,7 +219,7 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             distVec <- VUM.new nrPairs
             mapM_ (distSpaceTimeMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
-            return $ MatrixPerIndepVar [("all", SUDistMatrix distVecNonMut)]
+            return $ MatrixPerIndepVar [("acrossIndep", SUDistMatrix distVecNonMut)]
         -- arbitrary dimension system
         (IndepArbitraryDimPos pos@(ValuesPerIndepVar l),False) -> do
             arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
@@ -231,7 +231,7 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             distVec <- VUM.new nrPairs
             mapM_ (distArbitraryMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
-            return $ MatrixPerIndepVar [("all", SUDistMatrix distVecNonMut)]
+            return $ MatrixPerIndepVar [("acrossIndep", SUDistMatrix distVecNonMut)]
     where
         distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distSpaceTime
@@ -298,7 +298,7 @@ calcDepVarPairwiseDistances merge obs = do
         distVec <- VUM.new nrPairs
         mapM_ (distDepMerged distVec) obsPairs
         distVecNonMut <- VU.unsafeFreeze distVec
-        return [("all", SUDistMatrix distVecNonMut)]
+        return [("acrossDep", SUDistMatrix distVecNonMut)]
     else do
         depVecs <- replicateM (length l) (VUM.new nrPairs)
         mapM_ (distDep depVecs) obsPairs
