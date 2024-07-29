@@ -115,10 +115,9 @@ varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
                         <$> optParseInObservationFile
                         <*> OP.optional optParseSpatDistSetting
-                        <*> optParseAcrossIndepVars
+                        <*> optParseAcrossSettings
                         <*> optParseSpaceTimeScaling
                         <*> optParseIndepVarsThresholds
-                        <*> optParseAcrossDepVars
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
 
@@ -393,6 +392,27 @@ optParseAcrossIndepVars = OP.switch (
     ))
     )
 
+optParseAcrossSettings :: OP.Parser AcrossSettings
+optParseAcrossSettings = OP.option (OP.eitherReader readAcrossSettings) (
+    OP.long "across" <>
+    OP.metavar "IndepVars|DepVars|Both|AllCombinations" <>
+    OP.value AcrossNone
+    <> OP.helpDoc ( Just (
+                      s2d "..."
+    ))
+    )
+    where
+        readAcrossSettings :: String -> Either String AcrossSettings
+        readAcrossSettings s =
+            case P.runParser parseAcrossSettings () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseAcrossSettings  = P.try parseAcrossIndepVars P.<|> P.try parseAcrossDepVars P.<|> P.try parseAcrossBoth P.<|> parseAcrossComb
+        parseAcrossIndepVars = P.string "IndepVars"       >> return AcrossIndepVars
+        parseAcrossDepVars   = P.string "DepVars"         >> return AcrossDepVars
+        parseAcrossBoth      = P.string "Both"            >> return AcrossBoth
+        parseAcrossComb      = P.string "AllCombinations" >> return AcrossComb
+
 optParseSpaceTimeScaling :: OP.Parser (Double,Double)
 optParseSpaceTimeScaling = OP.option (OP.eitherReader readSpaceTime) (
        OP.long "spaceTimeScaling"
@@ -404,14 +424,6 @@ optParseSpaceTimeScaling = OP.option (OP.eitherReader readSpaceTime) (
                           \Only relevant for the spatiotemporal setting. Default: c(space = 1, time = 1)."
     ))
     <> OP.value (1,1)
-    )
-
-optParseAcrossDepVars :: OP.Parser Bool
-optParseAcrossDepVars = OP.switch (
-       OP.long "acrossDepVars"
-    <> OP.helpDoc ( Just (
-                      s2d "Calculate the variogram for Euclidean distances across all dependent variables."
-    ))
     )
 
 optParseNormalisation :: OP.Parser Normalisation

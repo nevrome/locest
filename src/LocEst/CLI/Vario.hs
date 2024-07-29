@@ -24,10 +24,9 @@ import           System.IO                     (hPutStrLn, stderr)
 data VarioOptions = VarioOptions {
       _voInObservationFile   :: FilePath
     , _voSpatDistSetting     :: Maybe SpatDistSettings
-    , _voAcrossIndepVars     :: Bool
+    , _voAcrossSettings      :: AcrossSettings
     , _voSpaceTimeScaling    :: (Double,Double)
     , _voIndepVarsThresholds :: IndepVarsThresholds
-    , _voAcrossDepVars       :: Bool
     , _voOutFile             :: Maybe FilePath
     , _voBinMode             :: BinModeSettings
 }
@@ -37,19 +36,28 @@ data SpatDistSettings = SpatDistSettings {
     , _sdfNoOrderCheck   :: Bool
 }
 
+data AcrossSettings =
+      AcrossNone
+    | AcrossIndepVars
+    | AcrossDepVars
+    | AcrossBoth
+    | AcrossComb
+
+instance Show AcrossSettings where
+    show AcrossNone = "No merging of distances"
+    show AcrossIndepVars = "Merge independent variable distances"
+    show AcrossDepVars = "Merge independent variable distances"
+    show AcrossBoth = "Merge both independent and dependent variable distances"
+    show AcrossComb = "Iterate through all modes"
+
 data BinModeSettings =
       BinByNrBins Int
     | BinForNugget ArbitraryDimPos
     deriving (Show)
 
-isBelowIndepVarsThreshold :: MatrixPerIndepVar -> (IndepVarName, Double) -> VU.Vector Bool
-isBelowIndepVarsThreshold distsPerIndepVar (indepVarName, threshold) =
-    let (SUDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVarName
-    in VU.map (<=threshold) dists
-
 runVario :: VarioOptions -> Int -> Double -> IO ()
 runVario
-    (VarioOptions inObsFile maybeSpatDist acrossIndepVars (spaceScaling,timeScaling) indepVarsThresholds acrossDepVars outFile binModeSettings)
+    (VarioOptions inObsFile maybeSpatDist acrossSetting (spaceScaling,timeScaling) indepVarsThresholds outFile binModeSettings)
     numThreads spatDistUnitScaling = do
     -- read observations
     observations <- readObservations inObsFile
@@ -60,48 +68,71 @@ runVario
             case takeExtension path of
                 ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
                 _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
-    -- calculate pairwise distances
-    hPutStrLn stderr "Calculating pairwise distances for independent variables"
-    !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars spatDistUnitScaling (spaceScaling,timeScaling) inSpatDists observations
-    hPutStrLn stderr "Calculating pairwise distances for dependent variables"
-    !distsPerDepVar   <- calcDepVarPairwiseDistances acrossDepVars observations
-    -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
-    hPutStrLn stderr "Calculating empirical variograms"
-    empiricalVariograms <- fmap concat $
-        -- loop over indepVars
-        forM (toList distsPerIndepVar) $ \(indepVarName, SUDistMatrix indepDists) -> do
-            hPutStrLn stderr ("Working on " ++ indepVarName)
-            -- indexing (must be done before any filtering)
-            let indepDistsIndexed = VU.indexed indepDists
-            -- indepVar cross-filtering
-                relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsThresholds
-                belowThresholdPerIndepVar = map (isBelowIndepVarsThreshold distsPerIndepVar) relevantThresholds
-                belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VU.length indepDists) True) belowThresholdPerIndepVar
-                indepDistsFiltered = VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsIndexed
-            -- sort indep distance vector for easy binning
-            sortedIndepDists <- sortWithIndices indepDistsFiltered -- very time-consuming!
-            -- get start index and stop index for each bin in the sorted indep vector
-            let startStopPerBin = case binModeSettings of
-                    BinByNrBins nrBins      -> binIndepVarByNrBins sortedIndepDists nrBins
-                    BinForNugget thresholds ->
-                        if acrossIndepVars && (sort (getKeys thresholds) == ["space", "time"])
-                        then
-                            let spaceThreshold  = lookupUnsafe thresholds "space"
-                                timeThreshold   = lookupUnsafe thresholds "time"
-                                mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
-                            in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("all", mergedThreshold)]) indepVarName
-                        else binIndepVarForNugget sortedIndepDists thresholds indepVarName
-            -- loop over depVars
-            forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
-                -- loop over bins
-                variancesPerBin <- Con.runConduitRes $
-                        ConC.yieldMany startStopPerBin
-                        .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
-                        .| ConC.sinkList
-                hPutStrLn stderr ("-> " ++ depVarName)
-                return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
+    -- configure across-settings
+    hPutStrLn stderr $ "Distance merging mode: " ++ show acrossSetting
+    let acrossModes = case acrossSetting of
+            AcrossNone      -> [(False, False)]
+            AcrossIndepVars -> [(True,  False)]
+            AcrossDepVars   -> [(False, True )]
+            AcrossBoth      -> [(True,  True )]
+            AcrossComb      -> [(False, False), (True, False), (False, True), (True, True)]
+    -- compute variograms
+    empiricalVariograms <- forM acrossModes $ \(acrossIndepVars, acrossDepVars) -> do 
+        hPutStrLn stderr $ "Merging variables: "
+            ++ (if acrossIndepVars then "[x]" else "[ ]") ++ " Independent, "
+            ++ (if acrossDepVars   then "[x]" else "[ ]") ++ " Dependent"
+        -- calculate pairwise distances
+        hPutStrLn stderr "Calculating pairwise distances for independent variables"
+        !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars spatDistUnitScaling (spaceScaling,timeScaling) inSpatDists observations
+        hPutStrLn stderr "Calculating pairwise distances for dependent variables"
+        !distsPerDepVar   <- calcDepVarPairwiseDistances acrossDepVars observations
+        -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
+        hPutStrLn stderr "Calculating empirical variograms"
+        fmap concat $
+            -- loop over indepVars
+            forM (toList distsPerIndepVar) $ \(indepVarName, SUDistMatrix indepDists) -> do
+                hPutStrLn stderr ("Working on " ++ indepVarName)
+                -- indexing (must be done before any filtering)
+                let indepDistsIndexed = VU.indexed indepDists
+                -- indepVar cross-filtering - only when acrossIndepVars is inactive
+                    indepDistsFiltered =
+                        if acrossIndepVars
+                        then indepDistsIndexed
+                        else 
+                            let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsThresholds
+                                belowThresholdPerIndepVar = map (isBelowIndepVarsThreshold distsPerIndepVar) relevantThresholds
+                                belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VU.length indepDists) True) belowThresholdPerIndepVar
+                            in VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsIndexed
+                -- sort indep distance vector for easy binning
+                sortedIndepDists <- sortWithIndices indepDistsFiltered -- very time-consuming!
+                -- get start index and stop index for each bin in the sorted indep vector
+                let startStopPerBin = case binModeSettings of
+                        BinByNrBins nrBins      -> binIndepVarByNrBins sortedIndepDists nrBins
+                        BinForNugget thresholds ->
+                            if acrossIndepVars && (sort (getKeys thresholds) == ["space", "time"])
+                            then
+                                let spaceThreshold  = lookupUnsafe thresholds "space"
+                                    timeThreshold   = lookupUnsafe thresholds "time"
+                                    mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
+                                in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("all", mergedThreshold)]) indepVarName
+                            else binIndepVarForNugget sortedIndepDists thresholds indepVarName
+                -- loop over depVars
+                forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
+                    -- loop over bins
+                    variancesPerBin <- Con.runConduitRes $
+                            ConC.yieldMany startStopPerBin
+                            .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
+                            .| ConC.sinkList
+                    hPutStrLn stderr ("-> " ++ depVarName)
+                    return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
     -- write variograms to the file system
-    writeVariograms empiricalVariograms outFile
+    writeVariograms (concat empiricalVariograms) outFile
+    hPutStrLn stderr "Done"
+
+isBelowIndepVarsThreshold :: MatrixPerIndepVar -> (IndepVarName, Double) -> VU.Vector Bool
+isBelowIndepVarsThreshold distsPerIndepVar (indepVarName, threshold) =
+    let (SUDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVarName
+    in VU.map (<=threshold) dists
 
 -- write variograms to the file system
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
