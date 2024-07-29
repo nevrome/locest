@@ -89,7 +89,7 @@ runVario
                             let spaceThreshold  = lookupUnsafe thresholds "space"
                                 timeThreshold   = lookupUnsafe thresholds "time"
                                 mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
-                            in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("indepAll", mergedThreshold)]) indepVarName
+                            in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("all", mergedThreshold)]) indepVarName
                         else binIndepVarForNugget sortedIndepDists thresholds indepVarName
             -- loop over depVars
             forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
@@ -188,7 +188,7 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             distVec <- VUM.new nrPairs
             mapM_ (distSpaceTimeMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
-            return $ MatrixPerIndepVar [("indepAll", SUDistMatrix distVecNonMut)]
+            return $ MatrixPerIndepVar [("all", SUDistMatrix distVecNonMut)]
         -- arbitrary dimension system
         (IndepArbitraryDimPos pos@(ValuesPerIndepVar l),False) -> do
             arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
@@ -200,7 +200,7 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             distVec <- VUM.new nrPairs
             mapM_ (distArbitraryMerged distVec) obsPairs
             distVecNonMut <- VU.unsafeFreeze distVec
-            return $ MatrixPerIndepVar [("indepAll", SUDistMatrix distVecNonMut)]
+            return $ MatrixPerIndepVar [("all", SUDistMatrix distVecNonMut)]
     where
         distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distSpaceTime
