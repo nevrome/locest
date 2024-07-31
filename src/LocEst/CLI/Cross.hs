@@ -113,29 +113,21 @@ runCross (
             -- run cross-validation pipeline
             hPutStrLn stderr "All preparations ready"
             hPutStrLn stderr "Running analysis"
-            searchResults <- Con.runConduitRes $
+            Con.runConduitRes $
                 -- begin to stream iterations
                    ConC.yieldMany iterations
                 -- run per-iteration conduit until no iterations left
                 .| Con.awaitForever (oneIterationConduit coreSupp variancesPerDepVar numThreads depVars kernDefs)
                 -- print progress information
                 .| progress 1000 (Just numberPermutations)
-                .| ConC.sinkList
-            let perPointRes = map (CrossSearchResult depVars) searchResults
-            -- process cross-validation output
-            case outMode of
-                IndividualSearchObsResults -> do
+                .| ConC.map (\x -> CrossSearchResult depVars x)
+                .| case outMode of
                     -- write out cross-validation results for individual observations
-                    Con.runConduitRes $
-                           ConC.yieldMany perPointRes
-                        .| if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
-                SummedLikelihoodPerKernelSetting -> do
+                    IndividualSearchObsResults -> do
+                           if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
                     -- summarize cross-validation result per kernel parameter setting
-                    hPutStrLn stderr "Summarizing crossvalidation results"
-                    Con.runConduitRes $
-                           ConC.yieldMany (sortBy sortFunc perPointRes)
-                        .| progress 100000 (Just $ length perPointRes)
-                        .| ConL.groupBy groupFunc
+                    SummedLikelihoodPerKernelSetting -> do
+                           ConL.groupBy groupFunc
                         .| ConC.map summarizeFunc
                         .| if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
         oneIterationConduit ::
@@ -150,9 +142,6 @@ runCross (
             ConC.yieldMany testData
                 -- multiply multidimensional positions by algorithms
                 .| ConC.concatMap (multiplyByAlgorithms iteration kernDefs)
-                -- main search algorithm
-                -- operate element-by-element
-                -- .| ConAA.asyncMapC maxNumThreads (coreNormal CoreOutFull variancesPerDepVar coreSupp trainingData)
                 -- operate on chunks (faster and more efficient use of cores)
                 .| ConC.conduitVector 1000
                 .| ConAA.asyncMapC maxNumThreads (V.map (
