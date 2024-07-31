@@ -205,6 +205,7 @@ optParseCrossSettings :: OP.Parser CrossSettings
 optParseCrossSettings =
     CrossSettings
     <$> optParseKernDefStringPermutations
+    <*> optParseCoAnalyseDepVars
     <*> optParseCrossSubsetMode
 
 optParseCrossSubsetMode :: OP.Parser CrossSubsetMode
@@ -816,7 +817,17 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
             makeKernelShape shape
         parseKernelLengths = KernelLengths . ValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
 
-optParseKernDefStringPermutations :: OP.Parser [KernelDefinition]
+optParseCoAnalyseDepVars :: OP.Parser Bool
+optParseCoAnalyseDepVars = OP.switch (
+       OP.long "coAnalyseDepVars"
+    <> OP.helpDoc ( Just (
+                      s2d "Run the crossvalidation for all permutations of kernel parameters \
+                          \of all dependent variables. This is computationally very expensive. \
+                          \By default each dependent variable is analysed independently."
+    ))
+    )
+
+optParseKernDefStringPermutations :: OP.Parser [[KernelOneDepVar]]
 optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString) (
        OP.long    "kerndef"
     <> OP.short   'k'
@@ -847,17 +858,15 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
     ))
     )
     where
-        readKernDefString :: String -> Either String [KernelDefinition]
+        readKernDefString :: String -> Either String [[KernelOneDepVar]]
         readKernDefString s =
             case P.runParser parseAKernDefString () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
-        parseAKernDefString :: P.Parser [KernelDefinition]
+        parseAKernDefString :: P.Parser [[KernelOneDepVar]]
         parseAKernDefString = do
                     perDepVar <- parseNamedVector parseDepVarName parseShapeNuggetLengths
-                    let flattened = map (\(name,(s,ns,ls)) -> map (\(n,l) -> KernelOneDepVar name s n l) (allCombinations ns ls)) perDepVar
-                        permutations = sequenceA flattened
-                    return $ map KernelDefinition permutations
+                    return $ map toKernelsForOneDepVar perDepVar
         parseShapeNuggetLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
@@ -878,7 +887,10 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
         parseSequence = parseDoubleSequence
         parseList = parseVector parseDouble
         parseSingle = singleton <$> parseDouble
+        -- helpers
         allCombinations xs ys = [ (x,y) | x <- xs, y <- ys ]
+        toKernelsForOneDepVar (name,(s,ns,ls)) = map (uncurry (KernelOneDepVar name s)) (allCombinations ns ls)
+
 
 -- general parsers
 

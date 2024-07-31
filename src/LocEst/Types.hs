@@ -88,9 +88,33 @@ instance Csv.ToRecord CsvNamedRecord where
 
 -- special types for the cross subcommand
 
+-- | A data type for search results with a depVar label
+data CrossSearchResult = CrossSearchResult {
+      _csrDepVars      :: [DepVarName]
+    , _csrSearchResult :: SearchResult
+} deriving (Show, Generic)
+
+instance NFData CrossSearchResult
+instance Csv.DefaultOrdered CrossSearchResult where
+    headerOrder (CrossSearchResult [depVar] searchResult) =
+        Csv.header ["dep"] <> removeDepVarFromHeader depVar (Csv.headerOrder searchResult)
+    headerOrder (CrossSearchResult _ searchResult) =
+        Csv.headerOrder searchResult
+instance Csv.ToRecord CrossSearchResult where
+    toRecord (CrossSearchResult [depVar] searchResult) =
+        Csv.toRecord [Csv.toField depVar] <> Csv.toRecord searchResult
+    toRecord (CrossSearchResult _ searchResult) =
+        Csv.toRecord searchResult
+
+removeDepVarFromHeader :: String -> V.Vector Bchs.ByteString -> V.Vector Bchs.ByteString
+removeDepVarFromHeader depVar =
+    let s = Bchs.pack depVar
+    in V.map (Bchs.intercalate "_" . filter (/= s) . Bchs.split '_')
+
 -- | A data type for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
-      _crossoutKernelDefinition :: KernelDefinition
+      _crossoutDepVars          :: [DepVarName]
+    , _crossoutKernelDefinition :: KernelDefinition
     , _crossoutDistSum          :: Double
     , _crossoutDistMeanSquared  :: Double
     , _crossoutProbSum          :: Double
@@ -98,11 +122,24 @@ data CrossvalOutput = CrossvalOutput {
 
 instance NFData CrossvalOutput
 instance Csv.DefaultOrdered CrossvalOutput where
-    headerOrder (CrossvalOutput algo _ _ _) =
-        Csv.headerOrder algo <> Csv.header ["sum_dep_dist_euclidean"] <> Csv.header ["mean_squared_dep_dist_euclidean"] <> Csv.header ["sum_log_likelihood"]
+    headerOrder (CrossvalOutput [depVar] algo _ _ _) =
+        Csv.header ["dep"] <> removeDepVarFromHeader depVar (Csv.headerOrder algo) <> crossSummaryHeader
+    headerOrder (CrossvalOutput _ algo _ _ _) =
+        Csv.headerOrder algo <> crossSummaryHeader
 instance Csv.ToRecord CrossvalOutput where
-    toRecord (CrossvalOutput algo sumDist meanSquaredDist sumProb) =
-        Csv.toRecord algo <> Csv.record [Csv.toField sumDist] <> Csv.record [Csv.toField meanSquaredDist] <> Csv.record [Csv.toField $ OutInfDouble sumProb]
+    toRecord (CrossvalOutput [depVar] algo sumDist meanSquaredDist sumProb) =
+           Csv.toRecord [Csv.toField depVar]
+        <> Csv.toRecord algo
+        <> Csv.record [Csv.toField sumDist]
+        <> Csv.record [Csv.toField meanSquaredDist]
+        <> Csv.record [Csv.toField $ OutInfDouble sumProb]
+    toRecord (CrossvalOutput _ algo sumDist meanSquaredDist sumProb) =
+           Csv.toRecord algo
+        <> Csv.record [Csv.toField sumDist]
+        <> Csv.record [Csv.toField meanSquaredDist]
+        <> Csv.record [Csv.toField $ OutInfDouble sumProb]
+
+crossSummaryHeader = Csv.header ["sum_dep_dist_euclidean","mean_squared_dep_dist_euclidean","sum_log_likelihood"]
 
 -- special types for the vario subcommands
 
