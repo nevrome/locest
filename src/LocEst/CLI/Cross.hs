@@ -17,7 +17,7 @@ import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import           Data.List                     (intercalate, singleton, sortBy)
+import           Data.List                     (intercalate, singleton)
 import           Data.Maybe                    (mapMaybe)
 import qualified Data.Vector                   as V
 import           Immutable.Shuffle             (shuffle)
@@ -114,13 +114,11 @@ runCross (
             hPutStrLn stderr "All preparations ready"
             hPutStrLn stderr "Running analysis"
             Con.runConduitRes $
-                -- begin to stream iterations
-                   ConC.yieldMany iterations
-                -- run per-iteration conduit until no iterations left
-                .| Con.awaitForever (oneIterationConduit coreSupp variancesPerDepVar numThreads depVars kernDefs)
+                   ConC.yieldMany kernDefs
+                .| Con.awaitForever (oneKernDefConduit coreSupp variancesPerDepVar depVars iterations)
                 -- print progress information
                 .| progress 1000 (Just numberPermutations)
-                .| ConC.map (\x -> CrossSearchResult depVars x)
+                .| ConC.map (CrossSearchResult depVars)
                 .| case outMode of
                     -- write out cross-validation results for individual observations
                     IndividualSearchObsResults -> do
@@ -130,32 +128,27 @@ runCross (
                            ConL.groupBy groupFunc
                         .| ConC.map summarizeFunc
                         .| if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
+        oneKernDefConduit ::
+               CoreSupplement
+            -> DepVarVariances
+            -> [DepVarName]
+            -> V.Vector (Int, V.Vector Observation, V.Vector Observation)
+            -> KernelDefinition
+            -> ConduitT KernelDefinition SearchResult (ResourceT IO) ()
+        oneKernDefConduit coreSupp variancesPerDepVar depVars iterations kernDef =
+                   ConC.yieldMany iterations
+                .| Con.awaitForever (oneIterationConduit coreSupp variancesPerDepVar depVars kernDef)
         oneIterationConduit ::
                CoreSupplement
             -> DepVarVariances
-            -> Int
             -> [DepVarName]
-            -> [KernelDefinition]
+            -> KernelDefinition
             -> (Int, V.Vector Observation, V.Vector Observation)
             -> ConduitT (Int, V.Vector Observation, V.Vector Observation) SearchResult (ResourceT IO) ()
-        oneIterationConduit coreSupp variancesPerDepVar maxNumThreads depVars kernDefs (iteration,testData,trainingData) = do
+        oneIterationConduit coreSupp variancesPerDepVar depVars kernDef (iteration,testData,trainingData) = do
             ConC.yieldMany testData
-                -- multiply multidimensional positions by algorithms
-                .| ConC.concatMap (multiplyByAlgorithms iteration kernDefs)
-                -- operate on chunks (faster and more efficient use of cores)
-                .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC maxNumThreads (V.map (
-                        coreNormal spatDistUnitScaling CoreOutFull variancesPerDepVar coreSupp depVars trainingData
-                    ))
-                .| ConC.concat
-        multiplyByAlgorithms ::
-               Int
-            -> [KernelDefinition]
-            -> Observation
-            -> [CorePermutation]
-        multiplyByAlgorithms iteration kernelDefs obs =
-            for kernelDefs $
-                \a -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) a 0 iteration
+                .| ConC.map (\obs -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) kernDef 0 iteration)
+                .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling CoreOutFull variancesPerDepVar coreSupp depVars trainingData)
 
 readSpaceTimeSupp ::
        SpaceTimeCoreSupplementSettings
