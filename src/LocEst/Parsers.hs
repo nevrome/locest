@@ -232,6 +232,16 @@ sourceCSV path =
     .| ConCsv.fromNamedCsvStreamErrorNoThrow decodingOptions
     .| progress 1000000 Nothing
 
+appendNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => Maybe FilePath -> ConduitT a Void m ()
+appendNamedCSV Nothing =
+    Con.bracketP (return stdout) (const $ return ()) $ \handle ->
+           ConCsv.toCsv encodingOptions
+        .| ConC.mapM_ (liftIO . Bchs.hPutStr handle)
+appendNamedCSV (Just path) =
+    Con.bracketP (openFile path AppendMode) hClose $ \handle ->
+           ConCsv.toCsv encodingOptions
+        .| ConC.mapM_ (liftIO . Bchs.hPutStr handle)
+
 sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => Maybe FilePath -> ConduitT a Void m ()
 sinkNamedCSV Nothing =
     Con.bracketP (return stdout) (const $ return ()) $ \handle ->

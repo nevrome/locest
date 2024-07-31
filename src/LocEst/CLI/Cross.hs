@@ -11,7 +11,7 @@ import           LocEst.Parsers
 import           LocEst.Types
 
 import           Conduit                       (ResourceT)
-import           Control.Monad                 (zipWithM)
+import           Control.Monad                 (zipWithM_)
 import           Data.Conduit                  (ConduitT, (.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
@@ -72,28 +72,11 @@ runCross (
     -- read observations
     observationsRaw <- readObservations inObsFile
     -- run cross-validation for all depVars
-    perDepVarPointRes <- zipWithM (crossForOneDepVarCombination observationsRaw) kernDefs depVars
-    let perPointRes = concat perDepVarPointRes
-    -- process cross-validation output
-    case outMode of
-        IndividualSearchObsResults -> do
-            -- write out cross-validation results for individual observations
-            Con.runConduitRes $
-                   ConC.yieldMany perPointRes
-                .| sinkNamedCSV outFile
-        SummedLikelihoodPerKernelSetting -> do
-            -- summarize cross-validation result per kernel parameter setting
-            hPutStrLn stderr "Summarizing crossvalidation results"
-            Con.runConduitRes $
-                   ConC.yieldMany (sortBy sortFunc perPointRes)
-                .| progress 100000 (Just $ length perPointRes)
-                .| ConL.groupBy groupFunc
-                .| ConC.map summarizeFunc
-                .| sinkNamedCSV outFile
+    zipWithM_ (crossForOneDepVarCombination observationsRaw) [0..] $ zip kernDefs depVars
     hPutStrLn stderr "Done"
     where
-        crossForOneDepVarCombination :: V.Vector Observation -> [KernelDefinition] -> [DepVarName] -> IO [CrossSearchResult]
-        crossForOneDepVarCombination observationsRaw kernDefs depVars = do
+        crossForOneDepVarCombination :: V.Vector Observation -> Int -> ([KernelDefinition], [DepVarName]) -> IO ()
+        crossForOneDepVarCombination observationsRaw c (kernDefs, depVars) = do
             hPutStrLn stderr $ "Working on: " ++ intercalate ", " depVars
             -- list of independent variables
             let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
@@ -138,7 +121,23 @@ runCross (
                 -- print progress information
                 .| progress 1000 (Just numberPermutations)
                 .| ConC.sinkList
-            return $ map (CrossSearchResult depVars) searchResults
+            let perPointRes = map (CrossSearchResult depVars) searchResults
+            -- process cross-validation output
+            case outMode of
+                IndividualSearchObsResults -> do
+                    -- write out cross-validation results for individual observations
+                    Con.runConduitRes $
+                           ConC.yieldMany perPointRes
+                        .| if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
+                SummedLikelihoodPerKernelSetting -> do
+                    -- summarize cross-validation result per kernel parameter setting
+                    hPutStrLn stderr "Summarizing crossvalidation results"
+                    Con.runConduitRes $
+                           ConC.yieldMany (sortBy sortFunc perPointRes)
+                        .| progress 100000 (Just $ length perPointRes)
+                        .| ConL.groupBy groupFunc
+                        .| ConC.map summarizeFunc
+                        .| if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
         oneIterationConduit ::
                CoreSupplement
             -> DepVarVariances
