@@ -59,6 +59,7 @@ runCross (
     (CrossSettings kernsPerDepVar coAnalyseDepVars subsetMode) outFile outMode
     ) numThreads spatDistUnitScaling = do
     -- prepare kernel definitions
+    hPutStrLn stderr "Preparing kernel permutations"
     let (kernDefs, depVars) =
             if coAnalyseDepVars
             --kernsPerDepVar: [[kernForDepVar1], [kernForDepVar2], ..
@@ -68,8 +69,10 @@ runCross (
             else let ks = map (map (KernelDefinition . singleton)) kernsPerDepVar
                      ds = map (getKeys . head) ks
                  in (ks, ds)
+    -- read observations
+    observationsRaw <- readObservations inObsFile
     -- run cross-validation for all depVars
-    perDepVarPointRes <- zipWithM crossForOneDepVarCombination kernDefs depVars
+    perDepVarPointRes <- zipWithM (crossForOneDepVarCombination observationsRaw) kernDefs depVars
     let perPointRes = concat perDepVarPointRes
     -- process cross-validation output
     case outMode of
@@ -89,13 +92,12 @@ runCross (
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
     where
-        crossForOneDepVarCombination :: [KernelDefinition] -> [DepVarName] -> IO [CrossSearchResult]
-        crossForOneDepVarCombination kernDefs depVars = do
+        crossForOneDepVarCombination :: V.Vector Observation -> [KernelDefinition] -> [DepVarName] -> IO [CrossSearchResult]
+        crossForOneDepVarCombination observationsRaw kernDefs depVars = do
             hPutStrLn stderr $ "Working on: " ++ intercalate ", " depVars
             -- list of independent variables
             let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
-            -- read observations
-            observationsRaw <- readObservations inObsFile
+            -- modify observations
             let observations = reorderVarsInObs depVars indepVars observationsRaw
             -- variance
             hPutStrLn stderr "Calculating total variance"
