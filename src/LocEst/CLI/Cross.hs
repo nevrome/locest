@@ -11,19 +11,19 @@ import           LocEst.Parsers
 import           LocEst.Types
 
 import           Conduit                       (ResourceT)
+import           Control.Monad                 (zipWithM)
 import           Data.Conduit                  (ConduitT, (.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import           Data.List                     (sortBy, singleton, intercalate, nub)
+import           Data.List                     (intercalate, singleton, sortBy)
 import           Data.Maybe                    (mapMaybe)
 import qualified Data.Vector                   as V
 import           Immutable.Shuffle             (shuffle)
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
-import Control.Monad (zipWithM)
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath
@@ -62,12 +62,12 @@ runCross (
     let (kernDefs, depVars) =
             if coAnalyseDepVars
             --kernsPerDepVar: [[kernForDepVar1], [kernForDepVar2], ..
-            then let kernDefs = map KernelDefinition $ sequenceA kernsPerDepVar
-                     depVars = getKeys $ head kernDefs
-                 in (singleton kernDefs, singleton depVars)
-            else let kernDefs = map (map (KernelDefinition . singleton)) kernsPerDepVar
-                     depVars = map (getKeys . head) kernDefs
-                 in (kernDefs, depVars)
+            then let ks = map KernelDefinition $ sequenceA kernsPerDepVar
+                     ds = getKeys $ head ks
+                 in (singleton ks, singleton ds)
+            else let ks = map (map (KernelDefinition . singleton)) kernsPerDepVar
+                     ds = map (getKeys . head) ks
+                 in (ks, ds)
     -- run cross-validation for all depVars
     perDepVarPointRes <- zipWithM crossForOneDepVarCombination kernDefs depVars
     let perPointRes = concat perDepVarPointRes

@@ -139,6 +139,7 @@ instance Csv.ToRecord CrossvalOutput where
         <> Csv.record [Csv.toField meanSquaredDist]
         <> Csv.record [Csv.toField $ OutInfDouble sumProb]
 
+crossSummaryHeader :: Csv.Header
 crossSummaryHeader = Csv.header ["sum_dep_dist_euclidean","mean_squared_dep_dist_euclidean","sum_log_likelihood"]
 
 -- special types for the vario subcommands

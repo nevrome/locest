@@ -77,7 +77,7 @@ runVario
             AcrossBoth      -> [(True,  True )]
             AcrossComb      -> [(False, False), (True, False), (False, True), (True, True)]
     -- compute variograms
-    empiricalVariograms <- forM acrossModes $ \(acrossIndepVars, acrossDepVars) -> do 
+    empiricalVariograms <- forM acrossModes $ \(acrossIndepVars, acrossDepVars) -> do
         hPutStrLn stderr $ "Merging variables: "
             ++ (if acrossIndepVars then "[x]" else "[ ]") ++ " Independent, "
             ++ (if acrossDepVars   then "[x]" else "[ ]") ++ " Dependent"
@@ -98,7 +98,7 @@ runVario
                     indepDistsFiltered =
                         if acrossIndepVars
                         then indepDistsIndexed
-                        else 
+                        else
                             let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsThresholds
                                 belowThresholdPerIndepVar = map (isBelowIndepVarsThreshold distsPerIndepVar) relevantThresholds
                                 belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VU.length indepDists) True) belowThresholdPerIndepVar
