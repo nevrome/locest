@@ -59,7 +59,7 @@ runCross (
     ) numThreads spatDistUnitScaling = do
     -- prepare kernel definitions
     hPutStrLn stderr "Preparing kernel permutations"
-    let (kernDefsA, depVarsA) =
+    let (kernDefsSets, depVarsSets) =
             if coAnalyseDepVars
             --kernsPerDepVar: [[kernForDepVar1], [kernForDepVar2], ..
             then let ks = map KernelDefinition $ sequenceA kernsPerDepVar
@@ -73,7 +73,7 @@ runCross (
     -- read core supplements
     coreSupp <- readSpaceTimeSupp spaceTimeSuppSettings observationsRaw
     -- count nr of iterations
-    let numKernDefs = length $ concat kernDefsA
+    let numKernDefs = length $ concat kernDefsSets
         numObs = length observationsRaw
         (testFraction, numIterations) = case subsetMode of
             CrossFull -> (1,1)
@@ -82,7 +82,7 @@ runCross (
         numPermutations = numKernDefs * numTestObs * numIterations
     -- run cross-validation for all depVars
     Con.runConduitRes $
-           ConC.yieldMany (zip kernDefsA depVarsA)
+           ConC.yieldMany (zip kernDefsSets depVarsSets)
         .| Con.awaitForever (
             \(kernDefs,depVars) -> do
                 liftIO $ hPutStrLn stderr $ "Working on: " ++ intercalate ", " depVars
@@ -109,7 +109,6 @@ runCross (
                                     Just seed -> pure seed
                         return $ V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
                 -- run cross-validation pipeline
-                liftIO $ hPutStrLn stderr "All preparations ready"
                 liftIO $ hPutStrLn stderr "Running analysis"
                 ConC.yieldMany kernDefs
                     .| Con.awaitForever (

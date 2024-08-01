@@ -84,7 +84,6 @@ runSearch (
     let permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
         numPerms = length permutations
     -- run analysis pipeline
-    hPutStrLn stderr "All preparations ready"
     hPutStrLn stderr "Running analysis"
     case outMode of
         CoreOutObsWeight nrTopObs -> do
