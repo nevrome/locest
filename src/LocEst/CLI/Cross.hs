@@ -10,9 +10,8 @@ import           LocEst.MathUtils              (avg, foldSum)
 import           LocEst.Parsers
 import           LocEst.Types
 
-import           Conduit                       (ResourceT)
 import           Control.Monad                 (zipWithM_)
-import           Data.Conduit                  (ConduitT, (.|))
+import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
@@ -115,40 +114,34 @@ runCross (
             hPutStrLn stderr "Running analysis"
             Con.runConduitRes $
                    ConC.yieldMany kernDefs
-                .| Con.awaitForever (oneKernDefConduit coreSupp variancesPerDepVar depVars iterations)
-                -- print progress information
+                .| Con.awaitForever (
+                    \kernDef -> 
+                           ConC.yieldMany iterations
+                        .| Con.awaitForever (
+                            \(iteration,testData,trainingData) ->
+                                   ConC.yieldMany testData
+                                .| ConAA.asyncMapC numThreads (
+                                    \obs ->
+                                        let perm = CorePermutation
+                                                (_hyposIndepVarsPos $ _obsPos obs)
+                                                (Just $ DepVarsPredPosSearchObs obs)
+                                                kernDef 0 iteration
+                                        in coreNormal
+                                            spatDistUnitScaling CoreOutFull
+                                            variancesPerDepVar coreSupp
+                                            depVars trainingData perm
+                                   )
+                           )
+                   )
                 .| progress 1000 (Just numberPermutations)
                 .| ConC.map (CrossSearchResult depVars)
                 .| case outMode of
-                    -- write out cross-validation results for individual observations
                     IndividualSearchObsResults -> do
                            if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
-                    -- summarize cross-validation result per kernel parameter setting
                     SummedLikelihoodPerKernelSetting -> do
                            ConL.groupBy groupFunc
                         .| ConC.map summarizeFunc
                         .| if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
-        oneKernDefConduit ::
-               CoreSupplement
-            -> DepVarVariances
-            -> [DepVarName]
-            -> V.Vector (Int, V.Vector Observation, V.Vector Observation)
-            -> KernelDefinition
-            -> ConduitT KernelDefinition SearchResult (ResourceT IO) ()
-        oneKernDefConduit coreSupp variancesPerDepVar depVars iterations kernDef =
-                   ConC.yieldMany iterations
-                .| Con.awaitForever (oneIterationConduit coreSupp variancesPerDepVar depVars kernDef)
-        oneIterationConduit ::
-               CoreSupplement
-            -> DepVarVariances
-            -> [DepVarName]
-            -> KernelDefinition
-            -> (Int, V.Vector Observation, V.Vector Observation)
-            -> ConduitT (Int, V.Vector Observation, V.Vector Observation) SearchResult (ResourceT IO) ()
-        oneIterationConduit coreSupp variancesPerDepVar depVars kernDef (iteration,testData,trainingData) = do
-            ConC.yieldMany testData
-                .| ConC.map (\obs -> CorePermutation (_hyposIndepVarsPos $ _obsPos obs) (Just $ DepVarsPredPosSearchObs obs) kernDef 0 iteration)
-                .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling CoreOutFull variancesPerDepVar coreSupp depVars trainingData)
 
 readSpaceTimeSupp ::
        SpaceTimeCoreSupplementSettings
