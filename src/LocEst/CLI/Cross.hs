@@ -10,7 +10,6 @@ import           LocEst.MathUtils              (avg, foldSum)
 import           LocEst.Parsers
 import           LocEst.Types
 
-import           Control.Monad                 (zipWithM_)
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
@@ -23,6 +22,7 @@ import           Immutable.Shuffle             (shuffle)
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
+import Conduit (MonadIO(liftIO))
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath
@@ -59,7 +59,7 @@ runCross (
     ) numThreads spatDistUnitScaling = do
     -- prepare kernel definitions
     hPutStrLn stderr "Preparing kernel permutations"
-    let (kernDefs, depVars) =
+    let (kernDefsA, depVarsA) =
             if coAnalyseDepVars
             --kernsPerDepVar: [[kernForDepVar1], [kernForDepVar2], ..
             then let ks = map KernelDefinition $ sequenceA kernsPerDepVar
@@ -70,77 +70,78 @@ runCross (
                  in (ks, ds)
     -- read observations
     observationsRaw <- readObservations inObsFile
+    -- read core supplements
+    coreSupp <- readSpaceTimeSupp spaceTimeSuppSettings observationsRaw
     -- run cross-validation for all depVars
-    zipWithM_ (crossForOneDepVarCombination observationsRaw) [0..] $ zip kernDefs depVars
+    Con.runConduitRes $
+           ConC.yieldMany (zip kernDefsA depVarsA)
+        .| Con.awaitForever (
+            \(kernDefs,depVars) -> do
+                liftIO $ hPutStrLn stderr $ "Working on: " ++ intercalate ", " depVars
+                -- list of independent variables
+                let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
+                -- modify observations
+                let observations = reorderVarsInObs depVars indepVars observationsRaw
+                -- variance
+                liftIO $ hPutStrLn stderr "Calculating total variance"
+                let variancesPerDepVar = calculateVariances depVars observations
+                -- prepare iterations
+                let numKernDefs = length kernDefs
+                let numObs = length observations
+                -- permutation: one run of the core algorithm
+                -- iteration: one test/training split
+                (_, iterations) <- case subsetMode of
+                    CrossFull -> do
+                        liftIO $ hPutStrLn stderr "Prepare all-by-all prediction"
+                        let nr = numKernDefs * numObs
+                            allByAll = V.singleton (0, observations, observations)
+                        return (nr, allByAll)
+                    CrossFraction testFraction iterations maybeSeed -> do
+                        liftIO $ hPutStrLn stderr "Splitting test and training data"
+                        let numTestObs = round $ testFraction * fromIntegral numObs
+                            nr = numKernDefs * numTestObs * iterations
+                        seed <- case maybeSeed of
+                                    Nothing   -> do
+                                        rng <- R.initStdGen
+                                        let (seed,_) = R.genWord32 rng
+                                        return $ fromIntegral seed
+                                    Just seed -> pure seed
+                        let testTrainingIterations = V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
+                        return (nr, testTrainingIterations)
+                -- run cross-validation pipeline
+                liftIO $ hPutStrLn stderr "All preparations ready"
+                liftIO $ hPutStrLn stderr "Running analysis"
+                ConC.yieldMany kernDefs
+                    .| Con.awaitForever (
+                        \kernDef -> 
+                               ConC.yieldMany iterations
+                            .| ConAA.asyncMapC numThreads (
+                                \(iteration,testData,trainingData) ->
+                                       V.map (
+                                        \obs ->
+                                            let perm = CorePermutation
+                                                    (_hyposIndepVarsPos $ _obsPos obs)
+                                                    (Just $ DepVarsPredPosSearchObs obs)
+                                                    kernDef 0 iteration
+                                            in coreNormal
+                                                spatDistUnitScaling CoreOutFull
+                                                variancesPerDepVar coreSupp
+                                                depVars trainingData perm
+                                       ) testData
+                               ) .| ConC.concat
+                       )
+                    .| ConC.map (CrossSearchResult depVars)
+
+           )
+        .| progress 1000 Nothing--(Just numberPermutations)
+        .| case outMode of
+            IndividualSearchObsResults -> do
+                   sinkNamedCSV outFile
+            SummedLikelihoodPerKernelSetting -> do
+                   ConL.groupBy groupFunc
+                .| ConC.map summarizeFunc
+                .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
-    where
-        crossForOneDepVarCombination :: V.Vector Observation -> Int -> ([KernelDefinition], [DepVarName]) -> IO ()
-        crossForOneDepVarCombination observationsRaw c (kernDefs, depVars) = do
-            hPutStrLn stderr $ "Working on: " ++ intercalate ", " depVars
-            -- list of independent variables
-            let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
-            -- modify observations
-            let observations = reorderVarsInObs depVars indepVars observationsRaw
-            -- variance
-            hPutStrLn stderr "Calculating total variance"
-            let variancesPerDepVar = calculateVariances depVars observations
-            -- read core supplements
-            coreSupp <- readSpaceTimeSupp spaceTimeSuppSettings observations
-            -- prepare iterations
-            let numKernDefs = length kernDefs
-            let numObs = length observations
-            -- permutation: one run of the core algorithm
-            -- iteration: one test/training split
-            (numberPermutations, iterations) <- case subsetMode of
-                CrossFull -> do
-                    hPutStrLn stderr "Prepare all-by-all prediction"
-                    let nr = numKernDefs * numObs
-                        allByAll = V.singleton (0, observations, observations)
-                    return (nr, allByAll)
-                CrossFraction testFraction iterations maybeSeed -> do
-                    hPutStrLn stderr "Splitting test and training data"
-                    let numTestObs = round $ testFraction * fromIntegral numObs
-                        nr = numKernDefs * numTestObs * iterations
-                    seed <- case maybeSeed of
-                                Nothing   -> do
-                                    rng <- R.initStdGen
-                                    let (seed,_) = R.genWord32 rng
-                                    return $ fromIntegral seed
-                                Just seed -> pure seed
-                    let testTrainingIterations = V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
-                    return (nr, testTrainingIterations)
-            -- run cross-validation pipeline
-            hPutStrLn stderr "All preparations ready"
-            hPutStrLn stderr "Running analysis"
-            Con.runConduitRes $
-                   ConC.yieldMany kernDefs
-                .| Con.awaitForever (
-                    \kernDef -> 
-                           ConC.yieldMany iterations
-                        .| ConAA.asyncMapC numThreads (
-                            \(iteration,testData,trainingData) ->
-                                   V.map (
-                                    \obs ->
-                                        let perm = CorePermutation
-                                                (_hyposIndepVarsPos $ _obsPos obs)
-                                                (Just $ DepVarsPredPosSearchObs obs)
-                                                kernDef 0 iteration
-                                        in coreNormal
-                                            spatDistUnitScaling CoreOutFull
-                                            variancesPerDepVar coreSupp
-                                            depVars trainingData perm
-                                   ) testData
-                           ) .| ConC.concat
-                   )
-                .| progress 1000 (Just numberPermutations)
-                .| ConC.map (CrossSearchResult depVars)
-                .| case outMode of
-                    IndividualSearchObsResults -> do
-                           if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
-                    SummedLikelihoodPerKernelSetting -> do
-                           ConL.groupBy groupFunc
-                        .| ConC.map summarizeFunc
-                        .| if c == 0 then sinkNamedCSV outFile else appendNamedCSV outFile
 
 readSpaceTimeSupp ::
        SpaceTimeCoreSupplementSettings
