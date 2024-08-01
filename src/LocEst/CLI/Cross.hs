@@ -72,6 +72,14 @@ runCross (
     observationsRaw <- readObservations inObsFile
     -- read core supplements
     coreSupp <- readSpaceTimeSupp spaceTimeSuppSettings observationsRaw
+    -- count nr of iterations
+    let numKernDefs = length $ concat kernDefsA
+        numObs = length observationsRaw
+        (testFraction, numIterations) = case subsetMode of
+            CrossFull -> (1,1)
+            CrossFraction f i _ -> (f,i)
+        numTestObs = round $ testFraction * fromIntegral numObs
+        numPermutations = numKernDefs * numTestObs * numIterations
     -- run cross-validation for all depVars
     Con.runConduitRes $
            ConC.yieldMany (zip kernDefsA depVarsA)
@@ -85,29 +93,21 @@ runCross (
                 -- variance
                 liftIO $ hPutStrLn stderr "Calculating total variance"
                 let variancesPerDepVar = calculateVariances depVars observations
-                -- prepare iterations
-                let numKernDefs = length kernDefs
-                let numObs = length observations
                 -- permutation: one run of the core algorithm
                 -- iteration: one test/training split
-                (_, iterations) <- case subsetMode of
+                iterations <- case subsetMode of
                     CrossFull -> do
                         liftIO $ hPutStrLn stderr "Prepare all-by-all prediction"
-                        let nr = numKernDefs * numObs
-                            allByAll = V.singleton (0, observations, observations)
-                        return (nr, allByAll)
-                    CrossFraction testFraction iterations maybeSeed -> do
+                        return $ V.singleton (0, observations, observations)
+                    CrossFraction _ iterations maybeSeed -> do
                         liftIO $ hPutStrLn stderr "Splitting test and training data"
-                        let numTestObs = round $ testFraction * fromIntegral numObs
-                            nr = numKernDefs * numTestObs * iterations
                         seed <- case maybeSeed of
                                     Nothing   -> do
                                         rng <- R.initStdGen
                                         let (seed,_) = R.genWord32 rng
                                         return $ fromIntegral seed
                                     Just seed -> pure seed
-                        let testTrainingIterations = V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
-                        return (nr, testTrainingIterations)
+                        return $ V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
                 -- run cross-validation pipeline
                 liftIO $ hPutStrLn stderr "All preparations ready"
                 liftIO $ hPutStrLn stderr "Running analysis"
@@ -133,7 +133,7 @@ runCross (
                     .| ConC.map (CrossSearchResult depVars)
 
            )
-        .| progress 1000 Nothing--(Just numberPermutations)
+        .| progress 1000 (Just numPermutations)
         .| case outMode of
             IndividualSearchObsResults -> do
                    sinkNamedCSV outFile
