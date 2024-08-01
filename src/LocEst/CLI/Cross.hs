@@ -117,10 +117,9 @@ runCross (
                 .| Con.awaitForever (
                     \kernDef -> 
                            ConC.yieldMany iterations
-                        .| Con.awaitForever (
+                        .| ConAA.asyncMapC numThreads (
                             \(iteration,testData,trainingData) ->
-                                   ConC.yieldMany testData
-                                .| ConAA.asyncMapC numThreads (
+                                   V.map (
                                     \obs ->
                                         let perm = CorePermutation
                                                 (_hyposIndepVarsPos $ _obsPos obs)
@@ -130,8 +129,8 @@ runCross (
                                             spatDistUnitScaling CoreOutFull
                                             variancesPerDepVar coreSupp
                                             depVars trainingData perm
-                                   )
-                           )
+                                   ) testData
+                           ) .| ConC.concat
                    )
                 .| progress 1000 (Just numberPermutations)
                 .| ConC.map (CrossSearchResult depVars)
