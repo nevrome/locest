@@ -178,9 +178,8 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                              \based on all observations in the respective bin"
     <> OH.hardline <> s2d "EqualSize(n): Bins the observations into n bins with an equal amount of \
                           \observations."
-    <> OH.hardline <> s2d "Nugget(max = c(indepV1=DOUBLE,indepV2=DOUBLE,...): Only create one bin \
-                          \per independent and dependent variable with a given upper limit. \
-                          \This is useful to get an estimate for the nugget parameter."
+    <> OH.hardline <> s2d "OneBinMax(max = c(indepV1=DOUBLE,indepV2=DOUBLE,...): Only create one bin \
+                          \per independent and dependent variable with a given upper limit."
     ))
     )
     where
@@ -196,7 +195,7 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 return n
             return (BinByNrBins res)
         parseOneBinMax = do
-            res <- parseRecordType "Nugget" $ do
+            res <- parseRecordType "OneBinMax" $ do
                 maxPerIndepVar <- parseArgument "max" (parseNamedVector parseIndepVarName parseDouble)
                 return $ ValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
@@ -238,8 +237,8 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
                           \settings and the summed crossvalidation output."
     <> OH.hardline <>     "┌──────┬─────┬──────────────┐"
     <> OH.hardline <>     "│kernel│depV1│shape         │ Kernel shape and"
-    <> OH.hardline <>     "│      │depV2│nugget        │ nugget for each"
-    <> OH.hardline <>     "│      │...  ├───────┬──────┤ dependent variable;"
+    <> OH.hardline <>     "│      │depV2│              │ for each dependent"
+    <> OH.hardline <>     "│      │...  ├───────┬──────┤ variable;"
     <> OH.hardline <>     "│      │     │space  │length│ length scale"
     <> OH.hardline <>     "│      │     │time OR│      │ parameters for"
     <> OH.hardline <>     "│      │     │indepV1│      │ each dependent and"
@@ -287,8 +286,8 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "│      │input from obs      │ with --searchObsFile"
     <> OH.hardline <>     "├──────├─────┬──────────────┤"
     <> OH.hardline <>     "│kernel│depV1│shape         │ Kernel shape and"
-    <> OH.hardline <>     "│      │depV2│nugget        │ nugget for each"
-    <> OH.hardline <>     "│      │...  ├───────┬──────┤ dependent variable;"
+    <> OH.hardline <>     "│      │depV2│              │ for each dependent"
+    <> OH.hardline <>     "│      │...  ├───────┬──────┤ variable;"
     <> OH.hardline <>     "│      │     │space  │length│ length scale"
     <> OH.hardline <>     "│      │     │time OR│      │ parameters for"
     <> OH.hardline <>     "│      │     │indepV1│      │ each dependent and"
@@ -783,7 +782,6 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
     <> OH.hardline <>     "│  depV1 = k(      │ - first dependent variable"
     <> OH.hardline <>     "│    shape = SqEx, │   - either SqEx = Squared exponential"
     <> OH.hardline <>     "│                  │         or Linear = Linear kernel"
-    <> OH.hardline <>     "│    nugget = ..., │   - nugget parameter"
     <> OH.hardline <>     "│    lengths = c(  │   - named list with length scale"
     <> OH.hardline <>     "│      space = ... │     for each independent variable"
     <> OH.hardline <>     "│      time = ...  │     (can also be \"indep...\")"
@@ -804,14 +802,13 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
                 Right x  -> Right x
         parseAKernDefString :: P.Parser KernelDefinition
         parseAKernDefString = do
-                    nested <- parseNamedVector parseDepVarName parseShapeNuggetLengths
-                    return $ makeKernelDefinition $ map (\(name,(s,n,l)) -> KernelOneDepVar name s n l) nested
-        parseShapeNuggetLengths = do
+                    nested <- parseNamedVector parseDepVarName parseShapeLengths
+                    return $ makeKernelDefinition $ map (\(name,(s,l)) -> KernelOneDepVar name s l) nested
+        parseShapeLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
-                n <- parseArgument "nugget" parseDouble
                 l <- parseArgument "lengths" parseKernelLengths
-                return (s,n,l)
+                return (s,l)
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
@@ -839,7 +836,6 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
     <> OH.hardline <>     "│  depV1 = k(      │ - first dependent variable"
     <> OH.hardline <>     "│    shape = SqEx, │   - either SqEx = Squared exponential"
     <> OH.hardline <>     "│                  │         or Linear = Linear kernel"
-    <> OH.hardline <>     "│    nugget = ..., │   - nugget parameter *"
     <> OH.hardline <>     "│    lengths = c(  │   - named list with length scale"
     <> OH.hardline <>     "│      space = ... │     for each independent variable *"
     <> OH.hardline <>     "│      time = ...  │     (can also be \"indep...\")"
@@ -850,8 +846,8 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
     <> OH.hardline <>     "└──────────────────┘"
     <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified, but \
                           \all variables must also exist in --obsFile and --spatGridFile/--anyGridFile."
-    <> OH.hardline <> s2d "* Unlike for the search subcommand, here multiple values can be given for the nugget \
-                          \and the independent variables' length scale parameters. They can be provided \
+    <> OH.hardline <> s2d "* Unlike for the search subcommand, here multiple values can be given for the \
+                          \independent variables' length scale parameters. They can be provided \
                           \either as a list with \"c(100,200,...)\" or as a sequence using the \
                           \START:STOP:BY syntax, e.g. \"100:1000:100\". The crossvalidation will try \
                           \all permutations of these parameters."
@@ -865,19 +861,16 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
                 Right x  -> Right x
         parseAKernDefString :: P.Parser [[KernelOneDepVar]]
         parseAKernDefString = do
-                    perDepVar <- parseNamedVector parseDepVarName parseShapeNuggetLengths
-                    return $ map toKernelsForOneDepVar perDepVar
-        parseShapeNuggetLengths = do
+                    perDepVar <- parseNamedVector parseDepVarName parseShapeLengths
+                    return $ map (\(name,(s,ls)) -> map (KernelOneDepVar name s) ls) perDepVar
+        parseShapeLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
-                ns <- parseArgument "nugget" parseNugget
                 ls <- parseArgument "lengths" parseKernelLengths
-                return (s,ns,ls)
+                return (s,ls)
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
-        parseNugget :: P.Parser [Double]
-        parseNugget = P.try parseSequence P.<|> P.try parseList P.<|> parseSingle
         parseKernelLengths ::  P.Parser [KernelLengths]
         parseKernelLengths = do
             res <- parseNamedVector parseIndepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
@@ -887,10 +880,6 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
         parseSequence = parseDoubleSequence
         parseList = parseVector parseDouble
         parseSingle = singleton <$> parseDouble
-        -- helpers
-        allCombinations xs ys = [ (x,y) | x <- xs, y <- ys ]
-        toKernelsForOneDepVar (name,(s,ns,ls)) = map (uncurry (KernelOneDepVar name s)) (allCombinations ns ls)
-
 
 -- general parsers
 

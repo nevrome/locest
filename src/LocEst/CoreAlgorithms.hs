@@ -198,12 +198,12 @@ getWeightOneObsOneDepVar ::
        KernelOneDepVar
     -> (Observation, IndepVarsDist)
     -> Double
-getWeightOneObsOneDepVar (KernelOneDepVar _ shape nugget lengths) (_,dists) =
-    weightForOneObs shape nugget (squaredWeightedDistForOneObs lengths dists)
+getWeightOneObsOneDepVar (KernelOneDepVar _ shape lengths) (_,dists) =
+    weightForOneObs shape (squaredWeightedDistForOneObs lengths dists)
     where
-        weightForOneObs :: KernelShape -> KernelNugget -> Double -> Double
-        weightForOneObs SquaredExponential n d = n / (n + exp d - 1)
-        weightForOneObs Linear             n d = n / (n + sqrt d)
+        weightForOneObs :: KernelShape -> Double -> Double
+        weightForOneObs SquaredExponential d = 1 / exp d
+        weightForOneObs Linear             d = 1 / (1 + sqrt d)
         squaredWeightedDistForOneObs :: KernelLengths -> IndepVarsDist -> Double
         squaredWeightedDistForOneObs
             (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
