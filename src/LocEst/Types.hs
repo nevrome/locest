@@ -97,7 +97,7 @@ data CrossSearchResult = CrossSearchResult {
 instance NFData CrossSearchResult
 instance Csv.DefaultOrdered CrossSearchResult where
     headerOrder (CrossSearchResult [depVar] searchResult) =
-        Csv.header ["dep"] <> removeDepVarFromHeader depVar (Csv.headerOrder searchResult)
+        Csv.header ["depVar"] <> removeDepVarFromHeader depVar (Csv.headerOrder searchResult)
     headerOrder (CrossSearchResult _ searchResult) =
         Csv.headerOrder searchResult
 instance Csv.ToRecord CrossSearchResult where
@@ -123,7 +123,7 @@ data CrossvalOutput = CrossvalOutput {
 instance NFData CrossvalOutput
 instance Csv.DefaultOrdered CrossvalOutput where
     headerOrder (CrossvalOutput [depVar] algo _ _ _) =
-        Csv.header ["dep"] <> removeDepVarFromHeader depVar (Csv.headerOrder algo) <> crossSummaryHeader
+        Csv.header ["depVar"] <> removeDepVarFromHeader depVar (Csv.headerOrder algo) <> crossSummaryHeader
     headerOrder (CrossvalOutput _ algo _ _ _) =
         Csv.headerOrder algo <> crossSummaryHeader
 instance Csv.ToRecord CrossvalOutput where
