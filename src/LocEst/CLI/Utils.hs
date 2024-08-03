@@ -43,7 +43,7 @@ progress reportNum goal = do
                                 percent = (fromInteger (round (division * 1000) :: Integer) / 10.0) :: Double
                                 stringPercent = padLeft 8 (show percent) ++ "%"
                             "/" ++ show g ++ stringPercent
-                hPutStrLn stderr $ "Iterations done: " ++ stringDone ++ stringGoal
+                hPutStrLn stderr $ "> " ++ stringDone ++ stringGoal
             | otherwise = return ()
 
 padLeft :: Int -> String -> String
