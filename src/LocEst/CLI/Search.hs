@@ -42,14 +42,14 @@ data DepVarsPredGridSettings =
 data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _stgsInSpatGridFile     :: FilePath
     , _stgsInTempGrid         :: [AbsRelTempPos]
-    , _stgsSupplementSettings :: SpaceTimeCoreSupplementSettings
+    , _stgsSupplementSettings :: CoreSupplementSettings
 } | ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
+    , _adgsSupplementSettings     :: CoreSupplementSettings
 }
 
-data SpaceTimeCoreSupplementSettings = SpaceTimeCoreSupplementSettings {
-      _stcsSpaceTimeMinFilter   :: (Double,Double)
-    , _stcsSpaceTimeMaxFilter   :: (Double,Double)
+data CoreSupplementSettings = CoreSupplementSettings {
+      _stcsDistFilterThresholds :: Maybe DistanceFilterThresholds
     , _stcsInSpatDistFile       :: Maybe FilePath
     , _stcsInObsTempSamplesFile :: Maybe FilePath
     , _stcsNoOrderCheck         :: Bool
@@ -160,9 +160,8 @@ readIndepVarsPredGrid
     (SpaceTimeGridSettings
         inSpatGridFile
         inTempGrid
-        (SpaceTimeCoreSupplementSettings
-            inSpaceTimeMinFilter
-            inSpaceTimeMaxFilter
+        (CoreSupplementSettings
+            distFilterThresholds
             inSpatDistFile
             inObsTempSamplesFile
             noOrderCheck
@@ -184,18 +183,26 @@ readIndepVarsPredGrid
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
             _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
     -- return grid
-    return $ SpaceTimeGrid inSpatGrid inTempGrid inSpaceTimeMinFilter inSpaceTimeMaxFilter inSpatDists inObsTempSamples
+    return $ SpaceTimeGrid inSpatGrid inTempGrid distFilterThresholds inSpatDists inObsTempSamples
 -- arbitrary dimension case
 readIndepVarsPredGrid
     indepVarsWanted
     _
-    (ArbitraryDimGridSettings inArbitraryDimGridFile) = do
+    (ArbitraryDimGridSettings
+        inArbitraryDimGridFile
+        (CoreSupplementSettings
+            distFilterThresholds
+            _
+            _
+            _
+        )
+    ) = do
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     -- read arbitrary-dimension grid
     inArbitraryDimPosRaw <- readArbitraryDimPos inArbitraryDimGridFile
     let inArbitraryDimPos = reorderVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
     -- return grid
-    return $ ArbitraryDimGrid inArbitraryDimPos
+    return $ ArbitraryDimGrid inArbitraryDimPos distFilterThresholds
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
@@ -212,14 +219,14 @@ readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 
 createCoreSupplement :: IndepVarsPredGrid -> CoreSupplement
-createCoreSupplement (SpaceTimeGrid _ _ spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples) =
-    CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples
-createCoreSupplement (ArbitraryDimGrid _) =
-    CoreSupplement (0,0) (infinity, infinity) Nothing Nothing
+createCoreSupplement (SpaceTimeGrid _ _ distFilterThresholds maybeSpatDistMap maybeTempSamples) =
+    CoreSupplement distFilterThresholds maybeSpatDistMap maybeTempSamples
+createCoreSupplement (ArbitraryDimGrid _ distFilterThresholds) =
+    CoreSupplement distFilterThresholds Nothing Nothing
 
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
 -- spatiotemporal, search
-createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) = do
+createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) = do
     tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
     absRelTempPos <- inTempGrid
     depPos <- depVarPos
@@ -231,7 +238,7 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTem
     spatPos <- V.toList inSpatGrid
     return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
 -- spatiotemporal, no search
-createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTempSamples) Nothing = do
+createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing = do
     tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
     absRelTempPos <- inTempGrid
     let tempPos = case absRelTempPos of
@@ -240,11 +247,11 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ _ inObsTem
     spatPos  <- V.toList inSpatGrid
     return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
 -- arbitrary dims, search
-createPermutations kernelDef (ArbitraryDimGrid gridPos) (Just (DepVarsPredGrid depVarPos)) =
+createPermutations kernelDef (ArbitraryDimGrid gridPos _) (Just (DepVarsPredGrid depVarPos)) =
     [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0 0
     | indepPos <- V.toList gridPos, depPos <- depVarPos]
 -- arbitrary dims, no search
-createPermutations kernelDef (ArbitraryDimGrid gridPos) Nothing =
+createPermutations kernelDef (ArbitraryDimGrid gridPos _) Nothing =
     [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0 0
     | indepPos <- V.toList gridPos]
 

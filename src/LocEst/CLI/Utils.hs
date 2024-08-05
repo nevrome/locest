@@ -35,15 +35,15 @@ progress reportNum goal = do
         logProgress :: Int -> IO ()
         logProgress c
             | c `rem` reportNum == 0 = do
-                let stringDone = padLeft 9 (show c)
+                let stringDone = padLeft 10 (show c)
                     stringGoal = case goal of
                         Nothing -> ""
                         Just g  -> do
                             let division = (fromIntegral c / fromIntegral g) :: Double
                                 percent = (fromInteger (round (division * 1000) :: Integer) / 10.0) :: Double
-                                stringPercent = padLeft 8 (show percent) ++ "%"
+                                stringPercent = padLeft 10 (show percent) ++ "%"
                             "/" ++ show g ++ stringPercent
-                hPutStrLn stderr $ "> " ++ stringDone ++ stringGoal
+                hPutStrLn stderr $ stringDone ++ stringGoal
             | otherwise = return ()
 
 padLeft :: Int -> String -> String

@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE ApplicativeDo     #-}
 
 module LocEst.CLI.Interface where
 
@@ -14,7 +15,6 @@ import           LocEst.Types
 
 import           Data.Char                (isSpace, toLower)
 import           Data.List                (groupBy, singleton)
-import           LocEst.MathUtils         (infinity)
 import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
@@ -124,7 +124,7 @@ varioOptParser = VarioOptions
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions
                         <$> optParseInObservationFile
-                        <*> optParseSpaceTimeCoreSupplementSettings
+                        <*> optParseCoreSupplementSettings
                         <*> optParseCrossSettings
                         <*> optParseOutFile
                         <*> optParseCrossOutMode
@@ -135,7 +135,7 @@ optParseSpatDistSetting = SpatDistSettings
                         <*> optParseInSpatDistNoOrderCheck
 
 optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
-optParseIndepVarsThresholds = OP.option (OP.eitherReader readOutMode) (
+optParseIndepVarsThresholds = OP.option (OP.eitherReader readIndepVarsThresholds) (
        OP.long "indepVarsThresholds"
     <> OP.metavar "c(space=DOUBLE,time=DOUBLE,indepV1=DOUBLE,...)"
     <> OP.value (ValuesPerIndepVar [])
@@ -146,15 +146,18 @@ optParseIndepVarsThresholds = OP.option (OP.eitherReader readOutMode) (
                           \in spatial proximity are considered."
     ))
     )
-    where
-        readOutMode :: String -> Either String IndepVarsThresholds
-        readOutMode s =
-            case P.runParser parseIndepVarsThresholds () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-        parseIndepVarsThresholds = do
-            res <- parseNamedVector parseIndepVarName parsePositiveDouble
-            return (ValuesPerIndepVar res)
+
+readSpaceTime :: String -> Either String (Double, Double)
+readSpaceTime s =
+    case P.runParser parseSpaceTime () "" s of
+        Left err -> Left $ showParsecErr err
+        Right x  -> Right x
+parseSpaceTime :: P.Parser (Double, Double)
+parseSpaceTime = do
+    parseRecordType "c" $ do
+        a <- parseArgument "space" parseDouble
+        b <- parseArgument "time" parseDouble
+        return (a, b)
 
 optParseVarioOutMode :: OP.Parser BinModeSettings
 optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
@@ -545,53 +548,76 @@ optParseIndepVarsPredGridSettings =
     (SpaceTimeGridSettings
         <$> optParseInSpatGridFile
         <*> optParseTempGridString
-        <*> optParseSpaceTimeCoreSupplementSettings
+        <*> optParseCoreSupplementSettings
     ) OP.<|>
-    (ArbitraryDimGridSettings <$> optParseInArbitraryDimFile)
+    (ArbitraryDimGridSettings
+        <$> optParseInArbitraryDimFile
+        <*> optParseCoreSupplementSettings
+    )
 
-optParseSpaceTimeCoreSupplementSettings :: OP.Parser SpaceTimeCoreSupplementSettings
-optParseSpaceTimeCoreSupplementSettings =
-    SpaceTimeCoreSupplementSettings
-        <$> optParseSpaceTimeMinFilter
-        <*> optParseSpaceTimeMaxFilter
+optParseCoreSupplementSettings :: OP.Parser CoreSupplementSettings
+optParseCoreSupplementSettings =
+    CoreSupplementSettings
+        <$> optParseDistanceFilterThresholds
         <*> OP.optional optParseInSpatDistMapFile
         <*> OP.optional optParseInObsTempSamplesFile
         <*> optParseInSpatDistNoOrderCheck
 
-optParseSpaceTimeMinFilter :: OP.Parser (Double,Double)
-optParseSpaceTimeMinFilter = OP.option (OP.eitherReader readSpaceTime) (
-       OP.long    "spaceTimeMinFilter"
-    <> OP.metavar "c(space = DOUBLE, time = DOUBLE)"
-    <> OP.value (0,0)
+optParseDistanceFilterThresholds :: OP.Parser (Maybe DistanceFilterThresholds)
+optParseDistanceFilterThresholds = do
+    OP.liftA2 buildThresholds optParseIndepMinFilter optParseIndepMaxFilter 
+    where
+        buildThresholds :: Maybe IndepVarsThresholds -> Maybe IndepVarsThresholds -> Maybe DistanceFilterThresholds
+        buildThresholds Nothing Nothing = Nothing
+        buildThresholds (Just minF) Nothing =
+            case makeSpatTempOrAbritraryDim minF of
+                Left x  -> Just $ SpaceTimeFilterThresholds (Just x) Nothing
+                Right x -> Just $ ArbitraryDimFilterThresholds (Just x) Nothing
+        buildThresholds Nothing (Just maxF) =
+            case makeSpatTempOrAbritraryDim maxF of
+                Left x  -> Just $ SpaceTimeFilterThresholds Nothing (Just x)
+                Right x -> Just $ ArbitraryDimFilterThresholds Nothing (Just x)
+        buildThresholds (Just minF) (Just maxF) =
+            case (makeSpatTempOrAbritraryDim minF, makeSpatTempOrAbritraryDim maxF) of
+                (Left _, Right _) -> fail "--indepMinFilter and --indepMaxFilter must agree"
+                (Right _, Left _) -> fail "--indepMinFilter and --indepMaxFilter must agree"
+                (Left miF, Left maF)   -> Just $ SpaceTimeFilterThresholds (Just miF) (Just maF)
+                (Right miF, Right maF) -> Just $ ArbitraryDimFilterThresholds (Just miF) (Just maF)
+        makeSpatTempOrAbritraryDim :: IndepVarsThresholds -> Either (Double, Double) ArbitraryDimThresholds
+        makeSpatTempOrAbritraryDim (ValuesPerIndepVar [("space", s), ("time", t)]) = Left (s,t)
+        makeSpatTempOrAbritraryDim (ValuesPerIndepVar [("time", t), ("space", s)]) = Left (s,t)
+        makeSpatTempOrAbritraryDim xs                                              = Right xs
+
+optParseIndepMinFilter :: OP.Parser (Maybe IndepVarsThresholds)
+optParseIndepMinFilter = OP.optional $ OP.option (OP.eitherReader readIndepVarsThresholds) (
+       OP.long    "indepMinFilter"
+    <> OP.metavar "c(space=DOUBLE,time=DOUBLE)|c(indepV1=DOUBLE,...)"
     <> OP.helpDoc ( Just (
-                      s2d "Spatiotemporal radius filter. Only consider observations above \
+                      s2d "Radius filter. Only consider observations above \
                           \a certain minimum distance for the interpolation at the prediction \
                           \grid points."
     ))
     )
 
-optParseSpaceTimeMaxFilter :: OP.Parser (Double,Double)
-optParseSpaceTimeMaxFilter = OP.option (OP.eitherReader readSpaceTime) (
-       OP.long    "spaceTimeMaxFilter"
-    <> OP.metavar "c(space = DOUBLE, time = DOUBLE)"
-    <> OP.value (infinity,infinity)
+optParseIndepMaxFilter :: OP.Parser (Maybe IndepVarsThresholds)
+optParseIndepMaxFilter = OP.optional $ OP.option (OP.eitherReader readIndepVarsThresholds) (
+       OP.long    "indepMaxFilter"
+    <> OP.metavar "c(space=DOUBLE,time=DOUBLE)|c(indepV1=DOUBLE,...)"
     <> OP.helpDoc ( Just (
-                      s2d "Spatiotemporal radius filter. Only consider observations below \
+                      s2d "Radius filter. Only consider observations below \
                           \a certain maximum distance."
     ))
     )
 
-readSpaceTime :: String -> Either String (Double, Double)
-readSpaceTime s =
-    case P.runParser parseSpaceTime () "" s of
+readIndepVarsThresholds :: String -> Either String IndepVarsThresholds
+readIndepVarsThresholds s =
+    case P.runParser parseIndepVarsThresholds () "" s of
         Left err -> Left $ showParsecErr err
         Right x  -> Right x
-parseSpaceTime :: P.Parser (Double, Double)
-parseSpaceTime = do
-    parseRecordType "c" $ do
-        a <- parseArgument "space" parseDouble
-        b <- parseArgument "time" parseDouble
-        return (a, b)
+    where
+        parseIndepVarsThresholds = do
+            res <- parseNamedVector parseIndepVarName parsePositiveDouble
+            return (ValuesPerIndepVar res)
 
 optParseInSpatDistMapFile :: OP.Parser FilePath
 optParseInSpatDistMapFile = OP.strOption (

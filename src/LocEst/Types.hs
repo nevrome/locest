@@ -325,21 +325,29 @@ data IndepVarsPredGrid =
     SpaceTimeGrid {
       _stGridSpatPos            :: V.Vector SpatPos
     , _stGridTempPos            :: [AbsRelTempPos]
-    , _stGridSpaceTimeMinFilter :: (Double, Double)
-    , _stGridSpaceTimeMaxFilter :: (Double, Double)
+    , _stGridDistFilterThresholds :: Maybe DistanceFilterThresholds
     , _stGridSpatDist           :: Maybe SpatDistMatrix
     , _stGridTempSamples        :: Maybe TempSampleMatrix
     } |
     ArbitraryDimGrid {
       _adGridPos  :: V.Vector ArbitraryDimPos
+    , _adGriDistFilterThresholds :: Maybe DistanceFilterThresholds
     }
 
 -- | A data type for supplementary information used in the core algorithm
 data CoreSupplement = CoreSupplement {
-      _csSpaceTimeMinFilter :: (Double, Double)
-    , _csSpaceTimeMaxFilter :: (Double, Double)
-    , _csSpatDist           :: Maybe SpatDistMatrix
-    , _csTempSamp           :: Maybe TempSampleMatrix
+      _csDistFilterThresholds :: Maybe DistanceFilterThresholds
+    , _csSpatDist             :: Maybe SpatDistMatrix
+    , _csTempSamp             :: Maybe TempSampleMatrix
+}
+
+-- | A data type for distance filter thresholds
+data DistanceFilterThresholds = SpaceTimeFilterThresholds {
+      _stftMinFilter :: Maybe (Double, Double)
+    , _stftMaxFilter :: Maybe (Double, Double)
+} | ArbitraryDimFilterThresholds {
+      _adftMinFilter :: Maybe ArbitraryDimThresholds
+    , _adftMaxFilter :: Maybe ArbitraryDimThresholds
 }
 
 -- | A data type with core-algorithm settings (for one run of the core algorithm)
@@ -720,6 +728,7 @@ instance PseudoMap ValuesPerDepVar Double where
 
 -- | A data type for independent vars with some value
 type IndepVarsThresholds = ValuesPerIndepVar
+type ArbitraryDimThresholds = ValuesPerIndepVar
 type ArbitraryDimPos = ValuesPerIndepVar
 type ArbitraryDimDists = ValuesPerIndepVar
 type ArbitraryDimLengths = ValuesPerIndepVar

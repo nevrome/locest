@@ -5,7 +5,7 @@ import           LocEst.Exceptions
 import           LocEst.MathUtils
 import           LocEst.Types
 
-import           Data.List               (sortBy)
+import           Data.List               (sortBy, sortOn)
 import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
@@ -15,10 +15,10 @@ import           Statistics.Distribution (logDensity, quantile)
 coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
                     -> V.Vector Observation -> CorePermutation -> V.Vector ObsWeight
 coreOutObsWeight spatDistUnitScaling nrTopObs
-    (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
+    (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples)
      depVars observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let dists = V.map (getDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett) observations
-        obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
+        obsWithDistFiltered = V.filter (inFilterRange distanceFilterThresholds) $ V.zip observations dists
         kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
         weights = V.map
             (\obs -> ValuesPerDepVar $ zipWith
@@ -33,10 +33,10 @@ coreOutObsWeight spatDistUnitScaling nrTopObs
 coreOutInterpolSamples :: Double -> DepVarVariances -> CoreSupplement -> [DepVarName]
                           -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)]) -> V.Vector InterpolationSample
 coreOutInterpolSamples spatDistUnitScaling depVarVariances
-    (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
+    (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples)
      depVars observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
     let dists = V.map (getDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett) observations
-        obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
+        obsWithDistFiltered = V.filter (inFilterRange distanceFilterThresholds) $ V.zip observations dists
         kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
         samplesPerDepVar = map (\(i,r) -> (i, zipWith (getRandomSampleOneDepVar obsWithDistFiltered r depVarVariances) depVars kernelsPerDepVar)) randIterations
     in V.fromList $ map (\(i,s) -> InterpolationSample sett i (ValuesPerDepVar s)) samplesPerDepVar
@@ -44,10 +44,10 @@ coreOutInterpolSamples spatDistUnitScaling depVarVariances
 -- interpolation and search application
 coreNormal :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName] -> V.Vector Observation -> CorePermutation -> SearchResult
 coreNormal spatDistUnitScaling outMode depVarVariances
-    (CoreSupplement spaceTimeMinFilter spaceTimeMaxFilter maybeSpatDistMap maybeTempSamples)
+    (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples)
      depVars observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let dists = V.map (getDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett) observations
-        obsWithDistFiltered = V.filter (inFilterRange spaceTimeMinFilter spaceTimeMaxFilter) $ V.zip observations dists
+        obsWithDistFiltered = V.filter (inFilterRange distanceFilterThresholds) $ V.zip observations dists
         kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
         valuePerDepVar = case searchDepVarPos of
             Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
@@ -126,14 +126,34 @@ getDists
 -- wrong input
 getDists _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
 
-inFilterRange :: (Double, Double) -> (Double, Double) -> (Observation, IndepVarsDist) -> Bool
+inFilterRange :: Maybe DistanceFilterThresholds -> (Observation, IndepVarsDist) -> Bool
+inFilterRange Nothing _ = True
 inFilterRange
-    (spaceMinFilter,timeMinFilter)
-    (spaceMaxFilter,timeMaxFilter)
+    (Just (SpaceTimeFilterThresholds minFilter maxFilter))
     (_,IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
-    spatDistsKM <= spaceMaxFilter && spatDistsKM >= spaceMinFilter &&
-    tempDist <= timeMaxFilter && tempDist >= timeMinFilter
-inFilterRange _ _ _ = True
+    let minDecision = case minFilter of
+            Nothing -> True
+            Just (spaceMinFilter, timeMinFilter) -> spatDistsKM >= spaceMinFilter && tempDist >= timeMinFilter
+        maxDecision = case maxFilter of
+            Nothing -> True
+            Just (spaceMaxFilter, timeMaxFilter) -> spatDistsKM <= spaceMaxFilter && tempDist <= timeMaxFilter 
+    in minDecision && maxDecision
+inFilterRange
+    (Just (ArbitraryDimFilterThresholds minFilter maxFilter))
+    (_,IndepArbitraryDimDist (ValuesPerIndepVar dists)) =
+    let sortedDists = sortOn fst dists
+        minDecision = case minFilter of
+            Nothing -> True
+            Just (ValuesPerIndepVar minThresholds) ->
+                let sortedMinThresholds = sortOn fst minThresholds
+                in all (\((_,x), (_,y)) -> x >= y) $ zip sortedDists sortedMinThresholds
+        maxDecision = case maxFilter of
+            Nothing -> True
+            Just  (ValuesPerIndepVar maxThresholds)->
+                let sortedMaxThresholds = sortOn fst maxThresholds
+                in all (\((_,x), (_,y)) -> x <= y) $ zip sortedDists sortedMaxThresholds
+    in minDecision && maxDecision
+inFilterRange _ _ = True
 
 getRandomSampleOneDepVar ::
        V.Vector (Observation, IndepVarsDist)

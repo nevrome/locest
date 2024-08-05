@@ -2,7 +2,7 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (SpaceTimeCoreSupplementSettings (SpaceTimeCoreSupplementSettings),
+import           LocEst.CLI.Search             (CoreSupplementSettings (..),
                                                 calculateVariances)
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
@@ -26,7 +26,7 @@ import Conduit (MonadIO(liftIO))
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath
-    , _crossSupplementSettings :: SpaceTimeCoreSupplementSettings
+    , _crossSupplementSettings :: CoreSupplementSettings
     , _crossSettings           :: CrossSettings
     , _crossOutFile            :: Maybe FilePath
     , _crossOutMode            :: CrossOutModeSettings
@@ -143,13 +143,12 @@ runCross (
     hPutStrLn stderr "Done"
 
 readSpaceTimeSupp ::
-       SpaceTimeCoreSupplementSettings
+       CoreSupplementSettings
     -> V.Vector Observation
     -> IO CoreSupplement
 readSpaceTimeSupp
-    (SpaceTimeCoreSupplementSettings
-            inSpaceTimeMinFilter
-            inSpaceTimeMaxFilter
+    (CoreSupplementSettings
+            distanceFilterThresholds
             inSpatDistFile
             inObsTempSamplesFile
             noOrderCheck
@@ -168,7 +167,7 @@ readSpaceTimeSupp
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
             _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
-    return $ CoreSupplement inSpaceTimeMinFilter inSpaceTimeMaxFilter inSpatDists inObsTempSamples
+    return $ CoreSupplement distanceFilterThresholds inSpatDists inObsTempSamples
 
 summarizeFunc :: [CrossSearchResult] -> CrossvalOutput
 summarizeFunc xs =
