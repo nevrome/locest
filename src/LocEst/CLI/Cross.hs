@@ -8,9 +8,10 @@ import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (avg, foldSum)
 import           LocEst.Parsers
+import           LocEst.ReorderVars
 import           LocEst.Types
-import LocEst.ReorderVars
 
+import           Conduit                       (MonadIO (liftIO))
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
@@ -23,7 +24,6 @@ import           Immutable.Shuffle             (shuffle)
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
-import Conduit (MonadIO(liftIO))
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath
@@ -75,7 +75,7 @@ runCross (
     let numKernDefs = length $ concat kernDefsSets
         numObs = length observationsRaw
         (testFraction, numIterations) = case subsetMode of
-            CrossFull -> (1,1)
+            CrossFull           -> (1,1)
             CrossFraction f i _ -> (f,i)
         numTestObs = round $ testFraction * fromIntegral numObs
         numPermutations = numKernDefs * numTestObs * numIterations
@@ -113,7 +113,7 @@ runCross (
                 liftIO $ hPutStrLn stderr "Running analysis"
                 ConC.yieldMany kernDefs
                     .| Con.awaitForever (
-                        \kernDef -> 
+                        \kernDef ->
                                ConC.yieldMany iterations
                             .| ConAA.asyncMapC numThreads (
                                 \(iteration,testData,trainingData) ->

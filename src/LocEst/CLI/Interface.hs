@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE ApplicativeDo     #-}
 
 module LocEst.CLI.Interface where
 
@@ -14,7 +13,7 @@ import           LocEst.Exceptions
 import           LocEst.Types
 
 import           Data.Char                (isSpace, toLower)
-import           Data.List                (groupBy, singleton, isPrefixOf, sort)
+import           Data.List                (groupBy, isPrefixOf, singleton, sort)
 import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P

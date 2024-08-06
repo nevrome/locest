@@ -323,14 +323,14 @@ instance Csv.ToRecord SearchLikelihood where
 -- | A data type for the independent variable space prediction grid
 data IndepVarsPredGrid =
     SpaceTimeGrid {
-      _stGridSpatPos            :: V.Vector SpatPos
-    , _stGridTempPos            :: [AbsRelTempPos]
+      _stGridSpatPos              :: V.Vector SpatPos
+    , _stGridTempPos              :: [AbsRelTempPos]
     , _stGridDistFilterThresholds :: Maybe DistanceFilterThresholds
-    , _stGridSpatDist           :: Maybe SpatDistMatrix
-    , _stGridTempSamples        :: Maybe TempSampleMatrix
+    , _stGridSpatDist             :: Maybe SpatDistMatrix
+    , _stGridTempSamples          :: Maybe TempSampleMatrix
     } |
     ArbitraryDimGrid {
-      _adGridPos  :: V.Vector ArbitraryDimPos
+      _adGridPos                 :: V.Vector ArbitraryDimPos
     , _adGriDistFilterThresholds :: Maybe DistanceFilterThresholds
     }
 

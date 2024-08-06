@@ -5,7 +5,7 @@ import           LocEst.Exceptions
 import           LocEst.MathUtils
 import           LocEst.Types
 
-import           Data.List               (sortBy, sortOn)
+import           Data.List               (sortBy)
 import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
@@ -137,7 +137,7 @@ inFilterRange
             Just (spaceMinFilter, timeMinFilter) -> spatDistsKM >= spaceMinFilter && tempDist >= timeMinFilter
         maxDecision = case maxFilter of
             Nothing -> True
-            Just (spaceMaxFilter, timeMaxFilter) -> spatDistsKM <= spaceMaxFilter && tempDist <= timeMaxFilter 
+            Just (spaceMaxFilter, timeMaxFilter) -> spatDistsKM <= spaceMaxFilter && tempDist <= timeMaxFilter
     in minDecision && maxDecision
 inFilterRange
     (Just (ArbitraryDimFilterThresholds minFilter maxFilter))

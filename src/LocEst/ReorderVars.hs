@@ -2,7 +2,7 @@ module LocEst.ReorderVars where
 
 import           LocEst.Types
 
-import qualified Data.Vector               as V
+import qualified Data.Vector  as V
 
 reorderDistanceFilterThresholds :: [String] -> DistanceFilterThresholds -> DistanceFilterThresholds
 reorderDistanceFilterThresholds _ f@(SpaceTimeFilterThresholds _ _) = f
