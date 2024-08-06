@@ -157,15 +157,8 @@ readIndepVarsPredGrid :: [String] -> V.Vector Observation -> IndepVarsPredGridSe
 readIndepVarsPredGrid
     _
     observations
-    (SpaceTimeGridSettings
-        inSpatGridFile
-        inTempGrid
-        (CoreSupplementSettings
-            distFilterThresholds
-            inSpatDistFile
-            inObsTempSamplesFile
-            noOrderCheck
-        )
+    (SpaceTimeGridSettings inSpatGridFile inTempGrid
+        (CoreSupplementSettings distanceFilterThresholds inSpatDistFile inObsTempSamplesFile noOrderCheck)
     ) = do
     hPutStrLn stderr "Assuming a spatiotemporal system"
     -- read spatial grid
@@ -183,26 +176,20 @@ readIndepVarsPredGrid
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
             _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
     -- return grid
-    return $ SpaceTimeGrid inSpatGrid inTempGrid distFilterThresholds inSpatDists inObsTempSamples
+    return $ SpaceTimeGrid inSpatGrid inTempGrid distanceFilterThresholds inSpatDists inObsTempSamples
 -- arbitrary dimension case
 readIndepVarsPredGrid
     indepVarsWanted
     _
-    (ArbitraryDimGridSettings
-        inArbitraryDimGridFile
-        (CoreSupplementSettings
-            distFilterThresholds
-            _
-            _
-            _
-        )
+    (ArbitraryDimGridSettings inArbitraryDimGridFile
+        (CoreSupplementSettings distanceFilterThresholds _ _ _)
     ) = do
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     -- read arbitrary-dimension grid
     inArbitraryDimPosRaw <- readArbitraryDimPos inArbitraryDimGridFile
     let inArbitraryDimPos = reorderVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
     -- return grid
-    return $ ArbitraryDimGrid inArbitraryDimPos distFilterThresholds
+    return $ ArbitraryDimGrid inArbitraryDimPos distanceFilterThresholds
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do

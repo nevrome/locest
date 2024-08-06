@@ -54,7 +54,7 @@ data CrossOutModeSettings =
 runCross :: CrossOptions -> Int -> Double -> IO ()
 runCross (
     CrossOptions inObsFile
-    spaceTimeSuppSettings
+    crossSuppSettings
     (CrossSettings kernsPerDepVar coAnalyseDepVars subsetMode) outFile outMode
     ) numThreads spatDistUnitScaling = do
     -- prepare kernel definitions
@@ -71,7 +71,7 @@ runCross (
     -- read observations
     observationsRaw <- readObservations inObsFile
     -- read core supplements
-    coreSupp <- readSpaceTimeSupp spaceTimeSuppSettings observationsRaw
+    coreSupp <- readCoreSupplement crossSuppSettings observationsRaw
     -- count nr of iterations
     let numKernDefs = length $ concat kernDefsSets
         numObs = length observationsRaw
@@ -142,11 +142,11 @@ runCross (
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-readSpaceTimeSupp ::
+readCoreSupplement ::
        CoreSupplementSettings
     -> V.Vector Observation
     -> IO CoreSupplement
-readSpaceTimeSupp
+readCoreSupplement
     (CoreSupplementSettings
             distanceFilterThresholds
             inSpatDistFile
@@ -161,7 +161,7 @@ readSpaceTimeSupp
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
             _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
-    -- read temporal distances
+    -- read temporal positions
     inObsTempSamples <- case inObsTempSamplesFile of
         Nothing   -> pure Nothing
         Just path -> case takeExtension path of
