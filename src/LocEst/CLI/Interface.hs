@@ -14,7 +14,7 @@ import           LocEst.Exceptions
 import           LocEst.Types
 
 import           Data.Char                (isSpace, toLower)
-import           Data.List                (groupBy, singleton, sortOn, isPrefixOf, sort)
+import           Data.List                (groupBy, singleton, isPrefixOf, sort)
 import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
@@ -146,6 +146,16 @@ optParseIndepVarsThresholds = OP.option (OP.eitherReader readIndepVarsThresholds
                           \in spatial proximity are considered."
     ))
     )
+
+readIndepVarsThresholds :: String -> Either String IndepVarsThresholds
+readIndepVarsThresholds s =
+    case P.runParser parseIndepVarsThresholds () "" s of
+        Left err -> Left $ showParsecErr err
+        Right x  -> Right x
+    where
+        parseIndepVarsThresholds = do
+            res <- parseNamedVector parseIndepVarName parsePositiveDouble
+            return (ValuesPerIndepVar res)
 
 readSpaceTime :: String -> Either String (Double, Double)
 readSpaceTime s =
@@ -567,34 +577,28 @@ optParseDistanceFilterThresholds :: OP.Parser (Maybe DistanceFilterThresholds)
 optParseDistanceFilterThresholds = do
     OP.liftA2 buildThresholds optParseIndepMinFilter optParseIndepMaxFilter
     where
-        buildThresholds :: Maybe IndepVarsThresholds -> Maybe IndepVarsThresholds -> Maybe DistanceFilterThresholds
+        buildThresholds ::
+               Maybe (Either (Double, Double) ArbitraryDimThresholds)
+            -> Maybe (Either (Double, Double) ArbitraryDimThresholds)
+            -> Maybe DistanceFilterThresholds
         buildThresholds Nothing Nothing = Nothing
         buildThresholds (Just minF) Nothing =
-            case makeSpatTempOrAbritraryDim minF of
+            case minF of
                 Left x  -> Just $ SpaceTimeFilterThresholds (Just x) Nothing
                 Right x -> Just $ ArbitraryDimFilterThresholds (Just x) Nothing
         buildThresholds Nothing (Just maxF) =
-            case makeSpatTempOrAbritraryDim maxF of
+            case maxF of
                 Left x  -> Just $ SpaceTimeFilterThresholds Nothing (Just x)
                 Right x -> Just $ ArbitraryDimFilterThresholds Nothing (Just x)
         buildThresholds (Just minF) (Just maxF) =
-            case (makeSpatTempOrAbritraryDim minF, makeSpatTempOrAbritraryDim maxF) of
+            case (minF, maxF) of
                 (Left _, Right _) -> throwL "--indepMinFilter and --indepMaxFilter must agree"
                 (Right _, Left _) -> throwL "--indepMinFilter and --indepMaxFilter must agree"
                 (Left miF, Left maF)   -> Just $ SpaceTimeFilterThresholds (Just miF) (Just maF)
                 (Right miF, Right maF) -> Just $ ArbitraryDimFilterThresholds (Just miF) (Just maF)
-        makeSpatTempOrAbritraryDim :: IndepVarsThresholds -> Either (Double, Double) ArbitraryDimThresholds
-        makeSpatTempOrAbritraryDim thresholds@(ValuesPerIndepVar xs)
-            | sort (map fst xs) == ["space", "time"] = Left $ tuplify xs
-            | all (isPrefixOf "indep" . fst) xs      = Right thresholds
-            | otherwise                              = throwL "--indepMinFilter and --indepMaxFilter can fit \
-                                                              \either to a spatiotemporal or a arbitrary variable setup"
-        tuplify :: [(String,Double)] -> (Double,Double)
-        tuplify [("space",s), ("time",t)] = (s,t)
-        tuplify [("time",t), ("space",s)] = (s,t)
 
-optParseIndepMinFilter :: OP.Parser (Maybe IndepVarsThresholds)
-optParseIndepMinFilter = OP.optional $ OP.option (OP.eitherReader readIndepVarsThresholds) (
+optParseIndepMinFilter :: OP.Parser (Maybe (Either (Double, Double) ArbitraryDimThresholds))
+optParseIndepMinFilter = OP.optional $ OP.option (OP.eitherReader readFilterThresholds) (
        OP.long    "indepMinFilter"
     <> OP.metavar "c(space=DOUBLE,time=DOUBLE)|c(indepV1=DOUBLE,...)"
     <> OP.helpDoc ( Just (
@@ -604,8 +608,8 @@ optParseIndepMinFilter = OP.optional $ OP.option (OP.eitherReader readIndepVarsT
     ))
     )
 
-optParseIndepMaxFilter :: OP.Parser (Maybe IndepVarsThresholds)
-optParseIndepMaxFilter = OP.optional $ OP.option (OP.eitherReader readIndepVarsThresholds) (
+optParseIndepMaxFilter :: OP.Parser (Maybe (Either (Double, Double) ArbitraryDimThresholds))
+optParseIndepMaxFilter = OP.optional $ OP.option (OP.eitherReader readFilterThresholds) (
        OP.long    "indepMaxFilter"
     <> OP.metavar "c(space=DOUBLE,time=DOUBLE)|c(indepV1=DOUBLE,...)"
     <> OP.helpDoc ( Just (
@@ -614,15 +618,25 @@ optParseIndepMaxFilter = OP.optional $ OP.option (OP.eitherReader readIndepVarsT
     ))
     )
 
-readIndepVarsThresholds :: String -> Either String IndepVarsThresholds
-readIndepVarsThresholds s =
+readFilterThresholds :: String -> Either String (Either (Double, Double) ArbitraryDimThresholds)
+readFilterThresholds s =
     case P.runParser parseIndepVarsThresholds () "" s of
         Left err -> Left $ showParsecErr err
-        Right x  -> Right x
+        Right x  -> x
     where
         parseIndepVarsThresholds = do
             res <- parseNamedVector parseIndepVarName parsePositiveDouble
-            return (ValuesPerIndepVar res)
+            return (makeSpatTempOrAbritraryDim res)
+        makeSpatTempOrAbritraryDim :: [(String, Double)] -> Either String (Either (Double, Double) ArbitraryDimThresholds)
+        makeSpatTempOrAbritraryDim xs
+            | sort (map fst xs) == ["space", "time"] = Right $ Left $ tuplify xs
+            | all (isPrefixOf "indep" . fst) xs      = Right $ Right $ ValuesPerIndepVar xs
+            | otherwise                              = Left "--indepMinFilter and --indepMaxFilter can fit \
+                                                              \either to a spatiotemporal or a arbitrary variable setup"
+        tuplify :: [(String,Double)] -> (Double,Double)
+        tuplify [("space",spatialThreshold), ("time",temporalThreshold)] = (spatialThreshold,temporalThreshold)
+        tuplify [("time",temporalThreshold), ("space",spatialThreshold)] = (spatialThreshold,temporalThreshold)
+        tuplify _                                                        = throwL "this can not happen"
 
 optParseInSpatDistMapFile :: OP.Parser FilePath
 optParseInSpatDistMapFile = OP.strOption (
