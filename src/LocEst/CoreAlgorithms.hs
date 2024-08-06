@@ -142,17 +142,12 @@ inFilterRange
 inFilterRange
     (Just (ArbitraryDimFilterThresholds minFilter maxFilter))
     (_,IndepArbitraryDimDist (ValuesPerIndepVar dists)) =
-    let sortedDists = sortOn fst dists
-        minDecision = case minFilter of
+    let minDecision = case minFilter of
             Nothing -> True
-            Just (ValuesPerIndepVar minThresholds) ->
-                let sortedMinThresholds = sortOn fst minThresholds
-                in all (\((_,x), (_,y)) -> x >= y) $ zip sortedDists sortedMinThresholds
+            Just (ValuesPerIndepVar minThresholds) -> all (\((_,x), (_,y)) -> x >= y) $ zip dists minThresholds
         maxDecision = case maxFilter of
             Nothing -> True
-            Just  (ValuesPerIndepVar maxThresholds)->
-                let sortedMaxThresholds = sortOn fst maxThresholds
-                in all (\((_,x), (_,y)) -> x <= y) $ zip sortedDists sortedMaxThresholds
+            Just (ValuesPerIndepVar maxThresholds) -> all (\((_,x), (_,y)) -> x <= y) $ zip dists maxThresholds
     in minDecision && maxDecision
 inFilterRange _ _ = True
 

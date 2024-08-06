@@ -176,6 +176,7 @@ readIndepVarsPredGrid
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
             _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
+    -- ordering of distance filter tresholds not necessary here
     -- return grid
     return $ SpaceTimeGrid inSpatGrid inTempGrid distanceFilterThresholds inSpatDists inObsTempSamples
 -- arbitrary dimension case
