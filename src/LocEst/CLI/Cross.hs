@@ -9,6 +9,7 @@ import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (avg, foldSum)
 import           LocEst.Parsers
 import           LocEst.Types
+import LocEst.ReorderVars
 
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con

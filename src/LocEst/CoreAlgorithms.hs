@@ -42,7 +42,8 @@ coreOutInterpolSamples spatDistUnitScaling depVarVariances
     in V.fromList $ map (\(i,s) -> InterpolationSample sett i (ValuesPerDepVar s)) samplesPerDepVar
 
 -- interpolation and search application
-coreNormal :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName] -> V.Vector Observation -> CorePermutation -> SearchResult
+coreNormal :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName]
+              -> V.Vector Observation -> CorePermutation -> SearchResult
 coreNormal spatDistUnitScaling outMode depVarVariances
     (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples)
      depVars observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
