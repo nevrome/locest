@@ -14,7 +14,7 @@ import           LocEst.Exceptions
 import           LocEst.Types
 
 import           Data.Char                (isSpace, toLower)
-import           Data.List                (groupBy, singleton)
+import           Data.List                (groupBy, singleton, sortOn, isPrefixOf, sort)
 import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
@@ -565,7 +565,7 @@ optParseCoreSupplementSettings =
 
 optParseDistanceFilterThresholds :: OP.Parser (Maybe DistanceFilterThresholds)
 optParseDistanceFilterThresholds = do
-    OP.liftA2 buildThresholds optParseIndepMinFilter optParseIndepMaxFilter 
+    OP.liftA2 buildThresholds optParseIndepMinFilter optParseIndepMaxFilter
     where
         buildThresholds :: Maybe IndepVarsThresholds -> Maybe IndepVarsThresholds -> Maybe DistanceFilterThresholds
         buildThresholds Nothing Nothing = Nothing
@@ -579,14 +579,19 @@ optParseDistanceFilterThresholds = do
                 Right x -> Just $ ArbitraryDimFilterThresholds Nothing (Just x)
         buildThresholds (Just minF) (Just maxF) =
             case (makeSpatTempOrAbritraryDim minF, makeSpatTempOrAbritraryDim maxF) of
-                (Left _, Right _) -> fail "--indepMinFilter and --indepMaxFilter must agree"
-                (Right _, Left _) -> fail "--indepMinFilter and --indepMaxFilter must agree"
+                (Left _, Right _) -> throwL "--indepMinFilter and --indepMaxFilter must agree"
+                (Right _, Left _) -> throwL "--indepMinFilter and --indepMaxFilter must agree"
                 (Left miF, Left maF)   -> Just $ SpaceTimeFilterThresholds (Just miF) (Just maF)
                 (Right miF, Right maF) -> Just $ ArbitraryDimFilterThresholds (Just miF) (Just maF)
         makeSpatTempOrAbritraryDim :: IndepVarsThresholds -> Either (Double, Double) ArbitraryDimThresholds
-        makeSpatTempOrAbritraryDim (ValuesPerIndepVar [("space", s), ("time", t)]) = Left (s,t)
-        makeSpatTempOrAbritraryDim (ValuesPerIndepVar [("time", t), ("space", s)]) = Left (s,t)
-        makeSpatTempOrAbritraryDim xs                                              = Right xs
+        makeSpatTempOrAbritraryDim thresholds@(ValuesPerIndepVar xs)
+            | sort (map fst xs) == ["space", "time"] = Left $ tuplify xs
+            | all (isPrefixOf "indep" . fst) xs      = Right thresholds
+            | otherwise                              = throwL "--indepMinFilter and --indepMaxFilter can fit \
+                                                              \either to a spatiotemporal or a arbitrary variable setup"
+        tuplify :: [(String,Double)] -> (Double,Double)
+        tuplify [("space",s), ("time",t)] = (s,t)
+        tuplify [("time",t), ("space",s)] = (s,t)
 
 optParseIndepMinFilter :: OP.Parser (Maybe IndepVarsThresholds)
 optParseIndepMinFilter = OP.optional $ OP.option (OP.eitherReader readIndepVarsThresholds) (
