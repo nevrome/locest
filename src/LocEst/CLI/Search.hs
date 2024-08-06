@@ -183,19 +183,21 @@ readIndepVarsPredGrid
     indepVarsWanted
     _
     (ArbitraryDimGridSettings inArbitraryDimGridFile
-        (CoreSupplementSettings distanceFilterThresholds _ _ _)
+        (CoreSupplementSettings distanceFilterThresholdsRaw _ _ _)
     ) = do
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     -- read arbitrary-dimension grid
     inArbitraryDimPosRaw <- readArbitraryDimPos inArbitraryDimGridFile
     let inArbitraryDimPos = reorderVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
+    -- order distance filter tresholds
+    let distanceFilterThresholds = fmap (reorderDistanceFilterThresholds indepVarsWanted) distanceFilterThresholdsRaw
     -- return grid
     return $ ArbitraryDimGrid inArbitraryDimPos distanceFilterThresholds
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
     -- reorder depVarsPos
-    let depVarsPosReordered = map (`reorderAndFilter` depVars) depVarsPos
+    let depVarsPosReordered = map (reorderAndFilter depVars) depVarsPos
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPosReordered
 readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do

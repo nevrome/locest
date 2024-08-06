@@ -31,7 +31,7 @@ class PseudoMap a b | a -> b where
     getValues :: a -> [b]
     lookupUnsafe :: a -> String -> b
     allSameVars :: [a] -> Bool
-    reorderAndFilter :: a -> [String] -> a
+    reorderAndFilter :: [String] -> a -> a
 
 -- a typeclass for data types with ids
 class Identifiable a where
@@ -40,8 +40,8 @@ class Identifiable a where
     setIndex :: a -> Int -> a
 
 -- general helper functions
-reorderAndFilterList :: Eq a => [(String,a)] -> [String] -> [(String,a)]
-reorderAndFilterList m keys = [ maybe (throwL $ "Failed lookup. Missing key: " ++ k) (k,) $ lookup k m | k <- keys ]
+reorderAndFilterList :: Eq a => [String] -> [(String,a)] -> [(String,a)]
+reorderAndFilterList keys m = [ maybe (throwL $ "Failed lookup. Missing key: " ++ k) (k,) $ lookup k m | k <- keys ]
 
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
@@ -202,7 +202,7 @@ instance PseudoMap MatrixPerIndepVar SUDistMatrix where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter (MatrixPerIndepVar l) k = MatrixPerIndepVar (reorderAndFilterList l k)
+    reorderAndFilter k (MatrixPerIndepVar l) = MatrixPerIndepVar (reorderAndFilterList k l)
 
 -- | A data type for an asymmetric, unidirectional distance matrix
 -- this matrix has m*n different entries and a rectangular shape
@@ -448,9 +448,9 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map (\(KernelDefinition l) -> l) xs
-    reorderAndFilter kernDef@(KernelDefinition _) k =
+    reorderAndFilter k kernDef@(KernelDefinition _) =
         let kernList = zip (getKeys kernDef) (getValues kernDef)
-            reorderdAndFiltered = reorderAndFilterList kernList k
+            reorderdAndFiltered = reorderAndFilterList k kernList
         in KernelDefinition $ map snd reorderdAndFiltered
 
 -- | A data type for a component of a kernel definition for one depvar
@@ -500,7 +500,7 @@ instance PseudoMap KernelLengths Double where
     getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
     lookupUnsafe (KernelLengths arbitraryDimLengths) = lookupUnsafe arbitraryDimLengths
     allSameVars xs = allSameVars $ map (\(KernelLengths x) -> x) xs
-    reorderAndFilter (KernelLengths arbitraryDimLengths) k = KernelLengths (reorderAndFilter arbitraryDimLengths k)
+    reorderAndFilter k (KernelLengths arbitraryDimLengths) = KernelLengths (reorderAndFilter k arbitraryDimLengths)
 
 -- | A data type for kernel shapes
 data KernelShape =
@@ -724,7 +724,7 @@ instance PseudoMap ValuesPerDepVar Double where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter (ValuesPerDepVar l) k = ValuesPerDepVar (reorderAndFilterList l k)
+    reorderAndFilter k (ValuesPerDepVar l) = ValuesPerDepVar (reorderAndFilterList k l)
 
 -- | A data type for independent vars with some value
 type IndepVarsThresholds = ValuesPerIndepVar
@@ -758,7 +758,7 @@ instance PseudoMap ValuesPerIndepVar Double where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter (ValuesPerIndepVar l) k = ValuesPerIndepVar (reorderAndFilterList l k)
+    reorderAndFilter k (ValuesPerIndepVar l) = ValuesPerIndepVar (reorderAndFilterList k l)
 
 -- A data type for positions independent variable space, so here either a spatiotemporal or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos

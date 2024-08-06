@@ -71,8 +71,6 @@ runCross (
                  in (ks, ds)
     -- read observations
     observationsRaw <- readObservations inObsFile
-    -- read core supplements
-    coreSupp <- readCoreSupplement crossSuppSettings observationsRaw
     -- count nr of iterations
     let numKernDefs = length $ concat kernDefsSets
         numObs = length observationsRaw
@@ -91,6 +89,8 @@ runCross (
                 let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
                 -- modify observations
                 let observations = reorderVarsInObs depVars indepVars observationsRaw
+                -- read core supplements
+                coreSupp <- liftIO $ readCoreSupplement indepVars crossSuppSettings observationsRaw
                 -- variance
                 liftIO $ hPutStrLn stderr "Calculating total variance"
                 let variancesPerDepVar = calculateVariances depVars observations
@@ -144,12 +144,14 @@ runCross (
     hPutStrLn stderr "Done"
 
 readCoreSupplement ::
-       CoreSupplementSettings
+       [String]
+    -> CoreSupplementSettings
     -> V.Vector Observation
     -> IO CoreSupplement
 readCoreSupplement
+    indepVarsWanted
     (CoreSupplementSettings
-            distanceFilterThresholds
+            distanceFilterThresholdsRaw
             inSpatDistFile
             inObsTempSamplesFile
             noOrderCheck
@@ -168,6 +170,9 @@ readCoreSupplement
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
             _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
+    -- order distance filter tresholds
+    let distanceFilterThresholds = fmap (reorderDistanceFilterThresholds indepVarsWanted) distanceFilterThresholdsRaw
+    -- return supplement
     return $ CoreSupplement distanceFilterThresholds inSpatDists inObsTempSamples
 
 summarizeFunc :: [CrossSearchResult] -> CrossvalOutput
