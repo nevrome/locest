@@ -1,12 +1,14 @@
 # Profiling
 
 ```
-# memory
+# compile for profiling
 stack install --profile
-stack exec --profile -- locest ... +RTS -hc -l
+
+# memory
+locest ... +RTS -hc -l
 eventlog2html locest.eventlog
 
 # runtime
-stack exec --profile -- locest ... +RTS -p
+locest ... +RTS -p
 profiteur locest.prof
 ```
