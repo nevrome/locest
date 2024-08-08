@@ -69,7 +69,7 @@ executable locest
       -O2
       -threaded
       -feager-blackholing
-      "-with-rtsopts=-N -qa"
+      "-with-rtsopts=-N"
 
 test-suite spec
     hs-source-dirs:
