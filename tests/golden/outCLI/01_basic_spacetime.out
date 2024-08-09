@@ -1,5 +1,3 @@
-locest v0.0.1.0
-
 Working with threads: 1
 Working silently
 spatID	x	y	yearBCAD	kernel_depV1_shape	kernel_depV1_space_length	kernel_depV1_time_length	kernel_depV2_shape	kernel_depV2_space_length	kernel_depV2_time_length	temp_sampling_iteration	cross_iteration	interpol_depV1_low	interpol_depV1_median	interpol_depV1_up	interpol_depV2_low	interpol_depV2_median	interpol_depV2_up
