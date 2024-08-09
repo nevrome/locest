@@ -12,11 +12,13 @@ import           Control.Exception    (catch)
 import           Data.List            (isInfixOf)
 import           Data.Version         (showVersion)
 import qualified Options.Applicative  as OP
+import           Options.Applicative.Help                (pretty)
 import           Paths_locest         (version)
 import           System.Environment   (getArgs)
 import           System.Exit          (exitFailure)
 import           System.IO            (hPutStrLn, stderr)
 import           System.IO.Silently   (hSilence)
+import System.Info (os, arch, compilerName, fullCompilerVersion)
 
 -- data types
 data Options = Options {
@@ -34,7 +36,12 @@ data Subcommand =
 -- CLI interface configuration
 main :: IO ()
 main = do
-    hPutStrLn stderr $ "locest v" ++ showVersion version
+    hPutStrLn stderr $
+        "locest v" ++ showVersion version
+         ++ " compiled with " ++ compilerName
+         ++ " v" ++ showVersion fullCompilerVersion
+    hPutStrLn stderr $
+        "running on " ++ os ++ " " ++ arch
     hPutStrLn stderr ""
     -- read command line arguments from cmd and potentially a config file
     rawCmdArgs <- getArgs
@@ -97,8 +104,14 @@ optParserInfo = OP.info (
         <*> optParseQuiet
         <*> optParseSpatDistUnitScaling
         )) (
-    OP.briefDesc <>
-    OP.progDesc "Spatiotemporal interpolation and search for macroscale archaeological data."
+    OP.briefDesc
+    <> OP.progDesc "Spatiotemporal interpolation and search for macroscale archaeological data."
+    <> OP.footerDoc (
+        Just $ pretty $
+            "Configuration for memory management and thread scheduling can be done with\n"
+         ++ "GHC's Runtime system (RTS) options. They can be set with \"+RTS ... -RTS\" on the\n"
+         ++ "command line, e.g. \"locest search <arguments> +RTS -N5 -RTS\" to run with 5 threads."
+        )
     )
 
 versionOption :: OP.Parser (a -> a)
