@@ -232,13 +232,6 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
     parseNamedRecord m =
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
--- | A data type for selecting the number of threads locest should use
-data NumberOfThreads =
-      SingleThread
-    | MultipleThreads Int
-    | DetectThreads
-    deriving Show
-
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutObsWeight Int

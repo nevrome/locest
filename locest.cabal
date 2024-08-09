@@ -69,6 +69,7 @@ executable locest
       -O2
       -threaded
       -feager-blackholing
+      -rtsopts
       "-with-rtsopts=-N"
 
 test-suite spec

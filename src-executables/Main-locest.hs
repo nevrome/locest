@@ -7,7 +7,6 @@ import           LocEst.CLI.Serialise (SerialiseOptions (..), runSerialise)
 import           LocEst.CLI.Utils     (setNumberOfThreads)
 import           LocEst.CLI.Vario     (VarioOptions (..), runVario)
 import           LocEst.Exceptions
-import           LocEst.Types         (NumberOfThreads)
 
 import           Control.Exception    (catch)
 import           Data.List            (isInfixOf)
@@ -22,12 +21,9 @@ import           System.IO.Silently   (hSilence)
 -- data types
 data Options = Options {
       _subcommand          :: Subcommand
-    , _threads             :: NumberOfThreads
     , _quiet               :: Bool
     , _spatDistUnitScaling :: Double
     }
-
-
 
 data Subcommand =
       CmdSerialise SerialiseOptions
@@ -51,11 +47,11 @@ main = do
             configFileArgs <- catch (parseConfigFile configFilePath) handler
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
-    (Options subcommand threads quiet spatDistUnitScaling) <-
+    (Options subcommand quiet spatDistUnitScaling) <-
         OP.handleParseResult $
             OP.execParserPure (OP.prefs OP.showHelpOnEmpty) optParserInfo mergedCmdArgs
     -- number of threads
-    numThreads <- setNumberOfThreads threads
+    numThreads <- setNumberOfThreads
     -- run requested subcommand
     catch (run subcommand numThreads quiet spatDistUnitScaling) handler
     where
@@ -98,7 +94,6 @@ optParserInfo = OP.info (
         OP.helper <*> versionOption <*> (
             Options
         <$> subcommandParser
-        <*> optParseNumberOfThreads
         <*> optParseQuiet
         <*> optParseSpatDistUnitScaling
         )) (

@@ -1,7 +1,5 @@
 module LocEst.CLI.Utils where
 
-import           LocEst.Types
-
 import           Conduit           (MonadIO, liftIO)
 import           Data.Conduit      (ConduitT)
 import qualified Data.Conduit.List as ConC
@@ -9,19 +7,11 @@ import           Data.IORef        (modifyIORef, newIORef, readIORef)
 import           GHC.Conc          (getNumCapabilities)
 import           System.IO         (hPutStrLn, stderr)
 
-setNumberOfThreads :: NumberOfThreads -> IO Int
-setNumberOfThreads x = do
-    numThreads <- set x
-    hPutStrLn stderr $ "Working with threads: " ++ show numThreads
-    return numThreads
-    where
-        set :: NumberOfThreads -> IO Int
-        set SingleThread        = pure 1
-        set (MultipleThreads n) = pure n
-        set DetectThreads       = do
-            detectedThreads <- getNumCapabilities
-            hPutStrLn stderr $ "Detected max number of threads: " ++ show detectedThreads
-            return detectedThreads
+setNumberOfThreads :: IO Int
+setNumberOfThreads = do
+    detectedThreads <- getNumCapabilities
+    hPutStrLn stderr $ "Working with threads: " ++ show detectedThreads
+    return detectedThreads
 
 progress :: (MonadIO m) => Int -> Maybe Int -> ConduitT i i m ()
 progress reportNum goal = do

@@ -18,10 +18,8 @@ import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.String       as P
-import           Text.Read                (readMaybe)
 
 -- helper functions for optparse applicative help text
-
 s2d :: String -> OH.Doc
 s2d str = OH.fillSep $ map OH.pretty $ words str
 
@@ -460,23 +458,6 @@ optParseNormalisation = OP.option (OP.eitherReader readNormalisation) (
         parseNormalisation = P.try parseNormBySpace P.<|> parseNoNorm
         parseNormBySpace = P.string "NormBySpace" >> return NormBySpace
         parseNoNorm      = P.string "NoNorm"      >> return NoNorm
-
-optParseNumberOfThreads :: OP.Parser NumberOfThreads
-optParseNumberOfThreads = OP.option (OP.eitherReader readNumberOfThreads) (
-    OP.long "threads" <>
-    OP.metavar "INT|Detect" <>
-    OP.value SingleThread
-    <> OP.help "Maximum number of worker threads. Either just an integer number to request \
-               \a concrete number of threads or \"Detect\" to automatically determine the maximum. \
-               \The default is to use one thread."
-    ) where
-        readNumberOfThreads :: String -> Either String NumberOfThreads
-        readNumberOfThreads s = do
-            if s == "Detect"
-            then Right DetectThreads
-            else case readMaybe s of
-                Just n  -> Right $ MultipleThreads n
-                Nothing -> Left "must be either \"Detect\" or an integer number"
 
 optParseQuiet :: OP.Parser Bool
 optParseQuiet = OP.switch (
