@@ -1,24 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           LocEst.CLI.Cross     (CrossOptions (..), runCross)
+import           LocEst.CLI.Cross         (CrossOptions (..), runCross)
 import           LocEst.CLI.Interface
-import           LocEst.CLI.Search    (SearchOptions (..), runSearch)
-import           LocEst.CLI.Serialise (SerialiseOptions (..), runSerialise)
-import           LocEst.CLI.Utils     (setNumberOfThreads)
-import           LocEst.CLI.Vario     (VarioOptions (..), runVario)
+import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
+import           LocEst.CLI.Serialise     (SerialiseOptions (..), runSerialise)
+import           LocEst.CLI.Utils         (setNumberOfThreads)
+import           LocEst.CLI.Vario         (VarioOptions (..), runVario)
 import           LocEst.Exceptions
 
-import           Control.Exception    (catch)
-import           Data.List            (isInfixOf)
-import           Data.Version         (showVersion)
-import qualified Options.Applicative  as OP
-import           Options.Applicative.Help                (pretty)
-import           Paths_locest         (version)
-import           System.Environment   (getArgs)
-import           System.Exit          (exitFailure)
-import           System.IO            (hPutStrLn, stderr)
-import           System.IO.Silently   (hSilence)
-import System.Info (os, arch, compilerName, fullCompilerVersion)
+import           Control.Exception        (catch)
+import           Data.List                (isInfixOf)
+import           Data.Version             (showVersion)
+import qualified Options.Applicative      as OP
+import           Options.Applicative.Help (pretty)
+import           Paths_locest             (version)
+import           System.Environment       (getArgs)
+import           System.Exit              (exitFailure)
+import           System.Info              (arch, compilerName,
+                                           fullCompilerVersion, os)
+import           System.IO                (hPutStrLn, stderr)
+import           System.IO.Silently       (hSilence)
 
 -- data types
 data Options = Options {
