@@ -25,8 +25,8 @@ s2d str = OH.fillSep $ map OH.pretty $ words str
 
 -- config file that uses the optparse interface
 
-parseConfigFile :: FilePath -> IO [String]
-parseConfigFile configFile = do
+parseConfigFile :: [String] -> FilePath -> IO [String]
+parseConfigFile toIgnore configFile = do
     contents <- readFile configFile
     case P.parse parseFile configFile contents of
         Left err -> throwLIO $ show err
@@ -52,9 +52,12 @@ parseConfigFile configFile = do
         argumentValue <- P.manyTill (P.noneOf ";") (P.lookAhead (P.char ';'))
         _ <- P.char ';'
         _ <- P.try parseComment P.<|> parseEmptyLine
-        if map toLower argumentValue == "true"
-        then return [dash argumentName]
-        else return [dash argumentName, trim argumentValue]
+        if dash argumentName `elem` toIgnore
+        then pure []
+        else do
+            if map toLower argumentValue == "true"
+            then return [dash argumentName]
+            else return [dash argumentName, trim argumentValue]
     dash :: String -> String
     dash s
       | length s == 1 = '-'  :  s

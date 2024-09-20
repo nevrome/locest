@@ -51,8 +51,11 @@ main = do
             let cmdArgs = removeConfigFileArg rawCmdArgs
             return cmdArgs
         Just configFilePath -> do
+            -- collect arguments
             let cmdArgs = removeConfigFileArg rawCmdArgs
-            configFileArgs <- catch (parseConfigFile configFilePath) handler
+            -- read config file but ignore arguments already on the command line
+            -- hacky implementation, but useful for overwriting config files
+            configFileArgs <- catch (parseConfigFile cmdArgs configFilePath) handler
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
     (Options subcommand quiet spatDistUnitScaling) <-
