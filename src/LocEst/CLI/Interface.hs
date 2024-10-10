@@ -6,6 +6,7 @@ module LocEst.CLI.Interface where
 
 import           LocEst.CLI.ConfigLang
 import           LocEst.CLI.Cross
+import           LocEst.CLI.Plot
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
@@ -66,6 +67,17 @@ parseConfigFile toIgnore configFile = do
     trim = let f = reverse . dropWhile isSpace in f . f
 
 -- optparse-applicative interface
+
+plotOptParser :: OP.Parser PlotOptions
+plotOptParser = PlotOptions <$> optParseTest
+
+optParseTest :: OP.Parser String
+optParseTest = OP.option OP.str (
+       OP.long  "test"
+    <> OP.metavar "..."
+    <> OP.help "..."
+    )
+
 
 serialiseOptParser :: OP.Parser SerialiseOptions
 serialiseOptParser = SerialiseOptions <$> OP.subparser (
