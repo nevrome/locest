@@ -6,12 +6,12 @@ module LocEst.CLI.Interface where
 
 import           LocEst.CLI.ConfigLang
 import           LocEst.CLI.Cross
-import           LocEst.CLI.Plot
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
 import           LocEst.Exceptions
 import           LocEst.Types
+import LocEst.CLI.Plot
 
 import           Data.Char                (isSpace, toLower)
 import           Data.List                (groupBy, isPrefixOf, singleton, sort)
@@ -69,15 +69,22 @@ parseConfigFile toIgnore configFile = do
 -- optparse-applicative interface
 
 plotOptParser :: OP.Parser PlotOptions
-plotOptParser = PlotOptions <$> optParseTest
+plotOptParser = PlotOptions <$> optParsePlotInFile
+                            <*> optParsePlotOutFile
 
-optParseTest :: OP.Parser String
-optParseTest = OP.option OP.str (
-       OP.long  "test"
+optParsePlotInFile :: OP.Parser FilePath
+optParsePlotInFile = OP.option OP.str (
+       OP.long  "inFile"
     <> OP.metavar "..."
     <> OP.help "..."
     )
 
+optParsePlotOutFile :: OP.Parser FilePath
+optParsePlotOutFile = OP.option OP.str (
+       OP.long  "plotFile"
+    <> OP.metavar "..."
+    <> OP.help "..."
+    )
 
 serialiseOptParser :: OP.Parser SerialiseOptions
 serialiseOptParser = SerialiseOptions <$> OP.subparser (
