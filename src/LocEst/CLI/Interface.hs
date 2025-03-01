@@ -11,7 +11,6 @@ import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
 import           LocEst.Exceptions
 import           LocEst.Types
-import LocEst.CLI.Plot
 
 import           Data.Char                (isSpace, toLower)
 import           Data.List                (groupBy, isPrefixOf, singleton, sort)
@@ -67,24 +66,6 @@ parseConfigFile toIgnore configFile = do
     trim = let f = reverse . dropWhile isSpace in f . f
 
 -- optparse-applicative interface
-
-plotOptParser :: OP.Parser PlotOptions
-plotOptParser = PlotOptions <$> optParsePlotInFile
-                            <*> optParsePlotOutFile
-
-optParsePlotInFile :: OP.Parser FilePath
-optParsePlotInFile = OP.option OP.str (
-       OP.long  "inFile"
-    <> OP.metavar "..."
-    <> OP.help "..."
-    )
-
-optParsePlotOutFile :: OP.Parser FilePath
-optParsePlotOutFile = OP.option OP.str (
-       OP.long  "plotFile"
-    <> OP.metavar "..."
-    <> OP.help "..."
-    )
 
 serialiseOptParser :: OP.Parser SerialiseOptions
 serialiseOptParser = SerialiseOptions <$> OP.subparser (

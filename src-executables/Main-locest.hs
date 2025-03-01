@@ -2,7 +2,6 @@
 
 import           LocEst.CLI.Cross         (CrossOptions (..), runCross)
 import           LocEst.CLI.Interface
-import           LocEst.CLI.Plot          (PlotOptions (..), runPlot)
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise     (SerialiseOptions (..), runSerialise)
 import           LocEst.CLI.Utils         (setNumberOfThreads)
@@ -34,7 +33,6 @@ data Subcommand =
     | CmdSearch SearchOptions
     | CmdVario VarioOptions
     | CmdCross CrossOptions
-    | CmdPlot PlotOptions
 
 -- CLI interface configuration
 main :: IO ()
@@ -101,7 +99,6 @@ runCmd o numThreads spatDistUnitScaling = case o of
     CmdSearch opts    -> runSearch opts numThreads spatDistUnitScaling
     CmdVario opts     -> runVario opts numThreads spatDistUnitScaling
     CmdCross opts     -> runCross opts numThreads spatDistUnitScaling
-    CmdPlot opts      -> runPlot opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (
@@ -130,7 +127,6 @@ subcommandParser = OP.subparser (
         <> OP.command "vario" varioOptInfo
         <> OP.command "cross" crossOptInfo
         <> OP.command "serialise" serialiseOptInfo
-        <> OP.command "plot" plotOptInfo
     )
     where
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
@@ -144,5 +140,3 @@ subcommandParser = OP.subparser (
         serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
             (OP.progDesc "Transform input data to compact binary files in .cbor format \
                          \to load it faster in the other subcommands.")
-        plotOptInfo = OP.info (OP.helper <*> (CmdPlot <$> plotOptParser))
-            (OP.progDesc "....")

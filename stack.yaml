@@ -1,8 +1,8 @@
-resolver: lts-21.17
+resolver: lts-22.43
 
 packages:
 - .
 extra-deps:
   - git: https://github.com/Boarders/perfect-vector-shuffle
     commit: 501b61b4dbc189f1bb8e2080ccfd85473f2ac554
-  - 'cassava-conduit-0.6.2'
+  - conduit-algorithms-0.0.14.0@sha256:c8d14228d9634886c9dd4d0ef4cc7b029a93c323e99afb3878c3a9753372df67,3451
