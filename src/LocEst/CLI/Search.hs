@@ -120,21 +120,12 @@ runSearch (
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
-        CoreOutShort -> do
-            Con.runConduitRes $
-                ConC.yieldMany permutations
-                .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling CoreOutShort variancesPerDepVar supplement depVars observations))
-                .| ConC.concat
-                .| progress 1000 (Just numPerms)
-                .| normalise normalisation
-                .| sinkNamedCSV outFile
-        CoreOutFull -> do
+        otherNormalMode -> do -- CoreOutShort or CoreOutFull
             Con.runConduitRes $
                 ConC.yieldMany permutations
                 -- .| ConAA.asyncMapC numThreads (coreNormal CoreOutFull variancesPerDepVar supplement observations)
                 .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling CoreOutFull variancesPerDepVar supplement depVars observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| normalise normalisation
