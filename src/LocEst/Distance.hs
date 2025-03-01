@@ -16,16 +16,13 @@ getObsWithDist spatDistUnitScaling (CoreSupplement distanceFilterThresholds mayb
     in V.filter (inFilterRange distanceFilterThresholds) $ V.zip observations dists
 
 getDists ::
-       Double
-    -> Maybe SpatDistMatrix
-    -> Maybe TempSampleMatrix
+       Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix
     -> CorePermutation
     -> Observation
     -> IndepVarsDist
 -- spatiotemporal distances
 getDists
-    spatDistUnitScaling
-    maybeSpatDistMap maybeTempSamples
+    spatDistUnitScaling maybeSpatDistMap maybeTempSamples
     (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration _)
     (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _) _) =
         let spatDist = findSpatDist maybeSpatDistMap
@@ -52,8 +49,7 @@ getDists
                 in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
 -- arbitrary dim distances
 getDists
-    _
-    _ _
+    _ _ _
     (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
     (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _) =
         let keys = getKeys obsArbitraryDimPos

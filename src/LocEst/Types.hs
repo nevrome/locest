@@ -518,7 +518,7 @@ data ObsWithWeights = ObsWithWeights {
       _owdObservation      :: Observation
     , _owdSpatTempDist     :: IndepVarsDist
     , _owdPerDepVarWeights :: DepVarsWeights
-} deriving (Generic)
+} deriving (Eq, Generic)
 
 instance NFData ObsWithWeights
 instance Csv.DefaultOrdered ObsWithWeights where
@@ -527,10 +527,13 @@ instance Csv.DefaultOrdered ObsWithWeights where
 instance Csv.ToRecord ObsWithWeights where
     toRecord (ObsWithWeights obs dists depVarWeights) =
         Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
+instance Ord ObsWithWeights where
+    compare (ObsWithWeights _ _ (ValuesPerDepVar x1)) (ObsWithWeights _ _ (ValuesPerDepVar x2)) =
+        compare (foldSum (map snd x1)) (foldSum (map snd x2))
 
 -- | A data type for a per-dimension distances in independent variable space
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimDists
-    deriving (Generic)
+    deriving (Eq, Generic)
 
 instance NFData IndepVarsDist
 instance Csv.DefaultOrdered IndepVarsDist where
@@ -773,7 +776,7 @@ instance Csv.ToRecord IndepVarsPos where
 data SpatTempDist = SpatTempDist {
       _spatDist :: Double
     , _tempDist :: Double
-} deriving Generic
+} deriving (Eq, Generic)
 
 instance NFData SpatTempDist
 instance Csv.DefaultOrdered SpatTempDist where

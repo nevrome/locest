@@ -24,7 +24,7 @@ coreOutObsWeight spatDistUnitScaling nrTopObs coreSupplement
                 depVars kernelsPerDepVar)
             obsWithDistFiltered
         obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
-        obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compareObsWithWeights) $ V.toList obsWithWeights
+        obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compare) $ V.toList obsWithWeights
     in V.map (ObsWeight sett) obsWithWeightsSubset
 
 -- random interpolation sampling application
@@ -67,10 +67,6 @@ coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
                 , _slhProbability   = Nothing
                 }
          }
-
-compareObsWithWeights :: ObsWithWeights -> ObsWithWeights -> Ordering
-compareObsWithWeights (ObsWithWeights _ _ (ValuesPerDepVar x1)) (ObsWithWeights _ _ (ValuesPerDepVar x2)) =
-    compare (foldSum (map snd x1)) (foldSum (map snd x2))
 
 getRandomSampleOneDepVar ::
        V.Vector (Observation, IndepVarsDist)
