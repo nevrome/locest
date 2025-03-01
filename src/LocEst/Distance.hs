@@ -1,17 +1,17 @@
 module LocEst.Distance where
 
-import           LocEst.Types
 import           LocEst.Exceptions
+import           LocEst.Types
 
-import qualified Data.Vector             as V
+import qualified Data.Vector       as V
 
-getObsWithDist ::
+filterObs ::
        Double
     -> CoreSupplement
     -> CorePermutation
     -> V.Vector Observation
     -> V.Vector (Observation, IndepVarsDist)
-getObsWithDist spatDistUnitScaling (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples) sett observations =
+filterObs spatDistUnitScaling (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples) sett observations =
     let dists = V.map (getDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett) observations
     in V.filter (inFilterRange distanceFilterThresholds) $ V.zip observations dists
 
