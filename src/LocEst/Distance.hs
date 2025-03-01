@@ -1,6 +1,94 @@
 module LocEst.Distance where
 
 import           LocEst.Types
+import           LocEst.Exceptions
+
+import qualified Data.Vector             as V
+
+getObsWithDist ::
+       Double
+    -> CoreSupplement
+    -> CorePermutation
+    -> V.Vector Observation
+    -> V.Vector (Observation, IndepVarsDist)
+getObsWithDist spatDistUnitScaling (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples) sett observations =
+    let dists = V.map (getDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett) observations
+    in V.filter (inFilterRange distanceFilterThresholds) $ V.zip observations dists
+
+getDists ::
+       Double
+    -> Maybe SpatDistMatrix
+    -> Maybe TempSampleMatrix
+    -> CorePermutation
+    -> Observation
+    -> IndepVarsDist
+-- spatiotemporal distances
+getDists
+    spatDistUnitScaling
+    maybeSpatDistMap maybeTempSamples
+    (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration _)
+    (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _) _) =
+        let spatDist = findSpatDist maybeSpatDistMap
+            spaceDistScaled = spatDist * spatDistUnitScaling
+            tempDist = findTempDist maybeTempSamples
+        in IndepSpatTempDist (SpatTempDist spaceDistScaled tempDist)
+        where
+            -- temporal distances
+            findTempDist :: Maybe TempSampleMatrix -> Double
+            -- calculate distances from mean ages
+            findTempDist Nothing = temporalDistSpatTempPos gridSpatTempPos obsSpatTempPos
+            -- look up age samples and calculate distances from them
+            findTempDist (Just tempSampleMatrix) =
+                let (SpatTempPos _ (TempPos gridPointAge)) = gridSpatTempPos
+                    obsAgeSample = lookUpTempSample tempSampleMatrix tempSampIteration obsIndex
+                in temporalDistYearBCAD gridPointAge obsAgeSample
+            -- spatial distances
+            findSpatDist :: Maybe SpatDistMatrix -> Double
+            -- calculate distances
+            findSpatDist Nothing = spatialDistSpatTempPos gridSpatTempPos obsSpatTempPos
+            -- look up distances
+            findSpatDist (Just spatDistMatrix) =
+                let gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
+                in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
+-- arbitrary dim distances
+getDists
+    _
+    _ _
+    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
+    (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _) =
+        let keys = getKeys obsArbitraryDimPos
+            obsPos  = getValues obsArbitraryDimPos
+            gridPos = getValues gridAbritryDimPos
+            arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
+        in IndepArbitraryDimDist arbitraryDimDist
+-- wrong input
+getDists _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
+
+inFilterRange :: Maybe DistanceFilterThresholds -> (Observation, IndepVarsDist) -> Bool
+inFilterRange Nothing _ = True
+inFilterRange
+    (Just (SpaceTimeFilterThresholds minFilter maxFilter))
+    (_,IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
+    let minDecision = case minFilter of
+            Nothing -> True
+            Just (spaceMinFilter, timeMinFilter) -> spatDistsKM >= spaceMinFilter && tempDist >= timeMinFilter
+        maxDecision = case maxFilter of
+            Nothing -> True
+            Just (spaceMaxFilter, timeMaxFilter) -> spatDistsKM <= spaceMaxFilter && tempDist <= timeMaxFilter
+    in minDecision && maxDecision
+inFilterRange
+    (Just (ArbitraryDimFilterThresholds minFilter maxFilter))
+    (_,IndepArbitraryDimDist (ValuesPerIndepVar dists)) =
+    let minDecision = case minFilter of
+            Nothing -> True
+            Just (ValuesPerIndepVar minThresholds) -> all (\((_,x), (_,y)) -> x >= y) $ zip dists minThresholds
+        maxDecision = case maxFilter of
+            Nothing -> True
+            Just (ValuesPerIndepVar maxThresholds) -> all (\((_,x), (_,y)) -> x <= y) $ zip dists maxThresholds
+    in minDecision && maxDecision
+inFilterRange _ _ = True
+
+-- distance helper functions
 
 allDistances :: [Double] -> [Double] -> [Double]
 allDistances = zipWith (\x y -> abs (x - y))
