@@ -20,7 +20,7 @@ coreOutObsWeight spatDistUnitScaling nrTopObs coreSupplement
         kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
         weights = V.map
             (\obs -> ValuesPerDepVar $ zipWith
-                (\depVar kernelPerDepVar -> (depVar, getWeightOneObsOneDepVar kernelPerDepVar obs))
+                (\depVar kernelPerDepVar -> (depVar, getWeight kernelPerDepVar obs))
                 depVars kernelsPerDepVar)
             obsWithDistFiltered
         obsWithWeights = V.zipWith (\(x,y) z -> ObsWithWeights x y z) obsWithDistFiltered weights
@@ -34,7 +34,7 @@ coreOutInterpolSamples spatDistUnitScaling depVarVariances coreSupplement
      depVars observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
     let obsWithDistFiltered = getObsWithDist spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
-        samplesPerDepVar = map (\(i,r) -> (i, zipWith (getRandomSampleOneDepVar obsWithDistFiltered r depVarVariances) depVars kernelsPerDepVar)) randIterations
+        samplesPerDepVar = map (\(i,r) -> (i, zipWith (getRandomSample obsWithDistFiltered r depVarVariances) depVars kernelsPerDepVar)) randIterations
     in V.fromList $ map (\(i,s) -> InterpolationSample sett i (ValuesPerDepVar s)) samplesPerDepVar
 
 -- interpolation and search application
@@ -48,7 +48,7 @@ coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
             Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
             Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
             Nothing                          -> replicate (length depVars) Nothing
-        interpolPerDepVarFull = zipWith3 (interpolAndSearchOneDepVar obsWithDistFiltered depVarVariances) depVars kernelsPerDepVar valuePerDepVar
+        interpolPerDepVarFull = zipWith3 (interpolAndSearch obsWithDistFiltered depVarVariances) depVars kernelsPerDepVar valuePerDepVar
         interpolPerDepVar = case outMode of
             CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
             CoreOutFull  -> interpolPerDepVarFull
@@ -68,16 +68,16 @@ coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
                 }
          }
 
-getRandomSampleOneDepVar ::
+getRandomSample ::
        V.Vector (Observation, IndepVarsDist)
     -> DepVarsRands
     -> DepVarVariances
     -> DepVarName
     -> KernelOneDepVar
     -> (DepVarName, Double)
-getRandomSampleOneDepVar obsWithDist depVarsRands depVarVariances depVar kernelPerDepVar = do
-    let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
-        weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelPerDepVar) obsWithDist
+getRandomSample obsWithDist depVarsRands depVarVariances depVar kernelPerDepVar = do
+    let values  = VU.convert $ V.map (getValue depVar) obsWithDist
+        weights = VU.convert $ V.map (getWeight kernelPerDepVar) obsWithDist
         random01 = lookupUnsafe depVarsRands depVar
         sampleVariance = lookupUnsafe depVarVariances depVar
         totalWeight = VU.sum weights
@@ -88,16 +88,16 @@ getRandomSampleOneDepVar obsWithDist depVarsRands depVarVariances depVar kernelP
         Right distribution -> (depVar, quantile distribution random01)
         Left _             -> (depVar,nan)
 
-interpolAndSearchOneDepVar ::
+interpolAndSearch ::
        V.Vector (Observation, IndepVarsDist)
     -> DepVarVariances
     -> DepVarName
     -> KernelOneDepVar
     -> Maybe Double
     -> InterpolationResultOneDepVar
-interpolAndSearchOneDepVar obsWithDist depVarVariances depVar kernelPerDepVar maybeValueDepVar = do
-    let values  = VU.convert $ V.map (getValueOneObsOneDepVar depVar) obsWithDist
-        weights = VU.convert $ V.map (getWeightOneObsOneDepVar kernelPerDepVar) obsWithDist
+interpolAndSearch obsWithDist depVarVariances depVar kernelPerDepVar maybeValueDepVar = do
+    let values  = VU.convert $ V.map (getValue depVar) obsWithDist
+        weights = VU.convert $ V.map (getWeight kernelPerDepVar) obsWithDist
         sampleVariance = lookupUnsafe depVarVariances depVar
         totalWeight = VU.sum weights
         neff        = totalWeight
@@ -124,29 +124,29 @@ interpolAndSearchOneDepVar obsWithDist depVarVariances depVar kernelPerDepVar ma
                         depVar neff weightedA weightedVBasic weightedV (OutBool False)
                         (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
-getValueOneObsOneDepVar :: DepVarName -> (Observation,IndepVarsDist) -> Double
-getValueOneObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarsPos) _, _ ) = lookupUnsafe depVarsPos depVar
+getValue :: DepVarName -> (Observation,IndepVarsDist) -> Double
+getValue depVar (Observation _ _ (HyperPos _ depVarsPos) _, _ ) = lookupUnsafe depVarsPos depVar
 
-getWeightOneObsOneDepVar ::
+getWeight ::
        KernelOneDepVar
     -> (Observation, IndepVarsDist)
     -> Double
-getWeightOneObsOneDepVar (KernelOneDepVar _ shape lengths) (_,dists) =
-    weightForOneObs shape (squaredWeightedDistForOneObs lengths dists)
+getWeight (KernelOneDepVar _ shape lengths) (_,dists) =
+    weight shape (squaredWeightedDist lengths dists)
     where
-        weightForOneObs :: KernelShape -> Double -> Double
-        weightForOneObs SquaredExponential d = 1 / exp d
-        weightForOneObs Linear             d = 1 / (1 + sqrt d)
-        squaredWeightedDistForOneObs :: KernelLengths -> IndepVarsDist -> Double
-        squaredWeightedDistForOneObs
+        weight :: KernelShape -> Double -> Double
+        weight SquaredExponential d = 1 / exp d
+        weight Linear             d = 1 / (1 + sqrt d)
+        squaredWeightedDist :: KernelLengths -> IndepVarsDist -> Double
+        squaredWeightedDist
             (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
             (IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
             (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
-        squaredWeightedDistForOneObs
+        squaredWeightedDist
             kernLengths
             (IndepArbitraryDimDist namedDists) =
             let distances = getValues namedDists
                 thetas    = getValues kernLengths
             in foldSum (zipWith (\d t -> (d / t) ** 2) distances thetas)
-        squaredWeightedDistForOneObs _ _ =
+        squaredWeightedDist _ _ =
             throwL "mismatch of independent variable definitions in weight calculation"
