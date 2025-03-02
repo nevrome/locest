@@ -76,23 +76,22 @@ coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
             Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
             Nothing                          -> replicate (length depVars) Nothing
         interpolPerDepVar = zipWith4 (interpol obsWithDist) depVars kernelsPerDepVar variancesPerDepVar searchPerDepVar
-        interpolRes = case outMode of
-            CoreOutShort -> map resOneDepvar2Short interpolPerDepVar
-            CoreOutFull  -> interpolPerDepVar
-            _            -> throwL "impossible outmode setting"
     in SearchResult {
            _srCorePermutation = sett
-         , _srInterpolation   = InterpolationResult interpolRes
-         , _srLikelihood      = case mapMaybe getLogLikelihood interpolRes of
-            [] -> Nothing
-            xs ->
-                let valuesPerDepVar = catMaybes searchPerDepVar
-                    depDist = euclideanDistance (map _irodvWeightedAvg interpolRes) valuesPerDepVar
-                in Just SearchLikelihood {
-                  _slhEuclideanDep  = depDist
-                , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
-                , _slhProbability   = Nothing
-                }
+         , _srInterpolation   = case outMode of
+                CoreOutShort -> InterpolationResult $ map resOneDepvar2Short interpolPerDepVar
+                CoreOutFull  -> InterpolationResult interpolPerDepVar
+                _            -> throwL "impossible outmode setting"
+         , _srLikelihood      = case mapMaybe getLogLikelihood interpolPerDepVar of
+                [] -> Nothing
+                xs ->
+                    let valuesPerDepVar = catMaybes searchPerDepVar
+                        depDist = euclideanDistance (map _irodvWeightedAvg interpolPerDepVar) valuesPerDepVar
+                    in Just SearchLikelihood {
+                      _slhEuclideanDep  = depDist
+                    , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
+                    , _slhProbability   = Nothing
+                    }
          }
 
 interpol ::
