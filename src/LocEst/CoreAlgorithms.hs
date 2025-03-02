@@ -16,7 +16,7 @@ coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
                     -> V.Vector Observation -> CorePermutation -> V.Vector ObsWeight
 coreOutObsWeight spatDistUnitScaling nrTopObs coreSupplement
      depVars observations sett@(CorePermutation _ _ kernelDefinition _ _) =
-    let obsWithDist = filterObs spatDistUnitScaling coreSupplement sett observations
+    let obsWithDist      = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
         weights = V.map
             (\obs -> ValuesPerDepVar $ zipWith
@@ -32,10 +32,10 @@ coreOutInterpolSamples :: Double -> DepVarVariances -> CoreSupplement -> [DepVar
                           -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)]) -> V.Vector InterpolationSample
 coreOutInterpolSamples spatDistUnitScaling depVarVariances coreSupplement
      depVars observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
-    let obsWithDist = filterObs spatDistUnitScaling coreSupplement sett observations
-        kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
+    let obsWithDist        = filterObs spatDistUnitScaling coreSupplement sett observations
+        kernelsPerDepVar   = map (lookupUnsafe kernelDefinition) depVars
         variancesPerDepVar = map (lookupUnsafe depVarVariances) depVars
-        samplesPerDepVar = map (\(i,r) -> (i, zipWith3 (getRandomSample obsWithDist r) depVars kernelsPerDepVar variancesPerDepVar)) randIterations
+        samplesPerDepVar   = map (\(i,r) -> (i, zipWith3 (getRandomSample obsWithDist r) depVars kernelsPerDepVar variancesPerDepVar)) randIterations
     in V.fromList $ map (\(i,s) -> InterpolationSample sett i (ValuesPerDepVar s)) samplesPerDepVar
 
 -- interpolation and search application
@@ -43,26 +43,26 @@ coreNormal :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [Dep
               -> V.Vector Observation -> CorePermutation -> SearchResult
 coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
      depVars observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
-    let obsWithDist = filterObs spatDistUnitScaling coreSupplement sett observations
-        kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
+    let obsWithDist        = filterObs spatDistUnitScaling coreSupplement sett observations
+        kernelsPerDepVar   = map (lookupUnsafe kernelDefinition) depVars
         variancesPerDepVar = map (lookupUnsafe depVarVariances) depVars
-        searchValuePerDepVar = case searchDepVarPos of
+        searchValuesPerDepVar = case searchDepVarPos of
             Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
             Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
             Nothing                          -> replicate (length depVars) Nothing
-        interpolPerDepVarFull = zipWith4 (interpol obsWithDist) depVars kernelsPerDepVar variancesPerDepVar searchValuePerDepVar
-        interpolPerDepVar = case outMode of
-            CoreOutShort -> map resOneDepvar2Short interpolPerDepVarFull
-            CoreOutFull  -> interpolPerDepVarFull
-            _            -> undefined
+        interpolPerDepVar = zipWith4 (interpol obsWithDist) depVars kernelsPerDepVar variancesPerDepVar searchValuesPerDepVar
+        interpolRes = case outMode of
+            CoreOutShort -> map resOneDepvar2Short interpolPerDepVar
+            CoreOutFull  -> interpolPerDepVar
+            _            -> throwL "impossible outmode setting"
     in SearchResult {
            _srCorePermutation = sett
-         , _srInterpolation   = InterpolationResult interpolPerDepVar
-         , _srLikelihood      = case mapMaybe getLogLikelihood interpolPerDepVarFull of
+         , _srInterpolation   = InterpolationResult interpolRes
+         , _srLikelihood      = case mapMaybe getLogLikelihood interpolRes of
             [] -> Nothing
             xs ->
-                let valuesPerDepVar = catMaybes searchValuePerDepVar
-                    depDist = euclideanDistance (map _irodvWeightedAvg interpolPerDepVarFull) valuesPerDepVar
+                let valuesPerDepVar = catMaybes searchValuesPerDepVar
+                    depDist = euclideanDistance (map _irodvWeightedAvg interpolRes) valuesPerDepVar
                 in Just SearchLikelihood {
                   _slhEuclideanDep  = depDist
                 , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
@@ -115,28 +115,22 @@ interpol obsWithDist depVar kernel variance maybeSearchValue = do
                 (OutInfDouble lower) median (OutInfDouble upper) logL
         Left _ ->
             case maybeSearchValue of
-                Just _ ->
+                Just _ -> -- requires a proper prior
                     InterpolationResultOneDepVarFull
                         depVar neff weightedA weightedVBasic weightedV (OutBool False)
-                        (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just (-infinity)) -- requires a proper prior
+                        (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just (-infinity))
                 Nothing ->
                     InterpolationResultOneDepVarFull
                         depVar neff weightedA weightedVBasic weightedV (OutBool False)
                         (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
 getValue :: DepVarName -> (Observation,IndepVarsDist) -> Double
-getValue depVar (Observation _ _ (HyperPos _ depVarsPos) _, _ ) = lookupUnsafe depVarsPos depVar
+getValue depVar (Observation _ _ (HyperPos _ depVarsPos) _, _) = lookupUnsafe depVarsPos depVar
 
-getWeight ::
-       KernelOneDepVar
-    -> (Observation, IndepVarsDist)
-    -> Double
+getWeight :: KernelOneDepVar -> (Observation, IndepVarsDist) -> Double
 getWeight (KernelOneDepVar _ shape lengths) (_,dists) =
-    weight shape (squaredWeightedDist lengths dists)
+    computeWeight shape (squaredWeightedDist lengths dists)
     where
-        weight :: KernelShape -> Double -> Double
-        weight SquaredExponential d = 1 / exp d
-        weight Linear             d = 1 / (1 + sqrt d)
         squaredWeightedDist :: KernelLengths -> IndepVarsDist -> Double
         squaredWeightedDist
             (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
