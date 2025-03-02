@@ -5,6 +5,7 @@ import           LocEst.Exceptions
 import           LocEst.MathUtils
 import           LocEst.Types
 
+import           Data.Bifunctor          (second)
 import           Data.List               (sortBy, zipWith4)
 import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
@@ -13,7 +14,8 @@ import           Statistics.Distribution (logDensity, quantile)
 
 -- weights-per-obs application
 coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
-                    -> V.Vector Observation -> CorePermutation -> V.Vector ObsWeight
+                    -> V.Vector Observation -> CorePermutation
+                    -> V.Vector ObsWeight
 coreOutObsWeight spatDistUnitScaling nrTopObs coreSupplement
      depVars observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let obsWithDist      = filterObs spatDistUnitScaling coreSupplement sett observations
@@ -29,14 +31,17 @@ coreOutObsWeight spatDistUnitScaling nrTopObs coreSupplement
 
 -- random interpolation sampling application
 coreOutInterpolSamples :: Double -> DepVarVariances -> CoreSupplement -> [DepVarName]
-                          -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)]) -> V.Vector InterpolationSample
+                          -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)])
+                          -> V.Vector InterpolationSample
 coreOutInterpolSamples spatDistUnitScaling depVarVariances coreSupplement
      depVars observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
     let obsWithDist        = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar   = map (lookupUnsafe kernelDefinition) depVars
         variancesPerDepVar = map (lookupUnsafe depVarVariances) depVars
-        samplesPerDepVar   = map (\(i,r) -> (i, zipWith3 (getRandomSample obsWithDist r) depVars kernelsPerDepVar variancesPerDepVar)) randIterations
-    in V.fromList $ map (\(i,s) -> InterpolationSample sett i (ValuesPerDepVar s)) samplesPerDepVar
+        samplesPerDepVar   = map (second drawSamples) randIterations
+        drawSamples r      = ValuesPerDepVar $
+            zipWith3 (getRandomSample obsWithDist r) depVars kernelsPerDepVar variancesPerDepVar
+    in V.fromList $ map (uncurry (InterpolationSample sett)) samplesPerDepVar
 
 getRandomSample ::
        V.Vector (Observation, IndepVarsDist)
@@ -59,7 +64,8 @@ getRandomSample obsWithDist depVarsRands depVar kernel variance = do
 
 -- interpolation and search application
 coreNormal :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName]
-              -> V.Vector Observation -> CorePermutation -> SearchResult
+              -> V.Vector Observation -> CorePermutation
+              -> SearchResult
 coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
      depVars observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let obsWithDist        = filterObs spatDistUnitScaling coreSupplement sett observations
@@ -113,16 +119,14 @@ interpol obsWithDist depVar kernel variance maybeSearchValue = do
             in InterpolationResultOneDepVarFull
                 depVar neff weightedA weightedVB weightedV (OutBool True)
                 (OutInfDouble lower) median (OutInfDouble upper) logL
-        Left _ ->
-            case maybeSearchValue of
-                Just _ -> -- requires a proper prior
-                    InterpolationResultOneDepVarFull
-                        depVar neff weightedA weightedVB weightedV (OutBool False)
-                        (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just (-infinity))
-                Nothing ->
-                    InterpolationResultOneDepVarFull
-                        depVar neff weightedA weightedVB weightedV (OutBool False)
-                        (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
+        Left _ -> case maybeSearchValue of
+            -- requires a proper prior
+            Just _ -> InterpolationResultOneDepVarFull
+                depVar neff weightedA weightedVB weightedV (OutBool False)
+                (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just (-infinity))
+            Nothing -> InterpolationResultOneDepVarFull
+                depVar neff weightedA weightedVB weightedV (OutBool False)
+                (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
 
 getValue :: DepVarName -> (Observation,IndepVarsDist) -> Double
 getValue depVar (Observation _ _ (HyperPos _ depVarsPos) _, _) = lookupUnsafe depVarsPos depVar
