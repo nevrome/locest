@@ -34,6 +34,10 @@ readr::read_tsv("data/spatiotemporal/cross.tsv") %>% View()
 # system('time locest serialise --obsFile data/spatiotemporal/obs.tsv --outFile data/spatiotemporal/obs.cbor')
 
 # normal search test
+# stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -p
+# profiteur locest.prof
+# stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy
+# hp2ps -c locest.hp
 system('time locest search --configFile code/spatiotemporal/basic.conf')
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
