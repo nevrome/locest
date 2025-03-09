@@ -90,7 +90,7 @@ runSearch (
         CoreOutObsWeight nrTopObs -> do
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                .| ConC.conduitVector 1000
+                .| ConC.conduitVector 100
                 .| ConAA.asyncMapC numThreads (V.map (coreOutObsWeight spatDistUnitScaling nrTopObs supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
@@ -114,7 +114,7 @@ runSearch (
                  return (p, rss)
             Con.runConduitRes $
                 ConC.yieldMany randomIts
-                .| ConC.conduitVector 1000
+                .| ConC.conduitVector 100
                 .| ConAA.asyncMapC numThreads (V.map (coreOutInterpolSamples spatDistUnitScaling variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
@@ -123,8 +123,9 @@ runSearch (
         otherNormalMode -> do -- CoreOutShort or CoreOutFull
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                -- .| ConAA.asyncMapC numThreads (coreNormal CoreOutFull variancesPerDepVar supplement observations)
-                .| ConC.conduitVector 1000
+                -- non-chunked solution
+                -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations)
+                .| ConC.conduitVector 100
                 .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
