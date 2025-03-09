@@ -15,6 +15,7 @@ setNumberOfThreads = do
 
 progress :: (MonadIO m) => Int -> Maybe Int -> ConduitT i i m ()
 progress reportNum goal = do
+    liftIO $ hPutStrLn stderr "Streaming..."
     counterRef <- liftIO $ newIORef (1 :: Int)
     ConC.mapM $ \val -> do
         n <- liftIO $ readIORef counterRef
