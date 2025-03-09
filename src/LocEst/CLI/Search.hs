@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
 
 module LocEst.CLI.Search where
 
@@ -70,19 +71,19 @@ runSearch (
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     -- read observations
-    observationsRaw <- readObservations inObsFile
-    let observations = reorderVarsInObs depVars indepVars observationsRaw
+    !observationsRaw <- readObservations inObsFile
+    let !observations = reorderVarsInObs depVars indepVars observationsRaw
     -- variance
     hPutStrLn stderr "Calculating total variances"
-    let variancesPerDepVar = calculateVariances depVars observations
+    let !variancesPerDepVar = calculateVariances depVars observations
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
-    indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
-    depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
+    !indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
+    !depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
     let supplement = createCoreSupplement indepVarsPredGrid
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
-    let permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
+    let !permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
         numPerms = length permutations
     -- run analysis pipeline
     hPutStrLn stderr "Running analysis"
