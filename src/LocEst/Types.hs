@@ -16,7 +16,7 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (sortBy)
+import           Data.List             (sortBy, find)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
@@ -435,9 +435,8 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
     toList m = zip (getKeys m) (getValues m)
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = l
-    lookupUnsafe kernDef@(KernelDefinition _) k =
-        let kernList = zip (getKeys kernDef) (getValues kernDef)
-        in case lookup k kernList of
+    lookupUnsafe kernDef@(KernelDefinition l) k =
+        case find (\x -> k == _kodvDepVarName x) l of
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map (\(KernelDefinition l) -> l) xs
