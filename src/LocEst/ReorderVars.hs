@@ -15,8 +15,8 @@ reorderDistanceFilterThresholds indepVarsWanted (ArbitraryDimFilterThresholds mi
         (fmap (filterByKey indepVarsWanted) minFilter)
         (fmap (filterByKey indepVarsWanted) maxFilter)
 
-reorderVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
-reorderVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
+filterVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
+filterVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
     where
         handleOne :: Observation -> Observation
         -- spatiotemporal case

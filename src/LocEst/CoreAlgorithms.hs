@@ -73,8 +73,8 @@ coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
         kernelsPerDepVar   = map (lookupUnsafe kernelDefinition) depVars
         variancesPerDepVar = map (lookupUnsafe depVarVariances) depVars
         searchPerDepVar    = case searchDepVarPos of
-            Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
-            Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
+            Just (DepVarsPredPosDirect x)    -> Just <$> map (lookupUnsafe x) depVars --getValues x
+            Just (DepVarsPredPosSearchObs (Observation _ _ (HyperPos _ x) _)) -> Just <$> map (lookupUnsafe x) depVars
             Nothing                          -> replicate (length depVars) Nothing
         interpolPerDepVar = zipWith4 (interpol obsWithDist) depVars kernelsPerDepVar variancesPerDepVar searchPerDepVar
     in SearchResult {

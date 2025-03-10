@@ -88,7 +88,7 @@ runCross (
                 -- list of independent variables
                 let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
                 -- modify observations
-                let observations = reorderVarsInObs depVars indepVars observationsRaw
+                let observations = filterVarsInObs depVars indepVars observationsRaw
                 -- read core supplements
                 coreSupp <- liftIO $ readCoreSupplement indepVars crossSuppSettings observationsRaw
                 -- variance
