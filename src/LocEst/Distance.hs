@@ -11,17 +11,25 @@ filterObs ::
     -> CorePermutation
     -> V.Vector Observation
     -> V.Vector (Observation, IndepVarsDist)
-filterObs spatDistUnitScaling (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples) sett observations =
-    let dists = V.map (getDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett) observations
-    in V.filter (inFilterRange distanceFilterThresholds) $ V.zip observations dists
-
-getDists ::
+filterObs
+    spatDistUnitScaling
+    (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples)
+    sett = V.mapMaybe handleOne
+    where
+        handleOne :: Observation -> Maybe (Observation, IndepVarsDist)
+        handleOne obs = 
+            let dist = getDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett obs
+            in if inFilterRange distanceFilterThresholds dist
+               then Just (obs,dist)
+               else Nothing
+            
+getDist ::
        Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix
     -> CorePermutation
     -> Observation
     -> IndepVarsDist
 -- spatiotemporal distances
-getDists
+getDist
     spatDistUnitScaling maybeSpatDistMap maybeTempSamples
     (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration _)
     (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _) _) =
@@ -48,7 +56,7 @@ getDists
                 let gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
                 in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
 -- arbitrary dim distances
-getDists
+getDist
     _ _ _
     (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
     (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _) =
@@ -58,13 +66,13 @@ getDists
             arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
 -- wrong input
-getDists _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
+getDist _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
 
-inFilterRange :: Maybe DistanceFilterThresholds -> (Observation, IndepVarsDist) -> Bool
+inFilterRange :: Maybe DistanceFilterThresholds -> IndepVarsDist -> Bool
 inFilterRange Nothing _ = True
 inFilterRange
     (Just (SpaceTimeFilterThresholds minFilter maxFilter))
-    (_,IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
+    (IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
     let minDecision = case minFilter of
             Nothing -> True
             Just (spaceMinFilter, timeMinFilter) -> spatDistsKM >= spaceMinFilter && tempDist >= timeMinFilter
@@ -74,7 +82,7 @@ inFilterRange
     in minDecision && maxDecision
 inFilterRange
     (Just (ArbitraryDimFilterThresholds minFilter maxFilter))
-    (_,IndepArbitraryDimDist (ValuesPerIndepVar dists)) =
+    (IndepArbitraryDimDist (ValuesPerIndepVar dists)) =
     let minDecision = case minFilter of
             Nothing -> True
             Just (ValuesPerIndepVar minThresholds) -> all (\((_,x), (_,y)) -> x >= y) $ zip dists minThresholds
