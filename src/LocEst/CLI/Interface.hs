@@ -18,6 +18,7 @@ import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.String       as P
+import qualified Data.HashMap.Strict as HM
 
 -- helper functions for optparse applicative help text
 s2d :: String -> OH.Doc
@@ -758,7 +759,7 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
             let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
                 grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
                 permutations = sequenceA grouped
-            return $ map ValuesPerDepVar permutations
+            return $ map (ValuesPerDepVar . HM.fromList) permutations
             where
                 parseSequence = parseDoubleSequence
                 parseList = parseVector parseDouble

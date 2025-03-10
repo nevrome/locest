@@ -12,8 +12,8 @@ reorderDistanceFilterThresholds :: [String] -> DistanceFilterThresholds -> Dista
 reorderDistanceFilterThresholds _ f@(SpaceTimeFilterThresholds _ _) = f
 reorderDistanceFilterThresholds indepVarsWanted (ArbitraryDimFilterThresholds minFilter maxFilter) =
     ArbitraryDimFilterThresholds
-        (fmap (reorderAndFilter indepVarsWanted) minFilter)
-        (fmap (reorderAndFilter indepVarsWanted) maxFilter)
+        (fmap (filterByKey indepVarsWanted) minFilter)
+        (fmap (filterByKey indepVarsWanted) maxFilter)
 
 reorderVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
 reorderVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
@@ -21,13 +21,13 @@ reorderVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
         handleOne :: Observation -> Observation
         -- spatiotemporal case
         handleOne o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs) _) =
-            let depRes = reorderAndFilter depVarsWanted depInObs
+            let depRes = filterByKey depVarsWanted depInObs
             in o { _obsPos = HyperPos std depRes }
         -- arbitrary dimension case
         handleOne o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs) _) =
-            let depRes   = reorderAndFilter depVarsWanted depInObs
-                indepRes = reorderAndFilter indepVarsWanted indepInObs
+            let depRes   = filterByKey depVarsWanted depInObs
+                indepRes = filterByKey indepVarsWanted indepInObs
             in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
 
 reorderVarsInArbitraryPos :: [String] -> V.Vector ValuesPerIndepVar -> V.Vector ValuesPerIndepVar
-reorderVarsInArbitraryPos indepVarsWanted = V.map (reorderAndFilter indepVarsWanted)
+reorderVarsInArbitraryPos indepVarsWanted = V.map (filterByKey indepVarsWanted)

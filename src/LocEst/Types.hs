@@ -31,7 +31,7 @@ class PseudoMap a b | a -> b where
     getValues :: a -> [b]
     lookupUnsafe :: a -> String -> b
     allSameVars :: [a] -> Bool
-    reorderAndFilter :: [String] -> a -> a
+    filterByKey :: [String] -> a -> a
 
 -- a typeclass for data types with ids
 class Identifiable a where
@@ -202,7 +202,7 @@ instance PseudoMap MatrixPerIndepVar SUDistMatrix where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter k (MatrixPerIndepVar l) = MatrixPerIndepVar (reorderAndFilterList k l)
+    filterByKey k (MatrixPerIndepVar l) = MatrixPerIndepVar (reorderAndFilterList k l)
 
 -- | A data type for an asymmetric, unidirectional distance matrix
 -- this matrix has m*n different entries and a rectangular shape
@@ -440,7 +440,7 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map (\(KernelDefinition l) -> l) xs
-    reorderAndFilter k kernDef@(KernelDefinition _) =
+    filterByKey k kernDef@(KernelDefinition _) =
         let kernList = zip (getKeys kernDef) (getValues kernDef)
             reorderdAndFiltered = reorderAndFilterList k kernList
         in KernelDefinition $ map snd reorderdAndFiltered
@@ -492,7 +492,7 @@ instance PseudoMap KernelLengths Double where
     getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
     lookupUnsafe (KernelLengths arbitraryDimLengths) = lookupUnsafe arbitraryDimLengths
     allSameVars xs = allSameVars $ map (\(KernelLengths x) -> x) xs
-    reorderAndFilter k (KernelLengths arbitraryDimLengths) = KernelLengths (reorderAndFilter k arbitraryDimLengths)
+    filterByKey k (KernelLengths arbitraryDimLengths) = KernelLengths (filterByKey k arbitraryDimLengths)
 
 -- | A data type for kernel shapes
 data KernelShape =
@@ -533,8 +533,8 @@ instance Csv.ToRecord ObsWithWeights where
     toRecord (ObsWithWeights obs dists depVarWeights) =
         Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
 instance Ord ObsWithWeights where
-    compare (ObsWithWeights _ _ (ValuesPerDepVar x1)) (ObsWithWeights _ _ (ValuesPerDepVar x2)) =
-        compare (foldSum (map snd x1)) (foldSum (map snd x2))
+    compare (ObsWithWeights _ _ x1) (ObsWithWeights _ _ x2) =
+        compare (foldSum (getValues x1)) (foldSum (getValues x2))
 
 -- | A data type for a per-dimension distances in independent variable space
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimDists
@@ -704,7 +704,8 @@ type DepVarsWeights = ValuesPerDepVar
 type DepVarsRands = ValuesPerDepVar
 type DepVarSamples = ValuesPerDepVar
 type DepVarVariances = ValuesPerDepVar
-newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
+--newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
+newtype ValuesPerDepVar = ValuesPerDepVar (HM.HashMap DepVarName Double)
     deriving (Eq, Show, Generic)
 
 instance S.Serialise ValuesPerDepVar
@@ -713,24 +714,25 @@ instance Csv.FromNamedRecord ValuesPerDepVar where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "dep" k) m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
-            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
-        pure $ ValuesPerDepVar sortedList
+            -- sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
+        pure $ ValuesPerDepVar extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerDepVar where
-    headerOrder (ValuesPerDepVar l) =
-        V.map Bchs.pack $ V.fromList $ map fst l
+    headerOrder x =
+        --V.map Bchs.pack $ V.fromList $ map fst l
+        V.map Bchs.pack $ V.fromList $ getKeys x
 instance Csv.ToRecord ValuesPerDepVar where
-    toRecord (ValuesPerDepVar l) =
-        V.map (Bchs.pack . show) $ V.map OutInfDouble $ V.fromList $ map snd l
+    toRecord x =
+        V.map (Bchs.pack . show) $ V.map OutInfDouble $ V.fromList $ getValues x
 instance PseudoMap ValuesPerDepVar Double where
-    toList (ValuesPerDepVar l) = l
-    getKeys (ValuesPerDepVar l) = map fst l
-    getValues (ValuesPerDepVar l) = map snd l
+    toList (ValuesPerDepVar l) = HM.toList l
+    getKeys (ValuesPerDepVar l) = HM.keys l
+    getValues (ValuesPerDepVar l) = HM.elems l
     lookupUnsafe (ValuesPerDepVar l) k =
-        case lookup k l of
+        case HM.lookup k l of
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter k (ValuesPerDepVar l) = ValuesPerDepVar (reorderAndFilterList k l)
+    filterByKey keys (ValuesPerDepVar l) = ValuesPerDepVar (HM.filterWithKey (\k _ -> k `elem` keys) l)
 
 -- | A data type for independent vars with some value
 type IndepVarsThresholds = ValuesPerIndepVar
@@ -764,7 +766,7 @@ instance PseudoMap ValuesPerIndepVar Double where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter k (ValuesPerIndepVar l) = ValuesPerIndepVar (reorderAndFilterList k l)
+    filterByKey k (ValuesPerIndepVar l) = ValuesPerIndepVar (reorderAndFilterList k l)
 
 -- A data type for positions independent variable space, so here either a spatiotemporal
 -- or an arbitrary space

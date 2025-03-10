@@ -22,6 +22,7 @@ import qualified Data.Vector.Unboxed           as VU
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random.Stateful        as R
+import qualified Data.HashMap.Strict as HM
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
@@ -110,7 +111,7 @@ runSearch (
                     rs <- forM depVars $ \d -> do
                             r <- R.uniformRM range rng
                             return (d, r)
-                    return (i, ValuesPerDepVar rs)
+                    return (i, ValuesPerDepVar $ HM.fromList rs)
                  return (p, rss)
             Con.runConduitRes $
                 ConC.yieldMany randomIts
@@ -136,7 +137,7 @@ runSearch (
 calculateVariances :: [DepVarName] -> V.Vector Observation -> DepVarVariances
 calculateVariances depVars obs =
     let valuesPerDepVar = map (\depVar -> (depVar, VU.convert $ V.map (getValueOneBasicObsOneDepVar depVar) obs)) depVars
-    in ValuesPerDepVar $ map calculateVariance valuesPerDepVar
+    in ValuesPerDepVar $ HM.fromList $ map calculateVariance valuesPerDepVar
     where
         getValueOneBasicObsOneDepVar :: DepVarName -> Observation -> Double
         getValueOneBasicObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarPos) _) = lookupUnsafe depVarPos depVar
@@ -190,7 +191,7 @@ readIndepVarsPredGrid
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
     -- reorder depVarsPos
-    let depVarsPosReordered = map (reorderAndFilter depVars) depVarsPos
+    let depVarsPosReordered = map (filterByKey depVars) depVarsPos
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPosReordered
 readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do

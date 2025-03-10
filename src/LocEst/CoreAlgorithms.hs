@@ -11,6 +11,7 @@ import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (logDensity, quantile)
+import qualified Data.HashMap.Strict as HM
 
 -- weights-per-obs application
 coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
@@ -21,7 +22,7 @@ coreOutObsWeight spatDistUnitScaling nrTopObs coreSupplement
     let obsWithDist      = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
         weights = V.map
-            (\obs -> ValuesPerDepVar $ zipWith
+            (\obs -> ValuesPerDepVar $ HM.fromList $ zipWith
                 (\depVar kernelPerDepVar -> (depVar, getWeight kernelPerDepVar obs))
                 depVars kernelsPerDepVar)
             obsWithDist
@@ -39,7 +40,7 @@ coreOutInterpolSamples spatDistUnitScaling depVarVariances coreSupplement
         kernelsPerDepVar   = map (lookupUnsafe kernelDefinition) depVars
         variancesPerDepVar = map (lookupUnsafe depVarVariances) depVars
         samplesPerDepVar   = map (second drawSamples) randIterations
-        drawSamples r      = ValuesPerDepVar $
+        drawSamples r      = ValuesPerDepVar $ HM.fromList $
             zipWith3 (getRandomSample obsWithDist r) depVars kernelsPerDepVar variancesPerDepVar
     in V.fromList $ map (uncurry (InterpolationSample sett)) samplesPerDepVar
 
