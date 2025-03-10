@@ -17,12 +17,12 @@ filterObs
     sett = V.mapMaybe handleOne
     where
         handleOne :: Observation -> Maybe (Observation, IndepVarsDist)
-        handleOne obs = 
+        handleOne obs =
             let dist = getDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett obs
             in if inFilterRange distanceFilterThresholds dist
                then Just (obs,dist)
                else Nothing
-            
+
 getDist ::
        Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix
     -> CorePermutation

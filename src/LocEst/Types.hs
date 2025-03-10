@@ -16,7 +16,7 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (sortBy, find)
+import           Data.List             (find, sortBy)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
