@@ -646,21 +646,26 @@ data InterpolationResultOneDepVar =
 instance NFData InterpolationResultOneDepVar
 instance Csv.DefaultOrdered InterpolationResultOneDepVar where
     headerOrder (InterpolationResultOneDepVarShort n _ _ _ ) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["low", "median", "up"]
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
+            ["low", "median", "up"]
     headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ _ Nothing) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "var_prior", "post", "low", "median", "up"]
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
+            ["neff", "avg", "var", "var_prior", "post", "low", "median", "up"]
     headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ _ (Just _)) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "var_prior", "post", "low", "median", "up", "logl"]
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
+            ["neff", "avg", "var", "var_prior", "post", "low", "median", "up", "logl"]
 instance Csv.ToRecord InterpolationResultOneDepVar where
     toRecord (InterpolationResultOneDepVarShort _ lb m ub) =
         Csv.record [ Csv.toField lb, Csv.toField m, Csv.toField ub ]
     toRecord (InterpolationResultOneDepVarFull _ neff a v vp po lb m ub Nothing) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po,
+            Csv.toField lb, Csv.toField m, Csv.toField ub
         ]
     toRecord (InterpolationResultOneDepVarFull _ neff a v vp po lb m ub (Just l)) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField l
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po,
+            Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField l
         ]
 
 resOneDepvar2Short :: InterpolationResultOneDepVar -> InterpolationResultOneDepVar
@@ -761,7 +766,8 @@ instance PseudoMap ValuesPerIndepVar Double where
     allSameVars xs = allEqual $ map getKeys xs
     reorderAndFilter k (ValuesPerIndepVar l) = ValuesPerIndepVar (reorderAndFilterList k l)
 
--- A data type for positions independent variable space, so here either a spatiotemporal or an arbitrary space
+-- A data type for positions independent variable space, so here either a spatiotemporal
+-- or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos
     deriving (Eq, Show, Generic)
 
@@ -922,7 +928,11 @@ instance S.Serialise LongLatPos
 instance NFData LongLatPos
 instance Csv.FromNamedRecord LongLatPos where
     parseNamedRecord m =
-        LongLatPos <$> pure 0 <*> filterLookupOptional m "spatID" <*> filterLookup m "longitude" <*> filterLookup m "latitude"
+        LongLatPos
+        <$> pure 0
+        <*> filterLookupOptional m "spatID"
+        <*> filterLookup m "longitude"
+        <*> filterLookup m "latitude"
 instance Csv.DefaultOrdered LongLatPos where
     headerOrder (LongLatPos _ Nothing _ _)  = Csv.header ["longitude", "latitude"]
     headerOrder (LongLatPos _ (Just _) _ _) = Csv.header ["spatID", "longitude", "latitude"]

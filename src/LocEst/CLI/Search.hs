@@ -71,8 +71,7 @@ runSearch (
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     -- read observations
-    !observationsRaw <- readObservations inObsFile
-    let !observations = reorderVarsInObs depVars indepVars observationsRaw
+    !observations <- reorderVarsInObs depVars indepVars <$> readObservations inObsFile
     -- variance
     hPutStrLn stderr "Calculating total variances"
     let !variancesPerDepVar = calculateVariances depVars observations
@@ -217,8 +216,8 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempS
     let tempPos = case absRelTempPos of
             AbsTempPos x -> x
             RelTempPos x -> case depPos of
-                    (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
-                    _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
+                (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
+                _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
     spatPos <- V.toList inSpatGrid
     return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
 -- spatiotemporal, no search
@@ -228,7 +227,7 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempS
     let tempPos = case absRelTempPos of
             AbsTempPos x -> x
             RelTempPos _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
-    spatPos  <- V.toList inSpatGrid
+    spatPos <- V.toList inSpatGrid
     return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
 -- arbitrary dims, search
 createPermutations kernelDef (ArbitraryDimGrid gridPos _) (Just (DepVarsPredGrid depVarPos)) =
