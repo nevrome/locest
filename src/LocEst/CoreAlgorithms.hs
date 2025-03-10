@@ -133,18 +133,17 @@ getValue depVar (Observation _ _ (HyperPos _ depVarsPos) _, _) = lookupUnsafe de
 
 getWeight :: KernelOneDepVar -> (Observation, IndepVarsDist) -> Double
 getWeight (KernelOneDepVar _ shape lengths) (_,dists) =
-    computeWeight shape (squaredWeightedDist lengths dists)
+    computeWeight shape (squaredWeightedDist dists)
     where
-        squaredWeightedDist :: KernelLengths -> IndepVarsDist -> Double
+        squaredWeightedDist :: IndepVarsDist -> Double
         squaredWeightedDist
-            (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
             (IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
-            (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
+            let spaceKernelWidth = lookupUnsafe lengths "space"
+                timeKernelWidth  = lookupUnsafe lengths "time"
+            in (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
         squaredWeightedDist
-            kernLengths
             (IndepArbitraryDimDist namedDists) =
-            let distances = getValues namedDists
-                thetas    = getValues kernLengths
+            let indepVars = getKeys lengths
+                thetas    = getValues lengths
+                distances = map (lookupUnsafe namedDists) indepVars
             in foldSum (zipWith (\d t -> (d / t) ** 2) distances thetas)
-        squaredWeightedDist _ _ =
-            throwL "mismatch of independent variable definitions in weight calculation"

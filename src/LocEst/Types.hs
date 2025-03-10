@@ -16,7 +16,7 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (find, sortBy)
+import           Data.List             (find)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
@@ -740,7 +740,8 @@ type ArbitraryDimThresholds = ValuesPerIndepVar
 type ArbitraryDimPos = ValuesPerIndepVar
 type ArbitraryDimDists = ValuesPerIndepVar
 type ArbitraryDimLengths = ValuesPerIndepVar
-newtype ValuesPerIndepVar = ValuesPerIndepVar [(IndepVarName, Double)]
+--newtype ValuesPerIndepVar = ValuesPerIndepVar [(IndepVarName, Double)]
+newtype ValuesPerIndepVar = ValuesPerIndepVar (HM.HashMap IndepVarName Double)
     deriving (Eq, Show, Ord, Generic)
 
 instance S.Serialise ValuesPerIndepVar
@@ -749,24 +750,27 @@ instance Csv.FromNamedRecord ValuesPerIndepVar where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k) m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
-            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
-        pure $ ValuesPerIndepVar sortedList
+            --sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
+        pure $ ValuesPerIndepVar extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerIndepVar where
-    headerOrder (ValuesPerIndepVar l) =
-        V.map Bchs.pack $ V.fromList $ map fst l
+    headerOrder x =
+        --V.map Bchs.pack $ V.fromList $ map fst l
+         V.map Bchs.pack $ V.fromList $ getKeys x
 instance Csv.ToRecord ValuesPerIndepVar where
-    toRecord (ValuesPerIndepVar l) =
-        V.map (Bchs.pack . show) $ V.fromList $ map snd l
+    toRecord x =
+        --V.map (Bchs.pack . show) $ V.fromList $ map snd l
+        V.map (Bchs.pack . show) $ V.fromList $ getValues x
 instance PseudoMap ValuesPerIndepVar Double where
-    toList (ValuesPerIndepVar l) = l
-    getKeys (ValuesPerIndepVar l) = map fst l
-    getValues (ValuesPerIndepVar l) = map snd l
+    toList (ValuesPerIndepVar l) = HM.toList l
+    getKeys (ValuesPerIndepVar l) = HM.keys l
+    getValues (ValuesPerIndepVar l) = HM.elems l
     lookupUnsafe (ValuesPerIndepVar l) k =
-        case lookup k l of
+        case HM.lookup k l of
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    filterByKey k (ValuesPerIndepVar l) = ValuesPerIndepVar (reorderAndFilterList k l)
+    --filterByKey k (ValuesPerIndepVar l) = ValuesPerIndepVar (reorderAndFilterList k l)
+    filterByKey keys (ValuesPerIndepVar l) = ValuesPerIndepVar (HM.filterWithKey (\k _ -> k `elem` keys) l)
 
 -- A data type for positions independent variable space, so here either a spatiotemporal
 -- or an arbitrary space

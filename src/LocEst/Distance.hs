@@ -4,6 +4,7 @@ import           LocEst.Exceptions
 import           LocEst.Types
 
 import qualified Data.Vector       as V
+import qualified Data.HashMap.Strict as HM
 
 filterObs ::
        Double
@@ -61,9 +62,9 @@ getDist
     (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
     (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _) =
         let keys = getKeys obsArbitraryDimPos
-            obsPos  = getValues obsArbitraryDimPos
-            gridPos = getValues gridAbritryDimPos
-            arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
+            obsPos  = map (lookupUnsafe obsArbitraryDimPos) keys --getValues obsArbitraryDimPos
+            gridPos = map (lookupUnsafe gridAbritryDimPos) keys --getValues gridAbritryDimPos
+            arbitraryDimDist = ValuesPerIndepVar $ HM.fromList $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
 -- wrong input
 getDist _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
@@ -82,14 +83,20 @@ inFilterRange
     in minDecision && maxDecision
 inFilterRange
     (Just (ArbitraryDimFilterThresholds minFilter maxFilter))
-    (IndepArbitraryDimDist (ValuesPerIndepVar dists)) =
-    let minDecision = case minFilter of
-            Nothing -> True
-            Just (ValuesPerIndepVar minThresholds) -> all (\((_,x), (_,y)) -> x >= y) $ zip dists minThresholds
-        maxDecision = case maxFilter of
-            Nothing -> True
-            Just (ValuesPerIndepVar maxThresholds) -> all (\((_,x), (_,y)) -> x <= y) $ zip dists maxThresholds
-    in minDecision && maxDecision
+    (IndepArbitraryDimDist dists) =
+        let keys = getKeys dists
+            distsPerIndepVar = getValues dists
+            minDecision = case minFilter of
+                Nothing -> True
+                Just minThresholds -> do
+                    let thresholds = map (lookupUnsafe minThresholds) keys
+                    all (uncurry (>=)) $ zip distsPerIndepVar thresholds
+            maxDecision = case maxFilter of
+                Nothing -> True
+                Just maxThresholds -> do
+                    let thresholds = map (lookupUnsafe maxThresholds) keys
+                    all (uncurry (<=)) $ zip distsPerIndepVar thresholds
+        in minDecision && maxDecision
 inFilterRange _ _ = True
 
 -- distance helper functions

@@ -20,6 +20,7 @@ import qualified Data.Vector.Unboxed           as VU
 import qualified Data.Vector.Unboxed.Mutable   as VUM
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
+import qualified Data.HashMap.Strict as HM
 
 data VarioOptions = VarioOptions {
       _voInObservationFile   :: FilePath
@@ -114,7 +115,7 @@ runVario
                                 let spaceThreshold  = lookupUnsafe thresholds "space"
                                     timeThreshold   = lookupUnsafe thresholds "time"
                                     mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
-                                in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("acrossIndep", mergedThreshold)]) indepVarName
+                                in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar $ HM.fromList [("acrossIndep", mergedThreshold)]) indepVarName
                             else binIndepVarForNugget sortedIndepDists thresholds indepVarName
                 -- loop over depVars
                 forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
