@@ -31,8 +31,8 @@ getDist ::
 -- spatiotemporal distances
 getDist
     spatDistUnitScaling maybeSpatDistMap maybeTempSamples
-    (CorePermutation (IndepSpatTempPos gridSpatTempPos) _ _ tempSampIteration _)
-    (Observation obsIndex _ (HyperPos (IndepSpatTempPos obsSpatTempPos) _) _) =
+    (CorePermutation (IndepSpatTempPos (SpatTempPos gridSpatPos gridTempPos)) _ _ tempSampIteration _)
+    (Observation obsIndex _ (HyperPos (IndepSpatTempPos (SpatTempPos obsSpatPos obsTempPos)) _) _) =
         let spatDist = findSpatDist maybeSpatDistMap
             spaceDistScaled = spatDist * spatDistUnitScaling
             tempDist = findTempDist maybeTempSamples
@@ -41,19 +41,19 @@ getDist
             -- temporal distances
             findTempDist :: Maybe TempSampleMatrix -> Double
             -- calculate distances from mean ages
-            findTempDist Nothing = temporalDistSpatTempPos gridSpatTempPos obsSpatTempPos
+            findTempDist Nothing = temporalDistTempPos gridTempPos obsTempPos
             -- look up age samples and calculate distances from them
             findTempDist (Just tempSampleMatrix) =
-                let (SpatTempPos _ (TempPos gridPointAge)) = gridSpatTempPos
+                let (TempPos gridPointAge) = gridTempPos
                     obsAgeSample = lookUpTempSample tempSampleMatrix tempSampIteration obsIndex
                 in temporalDistYearBCAD gridPointAge obsAgeSample
             -- spatial distances
             findSpatDist :: Maybe SpatDistMatrix -> Double
             -- calculate distances
-            findSpatDist Nothing = spatialDistSpatTempPos gridSpatTempPos obsSpatTempPos
+            findSpatDist Nothing = spatialDistSpatPos gridSpatPos obsSpatPos
             -- look up distances
             findSpatDist (Just spatDistMatrix) =
-                let gridSpatPosIndex = getIndex $ _spatialPos gridSpatTempPos
+                let gridSpatPosIndex = getIndex gridSpatPos
                 in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
 -- arbitrary dim distances
 getDist
