@@ -435,7 +435,7 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
     toList m = zip (getKeys m) (getValues m)
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = l
-    lookupUnsafe kernDef@(KernelDefinition l) k =
+    lookupUnsafe (KernelDefinition l) k =
         case find (\x -> k == _kodvDepVarName x) l of
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
