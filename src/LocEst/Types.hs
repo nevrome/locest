@@ -467,8 +467,7 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
     allSameVars xs = allEqual $ map (\(KernelDefinition l) -> l) xs
     filterByKey k kernDef@(KernelDefinition _) =
         let kernList = zip (getKeys kernDef) (getValues kernDef)
-            reorderdAndFiltered = filterByKeyList k kernList
-        in makeKernelDefinition $ map snd reorderdAndFiltered
+        in makeKernelDefinition $ map snd $ filterByKeyList k kernList
 
 -- | A data type for a component of a kernel definition for one depvar
 data KernelOneDepVar = KernelOneDepVar {
