@@ -20,6 +20,7 @@ import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
+import qualified Data.Primitive.PrimArray as PA
 
 -- typeclasses
 
@@ -54,19 +55,27 @@ filterDistanceThresholds indepVarsWanted (ArbitraryDimFilterThresholds minFilter
         (fmap (filterByKey indepVarsWanted) minFilter)
         (fmap (filterByKey indepVarsWanted) maxFilter)
 
-filterVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
-filterVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
-    where
-        handleOne :: Observation -> Observation
-        -- spatiotemporal case
-        handleOne o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs) _) =
-            let depRes = filterByKey depVarsWanted depInObs
-            in o { _obsPos = HyperPos std depRes }
-        -- arbitrary dimension case
-        handleOne o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs) _) =
-            let depRes   = filterByKey depVarsWanted depInObs
-                indepRes = filterByKey indepVarsWanted indepInObs
-            in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
+--filterVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
+--filterVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
+--    where
+--        handleOne :: Observation -> Observation
+--        -- spatiotemporal case
+--        handleOne o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs) _) =
+--            let depRes = filterByKey depVarsWanted depInObs
+--            in o { _obsPos = HyperPos std depRes }
+--        -- arbitrary dimension case
+--        handleOne o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs) _) =
+--           let depRes   = filterByKey depVarsWanted depInObs
+--                indepRes = filterByKey indepVarsWanted indepInObs
+--            in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
+
+--filterByIndices :: (PrimMonad m, Prim a) => PrimArray a -> [Int] -> m (PrimArray a)
+--filterByIndices arr indices = do
+--    let len = length indices
+--    marr <- newPrimArray len
+--    forM_ (zip [0..(len-1)] indices) $ \(i, j) ->               
+--        readPrimArray arr j >>= writePrimArray marr i
+--    unsafeFreezePrimArray marr
 
 filterVarsInArbitraryPos :: [String] -> V.Vector ValuesPerIndepVar -> V.Vector ValuesPerIndepVar
 filterVarsInArbitraryPos indepVarsWanted = V.map (filterByKey indepVarsWanted)
@@ -557,7 +566,7 @@ instance Csv.ToRecord ObsWithWeights where
         Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
 instance Ord ObsWithWeights where
     compare (ObsWithWeights _ _ (ValuesPerDepVar x1)) (ObsWithWeights _ _ (ValuesPerDepVar x2)) =
-        compare (foldSum (map snd x1)) (foldSum (map snd x2))
+        compare (sumPrimArray x1) (sumPrimArray x2)
 
 -- | A data type for a per-dimension distances in independent variable space
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimDists
@@ -727,13 +736,27 @@ type DepVarsWeights = ValuesPerDepVar
 type DepVarsRands = ValuesPerDepVar
 type DepVarSamples = ValuesPerDepVar
 type DepVarVariances = ValuesPerDepVar
-newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
+newtype ValuesPerDepVar = ValuesPerDepVar (PA.PrimArray Double)
     deriving (Eq, Show, Generic)
 
 makeValuesPerDepVar :: [(DepVarName, Double)] -> ValuesPerDepVar
-makeValuesPerDepVar xs = ValuesPerDepVar $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
+makeValuesPerDepVar xs = ValuesPerDepVar $ PA.primArrayFromList $ map snd $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
 
-instance S.Serialise ValuesPerDepVar
+sumPrimArray :: PA.PrimArray Double -> Double
+sumPrimArray = PA.foldlPrimArray' (+) 0
+
+indexValuesPerDepVar :: ValuesPerDepVar -> Int -> Double
+indexValuesPerDepVar (ValuesPerDepVar x) = PA.indexPrimArray x
+
+getValuesPerDepVar :: ValuesPerDepVar -> [Double]
+getValuesPerDepVar (ValuesPerDepVar x) = PA.primArrayToList x
+
+instance S.Serialise ValuesPerDepVar where
+    encode (ValuesPerDepVar arr) = do
+        S.encodeList (PA.primArrayToList arr)
+    decode = do
+        vals <- S.decodeList
+        return $ ValuesPerDepVar (PA.primArrayFromList vals)
 instance NFData ValuesPerDepVar
 instance Csv.FromNamedRecord ValuesPerDepVar where
     parseNamedRecord m = do
@@ -742,20 +765,10 @@ instance Csv.FromNamedRecord ValuesPerDepVar where
         pure $ makeValuesPerDepVar $ HM.toList extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerDepVar where
     headerOrder (ValuesPerDepVar l) =
-        V.map Bchs.pack $ V.fromList $ map fst l
+        V.map Bchs.pack $ V.fromList $ map show [1..(PA.sizeofPrimArray l)]
 instance Csv.ToRecord ValuesPerDepVar where
     toRecord (ValuesPerDepVar l) =
-        V.map (Bchs.pack . show) $ V.map OutInfDouble $ V.fromList $ map snd l
-instance PseudoMap ValuesPerDepVar Double where
-    toList (ValuesPerDepVar l) = l
-    getKeys (ValuesPerDepVar l) = map fst l
-    getValues (ValuesPerDepVar l) = map snd l
-    lookupUnsafe (ValuesPerDepVar l) k =
-        case lookup k l of
-            Just x  -> x
-            Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
-    allSameVars xs = allEqual $ map getKeys xs
-    filterByKey k (ValuesPerDepVar l) = ValuesPerDepVar (filterByKeyList k l)
+        V.map (Bchs.pack . show) $ V.map OutInfDouble $ V.fromList $ PA.primArrayToList l
 
 -- | A data type for independent vars with some value
 type IndepVarsThresholds = ValuesPerIndepVar

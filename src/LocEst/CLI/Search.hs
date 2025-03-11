@@ -21,6 +21,7 @@ import qualified Data.Vector.Unboxed           as VU
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random.Stateful        as R
+import qualified Data.Primitive.PrimArray as PA
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
@@ -68,12 +69,13 @@ runSearch (
     ) numThreads spatDistUnitScaling = do
     -- list of variables
     let depVars   = getKeys kernelDefinition
+        depVarsIndex = [0..(length depVars - 1)]
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     -- read observations
-    !observations <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
+    !observations <- readObservations inObsFile --filterVarsInObs depVars indepVars <$> readObservations inObsFile
     -- variance
     hPutStrLn stderr "Calculating total variances"
-    let !variancesPerDepVar = calculateVariances depVars observations
+    let !variancesPerDepVar = calculateVariances depVarsIndex observations
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
     !indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
@@ -86,39 +88,6 @@ runSearch (
     -- run analysis pipeline
     hPutStrLn stderr "Running analysis"
     case outMode of
-        CoreOutObsWeight nrTopObs -> do
-            Con.runConduitRes $
-                ConC.yieldMany permutations
-                .| ConC.conduitVector 100
-                .| ConAA.asyncMapC numThreads (V.map (coreOutObsWeight spatDistUnitScaling nrTopObs supplement depVars observations))
-                .| ConC.concat
-                .| progress 1000 (Just numPerms)
-                .| ConC.concatMap id
-                .| sinkNamedCSV outFile
-        CoreOutInterpolSamples nrRandomIts maybeSeed maybeSamplingRange -> do
-            let range = case maybeSamplingRange of
-                    Just OneSigma         -> (0.159, 0.841)
-                    Just TwoSigma         -> (0.025, 0.975)
-                    Just FullDistribution -> (0,1)
-                    Nothing               -> (0,1)
-            rng <- case maybeSeed of
-                    Nothing   -> newIOGenM =<< R.getStdGen
-                    Just seed -> newIOGenM $ mkStdGen seed
-            randomIts <- forM permutations $ \p -> do
-                 rss <- forM  [0..nrRandomIts-1] $ \i -> do
-                    rs <- forM depVars $ \d -> do
-                            r <- R.uniformRM range rng
-                            return (d, r)
-                    return (i, ValuesPerDepVar rs)
-                 return (p, rss)
-            Con.runConduitRes $
-                ConC.yieldMany randomIts
-                .| ConC.conduitVector 100
-                .| ConAA.asyncMapC numThreads (V.map (coreOutInterpolSamples spatDistUnitScaling variancesPerDepVar supplement depVars observations))
-                .| ConC.concat
-                .| progress 1000 (Just numPerms)
-                .| ConC.concatMap id
-                .| sinkNamedCSV outFile
         otherNormalMode -> do -- CoreOutShort or CoreOutFull
             Con.runConduitRes $
                 ConC.yieldMany permutations
@@ -132,17 +101,17 @@ runSearch (
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-calculateVariances :: [DepVarName] -> V.Vector Observation -> DepVarVariances
+calculateVariances :: [Int] -> V.Vector Observation -> DepVarVariances
 calculateVariances depVars obs =
-    let valuesPerDepVar = map (\depVar -> (depVar, VU.convert $ V.map (getValueOneBasicObsOneDepVar depVar) obs)) depVars
-    in ValuesPerDepVar $ map calculateVariance valuesPerDepVar
+    let valuesPerDepVar = map (\depVar -> VU.convert $ V.map (getValueOneBasicObsOneDepVar depVar) obs) depVars
+    in ValuesPerDepVar $ PA.primArrayFromList $ map calculateVariance valuesPerDepVar
     where
-        getValueOneBasicObsOneDepVar :: DepVarName -> Observation -> Double
-        getValueOneBasicObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarPos) _) = lookupUnsafe depVarPos depVar
-        calculateVariance :: (DepVarName, VU.Vector Double) -> (DepVarName, Double)
-        calculateVariance (depVar,values) =
+        getValueOneBasicObsOneDepVar :: Int -> Observation -> Double
+        getValueOneBasicObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarPos) _) = indexValuesPerDepVar depVarPos depVar
+        calculateVariance :: VU.Vector Double -> Double
+        calculateVariance values =
             let nrSamples = fromIntegral $ VU.length values
-            in (depVar, varSample_ nrSamples values)
+            in varSample_ nrSamples values
 
 readIndepVarsPredGrid :: [String] -> V.Vector Observation -> IndepVarsPredGridSettings -> IO IndepVarsPredGrid
 -- spatiotemporal case
@@ -189,13 +158,13 @@ readIndepVarsPredGrid
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
     -- reorder depVarsPos
-    let depVarsPosReordered = map (filterByKey depVars) depVarsPos
+    let depVarsPosReordered = depVarsPos--map (filterByKey depVars) depVarsPos
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPosReordered
 readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     -- read search observations
     obsVec <- readObservations path
-    let obsVecReordered = filterVarsInObs depVars indepVars obsVec
+    let obsVecReordered = obsVec --filterVarsInObs depVars indepVars obsVec
         searchObservations = V.toList obsVecReordered
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations

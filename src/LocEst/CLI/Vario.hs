@@ -289,29 +289,4 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
 
 calcDepVarPairwiseDistances :: Bool -> V.Vector Observation -> IO [(DepVarName, SUDistMatrix)]
 calcDepVarPairwiseDistances merge obs = do
-    let obsPairs = makeObsPairs obs
-        nrPairs = length obsPairs
-        (Observation _ _ (HyperPos _ pos@(ValuesPerDepVar l)) _) = V.head obs
-    -- writing distances to mutable vectors
-    if merge
-    then do
-        distVec <- VUM.new nrPairs
-        mapM_ (distDepMerged distVec) obsPairs
-        distVecNonMut <- VU.unsafeFreeze distVec
-        return [("acrossDep", SUDistMatrix distVecNonMut)]
-    else do
-        depVecs <- replicateM (length l) (VUM.new nrPairs)
-        mapM_ (distDep depVecs) obsPairs
-        depVecsNonMut <- mapM VU.unsafeFreeze depVecs
-        return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
-    where
-        distDep :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
-        distDep depVecs (i, (Observation _ _ (HyperPos _ p1) _, Observation _ _ (HyperPos _ p2) _)) = do
-            -- this assumes that p1 and p2 have the same order of dep variables
-            let depDists = allDistances (getValues p1) (getValues p2)
-            zipWithM_ (`VUM.write` i) depVecs depDists
-        distDepMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
-        distDepMerged distVec (i, (Observation _ _ (HyperPos _ p1) _, Observation _ _ (HyperPos _ p2) _)) = do
-            -- this assumes that p1 and p2 have the same order of dep variables
-            let depDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
-            VUM.write distVec i depDistEuclidean
+    undefined

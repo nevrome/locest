@@ -87,12 +87,12 @@ runCross (
                 -- list of independent variables
                 let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
                 -- modify observations
-                let observations = filterVarsInObs depVars indepVars observationsRaw
+                let observations = observationsRaw--filterVarsInObs depVars indepVars observationsRaw
                 -- read core supplements
                 coreSupp <- liftIO $ readCoreSupplement indepVars crossSuppSettings observationsRaw
                 -- variance
                 liftIO $ hPutStrLn stderr "Calculating total variance"
-                let variancesPerDepVar = calculateVariances depVars observations
+                let variancesPerDepVar = undefined -- calculateVariances depVars observations
                 -- permutation: one run of the core algorithm
                 -- iteration: one test/training split
                 iterations <- case subsetMode of

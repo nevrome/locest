@@ -758,7 +758,7 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
             let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
                 grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
                 permutations = sequenceA grouped
-            return $ map ValuesPerDepVar permutations
+            return $ map makeValuesPerDepVar permutations
             where
                 parseSequence = parseDoubleSequence
                 parseList = parseVector parseDouble
