@@ -62,8 +62,8 @@ getDist
     (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
     (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _) =
         let keys = getKeys obsArbitraryDimPos
-            obsPos  = map (lookupUnsafe obsArbitraryDimPos) keys --getValues obsArbitraryDimPos
-            gridPos = map (lookupUnsafe gridAbritryDimPos) keys --getValues gridAbritryDimPos
+            obsPos  = getValues obsArbitraryDimPos
+            gridPos = map (lookupUnsafe gridAbritryDimPos) keys
             arbitraryDimDist = ValuesPerIndepVar $ HM.fromList $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
 -- wrong input
