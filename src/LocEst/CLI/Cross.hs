@@ -8,7 +8,6 @@ import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (avg, foldSum)
 import           LocEst.Parsers
-import           LocEst.ReorderVars
 import           LocEst.Types
 
 import           Conduit                       (MonadIO (liftIO))
@@ -88,7 +87,7 @@ runCross (
                 -- list of independent variables
                 let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
                 -- modify observations
-                let observations = reorderVarsInObs depVars indepVars observationsRaw
+                let observations = filterVarsInObs depVars indepVars observationsRaw
                 -- read core supplements
                 coreSupp <- liftIO $ readCoreSupplement indepVars crossSuppSettings observationsRaw
                 -- variance
@@ -170,8 +169,8 @@ readCoreSupplement
         Just path -> case takeExtension path of
             ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
             _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
-    -- order distance filter tresholds
-    let distanceFilterThresholds = fmap (reorderDistanceFilterThresholds indepVarsWanted) distanceFilterThresholdsRaw
+    -- filter distance filter tresholds
+    let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
     -- return supplement
     return $ CoreSupplement distanceFilterThresholds inSpatDists inObsTempSamples
 

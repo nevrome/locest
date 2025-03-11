@@ -31,7 +31,7 @@ class PseudoMap a b | a -> b where
     getValues :: a -> [b]
     lookupUnsafe :: a -> String -> b
     allSameVars :: [a] -> Bool
-    reorderAndFilter :: [String] -> a -> a
+    filterByKey :: [String] -> a -> a
 
 -- a typeclass for data types with ids
 class Identifiable a where
@@ -45,32 +45,32 @@ allEqual []     = True
 allEqual (x:xs) = all (== x) xs
 
 -- filter variables
-reorderAndFilterList :: Eq a => [String] -> [(String,a)] -> [(String,a)]
-reorderAndFilterList keys m = [ maybe (throwL $ "Failed lookup. Missing key: " ++ k) (k,) $ lookup k m | k <- keys ]
+filterByKeyList :: Eq a => [String] -> [(String,a)] -> [(String,a)]
+filterByKeyList keys = filter (\(k,_) -> k `elem` keys)
 
-reorderDistanceFilterThresholds :: [String] -> DistanceFilterThresholds -> DistanceFilterThresholds
-reorderDistanceFilterThresholds _ f@(SpaceTimeFilterThresholds _ _) = f
-reorderDistanceFilterThresholds indepVarsWanted (ArbitraryDimFilterThresholds minFilter maxFilter) =
+filterDistanceThresholds :: [String] -> DistanceThresholds -> DistanceThresholds
+filterDistanceThresholds _ f@(SpaceTimeFilterThresholds _ _) = f
+filterDistanceThresholds indepVarsWanted (ArbitraryDimFilterThresholds minFilter maxFilter) =
     ArbitraryDimFilterThresholds
-        (fmap (reorderAndFilter indepVarsWanted) minFilter)
-        (fmap (reorderAndFilter indepVarsWanted) maxFilter)
+        (fmap (filterByKey indepVarsWanted) minFilter)
+        (fmap (filterByKey indepVarsWanted) maxFilter)
 
-reorderVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
-reorderVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
+filterVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
+filterVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
     where
         handleOne :: Observation -> Observation
         -- spatiotemporal case
         handleOne o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs) _) =
-            let depRes = reorderAndFilter depVarsWanted depInObs
+            let depRes = filterByKey depVarsWanted depInObs
             in o { _obsPos = HyperPos std depRes }
         -- arbitrary dimension case
         handleOne o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs) _) =
-            let depRes   = reorderAndFilter depVarsWanted depInObs
-                indepRes = reorderAndFilter indepVarsWanted indepInObs
+            let depRes   = filterByKey depVarsWanted depInObs
+                indepRes = filterByKey indepVarsWanted indepInObs
             in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
 
-reorderVarsInArbitraryPos :: [String] -> V.Vector ValuesPerIndepVar -> V.Vector ValuesPerIndepVar
-reorderVarsInArbitraryPos indepVarsWanted = V.map (reorderAndFilter indepVarsWanted)
+filterVarsInArbitraryPos :: [String] -> V.Vector ValuesPerIndepVar -> V.Vector ValuesPerIndepVar
+filterVarsInArbitraryPos indepVarsWanted = V.map (filterByKey indepVarsWanted)
 
 -- helper functions for cassava
 
@@ -227,7 +227,7 @@ instance PseudoMap MatrixPerIndepVar SUDistMatrix where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter k (MatrixPerIndepVar l) = MatrixPerIndepVar (reorderAndFilterList k l)
+    filterByKey k (MatrixPerIndepVar l) = MatrixPerIndepVar (filterByKeyList k l)
 
 -- | A data type for an asymmetric, unidirectional distance matrix
 -- this matrix has m*n different entries and a rectangular shape
@@ -343,24 +343,24 @@ data IndepVarsPredGrid =
     SpaceTimeGrid {
       _stGridSpatPos              :: V.Vector SpatPos
     , _stGridTempPos              :: [AbsRelTempPos]
-    , _stGridDistFilterThresholds :: Maybe DistanceFilterThresholds
+    , _stGridDistFilterThresholds :: Maybe DistanceThresholds
     , _stGridSpatDist             :: Maybe SpatDistMatrix
     , _stGridTempSamples          :: Maybe TempSampleMatrix
     } |
     ArbitraryDimGrid {
       _adGridPos                 :: V.Vector ArbitraryDimPos
-    , _adGriDistFilterThresholds :: Maybe DistanceFilterThresholds
+    , _adGriDistFilterThresholds :: Maybe DistanceThresholds
     }
 
 -- | A data type for supplementary information used in the core algorithm
 data CoreSupplement = CoreSupplement {
-      _csDistFilterThresholds :: Maybe DistanceFilterThresholds
+      _csDistFilterThresholds :: Maybe DistanceThresholds
     , _csSpatDist             :: Maybe SpatDistMatrix
     , _csTempSamp             :: Maybe TempSampleMatrix
 }
 
 -- | A data type for distance filter thresholds
-data DistanceFilterThresholds = SpaceTimeFilterThresholds {
+data DistanceThresholds = SpaceTimeFilterThresholds {
       _stftMinFilter :: Maybe (Double, Double)
     , _stftMaxFilter :: Maybe (Double, Double)
 } | ArbitraryDimFilterThresholds {
@@ -465,9 +465,9 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map (\(KernelDefinition l) -> l) xs
-    reorderAndFilter k kernDef@(KernelDefinition _) =
+    filterByKey k kernDef@(KernelDefinition _) =
         let kernList = zip (getKeys kernDef) (getValues kernDef)
-            reorderdAndFiltered = reorderAndFilterList k kernList
+            reorderdAndFiltered = filterByKeyList k kernList
         in makeKernelDefinition $ map snd reorderdAndFiltered
 
 -- | A data type for a component of a kernel definition for one depvar
@@ -521,7 +521,7 @@ instance PseudoMap KernelLengths Double where
     getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
     lookupUnsafe (KernelLengths arbitraryDimLengths) = lookupUnsafe arbitraryDimLengths
     allSameVars xs = allSameVars $ map (\(KernelLengths x) -> x) xs
-    reorderAndFilter k (KernelLengths arbitraryDimLengths) = KernelLengths (reorderAndFilter k arbitraryDimLengths)
+    filterByKey k (KernelLengths arbitraryDimLengths) = KernelLengths (filterByKey k arbitraryDimLengths)
 
 -- | A data type for kernel shapes
 data KernelShape =
@@ -761,7 +761,7 @@ instance PseudoMap ValuesPerDepVar Double where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter k (ValuesPerDepVar l) = ValuesPerDepVar (reorderAndFilterList k l)
+    filterByKey k (ValuesPerDepVar l) = ValuesPerDepVar (filterByKeyList k l)
 
 -- | A data type for independent vars with some value
 type IndepVarsThresholds = ValuesPerIndepVar
@@ -797,7 +797,7 @@ instance PseudoMap ValuesPerIndepVar Double where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter k (ValuesPerIndepVar l) = ValuesPerIndepVar (reorderAndFilterList k l)
+    filterByKey k (ValuesPerIndepVar l) = ValuesPerIndepVar (filterByKeyList k l)
 
 -- A data type for positions independent variable space, so here either a spatiotemporal
 -- or an arbitrary space

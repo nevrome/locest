@@ -551,19 +551,19 @@ optParseIndepVarsPredGridSettings =
 optParseCoreSupplementSettings :: OP.Parser CoreSupplementSettings
 optParseCoreSupplementSettings =
     CoreSupplementSettings
-        <$> optParseDistanceFilterThresholds
+        <$> optParseDistanceThresholds
         <*> OP.optional optParseInSpatDistMapFile
         <*> OP.optional optParseInObsTempSamplesFile
         <*> optParseInSpatDistNoOrderCheck
 
-optParseDistanceFilterThresholds :: OP.Parser (Maybe DistanceFilterThresholds)
-optParseDistanceFilterThresholds = do
+optParseDistanceThresholds :: OP.Parser (Maybe DistanceThresholds)
+optParseDistanceThresholds = do
     OP.liftA2 buildThresholds optParseIndepMinFilter optParseIndepMaxFilter
     where
         buildThresholds ::
                Maybe (Either (Double, Double) ArbitraryDimThresholds)
             -> Maybe (Either (Double, Double) ArbitraryDimThresholds)
-            -> Maybe DistanceFilterThresholds
+            -> Maybe DistanceThresholds
         buildThresholds Nothing Nothing = Nothing
         buildThresholds (Just minF) Nothing =
             case minF of
