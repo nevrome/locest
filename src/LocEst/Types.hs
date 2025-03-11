@@ -434,7 +434,7 @@ makeKernelDefinition :: [KernelOneDepVar] -> KernelDefinition
 makeKernelDefinition []       = throwL "No kernel settings provided"
 makeKernelDefinition kerndefs =
     if allSameVars $ map _kodvLengths kerndefs
-    then KernelDefinition $ sort kerndefs
+    then KernelDefinition $ sortBy (\k1 k2 -> compare (_kodvDepVarName k1) (_kodvDepVarName k2)) kerndefs
     else throwL "Different independent variables across dependent variables in --kerndef"
 
 instance NFData KernelDefinition
@@ -475,7 +475,7 @@ data KernelOneDepVar = KernelOneDepVar {
     , _kodvShape      :: KernelShape
     , _kodvLengths    :: KernelLengths
     }
-    deriving (Show, Generic)
+    deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelOneDepVar
 instance Csv.FromNamedRecord KernelOneDepVar where
@@ -494,10 +494,6 @@ instance Csv.DefaultOrdered KernelOneDepVar where
 instance Csv.ToRecord KernelOneDepVar where
     toRecord (KernelOneDepVar name shape lengths) =
         Csv.toRecord name <> Csv.toRecord [Csv.toField shape] <> Csv.toRecord lengths
-instance Eq KernelOneDepVar where
-    (KernelOneDepVar n1 _ _) == (KernelOneDepVar n2 _ _) = n1 == n2
-instance Ord KernelOneDepVar where
-    (KernelOneDepVar n1 _ _) `compare` (KernelOneDepVar n2 _ _) = n1 `compare` n2
 
 -- type definitions for easier readability
 type DepVarName   = String
