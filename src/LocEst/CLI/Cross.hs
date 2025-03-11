@@ -63,10 +63,10 @@ runCross (
     let (kernDefsSets, depVarsSets) =
             if coAnalyseDepVars
             --kernsPerDepVar: [[kernForDepVar1], [kernForDepVar2], ..
-            then let ks = map KernelDefinition $ sequenceA kernsPerDepVar
+            then let ks = map makeKernelDefinition $ sequenceA kernsPerDepVar
                      ds = getKeys $ head ks
                  in (singleton ks, singleton ds)
-            else let ks = map (map (KernelDefinition . singleton)) kernsPerDepVar
+            else let ks = map (map (makeKernelDefinition . singleton)) kernsPerDepVar
                      ds = map (getKeys . head) ks
                  in (ks, ds)
     -- read observations

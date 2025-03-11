@@ -16,7 +16,7 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (find, sortBy)
+import           Data.List             (find, sortBy, sort)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
@@ -40,12 +40,37 @@ class Identifiable a where
     setIndex :: a -> Int -> a
 
 -- general helper functions
-reorderAndFilterList :: Eq a => [String] -> [(String,a)] -> [(String,a)]
-reorderAndFilterList keys m = [ maybe (throwL $ "Failed lookup. Missing key: " ++ k) (k,) $ lookup k m | k <- keys ]
-
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
+
+-- filter variables
+reorderAndFilterList :: Eq a => [String] -> [(String,a)] -> [(String,a)]
+reorderAndFilterList keys m = [ maybe (throwL $ "Failed lookup. Missing key: " ++ k) (k,) $ lookup k m | k <- keys ]
+
+reorderDistanceFilterThresholds :: [String] -> DistanceFilterThresholds -> DistanceFilterThresholds
+reorderDistanceFilterThresholds _ f@(SpaceTimeFilterThresholds _ _) = f
+reorderDistanceFilterThresholds indepVarsWanted (ArbitraryDimFilterThresholds minFilter maxFilter) =
+    ArbitraryDimFilterThresholds
+        (fmap (reorderAndFilter indepVarsWanted) minFilter)
+        (fmap (reorderAndFilter indepVarsWanted) maxFilter)
+
+reorderVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
+reorderVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
+    where
+        handleOne :: Observation -> Observation
+        -- spatiotemporal case
+        handleOne o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs) _) =
+            let depRes = reorderAndFilter depVarsWanted depInObs
+            in o { _obsPos = HyperPos std depRes }
+        -- arbitrary dimension case
+        handleOne o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs) _) =
+            let depRes   = reorderAndFilter depVarsWanted depInObs
+                indepRes = reorderAndFilter indepVarsWanted indepInObs
+            in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
+
+reorderVarsInArbitraryPos :: [String] -> V.Vector ValuesPerIndepVar -> V.Vector ValuesPerIndepVar
+reorderVarsInArbitraryPos indepVarsWanted = V.map (reorderAndFilter indepVarsWanted)
 
 -- helper functions for cassava
 
@@ -409,7 +434,7 @@ makeKernelDefinition :: [KernelOneDepVar] -> KernelDefinition
 makeKernelDefinition []       = throwL "No kernel settings provided"
 makeKernelDefinition kerndefs =
     if allSameVars $ map _kodvLengths kerndefs
-    then KernelDefinition kerndefs
+    then KernelDefinition $ sort kerndefs
     else throwL "Different independent variables across dependent variables in --kerndef"
 
 instance NFData KernelDefinition
@@ -443,7 +468,7 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
     reorderAndFilter k kernDef@(KernelDefinition _) =
         let kernList = zip (getKeys kernDef) (getValues kernDef)
             reorderdAndFiltered = reorderAndFilterList k kernList
-        in KernelDefinition $ map snd reorderdAndFiltered
+        in makeKernelDefinition $ map snd reorderdAndFiltered
 
 -- | A data type for a component of a kernel definition for one depvar
 data KernelOneDepVar = KernelOneDepVar {
@@ -451,7 +476,7 @@ data KernelOneDepVar = KernelOneDepVar {
     , _kodvShape      :: KernelShape
     , _kodvLengths    :: KernelLengths
     }
-    deriving (Show, Eq, Ord, Generic)
+    deriving (Show, Generic)
 
 instance NFData KernelOneDepVar
 instance Csv.FromNamedRecord KernelOneDepVar where
@@ -470,6 +495,10 @@ instance Csv.DefaultOrdered KernelOneDepVar where
 instance Csv.ToRecord KernelOneDepVar where
     toRecord (KernelOneDepVar name shape lengths) =
         Csv.toRecord name <> Csv.toRecord [Csv.toField shape] <> Csv.toRecord lengths
+instance Eq KernelOneDepVar where
+    (KernelOneDepVar n1 _ _) == (KernelOneDepVar n2 _ _) = n1 == n2
+instance Ord KernelOneDepVar where
+    (KernelOneDepVar n1 _ _) `compare` (KernelOneDepVar n2 _ _) = n1 `compare` n2
 
 -- type definitions for easier readability
 type DepVarName   = String
@@ -707,14 +736,16 @@ type DepVarVariances = ValuesPerDepVar
 newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
     deriving (Eq, Show, Generic)
 
+makeValuesPerDepVar :: [(DepVarName, Double)] -> ValuesPerDepVar
+makeValuesPerDepVar xs = ValuesPerDepVar $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
+
 instance S.Serialise ValuesPerDepVar
 instance NFData ValuesPerDepVar
 instance Csv.FromNamedRecord ValuesPerDepVar where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "dep" k) m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
-            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
-        pure $ ValuesPerDepVar sortedList
+        pure $ makeValuesPerDepVar $ HM.toList extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerDepVar where
     headerOrder (ValuesPerDepVar l) =
         V.map Bchs.pack $ V.fromList $ map fst l
@@ -741,14 +772,16 @@ type ArbitraryDimLengths = ValuesPerIndepVar
 newtype ValuesPerIndepVar = ValuesPerIndepVar [(IndepVarName, Double)]
     deriving (Eq, Show, Ord, Generic)
 
+makeValuesPerIndepVar :: [(DepVarName, Double)] -> ValuesPerIndepVar
+makeValuesPerIndepVar xs = ValuesPerIndepVar $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
+
 instance S.Serialise ValuesPerIndepVar
 instance NFData ValuesPerIndepVar
 instance Csv.FromNamedRecord ValuesPerIndepVar where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k) m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
-            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
-        pure $ ValuesPerIndepVar sortedList
+        pure $ makeValuesPerIndepVar $ HM.toList extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerIndepVar where
     headerOrder (ValuesPerIndepVar l) =
         V.map Bchs.pack $ V.fromList $ map fst l
