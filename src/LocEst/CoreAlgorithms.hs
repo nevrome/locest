@@ -50,7 +50,7 @@ getRandomSample ::
     -> Double
     -> (DepVarName, Double)
 getRandomSample obs dists depVarsRands depVar kernel variance = do
-    let values      = VU.convert $ V.map (getValue depVar) obs
+    let values      = VU.convert $ V.map (getDepVarsPos depVar) obs
         weights     = VU.convert $ V.map (getWeight kernel) dists
         random01    = lookupUnsafe depVarsRands depVar
         totalWeight = VU.sum weights
@@ -102,7 +102,7 @@ interpol ::
     -> Maybe Double
     -> InterpolationResultOneDepVar
 interpol obs dists depVar kernel variance maybeSearchValue = do
-    let values      = VU.convert $ V.map (getValue depVar) obs
+    let values      = VU.convert $ V.map (getDepVarsPos depVar) obs
         weights     = VU.convert $ V.map (getWeight kernel) dists
         totalWeight = VU.sum weights
         neff        = totalWeight
@@ -126,9 +126,6 @@ interpol obs dists depVar kernel variance maybeSearchValue = do
             Nothing -> InterpolationResultOneDepVarFull
                 depVar neff weightedA weightedVB weightedV (OutBool False)
                 (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
-
-getValue :: DepVarName -> Observation -> Double
-getValue depVar (Observation _ _ (HyperPos _ depVarsPos) _) = lookupUnsafe depVarsPos depVar
 
 getWeight :: KernelOneDepVar -> IndepVarsDist -> Double
 getWeight (KernelOneDepVar _ shape lengths) dists =

@@ -583,6 +583,9 @@ data Observation = Observation {
     , _obsOther :: CsvNamedRecord
 } deriving (Show, Generic, Eq)
 
+getDepVarsPos :: DepVarName -> Observation -> Double
+getDepVarsPos depVar (Observation _ _ (HyperPos _ depVarsPos) _) = lookupUnsafe depVarsPos depVar
+
 instance S.Serialise Observation
 instance NFData Observation
 instance Csv.FromNamedRecord Observation where
