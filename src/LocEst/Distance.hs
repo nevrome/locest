@@ -10,11 +10,11 @@ filterObs ::
     -> CoreSupplement
     -> CorePermutation
     -> V.Vector Observation
-    -> V.Vector (Observation, IndepVarsDist)
+    -> (V.Vector Observation, V.Vector IndepVarsDist)
 filterObs
     spatDistUnitScaling
     (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples)
-    sett = V.mapMaybe handleOne
+    sett = V.unzip . V.mapMaybe handleOne
     where
         handleOne :: Observation -> Maybe (Observation, IndepVarsDist)
         handleOne obs =
