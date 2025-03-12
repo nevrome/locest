@@ -49,7 +49,7 @@ parseConfigFile toIgnore configFile = do
         argumentName <- P.manyTill (P.noneOf "\n") (P.lookAhead (P.char ':'))
         _ <- P.char ':'
         _ <- P.spaces
-        argumentValue <- P.manyTill (P.noneOf ";") (P.lookAhead (P.char ';'))
+        argumentValue <- P.manyTill ((P.try parseComment >> return ' ') P.<|> P.anyChar) (P.lookAhead (P.char ';'))
         _ <- P.char ';'
         _ <- P.try parseComment P.<|> parseEmptyLine
         if dash argumentName `elem` toIgnore
