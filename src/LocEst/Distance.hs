@@ -68,7 +68,7 @@ getDist
 -- wrong input
 getDist _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
 
-inFilterRange :: Maybe DistanceFilterThresholds -> IndepVarsDist -> Bool
+inFilterRange :: Maybe DistanceThresholds -> IndepVarsDist -> Bool
 inFilterRange Nothing _ = True
 inFilterRange
     (Just (SpaceTimeFilterThresholds minFilter maxFilter))

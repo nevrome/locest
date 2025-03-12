@@ -19,7 +19,7 @@ coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
 coreOutObsWeight spatDistUnitScaling nrTopObs coreSupplement
      depVars observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let obsWithDist      = filterObs spatDistUnitScaling coreSupplement sett observations
-        kernelsPerDepVar = map (lookupUnsafe kernelDefinition) depVars
+        kernelsPerDepVar = getValues kernelDefinition
         weights = V.map
             (\obs -> ValuesPerDepVar $ zipWith
                 (\depVar kernelPerDepVar -> (depVar, getWeight kernelPerDepVar obs))
@@ -36,8 +36,8 @@ coreOutInterpolSamples :: Double -> DepVarVariances -> CoreSupplement -> [DepVar
 coreOutInterpolSamples spatDistUnitScaling depVarVariances coreSupplement
      depVars observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
     let obsWithDist        = filterObs spatDistUnitScaling coreSupplement sett observations
-        kernelsPerDepVar   = map (lookupUnsafe kernelDefinition) depVars
-        variancesPerDepVar = map (lookupUnsafe depVarVariances) depVars
+        kernelsPerDepVar   = getValues kernelDefinition
+        variancesPerDepVar = getValues depVarVariances
         samplesPerDepVar   = map (second drawSamples) randIterations
         drawSamples r      = ValuesPerDepVar $
             zipWith3 (getRandomSample obsWithDist r) depVars kernelsPerDepVar variancesPerDepVar
@@ -69,8 +69,8 @@ coreNormal :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [Dep
 coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
      depVars observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let obsWithDist        = filterObs spatDistUnitScaling coreSupplement sett observations
-        kernelsPerDepVar   = map (lookupUnsafe kernelDefinition) depVars
-        variancesPerDepVar = map (lookupUnsafe depVarVariances) depVars
+        kernelsPerDepVar   = getValues kernelDefinition
+        variancesPerDepVar = getValues depVarVariances
         searchPerDepVar    = case searchDepVarPos of
             Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
             Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)

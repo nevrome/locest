@@ -8,7 +8,6 @@ import           LocEst.CoreAlgorithms
 import           LocEst.Exceptions
 import           LocEst.MathUtils
 import           LocEst.Parsers
-import           LocEst.ReorderVars
 import           LocEst.Types
 
 import           Data.Conduit                  ((.|))
@@ -51,7 +50,7 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
 }
 
 data CoreSupplementSettings = CoreSupplementSettings {
-      _stcsDistFilterThresholds :: Maybe DistanceFilterThresholds
+      _stcsDistFilterThresholds :: Maybe DistanceThresholds
     , _stcsInSpatDistFile       :: Maybe FilePath
     , _stcsInObsTempSamplesFile :: Maybe FilePath
     , _stcsNoOrderCheck         :: Bool
@@ -71,7 +70,7 @@ runSearch (
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     -- read observations
-    !observations <- reorderVarsInObs depVars indepVars <$> readObservations inObsFile
+    !observations <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
     -- variance
     hPutStrLn stderr "Calculating total variances"
     let !variancesPerDepVar = calculateVariances depVars observations
@@ -181,22 +180,22 @@ readIndepVarsPredGrid
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     -- read arbitrary-dimension grid
     inArbitraryDimPosRaw <- readArbitraryDimPos inArbitraryDimGridFile
-    let inArbitraryDimPos = reorderVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
-    -- order distance filter tresholds
-    let distanceFilterThresholds = fmap (reorderDistanceFilterThresholds indepVarsWanted) distanceFilterThresholdsRaw
+    let inArbitraryDimPos = filterVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
+    -- filter distance filter tresholds
+    let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
     -- return grid
     return $ ArbitraryDimGrid inArbitraryDimPos distanceFilterThresholds
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
     -- reorder depVarsPos
-    let depVarsPosReordered = map (reorderAndFilter depVars) depVarsPos
+    let depVarsPosReordered = map (filterByKey depVars) depVarsPos
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPosReordered
 readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     -- read search observations
     obsVec <- readObservations path
-    let obsVecReordered = reorderVarsInObs depVars indepVars obsVec
+    let obsVecReordered = filterVarsInObs depVars indepVars obsVec
         searchObservations = V.toList obsVecReordered
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
