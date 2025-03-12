@@ -102,14 +102,6 @@ euclideanDistance list1 list2 =
   let squaredDifferences = zipWith (\x y -> (x - y) ** 2) list1 list2
   in sqrt $ sum squaredDifferences
 
-spatTempDistSpatTempPos :: SpatTempPos -> SpatTempPos -> SpatTempDist
-spatTempDistSpatTempPos p1 p2 =
-    SpatTempDist (spatialDistSpatTempPos p1 p2) (temporalDistSpatTempPos p1 p2)
-
-temporalDistSpatTempPos :: SpatTempPos -> SpatTempPos -> Double
-temporalDistSpatTempPos (SpatTempPos _ tempP1) (SpatTempPos _ tempP2) =
-    temporalDistTempPos tempP1 tempP2
-
 temporalDistTempPos :: TempPos -> TempPos -> Double
 temporalDistTempPos (TempPos t1) (TempPos t2) = temporalDistYearBCAD t1 t2
 
