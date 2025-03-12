@@ -49,6 +49,7 @@ library
     --  -fwrite-ide-info
     --  -hiedir=.hie
       -O2
+    --  "-ddump-simpl" show GHC core
 
 executable locest
     main-is:
