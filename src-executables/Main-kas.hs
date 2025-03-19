@@ -17,26 +17,28 @@ main = do
             , 3.7348048, 5.6415202, 1.3087586, 4.7733041, 4.0351114, 6.2180439
             , 2.3231876, 2.2225948
             ]
-        y = fromList [  0.6560150, -0.1904953,  0.7284932,  0.6543980, -0.4639319, -1.0816896
-            , -0.2914018, -0.8762713, -0.3765554,  0.7665486, -0.9453003, -0.4434826
-            , -0.9415059, -0.5509706,  0.9326286, -1.1088899, -0.7854040,  0.1428688
-            ,  0.6361191,  1.3020555
+        y = fromList [  0.3519458, -0.1028953,  0.8762995,  0.7377007, -0.3077417, -0.9717434
+            , -0.8770646, -1.0314244, -0.3977553,  0.1238465, -1.0063318, -0.5830154
+            , -0.1095557, -0.9017576,  1.2087323, -1.0144639, -0.6856355, -0.1837594
+            ,  0.7238106,  0.8185757
             ]
-        t = 3
+        t = 0.5
         xx = linspace 100 (0, 2*pi)
     
     let res = kernelAverageSmoothing x y t xx
     
-    putStrLn $ show res
+    print $ map (\(_,m,_) -> m) res
 
 -- calculate square of Euclidean norm
-sqEuclideanNorm :: Matrix R -> Matrix R -> R
+sqEuclideanNorm :: Vector R -> Vector R -> R
 sqEuclideanNorm a b = sumElements $ (a - b) ** 2
 
 -- calculate the distance matrix
 distanceMatrix :: Matrix R -> Matrix R -> Matrix R
 distanceMatrix m1 m2 =
-  matrix (cols m1) [ sqEuclideanNorm (m1 ? [i]) (m2 ? [j]) | i <- [0 .. (cols m1 - 1)], j <- [0 .. (cols m2 - 1)] ]
+  let n = rows m1 
+      m = rows m2
+  in reshape m . fromList $ [sqrt (sqEuclideanNorm (m1 ! i) (m2 ! j)) | i <- [0 .. (n-1)], j <- [0 .. (m-1)]]
 
 rowSums :: Matrix R -> Vector R
 rowSums m = vector $ map sumElements (toRows m)
@@ -48,15 +50,16 @@ vectorMean v = sumElements v / fromIntegral (size v)
 kernelAverageSmoothing :: Vector R -> Vector R -> Double -> Vector R -> [(Double, Double, Double)]
 kernelAverageSmoothing x y t xx = do
     zipWith3 queryDistribution (toList mu) (toList scale) (toList dof)
+    --error $ show weightedAvg
     where
       values = fromRows $ replicate (size xx) y
       dists = distanceMatrix (fromColumns [xx]) (fromColumns [x]) -- + scalar 0.01
-      weights = cmap (exp . negate) (dists / scalar t ^ 2)
+      weights = 1 / exp ((dists / scalar t) ** 2)
       totalWeight = rowSums weights
       weightedAvg = rowSums (values * weights) / totalWeight
-      weightedVarBasic = rowSums (weights * (values - asColumn weightedAvg) ^ 2) / (totalWeight - 1)
+      weightedVarBasic = rowSums (weights * (values - asColumn weightedAvg) ** 2) / (totalWeight - 1)
       scaledS2 = (totalWeight - 1) * weightedVarBasic
-      varSample = sumElements (cmap (\x-> (x - vectorMean y)^2) y) / (fromIntegral (size y) - 1)
+      varSample = sumElements (cmap (\x-> (x - vectorMean y) ** 2) y) / (fromIntegral (size y) - 1)
       weightedVar = cmap (+ varSample) scaledS2 / (1 + totalWeight)
       mu = weightedAvg
       scale = sqrt $ (1 + 1 / totalWeight) * weightedVar
