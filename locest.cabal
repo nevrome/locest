@@ -73,6 +73,23 @@ executable locest
       -rtsopts
       "-with-rtsopts=-N"
 
+executable kas
+    main-is:
+      Main-kas.hs
+    hs-source-dirs:
+      src-executables
+    build-depends:
+        base
+      , locest
+      , hmatrix
+      , statistics
+    other-modules:
+      Paths_locest
+    default-language:
+      Haskell2010
+    ghc-options:
+      -O2
+
 test-suite spec
     hs-source-dirs:
       tests
