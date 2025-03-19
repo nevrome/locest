@@ -27,13 +27,25 @@ vario %>%
 # stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
 # profiteur locest.prof
 
-system('time locest cross --configFile code/spatiotemporal/cross.conf')
+system('time locest cross --configFile code/spatiotemporal/cross.conf +RTS -N3 -RTS')
 
-readr::read_tsv("data/spatiotemporal/cross.tsv") %>% View()
+cross <- readr::read_tsv("data/spatiotemporal/cross.tsv")
+
+cross %>%
+  ggplot() +
+  geom_raster(aes(x = kernel_space_length, y = kernel_time_length, fill = sum_log_likelihood)) +
+  facet_grid(
+    rows = dplyr::vars(depVar)
+  ) +
+  scale_fill_viridis_c()
 
 # system('time locest serialise --obsFile data/spatiotemporal/obs.tsv --outFile data/spatiotemporal/obs.cbor')
 
 # normal search test
+# stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -p
+# profiteur locest.prof
+# stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy
+# hp2ps -c locest.hp
 system('time locest search --configFile code/spatiotemporal/basic.conf')
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")

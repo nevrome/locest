@@ -3,7 +3,6 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE StrictData             #-}
-{-# LANGUAGE TupleSections          #-}
 
 module LocEst.Types where
 
@@ -16,7 +15,7 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (sortBy)
+import           Data.List             (find, sortBy)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
@@ -31,7 +30,7 @@ class PseudoMap a b | a -> b where
     getValues :: a -> [b]
     lookupUnsafe :: a -> String -> b
     allSameVars :: [a] -> Bool
-    reorderAndFilter :: [String] -> a -> a
+    filterByKey :: [String] -> a -> a
 
 -- a typeclass for data types with ids
 class Identifiable a where
@@ -40,12 +39,37 @@ class Identifiable a where
     setIndex :: a -> Int -> a
 
 -- general helper functions
-reorderAndFilterList :: Eq a => [String] -> [(String,a)] -> [(String,a)]
-reorderAndFilterList keys m = [ maybe (throwL $ "Failed lookup. Missing key: " ++ k) (k,) $ lookup k m | k <- keys ]
-
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
+
+-- filter variables
+filterByKeyList :: Eq a => [String] -> [(String,a)] -> [(String,a)]
+filterByKeyList keys = filter (\(k,_) -> k `elem` keys)
+
+filterDistanceThresholds :: [String] -> DistanceThresholds -> DistanceThresholds
+filterDistanceThresholds _ f@(SpaceTimeFilterThresholds _ _) = f
+filterDistanceThresholds indepVarsWanted (ArbitraryDimFilterThresholds minFilter maxFilter) =
+    ArbitraryDimFilterThresholds
+        (fmap (filterByKey indepVarsWanted) minFilter)
+        (fmap (filterByKey indepVarsWanted) maxFilter)
+
+filterVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
+filterVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
+    where
+        handleOne :: Observation -> Observation
+        -- spatiotemporal case
+        handleOne o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs) _) =
+            let depRes = filterByKey depVarsWanted depInObs
+            in o { _obsPos = HyperPos std depRes }
+        -- arbitrary dimension case
+        handleOne o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs) _) =
+            let depRes   = filterByKey depVarsWanted depInObs
+                indepRes = filterByKey indepVarsWanted indepInObs
+            in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
+
+filterVarsInArbitraryPos :: [String] -> V.Vector ValuesPerIndepVar -> V.Vector ValuesPerIndepVar
+filterVarsInArbitraryPos indepVarsWanted = V.map (filterByKey indepVarsWanted)
 
 -- helper functions for cassava
 
@@ -202,7 +226,7 @@ instance PseudoMap MatrixPerIndepVar SUDistMatrix where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter k (MatrixPerIndepVar l) = MatrixPerIndepVar (reorderAndFilterList k l)
+    filterByKey k (MatrixPerIndepVar l) = MatrixPerIndepVar (filterByKeyList k l)
 
 -- | A data type for an asymmetric, unidirectional distance matrix
 -- this matrix has m*n different entries and a rectangular shape
@@ -318,24 +342,24 @@ data IndepVarsPredGrid =
     SpaceTimeGrid {
       _stGridSpatPos              :: V.Vector SpatPos
     , _stGridTempPos              :: [AbsRelTempPos]
-    , _stGridDistFilterThresholds :: Maybe DistanceFilterThresholds
+    , _stGridDistFilterThresholds :: Maybe DistanceThresholds
     , _stGridSpatDist             :: Maybe SpatDistMatrix
     , _stGridTempSamples          :: Maybe TempSampleMatrix
     } |
     ArbitraryDimGrid {
       _adGridPos                 :: V.Vector ArbitraryDimPos
-    , _adGriDistFilterThresholds :: Maybe DistanceFilterThresholds
+    , _adGriDistFilterThresholds :: Maybe DistanceThresholds
     }
 
 -- | A data type for supplementary information used in the core algorithm
 data CoreSupplement = CoreSupplement {
-      _csDistFilterThresholds :: Maybe DistanceFilterThresholds
+      _csDistFilterThresholds :: Maybe DistanceThresholds
     , _csSpatDist             :: Maybe SpatDistMatrix
     , _csTempSamp             :: Maybe TempSampleMatrix
 }
 
 -- | A data type for distance filter thresholds
-data DistanceFilterThresholds = SpaceTimeFilterThresholds {
+data DistanceThresholds = SpaceTimeFilterThresholds {
       _stftMinFilter :: Maybe (Double, Double)
     , _stftMaxFilter :: Maybe (Double, Double)
 } | ArbitraryDimFilterThresholds {
@@ -409,7 +433,7 @@ makeKernelDefinition :: [KernelOneDepVar] -> KernelDefinition
 makeKernelDefinition []       = throwL "No kernel settings provided"
 makeKernelDefinition kerndefs =
     if allSameVars $ map _kodvLengths kerndefs
-    then KernelDefinition kerndefs
+    then KernelDefinition $ sortBy (\k1 k2 -> compare (_kodvDepVarName k1) (_kodvDepVarName k2)) kerndefs
     else throwL "Different independent variables across dependent variables in --kerndef"
 
 instance NFData KernelDefinition
@@ -435,16 +459,14 @@ instance PseudoMap KernelDefinition KernelOneDepVar where
     toList m = zip (getKeys m) (getValues m)
     getKeys   (KernelDefinition l) = map _kodvDepVarName l
     getValues (KernelDefinition l) = l
-    lookupUnsafe kernDef@(KernelDefinition _) k =
-        let kernList = zip (getKeys kernDef) (getValues kernDef)
-        in case lookup k kernList of
+    lookupUnsafe (KernelDefinition l) k =
+        case find (\x -> k == _kodvDepVarName x) l of
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map (\(KernelDefinition l) -> l) xs
-    reorderAndFilter k kernDef@(KernelDefinition _) =
+    filterByKey k kernDef@(KernelDefinition _) =
         let kernList = zip (getKeys kernDef) (getValues kernDef)
-            reorderdAndFiltered = reorderAndFilterList k kernList
-        in KernelDefinition $ map snd reorderdAndFiltered
+        in makeKernelDefinition $ map snd $ filterByKeyList k kernList
 
 -- | A data type for a component of a kernel definition for one depvar
 data KernelOneDepVar = KernelOneDepVar {
@@ -493,7 +515,7 @@ instance PseudoMap KernelLengths Double where
     getValues (KernelLengths arbitraryDimLengths) = getValues arbitraryDimLengths
     lookupUnsafe (KernelLengths arbitraryDimLengths) = lookupUnsafe arbitraryDimLengths
     allSameVars xs = allSameVars $ map (\(KernelLengths x) -> x) xs
-    reorderAndFilter k (KernelLengths arbitraryDimLengths) = KernelLengths (reorderAndFilter k arbitraryDimLengths)
+    filterByKey k (KernelLengths arbitraryDimLengths) = KernelLengths (filterByKey k arbitraryDimLengths)
 
 -- | A data type for kernel shapes
 data KernelShape =
@@ -513,12 +535,18 @@ makeKernelShape "SqEx"   = pure SquaredExponential
 makeKernelShape "Linear" = pure Linear
 makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
+type SquaredWeightedDist = Double
+
+computeWeight :: KernelShape -> SquaredWeightedDist -> Double
+computeWeight SquaredExponential d = 1 / exp d
+computeWeight Linear             d = 1 / (1 + sqrt d)
+
 -- | A data type for a observation with a distance and weight in relation to a point of interest
 data ObsWithWeights = ObsWithWeights {
       _owdObservation      :: Observation
     , _owdSpatTempDist     :: IndepVarsDist
     , _owdPerDepVarWeights :: DepVarsWeights
-} deriving (Generic)
+} deriving (Eq, Generic)
 
 instance NFData ObsWithWeights
 instance Csv.DefaultOrdered ObsWithWeights where
@@ -527,10 +555,13 @@ instance Csv.DefaultOrdered ObsWithWeights where
 instance Csv.ToRecord ObsWithWeights where
     toRecord (ObsWithWeights obs dists depVarWeights) =
         Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
+instance Ord ObsWithWeights where
+    compare (ObsWithWeights _ _ (ValuesPerDepVar x1)) (ObsWithWeights _ _ (ValuesPerDepVar x2)) =
+        compare (foldSum (map snd x1)) (foldSum (map snd x2))
 
 -- | A data type for a per-dimension distances in independent variable space
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimDists
-    deriving (Generic)
+    deriving (Eq, Generic)
 
 instance NFData IndepVarsDist
 instance Csv.DefaultOrdered IndepVarsDist where
@@ -551,6 +582,9 @@ data Observation = Observation {
     , _obsPos   :: HyperPos
     , _obsOther :: CsvNamedRecord
 } deriving (Show, Generic, Eq)
+
+getDepVarsPos :: DepVarName -> Observation -> Double
+getDepVarsPos depVar (Observation _ _ (HyperPos _ depVarsPos) _) = lookupUnsafe depVarsPos depVar
 
 instance S.Serialise Observation
 instance NFData Observation
@@ -638,21 +672,26 @@ data InterpolationResultOneDepVar =
 instance NFData InterpolationResultOneDepVar
 instance Csv.DefaultOrdered InterpolationResultOneDepVar where
     headerOrder (InterpolationResultOneDepVarShort n _ _ _ ) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["low", "median", "up"]
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
+            ["low", "median", "up"]
     headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ _ Nothing) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "var_prior", "post", "low", "median", "up"]
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
+            ["neff", "avg", "var", "var_prior", "post", "low", "median", "up"]
     headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ _ (Just _)) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x) ["neff", "avg", "var", "var_prior", "post", "low", "median", "up", "logl"]
+        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
+            ["neff", "avg", "var", "var_prior", "post", "low", "median", "up", "logl"]
 instance Csv.ToRecord InterpolationResultOneDepVar where
     toRecord (InterpolationResultOneDepVarShort _ lb m ub) =
         Csv.record [ Csv.toField lb, Csv.toField m, Csv.toField ub ]
     toRecord (InterpolationResultOneDepVarFull _ neff a v vp po lb m ub Nothing) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po,
+            Csv.toField lb, Csv.toField m, Csv.toField ub
         ]
     toRecord (InterpolationResultOneDepVarFull _ neff a v vp po lb m ub (Just l)) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po, Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField l
+            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po,
+            Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField l
         ]
 
 resOneDepvar2Short :: InterpolationResultOneDepVar -> InterpolationResultOneDepVar
@@ -694,14 +733,16 @@ type DepVarVariances = ValuesPerDepVar
 newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
     deriving (Eq, Show, Generic)
 
+makeValuesPerDepVar :: [(DepVarName, Double)] -> ValuesPerDepVar
+makeValuesPerDepVar xs = ValuesPerDepVar $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
+
 instance S.Serialise ValuesPerDepVar
 instance NFData ValuesPerDepVar
 instance Csv.FromNamedRecord ValuesPerDepVar where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "dep" k) m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
-            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
-        pure $ ValuesPerDepVar sortedList
+        pure $ makeValuesPerDepVar $ HM.toList extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerDepVar where
     headerOrder (ValuesPerDepVar l) =
         V.map Bchs.pack $ V.fromList $ map fst l
@@ -717,7 +758,7 @@ instance PseudoMap ValuesPerDepVar Double where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter k (ValuesPerDepVar l) = ValuesPerDepVar (reorderAndFilterList k l)
+    filterByKey k (ValuesPerDepVar l) = ValuesPerDepVar (filterByKeyList k l)
 
 -- | A data type for independent vars with some value
 type IndepVarsThresholds = ValuesPerIndepVar
@@ -728,14 +769,16 @@ type ArbitraryDimLengths = ValuesPerIndepVar
 newtype ValuesPerIndepVar = ValuesPerIndepVar [(IndepVarName, Double)]
     deriving (Eq, Show, Ord, Generic)
 
+makeValuesPerIndepVar :: [(DepVarName, Double)] -> ValuesPerIndepVar
+makeValuesPerIndepVar xs = ValuesPerIndepVar $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
+
 instance S.Serialise ValuesPerIndepVar
 instance NFData ValuesPerIndepVar
 instance Csv.FromNamedRecord ValuesPerIndepVar where
     parseNamedRecord m = do
         let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k) m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
-            sortedList = sortBy (\(k1,_) (k2,_) -> compare k1 k2) $ HM.toList extractedVarsStringDouble
-        pure $ ValuesPerIndepVar sortedList
+        pure $ makeValuesPerIndepVar $ HM.toList extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerIndepVar where
     headerOrder (ValuesPerIndepVar l) =
         V.map Bchs.pack $ V.fromList $ map fst l
@@ -751,9 +794,10 @@ instance PseudoMap ValuesPerIndepVar Double where
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    reorderAndFilter k (ValuesPerIndepVar l) = ValuesPerIndepVar (reorderAndFilterList k l)
+    filterByKey k (ValuesPerIndepVar l) = ValuesPerIndepVar (filterByKeyList k l)
 
--- A data type for positions independent variable space, so here either a spatiotemporal or an arbitrary space
+-- A data type for positions independent variable space, so here either a spatiotemporal
+-- or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos
     deriving (Eq, Show, Generic)
 
@@ -773,7 +817,7 @@ instance Csv.ToRecord IndepVarsPos where
 data SpatTempDist = SpatTempDist {
       _spatDist :: Double
     , _tempDist :: Double
-} deriving Generic
+} deriving (Eq, Generic)
 
 instance NFData SpatTempDist
 instance Csv.DefaultOrdered SpatTempDist where
@@ -914,7 +958,11 @@ instance S.Serialise LongLatPos
 instance NFData LongLatPos
 instance Csv.FromNamedRecord LongLatPos where
     parseNamedRecord m =
-        LongLatPos <$> pure 0 <*> filterLookupOptional m "spatID" <*> filterLookup m "longitude" <*> filterLookup m "latitude"
+        LongLatPos
+        <$> pure 0
+        <*> filterLookupOptional m "spatID"
+        <*> filterLookup m "longitude"
+        <*> filterLookup m "latitude"
 instance Csv.DefaultOrdered LongLatPos where
     headerOrder (LongLatPos _ Nothing _ _)  = Csv.header ["longitude", "latitude"]
     headerOrder (LongLatPos _ (Just _) _ _) = Csv.header ["spatID", "longitude", "latitude"]

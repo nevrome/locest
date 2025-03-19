@@ -49,7 +49,7 @@ parseConfigFile toIgnore configFile = do
         argumentName <- P.manyTill (P.noneOf "\n") (P.lookAhead (P.char ':'))
         _ <- P.char ':'
         _ <- P.spaces
-        argumentValue <- P.manyTill (P.noneOf ";") (P.lookAhead (P.char ';'))
+        argumentValue <- P.manyTill ((P.try parseComment >> return ' ') P.<|> P.anyChar) (P.lookAhead (P.char ';'))
         _ <- P.char ';'
         _ <- P.try parseComment P.<|> parseEmptyLine
         if dash argumentName `elem` toIgnore
@@ -551,19 +551,19 @@ optParseIndepVarsPredGridSettings =
 optParseCoreSupplementSettings :: OP.Parser CoreSupplementSettings
 optParseCoreSupplementSettings =
     CoreSupplementSettings
-        <$> optParseDistanceFilterThresholds
+        <$> optParseDistanceThresholds
         <*> OP.optional optParseInSpatDistMapFile
         <*> OP.optional optParseInObsTempSamplesFile
         <*> optParseInSpatDistNoOrderCheck
 
-optParseDistanceFilterThresholds :: OP.Parser (Maybe DistanceFilterThresholds)
-optParseDistanceFilterThresholds = do
+optParseDistanceThresholds :: OP.Parser (Maybe DistanceThresholds)
+optParseDistanceThresholds = do
     OP.liftA2 buildThresholds optParseIndepMinFilter optParseIndepMaxFilter
     where
         buildThresholds ::
                Maybe (Either (Double, Double) ArbitraryDimThresholds)
             -> Maybe (Either (Double, Double) ArbitraryDimThresholds)
-            -> Maybe DistanceFilterThresholds
+            -> Maybe DistanceThresholds
         buildThresholds Nothing Nothing = Nothing
         buildThresholds (Just minF) Nothing =
             case minF of

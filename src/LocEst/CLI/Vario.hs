@@ -237,12 +237,12 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
         distSpaceTime
             spaceVec timeVec
             (i,
-            (Observation i1 _ (HyperPos (IndepSpatTempPos p1) _) _,
-            Observation i2 _ (HyperPos (IndepSpatTempPos p2) _) _)
+            (Observation i1 _ (HyperPos (IndepSpatTempPos (SpatTempPos s1 t1)) _) _,
+             Observation i2 _ (HyperPos (IndepSpatTempPos (SpatTempPos s2 t2)) _) _)
             ) = do
-            let timeDist  = temporalDistSpatTempPos p1 p2
+            let timeDist  = temporalDistTempPos t1 t2
                 spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatTempPos p1 p2
+                    Nothing             -> spatialDistSpatPos s1 s2
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
                 spaceDistScaled = spaceDist * spatDistUnitScaling
             -- write distances to mutable vector
@@ -253,12 +253,12 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
         distSpaceTimeMerged
             distVec
             (i,
-            (Observation i1 _ (HyperPos (IndepSpatTempPos p1) _) _,
-            Observation i2 _ (HyperPos (IndepSpatTempPos p2) _) _)
+            (Observation i1 _ (HyperPos (IndepSpatTempPos (SpatTempPos s1 t1)) _) _,
+             Observation i2 _ (HyperPos (IndepSpatTempPos (SpatTempPos s2 t2)) _) _)
             ) = do
-            let timeDist  = temporalDistSpatTempPos p1 p2
+            let timeDist  = temporalDistTempPos t1 t2
                 spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatTempPos p1 p2
+                    Nothing             -> spatialDistSpatPos s1 s2
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
                 spaceDistScaled = spaceDist * spatDistUnitScaling
                 mergedDist = sqrt (((spaceDistScaled * spaceScaling) ** 2) + ((timeDist * timeScaling) ** 2))
@@ -269,7 +269,7 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             arbitraryVecs
             (i,
             (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _) _,
-            Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _) _)
+             Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _) _)
             ) = do
             -- this assumes that p1 and p2 have the same order of indep variables
             let arbitraryDists = allDistances (getValues p1) (getValues p2)
@@ -280,7 +280,7 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             distVec
             (i,
             (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _) _,
-            Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _) _)
+             Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _) _)
             ) = do
             -- this assumes that p1 and p2 have the same order of indep variables
             let arbitraryDistEuclidean = euclideanDistance (getValues p1) (getValues p2)

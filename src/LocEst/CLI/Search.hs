@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module LocEst.CLI.Search where
@@ -7,7 +8,6 @@ import           LocEst.CoreAlgorithms
 import           LocEst.Exceptions
 import           LocEst.MathUtils
 import           LocEst.Parsers
-import           LocEst.ReorderVars
 import           LocEst.Types
 
 import           Data.Conduit                  ((.|))
@@ -50,7 +50,7 @@ data IndepVarsPredGridSettings = SpaceTimeGridSettings {
 }
 
 data CoreSupplementSettings = CoreSupplementSettings {
-      _stcsDistFilterThresholds :: Maybe DistanceFilterThresholds
+      _stcsDistFilterThresholds :: Maybe DistanceThresholds
     , _stcsInSpatDistFile       :: Maybe FilePath
     , _stcsInObsTempSamplesFile :: Maybe FilePath
     , _stcsNoOrderCheck         :: Bool
@@ -70,19 +70,18 @@ runSearch (
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     -- read observations
-    observationsRaw <- readObservations inObsFile
-    let observations = reorderVarsInObs depVars indepVars observationsRaw
+    !observations <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
     -- variance
     hPutStrLn stderr "Calculating total variances"
-    let variancesPerDepVar = calculateVariances depVars observations
+    let !variancesPerDepVar = calculateVariances depVars observations
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
-    indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
-    depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
+    !indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
+    !depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
     let supplement = createCoreSupplement indepVarsPredGrid
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
-    let permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
+    let !permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
         numPerms = length permutations
     -- run analysis pipeline
     hPutStrLn stderr "Running analysis"
@@ -90,7 +89,7 @@ runSearch (
         CoreOutObsWeight nrTopObs -> do
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                .| ConC.conduitVector 1000
+                .| ConC.conduitVector 100
                 .| ConAA.asyncMapC numThreads (V.map (coreOutObsWeight spatDistUnitScaling nrTopObs supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
@@ -114,27 +113,19 @@ runSearch (
                  return (p, rss)
             Con.runConduitRes $
                 ConC.yieldMany randomIts
-                .| ConC.conduitVector 1000
+                .| ConC.conduitVector 100
                 .| ConAA.asyncMapC numThreads (V.map (coreOutInterpolSamples spatDistUnitScaling variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
-        CoreOutShort -> do
+        otherNormalMode -> do -- CoreOutShort or CoreOutFull
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling CoreOutShort variancesPerDepVar supplement depVars observations))
-                .| ConC.concat
-                .| progress 1000 (Just numPerms)
-                .| normalise normalisation
-                .| sinkNamedCSV outFile
-        CoreOutFull -> do
-            Con.runConduitRes $
-                ConC.yieldMany permutations
-                -- .| ConAA.asyncMapC numThreads (coreNormal CoreOutFull variancesPerDepVar supplement observations)
-                .| ConC.conduitVector 1000
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling CoreOutFull variancesPerDepVar supplement depVars observations))
+                -- non-chunked solution
+                -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations)
+                .| ConC.conduitVector 100
+                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| normalise normalisation
@@ -189,22 +180,22 @@ readIndepVarsPredGrid
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     -- read arbitrary-dimension grid
     inArbitraryDimPosRaw <- readArbitraryDimPos inArbitraryDimGridFile
-    let inArbitraryDimPos = reorderVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
-    -- order distance filter tresholds
-    let distanceFilterThresholds = fmap (reorderDistanceFilterThresholds indepVarsWanted) distanceFilterThresholdsRaw
+    let inArbitraryDimPos = filterVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
+    -- filter distance filter tresholds
+    let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
     -- return grid
     return $ ArbitraryDimGrid inArbitraryDimPos distanceFilterThresholds
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
     -- reorder depVarsPos
-    let depVarsPosReordered = map (reorderAndFilter depVars) depVarsPos
+    let depVarsPosReordered = map (filterByKey depVars) depVarsPos
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPosReordered
 readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     -- read search observations
     obsVec <- readObservations path
-    let obsVecReordered = reorderVarsInObs depVars indepVars obsVec
+    let obsVecReordered = filterVarsInObs depVars indepVars obsVec
         searchObservations = V.toList obsVecReordered
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
@@ -224,8 +215,8 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempS
     let tempPos = case absRelTempPos of
             AbsTempPos x -> x
             RelTempPos x -> case depPos of
-                    (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
-                    _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
+                (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
+                _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
     spatPos <- V.toList inSpatGrid
     return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
 -- spatiotemporal, no search
@@ -235,7 +226,7 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempS
     let tempPos = case absRelTempPos of
             AbsTempPos x -> x
             RelTempPos _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
-    spatPos  <- V.toList inSpatGrid
+    spatPos <- V.toList inSpatGrid
     return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
 -- arbitrary dims, search
 createPermutations kernelDef (ArbitraryDimGrid gridPos _) (Just (DepVarsPredGrid depVarPos)) =

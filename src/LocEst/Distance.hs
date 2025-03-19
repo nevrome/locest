@@ -1,6 +1,98 @@
 module LocEst.Distance where
 
+import           LocEst.Exceptions
 import           LocEst.Types
+
+import qualified Data.Vector       as V
+
+filterObs ::
+       Double
+    -> CoreSupplement
+    -> CorePermutation
+    -> V.Vector Observation
+    -> (V.Vector Observation, V.Vector IndepVarsDist)
+filterObs
+    spatDistUnitScaling
+    (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples)
+    sett = V.unzip . V.mapMaybe handleOne
+    where
+        handleOne :: Observation -> Maybe (Observation, IndepVarsDist)
+        handleOne obs =
+            let dist = getDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett obs
+            in if inFilterRange distanceFilterThresholds dist
+               then Just (obs,dist)
+               else Nothing
+
+getDist ::
+       Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix
+    -> CorePermutation
+    -> Observation
+    -> IndepVarsDist
+-- spatiotemporal distances
+getDist
+    spatDistUnitScaling maybeSpatDistMap maybeTempSamples
+    (CorePermutation (IndepSpatTempPos (SpatTempPos gridSpatPos gridTempPos)) _ _ tempSampIteration _)
+    (Observation obsIndex _ (HyperPos (IndepSpatTempPos (SpatTempPos obsSpatPos obsTempPos)) _) _) =
+        let spatDist = findSpatDist maybeSpatDistMap
+            spaceDistScaled = spatDist * spatDistUnitScaling
+            tempDist = findTempDist maybeTempSamples
+        in IndepSpatTempDist (SpatTempDist spaceDistScaled tempDist)
+        where
+            -- temporal distances
+            findTempDist :: Maybe TempSampleMatrix -> Double
+            -- calculate distances from mean ages
+            findTempDist Nothing = temporalDistTempPos gridTempPos obsTempPos
+            -- look up age samples and calculate distances from them
+            findTempDist (Just tempSampleMatrix) =
+                let (TempPos gridPointAge) = gridTempPos
+                    obsAgeSample = lookUpTempSample tempSampleMatrix tempSampIteration obsIndex
+                in temporalDistYearBCAD gridPointAge obsAgeSample
+            -- spatial distances
+            findSpatDist :: Maybe SpatDistMatrix -> Double
+            -- calculate distances
+            findSpatDist Nothing = spatialDistSpatPos gridSpatPos obsSpatPos
+            -- look up distances
+            findSpatDist (Just spatDistMatrix) =
+                let gridSpatPosIndex = getIndex gridSpatPos
+                in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
+-- arbitrary dim distances
+getDist
+    _ _ _
+    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
+    (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _) =
+        let keys = getKeys obsArbitraryDimPos
+            obsPos  = getValues obsArbitraryDimPos
+            gridPos = getValues gridAbritryDimPos
+            arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
+        in IndepArbitraryDimDist arbitraryDimDist
+-- wrong input
+getDist _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
+
+inFilterRange :: Maybe DistanceThresholds -> IndepVarsDist -> Bool
+inFilterRange Nothing _ = True
+inFilterRange
+    (Just (SpaceTimeFilterThresholds minFilter maxFilter))
+    (IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
+    let minDecision = case minFilter of
+            Nothing -> True
+            Just (spaceMinFilter, timeMinFilter) -> spatDistsKM >= spaceMinFilter && tempDist >= timeMinFilter
+        maxDecision = case maxFilter of
+            Nothing -> True
+            Just (spaceMaxFilter, timeMaxFilter) -> spatDistsKM <= spaceMaxFilter && tempDist <= timeMaxFilter
+    in minDecision && maxDecision
+inFilterRange
+    (Just (ArbitraryDimFilterThresholds minFilter maxFilter))
+    (IndepArbitraryDimDist (ValuesPerIndepVar dists)) =
+    let minDecision = case minFilter of
+            Nothing -> True
+            Just (ValuesPerIndepVar minThresholds) -> all (\((_,x), (_,y)) -> x >= y) $ zip dists minThresholds
+        maxDecision = case maxFilter of
+            Nothing -> True
+            Just (ValuesPerIndepVar maxThresholds) -> all (\((_,x), (_,y)) -> x <= y) $ zip dists maxThresholds
+    in minDecision && maxDecision
+inFilterRange _ _ = True
+
+-- distance helper functions
 
 allDistances :: [Double] -> [Double] -> [Double]
 allDistances = zipWith (\x y -> abs (x - y))
@@ -9,14 +101,6 @@ euclideanDistance :: [Double] -> [Double] -> Double
 euclideanDistance list1 list2 =
   let squaredDifferences = zipWith (\x y -> (x - y) ** 2) list1 list2
   in sqrt $ sum squaredDifferences
-
-spatTempDistSpatTempPos :: SpatTempPos -> SpatTempPos -> SpatTempDist
-spatTempDistSpatTempPos p1 p2 =
-    SpatTempDist (spatialDistSpatTempPos p1 p2) (temporalDistSpatTempPos p1 p2)
-
-temporalDistSpatTempPos :: SpatTempPos -> SpatTempPos -> Double
-temporalDistSpatTempPos (SpatTempPos _ tempP1) (SpatTempPos _ tempP2) =
-    temporalDistTempPos tempP1 tempP2
 
 temporalDistTempPos :: TempPos -> TempPos -> Double
 temporalDistTempPos (TempPos t1) (TempPos t2) = temporalDistYearBCAD t1 t2
