@@ -368,6 +368,17 @@ data DistanceThresholds = SpaceTimeFilterThresholds {
     , _adftMaxFilter :: Maybe ArbitraryDimThresholds
 }
 
+data CorePermutation2 = CorePermutation2 {
+      _cas2IndepVarsPos          :: IndepVarsPos
+    , _cas2SearchObs             :: Maybe DepVarsPredPos
+    , _cas2TempSamplingIteration :: Int
+    , _cas2CrossIteration        :: Int
+    , _cas2DepVarName            :: DepVarName
+    , _cas2KernOneDepVar         :: KernelOneDepVar
+    , _cas2yOneDepVar            :: M.Vector M.R
+    , _cas2VarOneDepVar          :: Double
+} deriving (Show, Generic)
+
 -- | A data type with core-algorithm settings (for one run of the core algorithm)
 data CorePermutation = CorePermutation {
       _casIndepVarsPos          :: IndepVarsPos

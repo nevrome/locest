@@ -63,18 +63,18 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
         Left _             -> (depVar,nan)
 
 
-coreNormal2 :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName] -> [ M.Vector M.R]
-              -> V.Vector Observation -> [CorePermutation] -> [SearchResult]
-coreNormal2 spatDistUnitScaling outMode depVarVariances (CoreSupplement _ maybeSpatDistMap maybeTempSamples) depVars yPerDepVar observations permutations =
-         let indepVarsPosGrid  = V.fromList $ map _casIndepVarsPos permutations
-             tempSampIteration = head $ map _casTempSamplingIteration permutations
-             kernelsPerDepVar  = getValues $ head $ map _casKernelDefinition permutations
-             searchPerDepVar   = case head $ map _casSearchObs permutations of
+coreNormal2 :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [SearchResult]
+coreNormal2 spatDistUnitScaling outMode depVarVariances (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
+         let indepVarsPosGrid  = V.fromList $ map _cas2IndepVarsPos permutations
+             tempSampIteration = head $ map _cas2TempSamplingIteration permutations
+             kernel = getValues $ head $ map _cas2KernOneDepVar permutations
+             y = head $ map _cas2yOneDepVar permutations
+             searchPerDepVar   = case head $ map _cas2SearchObs permutations of
                     Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
                     Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
                     Nothing                          -> replicate (length depVars) Nothing
              dists = pairwiseDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration observations indepVarsPosGrid
-             res = zipWith3 (\y k s -> kas dists y k s) yPerDepVar kernelsPerDepVar searchPerDepVar
+             res = kas dists y kernel searchPerDepVar
          in undefined
 
 -- interpolation and search application
