@@ -15,11 +15,12 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (find, sortBy)
+import           Data.List             (find, sortBy, transpose)
 import           Data.Maybe            (catMaybes)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
+import qualified Numeric.LinearAlgebra as M
 
 -- typeclasses
 
@@ -582,6 +583,9 @@ data Observation = Observation {
     , _obsPos   :: HyperPos
     , _obsOther :: CsvNamedRecord
 } deriving (Show, Generic, Eq)
+
+extractDepVars :: [DepVarName] -> V.Vector Observation -> [(DepVarName, M.Vector M.R)]
+extractDepVars depVars obs = map (\v -> (v, M.fromList $ V.toList $ V.map (getDepVarsPos v) obs)) depVars
 
 getDepVarsPos :: DepVarName -> Observation -> Double
 getDepVarsPos depVar (Observation _ _ (HyperPos _ depVarsPos) _) = lookupUnsafe depVarsPos depVar

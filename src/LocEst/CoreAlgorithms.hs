@@ -11,6 +11,7 @@ import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (logDensity, quantile)
+import qualified Numeric.LinearAlgebra as M
 
 -- weights-per-obs application
 coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
@@ -60,6 +61,17 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
     case posteriorPredictive_ totalWeight weightedA weightedV of
         Right distribution -> (depVar, quantile distribution random01)
         Left _             -> (depVar,nan)
+
+
+coreNormal2 :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName] -> [(DepVarName, M.Vector M.R)]
+              -> V.Vector Observation -> [CorePermutation] -> [SearchResult]
+coreNormal2 spatDistUnitScaling outMode depVarVariances (CoreSupplement _ maybeSpatDistMap maybeTempSamples) depVars yPerDepVar observations permutations =
+         let indepVarsPosGrid = V.fromList $ map _casIndepVarsPos permutations
+             tempSampIteration = head $ map _casTempSamplingIteration permutations
+             kernelsPerDepVar = getValues $ head $ map _casKernelDefinition permutations
+             dists = pairwiseDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration observations indepVarsPosGrid
+             res = zipWith (\y -> kas dists y) yPerDepVar kernelsPerDepVar
+         in undefined
 
 -- interpolation and search application
 coreNormal :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName]

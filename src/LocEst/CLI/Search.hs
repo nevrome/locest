@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module LocEst.CLI.Search where
@@ -21,6 +20,7 @@ import qualified Data.Vector.Unboxed           as VU
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random.Stateful        as R
+import LocEst.Distance
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile  :: FilePath
@@ -70,18 +70,19 @@ runSearch (
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     -- read observations
-    !observations <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
-    -- variance
+    observations <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
+    -- dependent variables
+    let yPerDepVar = extractDepVars depVars observations
     hPutStrLn stderr "Calculating total variances"
-    let !variancesPerDepVar = calculateVariances depVars observations
+    let variancesPerDepVar = calculateVariances depVars observations
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
-    !indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
-    !depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
+    indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
+    depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
     let supplement = createCoreSupplement indepVarsPredGrid
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
-    let !permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
+    let permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
         numPerms = length permutations
     -- run analysis pipeline
     hPutStrLn stderr "Running analysis"
@@ -119,18 +120,34 @@ runSearch (
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
+        --otherNormalMode -> do -- CoreOutShort or CoreOutFull
+        --    Con.runConduitRes $
+        --        ConC.yieldMany permutations
+                -- non-chunked solution
+                -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations)
+        --        .| ConC.conduitVector 100
+        --        .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations))
+        --        .| ConC.concat
+        --        .| progress 1000 (Just numPerms)
+        --        .| normalise normalisation
+        --        .| sinkNamedCSV outFile
         otherNormalMode -> do -- CoreOutShort or CoreOutFull
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                -- non-chunked solution
-                -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations)
-                .| ConC.conduitVector 100
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations))
+                .| ConL.groupBy groupingCriteria
+                .| ConC.map (coreNormal2 spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars yPerDepVar observations)
                 .| ConC.concat
+                -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations)
                 .| progress 1000 (Just numPerms)
                 .| normalise normalisation
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
+        where
+            groupingCriteria :: CorePermutation -> CorePermutation -> Bool
+            groupingCriteria
+                (CorePermutation _ _ alg1 tri1 cross1)
+                (CorePermutation _ _ alg2 tri2 cross2) =
+                    alg1 == alg2 && tri1 == tri2 && cross1 == cross2
 
 calculateVariances :: [DepVarName] -> V.Vector Observation -> DepVarVariances
 calculateVariances depVars obs =

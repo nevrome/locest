@@ -2,8 +2,61 @@ module LocEst.Distance where
 
 import           LocEst.Exceptions
 import           LocEst.Types
+import Numeric.LinearAlgebra as M
 
 import qualified Data.Vector       as V
+
+pairwiseDists :: Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> Int -> V.Vector Observation -> V.Vector IndepVarsPos -> M.Matrix M.R
+pairwiseDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration obs grid = 
+    let n = V.length obs
+        m = V.length grid
+    in M.build (n,m) $ \i j -> oneDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration (obs V.! round i) (grid V.! round j)
+    where
+        oneDist ::
+               Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> Int
+            -> Observation
+            -> IndepVarsPos
+            -> Double
+        -- spatiotemporal distances
+        oneDist
+            spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration
+            (Observation obsIndex _ (HyperPos (IndepSpatTempPos (SpatTempPos obsSpatPos obsTempPos)) _) _)
+            (IndepSpatTempPos (SpatTempPos gridSpatPos gridTempPos)) =
+                let spatDist = findSpatDist maybeSpatDistMap
+                    spaceDistScaled = spatDist * spatDistUnitScaling
+                    tempDist = findTempDist maybeTempSamples
+                in 3.0
+                where
+                    -- temporal distances
+                    findTempDist :: Maybe TempSampleMatrix -> Double
+                    -- calculate distances from mean ages
+                    findTempDist Nothing = temporalDistTempPos gridTempPos obsTempPos
+                    -- look up age samples and calculate distances from them
+                    findTempDist (Just tempSampleMatrix) =
+                        let (TempPos gridPointAge) = gridTempPos
+                            obsAgeSample = lookUpTempSample tempSampleMatrix tempSampIteration obsIndex
+                        in temporalDistYearBCAD gridPointAge obsAgeSample
+                    -- spatial distances
+                    findSpatDist :: Maybe SpatDistMatrix -> Double
+                    -- calculate distances
+                    findSpatDist Nothing = spatialDistSpatPos gridSpatPos obsSpatPos
+                    -- look up distances
+                    findSpatDist (Just spatDistMatrix) =
+                        let gridSpatPosIndex = getIndex gridSpatPos
+                        in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
+        -- arbitrary dim distances
+        oneDist
+            _ _ _ _
+            (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _)
+            (IndepArbitraryDimPos gridAbritryDimPos) =
+                let keys = getKeys obsArbitraryDimPos
+                    obsPos  = getValues obsArbitraryDimPos
+                    gridPos = getValues gridAbritryDimPos
+                    arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
+                in 3.0
+        -- wrong input
+        oneDist _ _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
+
 
 filterObs ::
        Double
