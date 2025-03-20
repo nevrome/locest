@@ -25,7 +25,11 @@ main = do
         t = 0.5
         xx = linspace 100 (0, 2*pi)
     
-    let res = kernelAverageSmoothing x y t xx
+        xMat = asColumn x
+        xxMat = asColumn xx
+        dists = cmap sqrt (pairwiseD2 xxMat xMat)
+    
+    let res = kernelAverageSmoothing dists y t
     
     print $ map (\(_,m,_) -> m) res
 
@@ -33,16 +37,13 @@ main = do
 sumRows :: Matrix R -> Vector R
 sumRows m = flatten $ m <> konst 1 (cols m, 1)
 
-kernelAverageSmoothing :: Vector R -> Vector R -> Double -> Vector R -> [(Double, Double, Double)]
-kernelAverageSmoothing x y t xx = zipWith3 queryDistribution (toList mu) (toList scale) (toList dof)
+kernelAverageSmoothing :: Matrix R -> Vector R -> Double -> [(Double, Double, Double)]
+kernelAverageSmoothing dists y t = zipWith3 queryDistribution (toList mu) (toList scale) (toList dof)
     where
-      xMat = asColumn x
-      xxMat = asColumn xx
-      dists = cmap sqrt (pairwiseD2 xxMat xMat)
       weights = cmap (\d -> exp (-(d**2)/(t**2))) dists
       totalWeight = sumRows weights
       weightedAvg = flatten (weights <> asColumn y) / totalWeight
-      values = fromRows $ replicate (size xx) y
+      values = fromRows $ replicate (rows dists) y
       weightedVarBasic = sumRows (weights * (values - asColumn weightedAvg) ** 2) / (totalWeight - 1)
       meanY = sumElements y / fromIntegral (size y)
       varSample = dot (y - scalar meanY) (y - scalar meanY) / fromIntegral (size y - 1)
