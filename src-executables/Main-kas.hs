@@ -29,42 +29,28 @@ main = do
     
     print $ map (\(_,m,_) -> m) res
 
--- calculate square of Euclidean norm
-sqEuclideanNorm :: Vector R -> Vector R -> R
-sqEuclideanNorm a b = sumElements $ (a - b) ** 2
+-- Helper to sum matrix rows (since hmatrix doesn't have sumRows)
+sumRows :: Matrix R -> Vector R
+sumRows m = flatten $ m <> konst 1 (cols m, 1)
 
--- calculate the distance matrix
-distanceMatrix :: Matrix R -> Matrix R -> Matrix R
-distanceMatrix m1 m2 =
-  let n = rows m1 
-      m = rows m2
-  in reshape m . fromList $ [sqrt (sqEuclideanNorm (m1 ! i) (m2 ! j)) | i <- [0 .. (n-1)], j <- [0 .. (m-1)]]
-
-rowSums :: Matrix R -> Vector R
-rowSums m = vector $ map sumElements (toRows m)
-
-vectorMean :: Vector R -> R
-vectorMean v = sumElements v / fromIntegral (size v)
-
--- Function for computing kernel average smoothing
 kernelAverageSmoothing :: Vector R -> Vector R -> Double -> Vector R -> [(Double, Double, Double)]
-kernelAverageSmoothing x y t xx = do
-    zipWith3 queryDistribution (toList mu) (toList scale) (toList dof)
-    --error $ show weightedAvg
+kernelAverageSmoothing x y t xx = zipWith3 queryDistribution (toList mu) (toList scale) (toList dof)
     where
+      xMat = asColumn x
+      xxMat = asColumn xx
+      dists = cmap sqrt (pairwiseD2 xxMat xMat)
+      weights = cmap (\d -> exp (-(d**2)/(t**2))) dists
+      totalWeight = sumRows weights
+      weightedAvg = flatten (weights <> asColumn y) / totalWeight
       values = fromRows $ replicate (size xx) y
-      dists = distanceMatrix (fromColumns [xx]) (fromColumns [x]) -- + scalar 0.01
-      weights = 1 / exp ((dists / scalar t) ** 2)
-      totalWeight = rowSums weights
-      weightedAvg = rowSums (values * weights) / totalWeight
-      weightedVarBasic = rowSums (weights * (values - asColumn weightedAvg) ** 2) / (totalWeight - 1)
+      weightedVarBasic = sumRows (weights * (values - asColumn weightedAvg) ** 2) / (totalWeight - 1)
+      meanY = sumElements y / fromIntegral (size y)
+      varSample = dot (y - scalar meanY) (y - scalar meanY) / fromIntegral (size y - 1)
       scaledS2 = (totalWeight - 1) * weightedVarBasic
-      varSample = sumElements (cmap (\x-> (x - vectorMean y) ** 2) y) / (fromIntegral (size y) - 1)
-      weightedVar = cmap (+ varSample) scaledS2 / (1 + totalWeight)
+      weightedVar = (scaledS2 + scalar varSample) / (totalWeight + 1)
       mu = weightedAvg
-      scale = sqrt $ (1 + 1 / totalWeight) * weightedVar
+      scale = cmap sqrt ((1 + 1/totalWeight) * weightedVar)
       dof = totalWeight
-      queryDistribution :: Double -> Double -> Double -> (Double, Double, Double)
       queryDistribution _mu _scale _dof = 
           case generalizedStudentT _mu _scale _dof of
               Right distribution ->
