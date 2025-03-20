@@ -29,18 +29,18 @@ main = do
         xxMat = asColumn xx
         dists = cmap sqrt (pairwiseD2 xxMat xMat)
     
-    let res = kernelAverageSmoothing dists y t
+    let res = kernelAverageSmoothing dists y t Nothing
     
-    print $ map (\(_,m,_) -> m) res
+    print $ map (\(_,m,_,_) -> m) res
 
 -- Helper to sum matrix rows (since hmatrix doesn't have sumRows)
 sumRows :: Matrix R -> Vector R
 sumRows m = flatten $ m <> konst 1 (cols m, 1)
 
-kernelAverageSmoothing :: Matrix R -> Vector R -> Double -> [(Double, Double, Double)]
-kernelAverageSmoothing dists y t = zipWith3 queryDistribution (toList mu) (toList scale) (toList dof)
+kernelAverageSmoothing :: Matrix R -> Vector R -> Double -> Maybe Double -> [(Double, Double, Double, Maybe Double)]
+kernelAverageSmoothing dists y lengthscale maybeSearchValue = zipWith3 queryDistribution (toList mu) (toList scale) (toList dof)
     where
-      weights = cmap (\d -> exp (-(d**2)/(t**2))) dists
+      weights = cmap (\d -> exp (-(d**2)/(lengthscale**2))) dists
       totalWeight = sumRows weights
       weightedAvg = flatten (weights <> asColumn y) / totalWeight
       values = fromRows $ replicate (rows dists) y
@@ -58,5 +58,6 @@ kernelAverageSmoothing dists y t = zipWith3 queryDistribution (toList mu) (toLis
                   let lower  = quantile distribution 0.025
                       median = quantile distribution 0.5
                       upper  = quantile distribution 0.975
-                  in (lower, median, upper)
+                      logL   = fmap (logDensity distribution) maybeSearchValue -- log-likelihood
+                  in (lower, median, upper, logL)
               Left e -> error $ show e
