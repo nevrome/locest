@@ -584,8 +584,8 @@ data Observation = Observation {
     , _obsOther :: CsvNamedRecord
 } deriving (Show, Generic, Eq)
 
-extractDepVars :: [DepVarName] -> V.Vector Observation -> [(DepVarName, M.Vector M.R)]
-extractDepVars depVars obs = map (\v -> (v, M.fromList $ V.toList $ V.map (getDepVarsPos v) obs)) depVars
+extractDepVars :: [DepVarName] -> V.Vector Observation -> [M.Vector M.R]
+extractDepVars depVars obs = map (\v -> M.fromList $ V.toList $ V.map (getDepVarsPos v) obs) depVars
 
 getDepVarsPos :: DepVarName -> Observation -> Double
 getDepVarsPos depVar (Observation _ _ (HyperPos _ depVarsPos) _) = lookupUnsafe depVarsPos depVar

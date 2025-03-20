@@ -63,14 +63,18 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
         Left _             -> (depVar,nan)
 
 
-coreNormal2 :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName] -> [(DepVarName, M.Vector M.R)]
+coreNormal2 :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName] -> [ M.Vector M.R]
               -> V.Vector Observation -> [CorePermutation] -> [SearchResult]
 coreNormal2 spatDistUnitScaling outMode depVarVariances (CoreSupplement _ maybeSpatDistMap maybeTempSamples) depVars yPerDepVar observations permutations =
-         let indepVarsPosGrid = V.fromList $ map _casIndepVarsPos permutations
+         let indepVarsPosGrid  = V.fromList $ map _casIndepVarsPos permutations
              tempSampIteration = head $ map _casTempSamplingIteration permutations
-             kernelsPerDepVar = getValues $ head $ map _casKernelDefinition permutations
+             kernelsPerDepVar  = getValues $ head $ map _casKernelDefinition permutations
+             searchPerDepVar   = case head $ map _casSearchObs permutations of
+                    Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
+                    Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
+                    Nothing                          -> replicate (length depVars) Nothing
              dists = pairwiseDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration observations indepVarsPosGrid
-             res = zipWith (\y -> kas dists y) yPerDepVar kernelsPerDepVar
+             res = zipWith3 (\y k s -> kas dists y k s) yPerDepVar kernelsPerDepVar searchPerDepVar
          in undefined
 
 -- interpolation and search application

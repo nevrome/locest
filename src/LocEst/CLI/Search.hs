@@ -145,9 +145,9 @@ runSearch (
         where
             groupingCriteria :: CorePermutation -> CorePermutation -> Bool
             groupingCriteria
-                (CorePermutation _ _ alg1 tri1 cross1)
-                (CorePermutation _ _ alg2 tri2 cross2) =
-                    alg1 == alg2 && tri1 == tri2 && cross1 == cross2
+                (CorePermutation _ dv1 alg1 tri1 cross1)
+                (CorePermutation _ dv2 alg2 tri2 cross2) =
+                     dv1 == dv2 && alg1 == alg2 && tri1 == tri2 && cross1 == cross2
 
 calculateVariances :: [DepVarName] -> V.Vector Observation -> DepVarVariances
 calculateVariances depVars obs =
