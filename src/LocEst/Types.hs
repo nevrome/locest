@@ -21,6 +21,7 @@ import qualified Data.Vector           as V
 import qualified Data.Vector.Unboxed   as VU
 import           GHC.Generics          (Generic)
 import qualified Numeric.LinearAlgebra as M
+import LocEst.CLI.Utils (for)
 
 -- typeclasses
 
@@ -370,7 +371,8 @@ data DistanceThresholds = SpaceTimeFilterThresholds {
 
 data CorePermutation2 = CorePermutation2 {
       _cas2IndepVarsPos          :: IndepVarsPos
-    , _cas2SearchObs             :: Maybe DepVarsPredPos
+    , _cas2SearchObs             :: Maybe [DepVarsPredPos]
+    , _cas2SearchPosOneDepVar    :: Maybe (M.Vector M.R)
     , _cas2TempSamplingIteration :: Int
     , _cas2CrossIteration        :: Int
     , _cas2DepVarName            :: DepVarName
@@ -416,6 +418,14 @@ instance Csv.ToRecord CorePermutation where
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
+
+extractGridPos :: [DepVarName] -> DepVarsPredGrid -> [M.Vector M.R]
+extractGridPos depVars (DepVarsPredGrid searchPositions) =
+    for depVars $ \depVar ->
+        M.fromList $ for searchPositions $ \pos ->
+            case pos of
+               (DepVarsPredPosSearchObs obs) -> getDepVarsPos depVar obs
+               (DepVarsPredPosDirect dvp)    -> lookupUnsafe dvp depVar
 
 -- | A data type for individual dependent variable positions
 data DepVarsPredPos =

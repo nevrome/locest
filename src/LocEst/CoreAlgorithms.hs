@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module LocEst.CoreAlgorithms where
 
 import           LocEst.Distance
@@ -67,15 +68,39 @@ coreNormal2 :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> V.V
 coreNormal2 spatDistUnitScaling outMode depVarVariances (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
          let indepVarsPosGrid  = V.fromList $ map _cas2IndepVarsPos permutations
              tempSampIteration = head $ map _cas2TempSamplingIteration permutations
-             kernel = getValues $ head $ map _cas2KernOneDepVar permutations
+             kernel = head $ map _cas2KernOneDepVar permutations
              y = head $ map _cas2yOneDepVar permutations
-             searchPerDepVar   = case head $ map _cas2SearchObs permutations of
-                    Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
-                    Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
-                    Nothing                          -> replicate (length depVars) Nothing
-             dists = pairwiseDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration observations indepVarsPosGrid
-             res = kas dists y kernel searchPerDepVar
-         in undefined
+             search = head $ map _cas2SearchPosOneDepVar permutations
+             weights = pairwiseWeights spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration observations indepVarsPosGrid kernel
+             res = kas weights y search
+         in error $ show res
+
+sumRows :: M.Matrix M.R -> M.Vector M.R
+sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
+
+kas :: M.Matrix M.R -> M.Vector M.R -> Maybe (M.Vector M.R) -> [(Double, Double, Double, Maybe (M.Vector M.R))]
+kas weights y maybeSearchValues = zipWith3 queryDistribution (M.toList mu) (M.toList scale) (M.toList dof)
+    where
+      totalWeight = sumRows weights
+      weightedAvg = M.flatten (weights <> M.asColumn y) / totalWeight
+      values = M.fromRows $ replicate (M.rows weights) y
+      weightedVarBasic = sumRows (weights * (values - M.asColumn weightedAvg) ** 2) / (totalWeight - 1)
+      meanY = M.sumElements y / fromIntegral (M.size y)
+      varSample = M.dot (y - M.scalar meanY) (y - M.scalar meanY) / fromIntegral (M.size y - 1)
+      scaledS2 = (totalWeight - 1) * weightedVarBasic
+      weightedVar = (scaledS2 + M.scalar varSample) / (totalWeight + 1)
+      mu = weightedAvg
+      scale = M.cmap sqrt ((1 + 1/totalWeight) * weightedVar)
+      dof = totalWeight
+      queryDistribution _mu _scale _dof = 
+          case generalizedStudentT _mu _scale _dof of
+              Right distribution ->
+                  let lower  = quantile distribution 0.025
+                      median = quantile distribution 0.5
+                      upper  = quantile distribution 0.975
+                      logL   = fmap (M.cmap (logDensity distribution)) maybeSearchValues -- log-likelihood
+                  in (lower, median, upper, logL)
+              Left e -> error $ show e
 
 -- interpolation and search application
 coreNormal :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName]
@@ -142,21 +167,3 @@ interpol obs dists depVar kernel variance maybeSearchValue = do
             Nothing -> InterpolationResultOneDepVarFull
                 depVar neff weightedA weightedVB weightedV (OutBool False)
                 (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
-
-getWeight :: KernelOneDepVar -> IndepVarsDist -> Double
-getWeight (KernelOneDepVar _ shape lengths) dists =
-    computeWeight shape (squaredWeightedDist lengths dists)
-    where
-        squaredWeightedDist :: KernelLengths -> IndepVarsDist -> Double
-        squaredWeightedDist
-            (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
-            (IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
-            (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
-        squaredWeightedDist
-            kernLengths
-            (IndepArbitraryDimDist namedDists) =
-            let distances = getValues namedDists
-                thetas    = getValues kernLengths
-            in foldSum (zipWith (\d t -> (d / t) ** 2) distances thetas)
-        squaredWeightedDist _ _ =
-            throwL "mismatch of independent variable definitions in weight calculation"

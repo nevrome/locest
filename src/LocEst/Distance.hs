@@ -5,12 +5,13 @@ import           LocEst.Types
 import Numeric.LinearAlgebra as M
 
 import qualified Data.Vector       as V
+import LocEst.MathUtils
 
-pairwiseDists :: Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> Int -> V.Vector Observation -> V.Vector IndepVarsPos -> M.Matrix M.R
-pairwiseDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration obs grid = 
+pairwiseWeights :: Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> Int -> V.Vector Observation -> V.Vector IndepVarsPos -> KernelOneDepVar -> M.Matrix M.R
+pairwiseWeights spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration obs grid kernel = 
     let n = V.length obs
         m = V.length grid
-    in M.build (n,m) $ \i j -> oneDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration (obs V.! round i) (grid V.! round j)
+    in M.build (m,n) $ \i j -> oneDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration (obs V.! round j) (grid V.! round i)
     where
         oneDist ::
                Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> Int
@@ -25,7 +26,7 @@ pairwiseDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIter
                 let spatDist = findSpatDist maybeSpatDistMap
                     spaceDistScaled = spatDist * spatDistUnitScaling
                     tempDist = findTempDist maybeTempSamples
-                in 3.0
+                in getWeight kernel $ IndepSpatTempDist (SpatTempDist spaceDistScaled tempDist)
                 where
                     -- temporal distances
                     findTempDist :: Maybe TempSampleMatrix -> Double
@@ -53,9 +54,27 @@ pairwiseDists spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIter
                     obsPos  = getValues obsArbitraryDimPos
                     gridPos = getValues gridAbritryDimPos
                     arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
-                in 3.0
+                in getWeight kernel $ IndepArbitraryDimDist arbitraryDimDist
         -- wrong input
         oneDist _ _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
+
+getWeight :: KernelOneDepVar -> IndepVarsDist -> Double
+getWeight (KernelOneDepVar _ shape lengths) dists =
+    computeWeight shape (squaredWeightedDist lengths dists)
+    where
+        squaredWeightedDist :: KernelLengths -> IndepVarsDist -> Double
+        squaredWeightedDist
+            (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
+            (IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
+            (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
+        squaredWeightedDist
+            kernLengths
+            (IndepArbitraryDimDist namedDists) =
+            let distances = getValues namedDists
+                thetas    = getValues kernLengths
+            in foldSum (zipWith (\d t -> (d / t) ** 2) distances thetas)
+        squaredWeightedDist _ _ =
+            throwL "mismatch of independent variable definitions in weight calculation"
 
 
 filterObs ::
