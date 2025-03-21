@@ -64,8 +64,8 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
         Left _             -> (depVar,nan)
 
 
-coreNormal2 :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [SearchResult]
-coreNormal2 spatDistUnitScaling outMode depVarVariances (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
+coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [SearchResult]
+coreNormal2 spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
          let indepVarsPosGrid  = V.fromList $ map _cas2IndepVarsPos permutations
              tempSampIteration = head $ map _cas2TempSamplingIteration permutations
              kernel = head $ map _cas2KernOneDepVar permutations

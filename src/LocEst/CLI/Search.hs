@@ -141,7 +141,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations2
                 .| ConL.groupBy groupingCriteria
-                .| ConC.map (coreNormal2 spatDistUnitScaling otherNormalMode variancesPerDepVar supplement observations)
+                .| ConC.map (coreNormal2 spatDistUnitScaling supplement observations)
                 .| ConC.concat
                 -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations)
                 .| progress 1000 (Just numPerms)
