@@ -13,6 +13,9 @@ import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (logDensity, quantile)
 import qualified Numeric.LinearAlgebra as M
+import Statistics.Distribution.Transform (LinearTransform)
+import Statistics.Distribution.StudentT (StudentT)
+import LocEst.CLI.Utils
 
 -- weights-per-obs application
 coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
@@ -64,7 +67,11 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
         Left _             -> (depVar,nan)
 
 
-coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [SearchResult]
+mymerge :: [(CorePermutation2, (Double, Double, Double, Maybe (M.Vector M.R)))] -> SearchResult
+mymerge coreOut = 
+    for coreOut $ (sett, (lower, median, upper, search))
+
+coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [(CorePermutation2, (Double, Double, Double, Maybe (M.Vector M.R)))]
 coreNormal2 spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
          let indepVarsPosGrid  = V.fromList $ map _cas2IndepVarsPos permutations
              tempSampIteration = head $ map _cas2TempSamplingIteration permutations
@@ -73,7 +80,7 @@ coreNormal2 spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamp
              search = head $ map _cas2SearchPosOneDepVar permutations
              weights = pairwiseWeights spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration observations indepVarsPosGrid kernel
              res = kas weights y search
-         in error $ show res
+         in zip permutations res
 
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
