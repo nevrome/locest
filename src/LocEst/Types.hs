@@ -302,11 +302,22 @@ instance Csv.ToRecord InterpolationSample where
 
 data SearchResult2 =
       SearchResult2 {
-        _sr2Interpolation   :: [InterpolationResultOneDepVar2]
+        _sr2Interpolation   :: [Interpolation]
       , _sr2Likelihood      :: Maybe SearchLikelihood
-      }
+      } deriving (Show, Generic)
       
 
+instance NFData SearchResult2
+instance Csv.DefaultOrdered SearchResult2 where
+    headerOrder (SearchResult2 interpolations Nothing) =
+           V.concat $ map Csv.headerOrder interpolations
+    headerOrder (SearchResult2 interpolations (Just searchLikelihood)) =
+           (V.concat $ map Csv.headerOrder interpolations) <> Csv.headerOrder searchLikelihood
+instance Csv.ToRecord SearchResult2 where
+    toRecord (SearchResult2 interpolations Nothing) =
+        V.concat $ map Csv.toRecord interpolations
+    toRecord (SearchResult2 interpolations (Just searchLikelihood)) =
+        (V.concat $ map Csv.toRecord interpolations) <> Csv.toRecord searchLikelihood
 
 -- | A data type for search results produced by the core algorithm
 data SearchResult =
@@ -683,8 +694,8 @@ getLogLikelihood :: InterpolationResultOneDepVar -> Maybe Double
 getLogLikelihood (InterpolationResultOneDepVarShort {}) = error "should never happen"
 getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood i
 
-data InterpolationResultOneDepVar2 =
-      InterpolationResultOneDepVar2 {
+data Interpolation =
+      Interpolation {
           _irodv2TempSampIt    :: Int
         , _irodv2CrossIt       :: Int
         , _irodv2IndepVarsPos  :: IndepVarsPos
@@ -693,9 +704,34 @@ data InterpolationResultOneDepVar2 =
         , _irodv2LowerBound    :: Double -- lower boundary of the 95% interval
         , _irodv2Median        :: Double       -- median
         , _irodv2UpperBound    :: Double -- upper boundary of the 95% interval
-        , _irodv2SearchEntity  :: Maybe DepVarsPredPos
+        --, _irodv2SearchEntity  :: Maybe DepVarsPredPos
         , _irodv2LogLikelihood :: Maybe Double
-    }
+    } deriving (Eq, Show, Generic)
+    
+
+instance NFData Interpolation
+instance Csv.DefaultOrdered Interpolation where
+    headerOrder (Interpolation _ _ indepVarsPos depVar kernel _ _ _ Nothing) =
+           Csv.header ["temp_sampling_iteration", "cross_iteration"]
+        <> Csv.headerOrder indepVarsPos
+        <> Csv.headerOrder kernel
+        <> (Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ depVar ++ "_" ++ x) ["low", "median", "up"])
+    headerOrder (Interpolation _ _ indepVarsPos depVar kernel _ _ _ (Just _)) =
+           Csv.header ["temp_sampling_iteration", "cross_iteration"]
+        <> Csv.headerOrder indepVarsPos
+        <> Csv.headerOrder kernel
+        <> (Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ depVar ++ "_" ++ x) ["low", "median", "up", "logl"])
+instance Csv.ToRecord Interpolation where
+    toRecord (Interpolation f1 f2 f3 f4 f5 f6 f7 f8 Nothing) =
+           Csv.record [Csv.toField f1, Csv.toField f2]
+        <> Csv.toRecord f3
+        <> Csv.toRecord f5
+        <> Csv.record [Csv.toField f6, Csv.toField f7, Csv.toField f8]
+    toRecord (Interpolation f1 f2 f3 f4 f5 f6 f7 f8 (Just f9)) =
+           Csv.record [Csv.toField f1, Csv.toField f2]
+        <> Csv.toRecord f3
+        <> Csv.toRecord f5
+        <> Csv.record [Csv.toField f6, Csv.toField f7, Csv.toField f8, Csv.toField f9]
 
 -- | A data type for interpolation output for one dependent variable
 data InterpolationResultOneDepVar =

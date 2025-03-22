@@ -67,7 +67,7 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
         Left _             -> (depVar,nan)
 
 
-mymerge :: [[InterpolationResultOneDepVar2]] -> [SearchResult2]
+mymerge :: [[Interpolation]] -> [SearchResult2]
 mymerge coreOut = 
     let interpolationResults = transpose coreOut
     in for interpolationResults (\is ->
@@ -85,7 +85,7 @@ mymerge coreOut =
                     }
          }) 
 
-coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [InterpolationResultOneDepVar2]
+coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [Interpolation]
 coreNormal2 spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
          let indepVarsPosGrid = map _cas2IndepVarsPos permutations
              tempSampIt = head $ map _cas2TempSamplingIteration permutations
@@ -98,8 +98,8 @@ coreNormal2 spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamp
              res        = kas weights y search
              res2 = concat $  zipWith (\indepVarsPos (lower, median, upper, search) ->
                  case search of
-                     Nothing -> singleton $ InterpolationResultOneDepVar2 tempSampIt crossIt indepVarsPos depVar kernel lower median upper Nothing Nothing
-                     Just ms -> for (M.toList ms) $ \s -> InterpolationResultOneDepVar2 tempSampIt crossIt indepVarsPos depVar kernel lower median upper Nothing (Just s)
+                     Nothing -> singleton $ Interpolation tempSampIt crossIt indepVarsPos depVar kernel lower median upper Nothing
+                     Just ms -> for (M.toList ms) $ \s -> Interpolation tempSampIt crossIt indepVarsPos depVar kernel lower median upper (Just s)
                  ) indepVarsPosGrid res
              --perm = zipWith4 (\i k t c -> CorePermutation i Nothing k t c) (V.toList indepVarsPosGrid) (repeat $ KernelDefinition [kernel]) (repeat tempSampIteration) (repeat crossSampIteration)
          in res2

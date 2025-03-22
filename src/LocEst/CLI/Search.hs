@@ -154,10 +154,10 @@ runSearch (
                 (CorePermutation2 _ tsi1 crossi1 depVar1 _ _ _ _)
                 (CorePermutation2 _ tsi2 crossi2 depVar2 _ _ _ _) =
                      tsi1 == tsi2 && crossi1 == crossi2 && depVar1 == depVar2
-            groupingCriteria2 :: [InterpolationResultOneDepVar2] -> [InterpolationResultOneDepVar2] -> Bool
+            groupingCriteria2 :: [Interpolation] -> [Interpolation] -> Bool
             groupingCriteria2 l1 l2 =
-                let (InterpolationResultOneDepVar2 tsi1 crossi1 _ _ _ _ _ _ _ _) = head l1
-                    (InterpolationResultOneDepVar2 tsi2 crossi2 _ _ _ _ _ _ _ _) = head l2
+                let (Interpolation tsi1 crossi1 _ _ _ _ _ _ _) = head l1
+                    (Interpolation tsi2 crossi2 _ _ _ _ _ _ _) = head l2
                 in tsi1 == tsi2 && crossi1 == crossi2
 
 calculateVariances2 :: [DepVarName] -> V.Vector Observation -> [Double]
