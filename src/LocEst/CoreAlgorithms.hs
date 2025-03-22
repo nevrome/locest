@@ -67,14 +67,12 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
         Left _             -> (depVar,nan)
 
 
-mymerge :: [[(CorePermutation, InterpolationResultOneDepVar2)]] -> [SearchResult2]
+mymerge :: [[InterpolationResultOneDepVar2]] -> [SearchResult2]
 mymerge coreOut = 
-    let setts = map head $ transpose $ map (map fst) coreOut
-        interpolationResults = map InterpolationResult2 $ transpose $ map (map snd) coreOut
-    in zipWith (\sett i@(InterpolationResult2 plupp) ->
+    let interpolationResults = map InterpolationResult2 $ transpose coreOut
+    in for interpolationResults (\i@(InterpolationResult2 plupp) ->
         SearchResult2 {
-            _sr2CorePermutation = sett
-         ,  _sr2Interpolation   = i
+           _sr2Interpolation   = i
          , _sr2Likelihood      = case mapMaybe getLogLikelihood2 plupp of
                 [] -> Nothing
                 xs ->
@@ -85,25 +83,26 @@ mymerge coreOut =
                     , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
                     , _slhProbability   = Nothing
                     }
-         }) setts interpolationResults
+         }) 
 
-coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [(CorePermutation, InterpolationResultOneDepVar2)]
+coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [InterpolationResultOneDepVar2]
 coreNormal2 spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
-         let indepVarsPosGrid  = V.fromList $ map _cas2IndepVarsPos permutations
-             tempSampIteration = head $ map _cas2TempSamplingIteration permutations
-             crossSampIteration = head $ map _cas2CrossIteration permutations
-             depVar = head $ map _cas2DepVarName permutations
-             kernel = head $ map _cas2KernOneDepVar permutations
-             y = head $ map _cas2yOneDepVar permutations
-             search = head $ map _cas2SearchPosOneDepVar permutations
-             weights = pairwiseWeights spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration observations indepVarsPosGrid kernel
-             res = kas weights y search
-             res2 = concat $  for res $ \(lower, median, upper, search) ->
+         let indepVarsPosGrid = map _cas2IndepVarsPos permutations
+             tempSampIt = head $ map _cas2TempSamplingIteration permutations
+             crossIt    = head $ map _cas2CrossIteration permutations
+             depVar     = head $ map _cas2DepVarName permutations
+             kernel     = head $ map _cas2KernOneDepVar permutations
+             y          = head $ map _cas2yOneDepVar permutations
+             search     = head $ map _cas2SearchPosOneDepVar permutations
+             weights    = pairwiseWeights spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIt observations (V.fromList indepVarsPosGrid) kernel
+             res        = kas weights y search
+             res2 = concat $  zipWith (\indepVarsPos (lower, median, upper, search) ->
                  case search of
-                     Nothing -> singleton $ InterpolationResultOneDepVar2 depVar lower median upper Nothing
-                     Just ms -> for (M.toList ms) $ \s -> InterpolationResultOneDepVar2 depVar lower median upper (Just s)
-             perm = zipWith4 (\i k t c -> CorePermutation i Nothing k t c) (V.toList indepVarsPosGrid) (repeat $ KernelDefinition [kernel]) (repeat tempSampIteration) (repeat crossSampIteration)
-         in zip perm res2
+                     Nothing -> singleton $ InterpolationResultOneDepVar2 tempSampIt crossIt indepVarsPos depVar kernel lower median upper Nothing Nothing
+                     Just ms -> for (M.toList ms) $ \s -> InterpolationResultOneDepVar2 tempSampIt crossIt indepVarsPos depVar kernel lower median upper Nothing (Just s)
+                 ) indepVarsPosGrid res
+             --perm = zipWith4 (\i k t c -> CorePermutation i Nothing k t c) (V.toList indepVarsPosGrid) (repeat $ KernelDefinition [kernel]) (repeat tempSampIteration) (repeat crossSampIteration)
+         in res2
 
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)

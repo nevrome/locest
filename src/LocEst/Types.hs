@@ -302,8 +302,7 @@ instance Csv.ToRecord InterpolationSample where
 
 data SearchResult2 =
       SearchResult2 {
-        _sr2CorePermutation :: CorePermutation
-      , _sr2Interpolation   :: InterpolationResult2
+        _sr2Interpolation   :: InterpolationResult2
       , _sr2Likelihood      :: Maybe SearchLikelihood
       }
       
@@ -691,10 +690,15 @@ getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood 
 
 data InterpolationResultOneDepVar2 =
       InterpolationResultOneDepVar2 {
-          _irodv2DepVarName :: DepVarName   -- name of the dependent variable
-        , _irodv2LowerBound :: Double -- lower boundary of the 95% interval
-        , _irodv2Median     :: Double       -- median
-        , _irodv2UpperBound :: Double -- upper boundary of the 95% interval
+          _irodv2TempSampIt    :: Int
+        , _irodv2CrossIt       :: Int
+        , _irodv2IndepVarsPos  :: IndepVarsPos
+        , _irodv2DepVar        :: DepVarName   -- name of the dependent variable
+        , _irodv2Kernel        :: KernelOneDepVar
+        , _irodv2LowerBound    :: Double -- lower boundary of the 95% interval
+        , _irodv2Median        :: Double       -- median
+        , _irodv2UpperBound    :: Double -- upper boundary of the 95% interval
+        , _irodv2SearchEntity  :: Maybe DepVarsPredPos
         , _irodv2LogLikelihood :: Maybe Double
     }
 
