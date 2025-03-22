@@ -300,6 +300,15 @@ instance Csv.ToRecord InterpolationSample where
     toRecord (InterpolationSample corePermutation randIteration depVarSamples) =
         Csv.toRecord corePermutation <>  Csv.record [Csv.toField randIteration] <> Csv.toRecord depVarSamples
 
+data SearchResult2 =
+      SearchResult2 {
+        _sr2CorePermutation :: CorePermutation
+      , _sr2Interpolation   :: InterpolationResult2
+      , _sr2Likelihood      :: Maybe SearchLikelihood
+      }
+      
+
+
 -- | A data type for search results produced by the core algorithm
 data SearchResult =
       SearchResult {
@@ -380,6 +389,8 @@ data CorePermutation2 = CorePermutation2 {
     , _cas2SearchPosOneDepVar    :: Maybe (M.Vector M.R)
     --, _cas2SearchObs             :: Maybe [DepVarsPredPos]
 } deriving (Show, Generic)
+
+instance NFData CorePermutation2
 
 -- | A data type with core-algorithm settings (for one run of the core algorithm)
 data CorePermutation = CorePermutation {
@@ -659,6 +670,11 @@ instance Csv.ToRecord HyperPos where
     toRecord (HyperPos indepVarsPos depVarsPos) =
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
 
+newtype InterpolationResult2 = InterpolationResult2 [InterpolationResultOneDepVar2]
+
+getLogLikelihood2 :: InterpolationResultOneDepVar2 -> Maybe Double
+getLogLikelihood2 i@(InterpolationResultOneDepVar2 {})  = _irodv2LogLikelihood i
+
 -- | A data type for the interpolation output
 newtype InterpolationResult = InterpolationResult [InterpolationResultOneDepVar]
     deriving (Eq, Show, Generic)
@@ -672,6 +688,15 @@ instance Csv.ToRecord InterpolationResult where
 getLogLikelihood :: InterpolationResultOneDepVar -> Maybe Double
 getLogLikelihood (InterpolationResultOneDepVarShort {}) = error "should never happen"
 getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood i
+
+data InterpolationResultOneDepVar2 =
+      InterpolationResultOneDepVar2 {
+          _irodv2DepVarName :: DepVarName   -- name of the dependent variable
+        , _irodv2LowerBound :: Double -- lower boundary of the 95% interval
+        , _irodv2Median     :: Double       -- median
+        , _irodv2UpperBound :: Double -- upper boundary of the 95% interval
+        , _irodv2LogLikelihood :: Maybe Double
+    }
 
 -- | A data type for interpolation output for one dependent variable
 data InterpolationResultOneDepVar =

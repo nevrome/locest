@@ -141,8 +141,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations2
                 .| ConL.groupBy groupingCriteria1
-                .| ConC.map (coreNormal2 spatDistUnitScaling supplement observations)
-                .| ConC.concat
+                .| ConAA.asyncMapC numThreads (coreNormal2 spatDistUnitScaling supplement observations)
                 .| ConL.groupBy groupingCriteria2
                 .| ConC.map mymerge
                 -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations)
@@ -156,11 +155,11 @@ runSearch (
                 (CorePermutation2 _ tsi1 crossi1 depVar1 _ _ _ _)
                 (CorePermutation2 _ tsi2 crossi2 depVar2 _ _ _ _) =
                      tsi1 == tsi2 && crossi1 == crossi2 && depVar1 == depVar2
-            groupingCriteria2 :: (CorePermutation2, a) -> (CorePermutation2, a) -> Bool
-            groupingCriteria2
-                (CorePermutation2 ipos1 tsi1 crossi1 _ _ _ _ _, _)
-                (CorePermutation2 ipos2 tsi2 crossi2 _ _ _ _ _, _) =
-                     ipos1 == ipos2 && tsi1 == tsi2 && crossi1 == crossi2
+            groupingCriteria2 :: [(CorePermutation, a)] -> [(CorePermutation, a)] -> Bool
+            groupingCriteria2 l1 l2 =
+                let (CorePermutation _ _ _ tsi1 crossi1 , _) = head l1
+                    (CorePermutation _ _ _ tsi2 crossi2 , _) = head l2
+                in tsi1 == tsi2 && crossi1 == crossi2
 
 calculateVariances2 :: [DepVarName] -> V.Vector Observation -> [Double]
 calculateVariances2 depVars obs =
@@ -252,6 +251,7 @@ createPermutations2 :: IndepVarsPredGrid -> [DepVarName] -> KernelDefinition -> 
 -- spatiotemporal, search
 createPermutations2 (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) depVars (KernelDefinition kernelsPerDepVar) yPerDepVar variancePerDepVar (Just searchPosPerDepVar) = do
     tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
+    (depVar, kernel, y, var, search) <- zip5 depVars kernelsPerDepVar yPerDepVar variancePerDepVar searchPosPerDepVar
     absRelTempPos <- inTempGrid
     let tempPos = case absRelTempPos of
             AbsTempPos x -> x
@@ -259,27 +259,26 @@ createPermutations2 (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) d
                 --(DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
                -- _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
     spatPos <- V.toList inSpatGrid
-    (depVar, kernel, y, var, search) <- zip5 depVars kernelsPerDepVar yPerDepVar variancePerDepVar searchPosPerDepVar
     return $ CorePermutation2 (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) tempSamp 0 depVar kernel y var (Just search)
 -- spatiotemporal, no search
 createPermutations2 (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) depVars (KernelDefinition kernelsPerDepVar) yPerDepVar variancePerDepVar Nothing = do
     tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
+    (depVar, kernel, y, var) <- zip4 depVars kernelsPerDepVar yPerDepVar variancePerDepVar
     absRelTempPos <- inTempGrid
     let tempPos = case absRelTempPos of
             AbsTempPos x -> x
             RelTempPos _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
     spatPos <- V.toList inSpatGrid
-    (depVar, kernel, y, var) <- zip4 depVars kernelsPerDepVar yPerDepVar variancePerDepVar
     return $ CorePermutation2 (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) tempSamp 0 depVar kernel y var Nothing
 -- arbitrary dims, search
 createPermutations2 (ArbitraryDimGrid gridPos _) depVars (KernelDefinition kernelsPerDepVar) yPerDepVar variancePerDepVar (Just searchPosPerDepVar) = do
-    indepPos <- V.toList gridPos
     (depVar, kernel, y, var, search) <- zip5 depVars kernelsPerDepVar yPerDepVar variancePerDepVar searchPosPerDepVar
+    indepPos <- V.toList gridPos
     return $ CorePermutation2 (IndepArbitraryDimPos indepPos) 0 0 depVar kernel y var (Just search)
 -- arbitrary dims, no search
 createPermutations2 (ArbitraryDimGrid gridPos _) depVars (KernelDefinition kernelsPerDepVar) yPerDepVar variancePerDepVar Nothing = do
-    indepPos <- V.toList gridPos
     (depVar, kernel, y, var) <- zip4 depVars kernelsPerDepVar yPerDepVar variancePerDepVar
+    indepPos <- V.toList gridPos
     return $ CorePermutation2 (IndepArbitraryDimPos indepPos) 0 0 depVar kernel y var Nothing
 
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]

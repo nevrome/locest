@@ -7,7 +7,7 @@ import           LocEst.MathUtils
 import           LocEst.Types
 
 import           Data.Bifunctor          (second)
-import           Data.List               (sortBy, zipWith4)
+import           Data.List               (sortBy, zipWith4, transpose, singleton, zip4)
 import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
@@ -67,20 +67,43 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
         Left _             -> (depVar,nan)
 
 
-mymerge :: [(CorePermutation2, (Double, Double, Double, Maybe (M.Vector M.R)))] -> SearchResult
+mymerge :: [[(CorePermutation, InterpolationResultOneDepVar2)]] -> [SearchResult2]
 mymerge coreOut = 
-    for coreOut $ (sett, (lower, median, upper, search))
+    let setts = map head $ transpose $ map (map fst) coreOut
+        interpolationResults = map InterpolationResult2 $ transpose $ map (map snd) coreOut
+    in zipWith (\sett i@(InterpolationResult2 plupp) ->
+        SearchResult2 {
+            _sr2CorePermutation = sett
+         ,  _sr2Interpolation   = i
+         , _sr2Likelihood      = case mapMaybe getLogLikelihood2 plupp of
+                [] -> Nothing
+                xs ->
+                    --let valuesPerDepVar = catMaybes searchPerDepVar
+                    --    depDist = euclideanDistance (map _irodvWeightedAvg interpolPerDepVar) valuesPerDepVar
+                    Just SearchLikelihood {
+                      _slhEuclideanDep  = 0.0
+                    , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
+                    , _slhProbability   = Nothing
+                    }
+         }) setts interpolationResults
 
-coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [(CorePermutation2, (Double, Double, Double, Maybe (M.Vector M.R)))]
+coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [(CorePermutation, InterpolationResultOneDepVar2)]
 coreNormal2 spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
          let indepVarsPosGrid  = V.fromList $ map _cas2IndepVarsPos permutations
              tempSampIteration = head $ map _cas2TempSamplingIteration permutations
+             crossSampIteration = head $ map _cas2CrossIteration permutations
+             depVar = head $ map _cas2DepVarName permutations
              kernel = head $ map _cas2KernOneDepVar permutations
              y = head $ map _cas2yOneDepVar permutations
              search = head $ map _cas2SearchPosOneDepVar permutations
              weights = pairwiseWeights spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration observations indepVarsPosGrid kernel
              res = kas weights y search
-         in zip permutations res
+             res2 = concat $  for res $ \(lower, median, upper, search) ->
+                 case search of
+                     Nothing -> singleton $ InterpolationResultOneDepVar2 depVar lower median upper Nothing
+                     Just ms -> for (M.toList ms) $ \s -> InterpolationResultOneDepVar2 depVar lower median upper (Just s)
+             perm = zipWith4 (\i k t c -> CorePermutation i Nothing k t c) (V.toList indepVarsPosGrid) (repeat $ KernelDefinition [kernel]) (repeat tempSampIteration) (repeat crossSampIteration)
+         in zip perm res2
 
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
