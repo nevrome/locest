@@ -85,8 +85,8 @@ mymerge coreOut =
                     }
          }) 
 
-coreNormal2 :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [Interpolation]
-coreNormal2 spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
+interpolate :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [Interpolation]
+interpolate spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
          let indepVarsPosGrid = map _cas2IndepVarsPos permutations
              tempSampIt = head $ map _cas2TempSamplingIteration permutations
              crossIt    = head $ map _cas2CrossIteration permutations
