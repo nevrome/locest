@@ -69,11 +69,11 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
 
 mymerge :: [[InterpolationResultOneDepVar2]] -> [SearchResult2]
 mymerge coreOut = 
-    let interpolationResults = map InterpolationResult2 $ transpose coreOut
-    in for interpolationResults (\i@(InterpolationResult2 plupp) ->
+    let interpolationResults = transpose coreOut
+    in for interpolationResults (\is ->
         SearchResult2 {
-           _sr2Interpolation   = i
-         , _sr2Likelihood      = case mapMaybe getLogLikelihood2 plupp of
+           _sr2Interpolation   = is
+         , _sr2Likelihood      = case mapMaybe _irodv2LogLikelihood is of
                 [] -> Nothing
                 xs ->
                     --let valuesPerDepVar = catMaybes searchPerDepVar

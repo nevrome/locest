@@ -302,7 +302,7 @@ instance Csv.ToRecord InterpolationSample where
 
 data SearchResult2 =
       SearchResult2 {
-        _sr2Interpolation   :: InterpolationResult2
+        _sr2Interpolation   :: [InterpolationResultOneDepVar2]
       , _sr2Likelihood      :: Maybe SearchLikelihood
       }
       
@@ -668,11 +668,6 @@ instance Csv.DefaultOrdered HyperPos where
 instance Csv.ToRecord HyperPos where
     toRecord (HyperPos indepVarsPos depVarsPos) =
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
-
-newtype InterpolationResult2 = InterpolationResult2 [InterpolationResultOneDepVar2]
-
-getLogLikelihood2 :: InterpolationResultOneDepVar2 -> Maybe Double
-getLogLikelihood2 i@(InterpolationResultOneDepVar2 {})  = _irodv2LogLikelihood i
 
 -- | A data type for the interpolation output
 newtype InterpolationResult = InterpolationResult [InterpolationResultOneDepVar]
