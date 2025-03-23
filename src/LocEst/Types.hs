@@ -300,25 +300,6 @@ instance Csv.ToRecord InterpolationSample where
     toRecord (InterpolationSample corePermutation randIteration depVarSamples) =
         Csv.toRecord corePermutation <>  Csv.record [Csv.toField randIteration] <> Csv.toRecord depVarSamples
 
-data SearchResult2 =
-      SearchResult2 {
-        _sr2Interpolation   :: [Interpolation]
-      , _sr2Likelihood      :: Maybe SearchLikelihood
-      } deriving (Show, Generic)
-      
-
-instance NFData SearchResult2
-instance Csv.DefaultOrdered SearchResult2 where
-    headerOrder (SearchResult2 interpolations Nothing) =
-           V.concat $ map Csv.headerOrder interpolations
-    headerOrder (SearchResult2 interpolations (Just searchLikelihood)) =
-           (V.concat $ map Csv.headerOrder interpolations) <> Csv.headerOrder searchLikelihood
-instance Csv.ToRecord SearchResult2 where
-    toRecord (SearchResult2 interpolations Nothing) =
-        V.concat $ map Csv.toRecord interpolations
-    toRecord (SearchResult2 interpolations (Just searchLikelihood)) =
-        (V.concat $ map Csv.toRecord interpolations) <> Csv.toRecord searchLikelihood
-
 -- | A data type for search results produced by the core algorithm
 data SearchResult =
       SearchResult {
@@ -532,10 +513,10 @@ instance Csv.FromNamedRecord KernelOneDepVar where
             }
 instance Csv.DefaultOrdered KernelOneDepVar where
     headerOrder (KernelOneDepVar _ _ lengths) =
-        Csv.header ["depVar"] <>  Csv.header ["shape"] <> Csv.headerOrder lengths
+        Csv.header ["kernel_shape"] <> Csv.headerOrder lengths
 instance Csv.ToRecord KernelOneDepVar where
-    toRecord (KernelOneDepVar name shape lengths) =
-        Csv.toRecord name <> Csv.toRecord [Csv.toField shape] <> Csv.toRecord lengths
+    toRecord (KernelOneDepVar _ shape lengths) =
+        Csv.toRecord [Csv.toField shape] <> Csv.toRecord lengths
 
 -- type definitions for easier readability
 type DepVarName   = String
@@ -549,7 +530,7 @@ instance NFData KernelLengths
 instance Csv.FromNamedRecord KernelLengths where
     parseNamedRecord = Csv.parseNamedRecord
 instance Csv.DefaultOrdered KernelLengths where
-    headerOrder (KernelLengths arbitraryDimLengths) = Csv.headerOrder arbitraryDimLengths
+    headerOrder (KernelLengths arbitraryDimLengths) = V.map (\x -> Bchs.pack "kernel_length_" <> x) $ Csv.headerOrder arbitraryDimLengths
 instance Csv.ToRecord KernelLengths where
     toRecord (KernelLengths arbitraryDimLengths) = Csv.toRecord arbitraryDimLengths
 instance PseudoMap KernelLengths Double where
@@ -694,6 +675,26 @@ getLogLikelihood :: InterpolationResultOneDepVar -> Maybe Double
 getLogLikelihood (InterpolationResultOneDepVarShort {}) = error "should never happen"
 getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood i
 
+
+data SearchResult2 =
+      SearchResult2 {
+        _sr2Interpolation   :: [Interpolation]
+      , _sr2Likelihood      :: Maybe SearchLikelihood
+      } deriving (Show, Generic)
+      
+
+instance NFData SearchResult2
+instance Csv.DefaultOrdered SearchResult2 where
+    headerOrder (SearchResult2 interpolations Nothing) =
+           V.concat $ map Csv.headerOrder interpolations
+    headerOrder (SearchResult2 interpolations (Just searchLikelihood)) =
+           (V.concat $ map Csv.headerOrder interpolations) <> Csv.headerOrder searchLikelihood
+instance Csv.ToRecord SearchResult2 where
+    toRecord (SearchResult2 interpolations Nothing) =
+        V.concat $ map Csv.toRecord interpolations
+    toRecord (SearchResult2 interpolations (Just searchLikelihood)) =
+        (V.concat $ map Csv.toRecord interpolations) <> Csv.toRecord searchLikelihood
+
 data Interpolation =
       Interpolation {
           _irodv2TempSampIt    :: Int
@@ -711,25 +712,29 @@ data Interpolation =
 
 instance NFData Interpolation
 instance Csv.DefaultOrdered Interpolation where
-    headerOrder (Interpolation _ _ indepVarsPos depVar kernel _ _ _ Nothing) =
+    headerOrder (Interpolation _ _ indepVarsPos _ kernel _ _ _ Nothing) =
            Csv.header ["temp_sampling_iteration", "cross_iteration"]
         <> Csv.headerOrder indepVarsPos
+        <> Csv.header ["depVar"]
         <> Csv.headerOrder kernel
-        <> (Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ depVar ++ "_" ++ x) ["low", "median", "up"])
+        <> Csv.header ["interpol_low", "interpol_median", "interpol_up"]
     headerOrder (Interpolation _ _ indepVarsPos depVar kernel _ _ _ (Just _)) =
            Csv.header ["temp_sampling_iteration", "cross_iteration"]
         <> Csv.headerOrder indepVarsPos
+        <> Csv.header ["depVar"]
         <> Csv.headerOrder kernel
-        <> (Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ depVar ++ "_" ++ x) ["low", "median", "up", "logl"])
+        <> Csv.header ["interpol_low", "interpol_median", "interpol_up", "search_logl"]
 instance Csv.ToRecord Interpolation where
     toRecord (Interpolation f1 f2 f3 f4 f5 f6 f7 f8 Nothing) =
            Csv.record [Csv.toField f1, Csv.toField f2]
         <> Csv.toRecord f3
+        <> Csv.record [Csv.toField f4]
         <> Csv.toRecord f5
         <> Csv.record [Csv.toField f6, Csv.toField f7, Csv.toField f8]
     toRecord (Interpolation f1 f2 f3 f4 f5 f6 f7 f8 (Just f9)) =
            Csv.record [Csv.toField f1, Csv.toField f2]
         <> Csv.toRecord f3
+        <> Csv.record [Csv.toField f4]
         <> Csv.toRecord f5
         <> Csv.record [Csv.toField f6, Csv.toField f7, Csv.toField f8, Csv.toField f9]
 

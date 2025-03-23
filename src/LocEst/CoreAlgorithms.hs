@@ -83,7 +83,7 @@ mymerge coreOut =
                     , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
                     , _slhProbability   = Nothing
                     }
-         }) 
+         })
 
 interpolate :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [Interpolation]
 interpolate spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =

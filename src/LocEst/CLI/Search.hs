@@ -142,11 +142,11 @@ runSearch (
                 ConC.yieldMany permutations2
                 .| ConL.groupBy groupingCriteria1
                 .| ConAA.asyncMapC numThreads (interpolate spatDistUnitScaling supplement observations)
-                .| ConL.groupBy groupingCriteria2
-                .| ConC.map mymerge
+                -- .| ConL.groupBy groupingCriteria2
+                -- .| ConC.map mymerge
                 .| ConL.concat
                 .| progress 1000 (Just numPerms)
-                .| normalise2 normalisation
+                -- .| normalise2 normalisation
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
         where

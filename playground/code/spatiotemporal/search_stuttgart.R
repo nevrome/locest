@@ -48,17 +48,17 @@ cross %>%
 # hp2ps -c locest.hp
 system('time locest search --configFile code/spatiotemporal/basic.conf')
 
-hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
+hu5 <- readr::read_tsv("data/spatiotemporal/basic_result2.tsv")
 
 hu5 %>%
-  dplyr::filter(temp_sampling_iteration == 0) %>%
+  #dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
   geom_raster(aes(x, y, fill = probability)) +
-  geom_raster(
-    data = hu5 %>% dplyr::filter(!interpol_depC1_post),
-    aes(x, y), fill = "white", alpha = 0.3
-  ) +
+  #geom_raster(
+  #  data = hu5 %>% dplyr::filter(!interpol_depC1_post),
+  #  aes(x, y), fill = "white", alpha = 0.3
+  #) +
   geom_point(
     data = obs %>%
       dplyr::filter(yearBCAD > -7500 & yearBCAD < -4500) %>%
