@@ -141,7 +141,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations2
                 .| ConL.groupBy groupingCriteria1
-                .| ConAA.asyncMapC numThreads (interpolate spatDistUnitScaling supplement observations)
+                .| ConAA.asyncMapC numThreads (interpolate spatDistUnitScaling supplement observations (fmap (\(DepVarsPredGrid x) -> x) depVarsPredGrid))
                 .| ConL.groupBy groupingCriteria2
                 .| ConC.map mymerge
                 .| ConL.concat
@@ -344,11 +344,11 @@ normalise2 NormBySpace =
                     in map (\l -> Just $ l / sumls) ls
         in zipWith setLogL stps probabilities
     getLogL :: SearchResult2 -> Maybe Double
-    getLogL (SearchResult2 _ (Just (SearchLikelihood _ logL _))) = Just logL
+    getLogL (SearchResult2 _ (Just (Search _ _ _ logL _))) = Just logL
     getLogL _                                                     = Nothing
     setLogL :: SearchResult2 -> Maybe Double -> SearchResult2
-    setLogL stp@(SearchResult2 _ (Just slh@(SearchLikelihood {}))) p =
-        stp { _sr2Likelihood = Just slh { _slhProbability = p } }
+    setLogL stp@(SearchResult2 _ (Just slh@(Search {}))) p =
+        stp { _sr2Search = Just slh { _sProbability = p } }
     setLogL stp _ = stp
 
 normalise :: Monad m => Normalisation -> Con.ConduitT SearchResult SearchResult m ()

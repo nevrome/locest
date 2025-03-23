@@ -8,7 +8,7 @@ import           LocEst.Types
 
 import           Data.Bifunctor          (second)
 import           Data.List               (sortBy, zipWith4, transpose, singleton, zip4)
-import           Data.Maybe              (catMaybes, mapMaybe)
+import           Data.Maybe              (catMaybes, mapMaybe, fromMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (logDensity, quantile)
@@ -71,22 +71,27 @@ mymerge :: [[Interpolation]] -> [SearchResult2]
 mymerge coreOut = 
     let interpolationResults = transpose coreOut
     in for interpolationResults (\is ->
-        SearchResult2 {
+        let depVars = map _iDepVar is
+            interpolDepVars = map _iMedian is
+        in SearchResult2 {
            _sr2Interpolation   = is
-         , _sr2Likelihood      = case mapMaybe _irodv2LogLikelihood is of
+         , _sr2Search      = case mapMaybe _iSearch is of
                 [] -> Nothing
                 xs ->
-                    --let valuesPerDepVar = catMaybes searchPerDepVar
-                    --    depDist = euclideanDistance (map _irodvWeightedAvg interpolPerDepVar) valuesPerDepVar
-                    Just SearchLikelihood {
-                      _slhEuclideanDep  = 0.0
-                    , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
-                    , _slhProbability   = Nothing
+                    let searchEntity = head $ map fst xs
+                        searchDepVars = map (\x -> extractDepVarPos x searchEntity) depVars
+                        depDist = euclideanDistance searchDepVars interpolDepVars
+                    in Just Search {
+                      _sSearchEntity = searchEntity
+                    , _sLikelihoodsPerDepVar = map snd xs
+                    , _sEuclideanDep  = depDist
+                    , _sLogLikelihood = foldSum $ map snd xs -- sum, not product, because log-likelihood
+                    , _sProbability   = Nothing
                     }
          })
 
-interpolate :: Double -> CoreSupplement -> V.Vector Observation -> [CorePermutation2] -> [Interpolation]
-interpolate spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations permutations =
+interpolate :: Double -> CoreSupplement -> V.Vector Observation -> Maybe [DepVarsPredPos] -> [CorePermutation2] -> [Interpolation]
+interpolate spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations maybeDepVarsPredGrid permutations =
          let indepVarsPosGrid = map _cas2IndepVarsPos permutations
              tempSampIt = head $ map _cas2TempSamplingIteration permutations
              crossIt    = head $ map _cas2CrossIteration permutations
@@ -99,7 +104,7 @@ interpolate spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamp
              res2 = concat $  zipWith (\indepVarsPos (lower, median, upper, search) ->
                  case search of
                      Nothing -> singleton $ Interpolation tempSampIt crossIt indepVarsPos depVar kernel lower median upper Nothing
-                     Just ms -> for (M.toList ms) $ \s -> Interpolation tempSampIt crossIt indepVarsPos depVar kernel lower median upper (Just s)
+                     Just ms -> zipWith (\s l -> Interpolation tempSampIt crossIt indepVarsPos depVar kernel lower median upper (Just (s, l))) (fromMaybe [] maybeDepVarsPredGrid) (M.toList ms)
                  ) indepVarsPosGrid res
              --perm = zipWith4 (\i k t c -> CorePermutation i Nothing k t c) (V.toList indepVarsPosGrid) (repeat $ KernelDefinition [kernel]) (repeat tempSampIteration) (repeat crossSampIteration)
          in res2

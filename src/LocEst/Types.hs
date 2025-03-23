@@ -320,6 +320,30 @@ instance Csv.ToRecord SearchResult where
     toRecord (SearchResult corePermutation interpolationResult (Just searchLikelihood)) =
         Csv.toRecord corePermutation <> Csv.toRecord interpolationResult <> Csv.toRecord searchLikelihood
 
+data Search = Search {
+      _sSearchEntity  :: DepVarsPredPos
+    , _sLikelihoodsPerDepVar   :: [Double]
+    , _sEuclideanDep  :: Double -- Euclidean distance in dependent variable space between interpolation and search depvar position
+    , _sLogLikelihood :: Double -- Likelihood of the search value
+    , _sProbability   :: Maybe Double -- Normalised likelihood (= probability) of the search depvar position
+} deriving (Show, Generic)
+
+instance NFData Search
+instance Csv.DefaultOrdered Search where
+    headerOrder (Search depVarsPredPos _ _ _ Nothing) =
+           Csv.headerOrder depVarsPredPos
+        <> Csv.header ["dep_dist_euclidean", "log_likelihood"]
+    headerOrder (Search depVarsPredPos _ _ _ (Just _)) =
+           Csv.headerOrder depVarsPredPos
+        <> Csv.header ["dep_dist_euclidean", "log_likelihood", "probability"]
+instance Csv.ToRecord Search where
+    toRecord (Search depVarsPredPos _ depDist logLikelihood Nothing) =
+           Csv.toRecord depVarsPredPos
+        <> Csv.record [Csv.toField depDist, Csv.toField logLikelihood]
+    toRecord (Search depVarsPredPos _ depDist logLikelihood (Just prob)) =
+           Csv.toRecord depVarsPredPos
+        <> Csv.record [Csv.toField depDist, Csv.toField logLikelihood, Csv.toField prob]
+
 -- | A data type specifically for the likelihood output of the core search
 data SearchLikelihood = SearchLikelihood {
       _slhEuclideanDep  :: Double -- Euclidean distance in dependent variable space between interpolation and search depvar position
@@ -423,11 +447,12 @@ newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
 
 extractGridPos :: [DepVarName] -> DepVarsPredGrid -> [M.Vector M.R]
 extractGridPos depVars (DepVarsPredGrid searchPositions) =
-    for depVars $ \depVar ->
-        M.fromList $ for searchPositions $ \pos ->
-            case pos of
-               (DepVarsPredPosSearchObs obs) -> getDepVarsPos depVar obs
-               (DepVarsPredPosDirect dvp)    -> lookupUnsafe dvp depVar
+    for depVars $ \depVar -> M.fromList $ for searchPositions $ \pos -> extractDepVarPos depVar pos
+
+extractDepVarPos :: DepVarName -> DepVarsPredPos -> Double
+extractDepVarPos depVar (DepVarsPredPosSearchObs obs) = getDepVarsPos depVar obs
+extractDepVarPos depVar (DepVarsPredPosDirect dvp)    = lookupUnsafe dvp depVar
+
 
 -- | A data type for individual dependent variable positions
 data DepVarsPredPos =
@@ -678,8 +703,8 @@ getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood 
 
 data SearchResult2 =
       SearchResult2 {
-        _sr2Interpolation   :: [Interpolation]
-      , _sr2Likelihood      :: Maybe SearchLikelihood
+        _sr2Interpolation :: [Interpolation]
+      , _sr2Search        :: Maybe Search
       } deriving (Show, Generic)
       
 
@@ -719,22 +744,17 @@ data Interpolation =
         , _iLowerBound    :: Double -- lower boundary of the 95% interval
         , _iMedian        :: Double       -- median
         , _iUpperBound    :: Double -- upper boundary of the 95% interval
-        --, _irodv2SearchEntity  :: Maybe DepVarsPredPos
-        , _irodv2LogLikelihood :: Maybe Double
+        , _iSearch        :: Maybe (DepVarsPredPos, Double)
     } deriving (Eq, Show, Generic)
     
 
 instance NFData Interpolation
 instance Csv.DefaultOrdered Interpolation where
-    headerOrder (Interpolation _ _ _ depVar _ _ _ _ Nothing) =
+    headerOrder (Interpolation _ _ _ depVar _ _ _ _ _) =
         Csv.header (map (\x -> "interpol_" <> Bchs.pack depVar <> "_" <> x) ["low", "median", "up"])
-    headerOrder (Interpolation _ _ _ depVar _ _ _ _ (Just _)) =
-        Csv.header (map (\x -> "interpol_" <> Bchs.pack depVar <> "_" <> x) ["low", "median", "up", "logL"])
 instance Csv.ToRecord Interpolation where
-    toRecord (Interpolation f1 f2 f3 f4 f5 f6 f7 f8 Nothing) =
-        Csv.record [Csv.toField f6, Csv.toField f7, Csv.toField f8]
-    toRecord (Interpolation f1 f2 f3 f4 f5 f6 f7 f8 (Just f9)) =
-        Csv.record [Csv.toField f6, Csv.toField f7, Csv.toField f8, Csv.toField f9]
+    toRecord (Interpolation _ _ _ _ _ low med up _) =
+        Csv.record [Csv.toField low, Csv.toField med, Csv.toField up]
 
 -- | A data type for interpolation output for one dependent variable
 data InterpolationResultOneDepVar =
