@@ -2,16 +2,17 @@ module LocEst.Distance where
 
 import           LocEst.Exceptions
 import           LocEst.Types
-import Numeric.LinearAlgebra as M
-
-import qualified Data.Vector       as V
 import LocEst.MathUtils
+
+import qualified Numeric.LinearAlgebra as M
+import qualified Data.Vector       as V
+import Control.Parallel.Strategies
 
 pairwiseWeights :: Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> Int -> V.Vector Observation -> V.Vector IndepVarsPos -> KernelOneDepVar -> M.Matrix M.R
 pairwiseWeights spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration obs grid kernel = 
-    let n = V.length obs
-        m = V.length grid
-    in M.build (m,n) $ \i j -> oneDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration (obs V.! round j) (grid V.! round i)
+    let f g o = oneDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration o g
+        rows = V.map (\g -> M.fromList (V.toList (V.map (f g) obs))) grid
+    in M.fromRows (V.toList rows `using` parList rdeepseq)
     where
         oneDist ::
                Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> Int

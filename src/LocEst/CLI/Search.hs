@@ -141,13 +141,12 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations2
                 .| ConL.groupBy groupingCriteria1
-                .| ConAA.asyncMapC numThreads (interpolateAndSearch spatDistUnitScaling supplement observations (fmap (\(DepVarsPredGrid x) -> x) depVarsPredGrid))
+                .| ConL.map (interpolateAndSearch spatDistUnitScaling supplement observations (fmap (\(DepVarsPredGrid x) -> x) depVarsPredGrid))
                 .| ConL.groupBy groupingCriteria2
-                .| ConAA.asyncMapC numThreads mergeAcrossDepVars
-                -- .| ConC.map mymerge
-                .| ConL.concat
-                .| progress 1000 (Just numPerms)
+                .| ConL.map mergeAcrossDepVars
+                .| progress 1 (Just numPerms)
                 .| normalise2 normalisation
+                .| ConL.concat
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
         where
@@ -317,18 +316,18 @@ nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
 
-normalise2 :: Monad m => Normalisation -> Con.ConduitT SearchResult2 SearchResult2 m ()
+normalise2 :: Monad m => Normalisation -> Con.ConduitT [SearchResult2] [SearchResult2] m ()
 normalise2 NoNorm = ConC.map id
 normalise2 NormBySpace =
-       ConL.groupBy groupingCriteria
+       ConL.concat
+    .| ConL.groupBy groupingCriteria
     .| ConC.map scaleProbs
-    .| ConC.concat
     where
     groupingCriteria :: SearchResult2 -> SearchResult2 -> Bool
     groupingCriteria (SearchResult2 i1 _) (SearchResult2 i2 _) =
-        let (Interpolation tsi1 crossi1 (IndepSpatTempPos (SpatTempPos _ t1)) _ kernel1 _ _ _ _) = head i1
-            (Interpolation tsi2 crossi2 (IndepSpatTempPos (SpatTempPos _ t2)) _ kernel2 _ _ _ _) = head i2
-        in tsi1 == tsi2 && crossi1 == crossi2 && t1 == t2 && kernel1 == kernel2
+        let (Interpolation _ _ (IndepSpatTempPos (SpatTempPos _ t1)) _ kernel1 _ _ _ _) = head i1
+            (Interpolation _ _ (IndepSpatTempPos (SpatTempPos _ t2)) _ kernel2 _ _ _ _) = head i2
+        in t1 == t2 && kernel1 == kernel2
     scaleProbs :: [SearchResult2] -> [SearchResult2]
     scaleProbs stps =
         let maybeLogLikelihoods = map getLogL stps

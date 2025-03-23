@@ -43,6 +43,7 @@ library
       , serialise
       , statistics
       , hmatrix
+      , parallel
     default-language:
       Haskell2010
     -- for stan (https://github.com/kowainik/stan | run with stan --no-default)
