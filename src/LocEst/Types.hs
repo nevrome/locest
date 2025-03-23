@@ -397,7 +397,7 @@ data DistanceThresholds = SpaceTimeFilterThresholds {
     , _adftMaxFilter :: Maybe ArbitraryDimThresholds
 }
 
-data CorePermutation2 = CorePermutation2 {
+data Permutation = Permutation {
       _cas2IndepVarsPos          :: IndepVarsPos
     , _cas2TempSamplingIteration :: Int
     , _cas2CrossIteration        :: Int
@@ -409,7 +409,7 @@ data CorePermutation2 = CorePermutation2 {
     --, _cas2SearchObs             :: Maybe [DepVarsPredPos]
 } deriving (Show, Generic)
 
-instance NFData CorePermutation2
+instance NFData Permutation
 
 -- | A data type with core-algorithm settings (for one run of the core algorithm)
 data CorePermutation = CorePermutation {

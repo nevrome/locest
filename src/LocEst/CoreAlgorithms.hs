@@ -66,21 +66,20 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
         Right distribution -> (depVar, quantile distribution random01)
         Left _             -> (depVar,nan)
 
-
-mymerge :: [[Interpolation]] -> [SearchResult2]
-mymerge coreOut = 
-    let interpolationResults = transpose coreOut
-    in for interpolationResults (\is ->
+mergeAcrossDepVars :: [[Interpolation]] -> [SearchResult2]
+mergeAcrossDepVars coreOut = 
+    for (transpose coreOut) (\is ->
         let depVars = map _iDepVar is
-            interpolDepVars = map _iMedian is
+            interpolValues = map _iMedian is
         in SearchResult2 {
-           _sr2Interpolation   = is
-         , _sr2Search      = case mapMaybe _iSearch is of
+           _sr2Interpolation = is
+         , _sr2Search        =
+             case mapMaybe _iSearch is of
                 [] -> Nothing
                 xs ->
                     let searchEntity = head $ map fst xs
-                        searchDepVars = map (\x -> extractDepVarPos x searchEntity) depVars
-                        depDist = euclideanDistance searchDepVars interpolDepVars
+                        measuredValues = map (\x -> extractDepVarPos x searchEntity) depVars
+                        depDist = euclideanDistance measuredValues interpolValues
                     in Just Search {
                       _sSearchEntity = searchEntity
                     , _sLikelihoodsPerDepVar = zip depVars (map snd xs)
@@ -90,8 +89,8 @@ mymerge coreOut =
                     }
          })
 
-interpolate :: Double -> CoreSupplement -> V.Vector Observation -> Maybe [DepVarsPredPos] -> [CorePermutation2] -> [Interpolation]
-interpolate spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations maybeDepVarsPredGrid permutations =
+interpolateAndSearch :: Double -> CoreSupplement -> V.Vector Observation -> Maybe [DepVarsPredPos] -> [Permutation] -> [Interpolation]
+interpolateAndSearch spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap maybeTempSamples) observations maybeDepVarsPredGrid permutations =
          let indepVarsPosGrid = map _cas2IndepVarsPos permutations
              tempSampIt = head $ map _cas2TempSamplingIteration permutations
              crossIt    = head $ map _cas2CrossIteration permutations
