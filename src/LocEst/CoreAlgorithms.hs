@@ -98,7 +98,7 @@ interpolateAndSearch spatDistUnitScaling (CoreSupplement _ maybeSpatDistMap mayb
              kernel     = head $ map _cas2KernOneDepVar permutations
              y          = head $ map _cas2yOneDepVar permutations
              search     = head $ map _cas2SearchPosOneDepVar permutations
-             weights    = pairwiseWeights spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIt observations (V.fromList indepVarsPosGrid) kernel
+             weights    = pairwiseWeights2 spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIt observations (V.fromList indepVarsPosGrid) kernel
              res        = kas weights y search
              res2 = concat $  zipWith (\indepVarsPos (lower, median, upper, search) ->
                  case search of

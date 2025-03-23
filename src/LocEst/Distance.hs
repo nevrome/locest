@@ -7,6 +7,60 @@ import LocEst.MathUtils
 import qualified Numeric.LinearAlgebra as M
 import qualified Data.Vector       as V
 import Control.Parallel.Strategies
+import Data.List (sortOn)
+
+getXObs :: Observation -> Double
+getXObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos (SpatPosCartesian (CartesianPos _ _ x _)) _)) _) _) = x
+getXObs _ = undefined
+
+getYObs :: Observation -> Double
+getYObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos (SpatPosCartesian (CartesianPos _ _ _ y)) _)) _) _) = y
+getYObs _ = undefined
+
+getTObs :: Observation -> Double
+getTObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos t))) _) _) = fromIntegral t
+getTObs _ = undefined
+
+--    IndepArbitraryDimPos (ValuesPerIndepVar vals) ->
+--        M.fromList $ map snd $ sortOn fst vals
+     
+--gridPosToVector (IndepArbitraryDimPos (ValuesPerIndepVar vals)) =
+--    M.fromList $ map snd $ sortOn fst vals
+
+getXIVP :: IndepVarsPos -> Double
+getXIVP (IndepSpatTempPos (SpatTempPos (SpatPosCartesian (CartesianPos _ _ x _)) _)) = x
+getXIVP _ = undefined
+
+getYIVP :: IndepVarsPos -> Double
+getYIVP (IndepSpatTempPos (SpatTempPos (SpatPosCartesian (CartesianPos _ _ _ y)) _)) = y
+getYIVP _ = undefined
+
+getTIVP :: IndepVarsPos -> Double
+getTIVP (IndepSpatTempPos (SpatTempPos _ (TempPos t))) = fromIntegral t
+getTIVP _ = undefined
+
+pairwiseWeights2 :: Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> Int -> V.Vector Observation -> V.Vector IndepVarsPos -> KernelOneDepVar -> M.Matrix M.R
+pairwiseWeights2 spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration obs grid (KernelOneDepVar _ shape (KernelLengths (ValuesPerIndepVar [("space", ts),("time", tt)]))) =
+    let obsX = V.map getXObs obs
+        obsY = V.map getYObs obs
+        obsT = V.map getTObs obs
+        ivpX = V.map getXIVP grid
+        ivpY = V.map getYIVP grid
+        ivpT = V.map getTIVP grid
+        
+        obsSpace = M.fromColumns [V.convert obsX, V.convert obsY]
+        ivpSpace = M.fromColumns [V.convert ivpX, V.convert ivpY]
+    
+        obsTime = M.fromColumns [V.convert obsT]
+        ivpTime = M.fromColumns [V.convert ivpT]
+    
+        dSpace = M.pairwiseD2  ivpSpace obsSpace
+        dTime  = M.pairwiseD2  ivpTime obsTime
+        
+        wSpace = M.cmap (\x -> 1 / (exp (x/(ts**2))) ) dSpace
+        wTime  = M.cmap (\x -> 1 / (exp (x/(tt**2))) ) dTime
+
+    in M.add wSpace wTime
 
 pairwiseWeights :: Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix -> Int -> V.Vector Observation -> V.Vector IndepVarsPos -> KernelOneDepVar -> M.Matrix M.R
 pairwiseWeights spatDistUnitScaling maybeSpatDistMap maybeTempSamples tempSampIteration obs grid kernel = 
