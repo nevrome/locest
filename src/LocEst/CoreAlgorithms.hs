@@ -83,7 +83,7 @@ mymerge coreOut =
                         depDist = euclideanDistance searchDepVars interpolDepVars
                     in Just Search {
                       _sSearchEntity = searchEntity
-                    , _sLikelihoodsPerDepVar = map snd xs
+                    , _sLikelihoodsPerDepVar = zip depVars (map snd xs)
                     , _sEuclideanDep  = depDist
                     , _sLogLikelihood = foldSum $ map snd xs -- sum, not product, because log-likelihood
                     , _sProbability   = Nothing

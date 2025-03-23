@@ -322,7 +322,7 @@ instance Csv.ToRecord SearchResult where
 
 data Search = Search {
       _sSearchEntity  :: DepVarsPredPos
-    , _sLikelihoodsPerDepVar   :: [Double]
+    , _sLikelihoodsPerDepVar   :: [(DepVarName, Double)]
     , _sEuclideanDep  :: Double -- Euclidean distance in dependent variable space between interpolation and search depvar position
     , _sLogLikelihood :: Double -- Likelihood of the search value
     , _sProbability   :: Maybe Double -- Normalised likelihood (= probability) of the search depvar position
@@ -330,18 +330,22 @@ data Search = Search {
 
 instance NFData Search
 instance Csv.DefaultOrdered Search where
-    headerOrder (Search depVarsPredPos _ _ _ Nothing) =
+    headerOrder (Search depVarsPredPos likelihoods _ _ Nothing) =
            Csv.headerOrder depVarsPredPos
-        <> Csv.header ["dep_dist_euclidean", "log_likelihood"]
-    headerOrder (Search depVarsPredPos _ _ _ (Just _)) =
+        <> Csv.header (map (\x -> "search_" <> Bchs.pack (fst x) <> "_logL") likelihoods)
+        <> Csv.header ["search_dep_dist_euclidean", "search_logL"]
+    headerOrder (Search depVarsPredPos likelihoods _ _ (Just _)) =
            Csv.headerOrder depVarsPredPos
-        <> Csv.header ["dep_dist_euclidean", "log_likelihood", "probability"]
+        <> Csv.header (map (\x -> "search_" <> Bchs.pack (fst x) <> "_logL") likelihoods)
+        <> Csv.header ["search_dep_dist_euclidean", "search_logL", "search_probability"]
 instance Csv.ToRecord Search where
-    toRecord (Search depVarsPredPos _ depDist logLikelihood Nothing) =
+    toRecord (Search depVarsPredPos likelihoods depDist logLikelihood Nothing) =
            Csv.toRecord depVarsPredPos
+        <> Csv.toRecord (map snd likelihoods)
         <> Csv.record [Csv.toField depDist, Csv.toField logLikelihood]
-    toRecord (Search depVarsPredPos _ depDist logLikelihood (Just prob)) =
+    toRecord (Search depVarsPredPos likelihoods depDist logLikelihood (Just prob)) =
            Csv.toRecord depVarsPredPos
+        <> Csv.toRecord (map snd likelihoods)
         <> Csv.record [Csv.toField depDist, Csv.toField logLikelihood, Csv.toField prob]
 
 -- | A data type specifically for the likelihood output of the core search
