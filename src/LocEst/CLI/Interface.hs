@@ -124,7 +124,7 @@ varioOptParser = VarioOptions
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions
                         <$> optParseInObservationFile
-                        <*> optParseCoreSupplementSettings
+                        <*> optParseSupplementSettings
                         <*> optParseCrossSettings
                         <*> optParseOutFile
                         <*> optParseCrossOutMode
@@ -540,16 +540,16 @@ optParseIndepVarsPredGridSettings =
     (SpaceTimeGridSettings
         <$> optParseInSpatGridFile
         <*> optParseTempGridString
-        <*> optParseCoreSupplementSettings
+        <*> optParseSupplementSettings
     ) OP.<|>
     (ArbitraryDimGridSettings
         <$> optParseInArbitraryDimFile
-        <*> optParseCoreSupplementSettings
+        <*> optParseSupplementSettings
     )
 
-optParseCoreSupplementSettings :: OP.Parser CoreSupplementSettings
-optParseCoreSupplementSettings =
-    CoreSupplementSettings
+optParseSupplementSettings :: OP.Parser SupplementSettings
+optParseSupplementSettings =
+    SupplementSettings
         <$> optParseDistanceThresholds
         <*> OP.optional optParseInSpatDistMapFile
         <*> OP.optional optParseInObsTempSamplesFile

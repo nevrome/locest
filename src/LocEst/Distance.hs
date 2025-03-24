@@ -7,11 +7,11 @@ import qualified Data.Vector       as V
 
 filterObs ::
        Double
-    -> CoreSupplement
+    -> Supplement
     -> Permutation
     -> V.Vector Observation
     -> (V.Vector Observation, V.Vector IndepVarsDist)
-filterObs spatDistUnitScaling (CoreSupplement filterThresholds maybeSpatDistMap maybeTempSamples) sett =
+filterObs spatDistUnitScaling (Supplement filterThresholds maybeSpatDistMap maybeTempSamples) sett =
     V.unzip . V.mapMaybe handleOne
     where
         handleOne :: Observation -> Maybe (Observation, IndepVarsDist)

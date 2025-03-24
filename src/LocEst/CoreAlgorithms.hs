@@ -17,7 +17,7 @@ import           Statistics.Distribution.StudentT  (StudentT)
 import           Statistics.Distribution.Transform (LinearTransform)
 
 -- weights-per-obs application
-coreObsWeights :: Double -> Int -> CoreSupplement -> [DepVarName]
+coreObsWeights :: Double -> Int -> Supplement -> [DepVarName]
                -> V.Vector Observation -> Permutation
                -> V.Vector ObsWeight
 coreObsWeights spatDistUnitScaling nrTopObs coreSupplement
@@ -32,7 +32,7 @@ coreObsWeights spatDistUnitScaling nrTopObs coreSupplement
     in V.map (ObsWeight sett) obsWithWeightsSubset
 
 -- random interpolation sampling application
-coreSamples :: Double -> CoreSupplement -> [DepVarName]
+coreSamples :: Double -> Supplement -> [DepVarName]
             -> V.Vector Observation -> (Permutation, [(Int, DepVarsRands)])
             -> V.Vector InterpolationSample
 coreSamples spatDistUnitScaling coreSupplement
@@ -60,7 +60,7 @@ getRandomSample obs dists depVarsRands depVar kernel = do
         (_, _, _, _, Left _)             -> (depVar,nan)
 
 -- interpolation and search application
-coreNormal :: Double -> CoreSupplement -> [DepVarName]
+coreNormal :: Double -> Supplement -> [DepVarName]
            -> V.Vector Observation -> Permutation
            -> SearchResult
 coreNormal spatDistUnitScaling coreSupplement

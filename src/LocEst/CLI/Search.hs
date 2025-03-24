@@ -42,13 +42,13 @@ data DepVarsPredGridSettings =
 data IndepVarsPredGridSettings = SpaceTimeGridSettings {
       _stgsInSpatGridFile     :: FilePath
     , _stgsInTempGrid         :: [AbsRelTempPos]
-    , _stgsSupplementSettings :: CoreSupplementSettings
+    , _stgsSupplementSettings :: SupplementSettings
 } | ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
-    , _adgsSupplementSettings     :: CoreSupplementSettings
+    , _adgsSupplementSettings     :: SupplementSettings
 }
 
-data CoreSupplementSettings = CoreSupplementSettings {
+data SupplementSettings = SupplementSettings {
       _stcsDistFilterThresholds :: Maybe DistanceThresholds
     , _stcsInSpatDistFile       :: Maybe FilePath
     , _stcsInObsTempSamplesFile :: Maybe FilePath
@@ -74,7 +74,7 @@ runSearch (
     hPutStrLn stderr "Preparing prediction grid"
     !indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
     !depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
-    let supplement = createCoreSupplement indepVarsPredGrid
+    let supplement = createSupplement indepVarsPredGrid
     -- prepare permutations
     hPutStrLn stderr "Preparing permutations"
     let !permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
@@ -134,7 +134,7 @@ readIndepVarsPredGrid
     _
     observations
     (SpaceTimeGridSettings inSpatGridFile inTempGrid
-        (CoreSupplementSettings distanceFilterThresholds inSpatDistFile inObsTempSamplesFile noOrderCheck)
+        (SupplementSettings distanceFilterThresholds inSpatDistFile inObsTempSamplesFile noOrderCheck)
     ) = do
     hPutStrLn stderr "Assuming a spatiotemporal system"
     inSpatGrid <- readSpatPos inSpatGridFile
@@ -147,7 +147,7 @@ readIndepVarsPredGrid
     indepVarsWanted
     _
     (ArbitraryDimGridSettings inArbitraryDimGridFile
-        (CoreSupplementSettings distanceFilterThresholdsRaw _ _ _)
+        (SupplementSettings distanceFilterThresholdsRaw _ _ _)
     ) = do
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
     inArbitraryDimPosRaw <- readArbitraryDimPos inArbitraryDimGridFile
@@ -169,11 +169,11 @@ readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 
-createCoreSupplement :: IndepVarsPredGrid -> CoreSupplement
-createCoreSupplement (SpaceTimeGrid _ _ distFilterThresholds maybeSpatDistMap maybeTempSamples) =
-    CoreSupplement distFilterThresholds maybeSpatDistMap maybeTempSamples
-createCoreSupplement (ArbitraryDimGrid _ distFilterThresholds) =
-    CoreSupplement distFilterThresholds Nothing Nothing
+createSupplement :: IndepVarsPredGrid -> Supplement
+createSupplement (SpaceTimeGrid _ _ distFilterThresholds maybeSpatDistMap maybeTempSamples) =
+    Supplement distFilterThresholds maybeSpatDistMap maybeTempSamples
+createSupplement (ArbitraryDimGrid _ distFilterThresholds) =
+    Supplement distFilterThresholds Nothing Nothing
 
 createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [Permutation]
 -- spatiotemporal, search

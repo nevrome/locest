@@ -2,7 +2,7 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (CoreSupplementSettings (..))
+import           LocEst.CLI.Search             (SupplementSettings (..))
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (avg, foldSum)
@@ -25,7 +25,7 @@ import           System.Random                 as R
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath
-    , _crossSupplementSettings :: CoreSupplementSettings
+    , _crossSupplementSettings :: SupplementSettings
     , _crossSettings           :: CrossSettings
     , _crossOutFile            :: Maybe FilePath
     , _crossOutMode            :: CrossOutModeSettings
@@ -88,7 +88,7 @@ runCross (
                 -- modify observations
                 let observations = filterVarsInObs depVars indepVars observationsRaw
                 -- read core supplements
-                coreSupp <- liftIO $ readCoreSupplement indepVars crossSuppSettings observationsRaw
+                coreSupp <- liftIO $ readSupplement indepVars crossSuppSettings observationsRaw
                 -- permutation: one run of the core algorithm
                 -- iteration: one test/training split
                 iterations <- case subsetMode of
@@ -138,14 +138,14 @@ runCross (
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-readCoreSupplement ::
+readSupplement ::
        [String]
-    -> CoreSupplementSettings
+    -> SupplementSettings
     -> V.Vector Observation
-    -> IO CoreSupplement
-readCoreSupplement
+    -> IO Supplement
+readSupplement
     indepVarsWanted
-    (CoreSupplementSettings
+    (SupplementSettings
             distanceFilterThresholdsRaw
             inSpatDistFile
             inObsTempSamplesFile
@@ -156,7 +156,7 @@ readCoreSupplement
     inSpatDists <- readMaybeSpatDist noOrderCheck observations Nothing inSpatDistFile
     inObsTempSamples <- readMaybeObsTempSamples noOrderCheck observations inObsTempSamplesFile
     let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
-    return $ CoreSupplement distanceFilterThresholds inSpatDists inObsTempSamples
+    return $ Supplement distanceFilterThresholds inSpatDists inObsTempSamples
 
 summarizeFunc :: [CrossSearchResult] -> CrossvalOutput
 summarizeFunc xs =

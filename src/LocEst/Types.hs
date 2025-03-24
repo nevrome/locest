@@ -342,7 +342,7 @@ data IndepVarsPredGrid =
     }
 
 -- | A data type for supplementary information used in the core algorithm
-data CoreSupplement = CoreSupplement {
+data Supplement = Supplement {
       _csDistFilterThresholds :: Maybe DistanceThresholds
     , _csSpatDist             :: Maybe SpatDistMatrix
     , _csTempSamp             :: Maybe TempSampleMatrix
