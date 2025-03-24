@@ -282,11 +282,11 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
 optParseCoreOutMode :: OP.Parser CoreOutMode
 optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     OP.long "outMode" <>
-    OP.metavar "Short|Full|Obs(n)|Samples(n,seed)" <>
-    OP.value CoreOutShort
+    OP.metavar "Normal|Obs(n)|Samples(n,seed)" <>
+    OP.value CoreOutInterpolAndSearch
     <> OP.helpDoc ( Just (
                       s2d "The type of output that should be written to the --outFile. \
-                          \Short (default) and Full: Return mean interpolation and search results."
+                          \Normal (default): Return mean interpolation and search results."
     <> OH.hardline <>     "┌────────────────┬──────────┐"
     <> OH.hardline <>     "│spatID          │   indepV1│ Prediction position"
     <> OH.hardline <>     "│x or longitude  OR  indepV2│"
@@ -338,9 +338,8 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
             case P.runParser parseOutMode () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
-        parseOutMode = P.try parseShort P.<|> parseFull P.<|> parseObs P.<|> parseInterpolSample
-        parseShort = P.string "Short" >> return CoreOutShort
-        parseFull  = P.string "Full"  >> return CoreOutFull
+        parseOutMode = P.try parseNormal P.<|> parseObs P.<|> parseInterpolSample
+        parseNormal = P.string "Normal" >> return CoreOutInterpolAndSearch
         parseObs   = do
             parseRecordType "Obs" $ do
                 n <- parseArgument "n" parseInt

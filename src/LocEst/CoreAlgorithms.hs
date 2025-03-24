@@ -66,19 +66,18 @@ getRandomSample obs dists depVarsRands depVar kernel variance = do
         Left _             -> (depVar,nan)
 
 -- interpolation and search application
-coreNormal :: Double -> CoreOutMode -> DepVarVariances -> CoreSupplement -> [DepVarName]
+coreNormal :: Double -> CoreSupplement -> [DepVarName]
               -> V.Vector Observation -> CorePermutation
               -> SearchResult
-coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
+coreNormal spatDistUnitScaling coreSupplement
      depVars observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let (obs,dists)        = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar   = getValues kernelDefinition
-        variancesPerDepVar = getValues depVarVariances
         searchPerDepVar    = case searchDepVarPos of
             Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
             Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
             Nothing                          -> replicate (length depVars) Nothing
-        interpolPerDepVar = zipWith4 (interpol obs dists) depVars kernelsPerDepVar variancesPerDepVar searchPerDepVar
+        interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernelsPerDepVar searchPerDepVar
     in SearchResult {
            _srCorePermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
@@ -99,10 +98,9 @@ interpol ::
     -> V.Vector IndepVarsDist
     -> DepVarName
     -> KernelOneDepVar
-    -> Double
     -> Maybe Double
     -> InterpolationResultOneDepVar
-interpol obs dists depVar kernel variance maybeSearchValue = do
+interpol obs dists depVar kernel maybeSearchValue = do
     let values      = VS.convert $ V.map (getDepVarsPos depVar) obs
         weights     = M.fromRows [VS.convert $ V.map (getWeight kernel) dists]
     case kas weights values of
@@ -113,7 +111,7 @@ interpol obs dists depVar kernel variance maybeSearchValue = do
                 logL   = fmap (logDensity distribution) maybeSearchValue -- log-likelihood
             in KAS depVar neff wvb wv (OutBool True) (OutInfDouble lower) median (OutInfDouble upper) logL
         (neff, wvb, wv, mu, Left _) -> case maybeSearchValue of
-            Just _ -> KAS depVar neff wvb wv (OutBool False) (OutInfDouble (-infinity)) mu (OutInfDouble infinity) (Just (-infinity))
+            Just _  -> KAS depVar neff wvb wv (OutBool False) (OutInfDouble (-infinity)) mu (OutInfDouble infinity) (Just (-infinity))
             Nothing -> KAS depVar neff wvb wv (OutBool False) (OutInfDouble (-infinity)) mu (OutInfDouble infinity) Nothing
 
 sumRows :: M.Matrix M.R -> M.Vector M.R

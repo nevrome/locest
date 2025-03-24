@@ -260,8 +260,7 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
 data CoreOutMode =
       CoreOutObsWeight Int
     | CoreOutInterpolSamples Int (Maybe Int) (Maybe SamplingRange)
-    | CoreOutShort
-    | CoreOutFull
+    | CoreOutInterpolAndSearch
 
 data SamplingRange =
       OneSigma

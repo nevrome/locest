@@ -123,8 +123,8 @@ runCross (
                                                     (Just $ DepVarsPredPosSearchObs obs)
                                                     kernDef 0 iteration
                                             in coreNormal
-                                                spatDistUnitScaling CoreOutFull
-                                                variancesPerDepVar coreSupp
+                                                spatDistUnitScaling
+                                                coreSupp
                                                 depVars trainingData perm
                                        ) testData
                                ) .| ConC.concat

@@ -119,13 +119,13 @@ runSearch (
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
                 .| sinkNamedCSV outFile
-        otherNormalMode -> do -- CoreOutShort or CoreOutFull
+        CoreOutInterpolAndSearch -> do
             Con.runConduitRes $
                 ConC.yieldMany permutations
                 -- non-chunked solution
-                -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations)
+                -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling supplement depVars observations)
                 .| ConC.conduitVector 100
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling otherNormalMode variancesPerDepVar supplement depVars observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| normalise normalisation
