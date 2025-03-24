@@ -11,6 +11,10 @@ import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (logDensity, quantile)
+import Numeric.LinearAlgebra as M
+import qualified Data.Vector.Storable as VS
+import Statistics.Distribution.Transform (LinearTransform)
+import Statistics.Distribution.StudentT (StudentT)
 
 -- weights-per-obs application
 coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
@@ -77,15 +81,12 @@ coreNormal spatDistUnitScaling outMode depVarVariances coreSupplement
         interpolPerDepVar = zipWith4 (interpol obs dists) depVars kernelsPerDepVar variancesPerDepVar searchPerDepVar
     in SearchResult {
            _srCorePermutation = sett
-         , _srInterpolation   = case outMode of
-                CoreOutShort -> InterpolationResult $ map resOneDepvar2Short interpolPerDepVar
-                CoreOutFull  -> InterpolationResult interpolPerDepVar
-                _            -> throwL "impossible outmode setting"
+         , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srLikelihood      = case mapMaybe getLogLikelihood interpolPerDepVar of
                 [] -> Nothing
                 xs ->
                     let valuesPerDepVar = catMaybes searchPerDepVar
-                        depDist = euclideanDistance (map _irodvWeightedAvg interpolPerDepVar) valuesPerDepVar
+                        depDist = euclideanDistance (map _irKASMedian interpolPerDepVar) valuesPerDepVar
                     in Just SearchLikelihood {
                       _slhEuclideanDep  = depDist
                     , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
@@ -102,30 +103,45 @@ interpol ::
     -> Maybe Double
     -> InterpolationResultOneDepVar
 interpol obs dists depVar kernel variance maybeSearchValue = do
-    let values      = VU.convert $ V.map (getDepVarsPos depVar) obs
-        weights     = VU.convert $ V.map (getWeight kernel) dists
-        totalWeight = VU.sum weights
-        neff        = totalWeight
-        weightedA   = weightedAvg_ totalWeight values weights
-        weightedVB  = weightedVarBasic_ totalWeight weightedA values weights
-        weightedV   = weightedVar_ variance weightedVB totalWeight
-    case posteriorPredictive_ totalWeight weightedA weightedV of
-        Right distribution ->
+    let values      = VS.convert $ V.map (getDepVarsPos depVar) obs
+        weights     = M.fromRows [VS.convert $ V.map (getWeight kernel) dists]
+    case kas weights values of
+        (neff, wvb, wv, mu, Right distribution) ->
             let lower  = quantile distribution 0.025
-                median = weightedA -- this is identical to: quantile distribution 0.5
+                median = mu -- quantile distribution 0.5
                 upper  = quantile distribution 0.975
                 logL   = fmap (logDensity distribution) maybeSearchValue -- log-likelihood
-            in InterpolationResultOneDepVarFull
-                depVar neff weightedA weightedVB weightedV (OutBool True)
-                (OutInfDouble lower) median (OutInfDouble upper) logL
-        Left _ -> case maybeSearchValue of
-            -- requires a proper prior
-            Just _ -> InterpolationResultOneDepVarFull
-                depVar neff weightedA weightedVB weightedV (OutBool False)
-                (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) (Just (-infinity))
-            Nothing -> InterpolationResultOneDepVarFull
-                depVar neff weightedA weightedVB weightedV (OutBool False)
-                (OutInfDouble (-infinity)) weightedA (OutInfDouble infinity) Nothing
+            in KAS depVar neff wvb wv (OutBool True) (OutInfDouble lower) median (OutInfDouble upper) logL
+        (neff, wvb, wv, mu, Left _) -> case maybeSearchValue of
+            Just _ -> KAS depVar neff wvb wv (OutBool False) (OutInfDouble (-infinity)) mu (OutInfDouble infinity) (Just (-infinity))
+            Nothing -> KAS depVar neff wvb wv (OutBool False) (OutInfDouble (-infinity)) mu (OutInfDouble infinity) Nothing
+
+sumRows :: M.Matrix M.R -> M.Vector M.R
+sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
+
+-- for this case application here weights is a vector
+-- that simplifies the algorithm but it brings little gain in performance
+-- I decided to keep the matrix version in case I want to refactor later
+kas :: M.Matrix M.R -> M.Vector M.R -> (Double, Double, Double, Double, Either String (LinearTransform StudentT))
+kas weights y = (
+        totalWeight M.! 0,
+        weightedVarBasic M.! 0,
+        weightedVar M.! 0,
+        mu M.! 0,
+        generalizedStudentT (mu M.! 0) (scale M.! 0) (dof M.! 0)
+    )
+    where
+      totalWeight = sumRows weights
+      weightedAvg = M.flatten (weights M.<> M.asColumn y) / totalWeight
+      values = M.fromRows $ replicate (M.rows weights) y
+      weightedVarBasic = sumRows (weights * (values - M.asColumn weightedAvg) ** 2) / (totalWeight - 1)
+      meanY = M.sumElements y / fromIntegral (M.size y)
+      varSample = M.dot (y - M.scalar meanY) (y - M.scalar meanY) / fromIntegral (M.size y - 1)
+      scaledS2 = (totalWeight - 1) * weightedVarBasic
+      weightedVar = (scaledS2 + M.scalar varSample) / (totalWeight + 1)
+      mu = weightedAvg
+      scale = M.cmap sqrt ((1 + 1/totalWeight) * weightedVar)
+      dof = totalWeight
 
 getWeight :: KernelOneDepVar -> IndepVarsDist -> Double
 getWeight (KernelOneDepVar _ shape lengths) dists =

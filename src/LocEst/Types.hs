@@ -645,59 +645,40 @@ instance Csv.ToRecord InterpolationResult where
     toRecord (InterpolationResult l) = V.concat $ map Csv.toRecord l
 
 getLogLikelihood :: InterpolationResultOneDepVar -> Maybe Double
-getLogLikelihood (InterpolationResultOneDepVarShort {}) = error "should never happen"
-getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood i
+getLogLikelihood i@(KAS {})  = _irKASLogLikelihood i
 
 -- | A data type for interpolation output for one dependent variable
-data InterpolationResultOneDepVar =
-      InterpolationResultOneDepVarShort {
-          _irodvsDepVarName :: DepVarName   -- name of the dependent variable
-        , _irodvsLowerBound :: OutInfDouble -- lower boundary of the 95% interval
-        , _irodvsMedian     :: Double       -- median
-        , _irodvsUpperBound :: OutInfDouble -- upper boundary of the 95% interval
-    }
-    | InterpolationResultOneDepVarFull {
-          _irodvDepVarName       :: DepVarName    -- name of the dependent variable
-        , _irodvEffN             :: Double        -- effective number of samples
-        , _irodvWeightedAvg      :: Double        -- weighted average
-        , _irodvWeightedVar      :: Double        -- weighted variance
-        , _irodvWeightedVarPrior :: Double        -- weighted variance with prior
-        , _irodvPosterior        :: OutBool       -- could a posterior distribution be calculated?
-        , _irodvLowerBound       :: OutInfDouble  -- lower boundary of the 95% interval
-        , _irodvMedian           :: Double        -- median
-        , _irodvUpperBound       :: OutInfDouble  -- upper boundary of the 95% interval
-        , _irodvLogLikelihood    :: Maybe Double  -- Log-likelihood for search value
+data InterpolationResultOneDepVar = KAS {
+          _irKASDepVarName       :: DepVarName    -- name of the dependent variable
+        , _irKASEffN             :: Double        -- effective number of samples
+         , _irKASWeightedVar      :: Double        -- weighted variance
+        , _irKASWeightedVarPrior :: Double        -- weighted variance with prior
+        , _irKASPosterior        :: OutBool       -- could a posterior distribution be calculated?
+        , _irKASLowerBound       :: OutInfDouble  -- lower boundary of the 95% interval
+        , _irKASMedian           :: Double        -- median (weighted average)
+        , _irKASUpperBound       :: OutInfDouble  -- upper boundary of the 95% interval
+        , _irKASLogLikelihood    :: Maybe Double  -- Log-likelihood for search value
     } deriving (Eq, Show, Generic)
 
 instance NFData InterpolationResultOneDepVar
 instance Csv.DefaultOrdered InterpolationResultOneDepVar where
-    headerOrder (InterpolationResultOneDepVarShort n _ _ _ ) =
+    headerOrder (KAS n _ _ _ _ _ _ _ Nothing) =
         Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
-            ["low", "median", "up"]
-    headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ _ Nothing) =
+            ["neff", "var", "var_prior", "post", "low", "median", "up"]
+    headerOrder (KAS n _ _ _ _ _ _ _ (Just _)) =
         Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
-            ["neff", "avg", "var", "var_prior", "post", "low", "median", "up"]
-    headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ _ (Just _)) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
-            ["neff", "avg", "var", "var_prior", "post", "low", "median", "up", "logl"]
+            ["neff", "var", "var_prior", "post", "low", "median", "up", "logl"]
 instance Csv.ToRecord InterpolationResultOneDepVar where
-    toRecord (InterpolationResultOneDepVarShort _ lb m ub) =
-        Csv.record [ Csv.toField lb, Csv.toField m, Csv.toField ub ]
-    toRecord (InterpolationResultOneDepVarFull _ neff a v vp po lb m ub Nothing) =
+    toRecord (KAS _ neff v vp po lb m ub Nothing) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po,
+            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField po,
             Csv.toField lb, Csv.toField m, Csv.toField ub
         ]
-    toRecord (InterpolationResultOneDepVarFull _ neff a v vp po lb m ub (Just l)) =
+    toRecord (KAS _ neff v vp po lb m ub (Just l)) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po,
+            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField po,
             Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField l
         ]
-
-resOneDepvar2Short :: InterpolationResultOneDepVar -> InterpolationResultOneDepVar
-resOneDepvar2Short (InterpolationResultOneDepVarFull n _ _ _ _ _ lb m ub _) =
-    InterpolationResultOneDepVarShort n lb m ub
-resOneDepvar2Short x = x
 
 -- | A data type that wraps around bools to modify the way they are rendered in the .tsv output
 -- This is specifically done to make it easily readable in R
