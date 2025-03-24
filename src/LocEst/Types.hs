@@ -635,15 +635,15 @@ getLogLikelihood i@(KAS {})  = _irKASLogLikelihood i
 
 -- | A data type for interpolation output for one dependent variable
 data InterpolationResultOneDepVar = KAS {
-          _irKASDepVarName       :: DepVarName    -- name of the dependent variable
-        , _irKASEffN             :: Double        -- effective number of samples
-         , _irKASWeightedVar     :: Double        -- weighted variance
-        , _irKASWeightedVarPrior :: Double        -- weighted variance with prior
-        , _irKASPosterior        :: OutBool       -- could a posterior distribution be calculated?
-        , _irKASLowerBound       :: OutDouble  -- lower boundary of the 95% interval
-        , _irKASMedian           :: Double        -- median (weighted average)
-        , _irKASUpperBound       :: OutDouble  -- upper boundary of the 95% interval
-        , _irKASLogLikelihood    :: Maybe Double  -- Log-likelihood for search value
+          _irKASDepVarName       :: DepVarName   -- name of the dependent variable
+        , _irKASEffN             :: Double       -- effective number of samples
+        , _irKASWeightedVar      :: Double       -- weighted variance
+        , _irKASWeightedVarPrior :: Double       -- weighted variance with prior
+        , _irKASPosterior        :: OutBool      -- could a posterior distribution be calculated?
+        , _irKASLowerBound       :: OutDouble    -- lower boundary of the 95% interval
+        , _irKASMedian           :: Double       -- median (weighted average)
+        , _irKASUpperBound       :: OutDouble    -- upper boundary of the 95% interval
+        , _irKASLogLikelihood    :: Maybe Double -- Log-likelihood for search value
     } deriving (Eq, Show, Generic)
 
 instance NFData InterpolationResultOneDepVar

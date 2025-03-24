@@ -92,3 +92,5 @@ test-suite spec
       , process
       , QuickCheck
       , vector
+      , statistics
+      , hmatrix

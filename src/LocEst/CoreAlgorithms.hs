@@ -121,7 +121,7 @@ kas weights y =
       scaledS2 = (totalWeight - 1) * weightedVarBasic
       weightedVar = (scaledS2 + M.scalar varSample) / (totalWeight + 1)
       mu = weightedAvg
-      scale = M.cmap sqrt ((1 + 1/totalWeight) * weightedVar)
+      scale = M.cmap sqrt ((1 + 1/(totalWeight + 1)) * weightedVar)
       dof = totalWeight
 
 getWeight :: KernelOneDepVar -> IndepVarsDist -> Double

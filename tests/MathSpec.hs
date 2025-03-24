@@ -1,72 +1,76 @@
 module MathSpec (spec) where
 
+import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils
 
-import qualified Data.Vector.Unboxed   as VU
+import           Data.List                         (foldl')
+import qualified Data.Vector                       as V
+import qualified Data.Vector.Storable              as VS
+import qualified Numeric.LinearAlgebra             as M
+import           Statistics.Distribution           (quantile)
+import           Statistics.Distribution.StudentT  (StudentT)
+import           Statistics.Distribution.Transform (LinearTransform)
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
-import           Test.QuickCheck
+import           Test.QuickCheck                   hiding (scale)
+import           Text.Printf
 
 spec :: Spec
 spec = do
     testEqualityFullAndPartialFunctions
 
 testEqualityFullAndPartialFunctions :: Spec
-testEqualityFullAndPartialFunctions = describe "LocEst.MathUtils: full and partial functions behave identically" $ do
-    prop "avg == avg_" test_avg
-    prop "varSample == varSample_" test_varSample
-    prop "weightedAvg == weightedAvg_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedAvg vals weights
-    prop "weightedVarBasic == weightedVarBasic_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedVarBasic vals weights
-    prop "weightedVar == weightedVar_" $ forAll valuesAndWeights $ \(vals, weights) -> test_weightedVar vals weights
-    prop "posteriorPredictive == posteriorPredictive_" $ forAll valuesAndWeights $ \(vals, weights) -> test_posteriorPredictive vals weights
+testEqualityFullAndPartialFunctions = describe "KAS algorithm implementation behaves as expected" $ do
+    prop "neff" $ forAll valuesAndWeights $ uncurry test_neff
+    prop "weightedAvg" $ forAll valuesAndWeights $ uncurry test_weightedAvg
+    prop "weightedVarBasic" $ forAll valuesAndWeights $ uncurry test_weightedVarBasic
+    prop "weightedVar" $ forAll valuesAndWeights $ uncurry test_weightedVar
+    prop "posteriorPredictive" $ forAll valuesAndWeights $ uncurry test_posteriorPredictive
     where
-        test_avg :: [Double] -> Bool
-        test_avg [] = True
-        test_avg vals =
-            let vvals = VU.fromList vals
-                vlength = fromIntegral $ VU.length vvals
-            in avg_ vlength vvals == avg vals
-        test_varSample :: [Double] -> Bool
-        test_varSample []  = True
-        test_varSample [_] = True
-        test_varSample vals  =
-            let vvals = VU.fromList vals
-                vlength = fromIntegral $ VU.length vvals
-            in varSample_ vlength vvals == varSample vals
+        test_neff :: [Double] -> [Double] -> Bool
+        test_neff vals weights =
+            let vvals = VS.fromList vals
+                mweights = M.fromRows [VS.fromList weights]
+                (neff, _, _, _, _) = V.head $ kas mweights vvals
+            in neff =~= M.sumElements mweights
         test_weightedAvg :: [Double] -> [Double] -> Bool
         test_weightedAvg vals weights =
-            let vvals = VU.fromList vals
-                vweights = VU.fromList weights
-                totalWeight = VU.sum vweights
-            in weightedAvg_ totalWeight vvals vweights == weightedAvg vals weights
+            let vvals = VS.fromList vals
+                mweights = M.fromRows [VS.fromList weights]
+                (_, _, _, mu, _) = V.head $ kas mweights vvals
+            in mu =~= weightedAvg vals weights
         test_weightedVarBasic :: [Double] -> [Double] -> Bool
         test_weightedVarBasic vals weights =
-            let vvals = VU.fromList vals
-                vweights = VU.fromList weights
-                totalWeight = VU.sum vweights
-                weightedM = weightedAvg_ totalWeight vvals vweights
-            in weightedVarBasic_ totalWeight weightedM vvals vweights == weightedVarBasic vals weights
+            let vvals = VS.fromList vals
+                mweights = M.fromRows [VS.fromList weights]
+                (_, wvb, _, _, _) = V.head $ kas mweights vvals
+            in wvb =~= weightedVarBasic vals weights
         test_weightedVar :: [Double] -> [Double] -> Bool
         test_weightedVar vals weights =
-            let vvals = VU.fromList vals
-                vweights = VU.fromList weights
-                vlength = fromIntegral $ VU.length vvals
-                sampleVariance = varSample_ vlength vvals
-                totalWeight = VU.sum vweights
-                weightedM = weightedAvg_ totalWeight vvals vweights
-                weightedVBase = weightedVarBasic_ totalWeight weightedM vvals vweights
-            in weightedVar_ sampleVariance weightedVBase totalWeight == weightedVar vals weights
+            let vvals = VS.fromList vals
+                mweights = M.fromRows [VS.fromList weights]
+                (_, _, wv, _, _) = V.head $ kas mweights vvals
+            in wv =~= weightedVar vals weights
         test_posteriorPredictive :: [Double] -> [Double] -> Bool
         test_posteriorPredictive vals weights =
-            let vvals = VU.fromList vals
-                vweights = VU.fromList weights
-                vlength = fromIntegral $ VU.length vvals
-                sampleVariance = varSample_ vlength vvals
-                totalWeight = VU.sum vweights
-                weightedM = weightedAvg_ totalWeight vvals vweights
-                weightedVBase = weightedVarBasic_ totalWeight weightedM vvals vweights
-                weightedV = weightedVar_ sampleVariance weightedVBase totalWeight
-            in posteriorPredictive_ totalWeight weightedM weightedV == posteriorPredictive vals weights
+            let vvals = VS.fromList vals
+                mweights = M.fromRows [VS.fromList weights]
+                (_, _, _, _, eitherDistribution) = V.head $ kas mweights vvals
+                a = case eitherDistribution of
+                    Right distribution -> quantile distribution 0.54
+                    Left _             -> nan
+                b = case posteriorPredictive vals weights of
+                    Right distribution -> quantile distribution 0.54
+                    Left _             -> nan
+            in  case (a =~= b) of
+                    False -> error $ roundToStr 3 a ++ " ~ " ++ roundToStr 3 b
+                    True  -> True
+
+-- the results differ slightly
+roundToStr :: (PrintfArg a, Floating a) => Int -> a -> String
+roundToStr = printf "%0.*f"
+(=~=) :: Double -> Double -> Bool
+l =~= r = roundToStr 5 l == roundToStr 5 r
 
 -- generators
 
@@ -79,3 +83,70 @@ valuesAndWeights = do
 
 positiveDouble :: Gen Double
 positiveDouble = abs `fmap` (arbitrary :: Gen Double) `suchThat` (> 0)
+
+-- reference implementation
+
+-- the following code is not used any more, but remains here as useful documentation of the kas algorithm
+
+-- with Bessel's correction
+-- https://en.wikipedia.org/wiki/Variance#Unbiased_sample_variance
+varSample :: [Double] -> Double
+varSample xs = foldl' (\o x -> o + (x - mean)**2) 0 xs / (n-1)
+    where
+        mean = avg xs
+        n = fromIntegral $ length xs
+
+--sdSample :: [Double] -> Double
+--sdSample xs = sqrt $ varSample xs
+
+weightedAvg :: [Double] -> [Double] -> Double
+weightedAvg values weights =
+    foldl' (\o (v,w) -> o + v * w) 0 (zip values weights) / foldSum weights
+
+--weightedAvg = M.flatten (weights M.<> M.asColumn y) / totalWeight
+
+weightedVarBasic :: [Double] -> [Double] -> Double
+weightedVarBasic values weights =
+    foldl' (\o (v,w) -> o + w * ((v - weightedMean) ** 2)) 0 (zip values weights) / (neff-1)
+    where
+        weightedMean = weightedAvg values weights
+        neff = foldSum weights
+
+weightedVar :: [Double] -> [Double] -> Double
+weightedVar values weights =
+    (nu0 * sigma02 + scaledS2) / (nu0 + neff)
+    where
+        scaledS2 = (neff - 1) * s2
+        s2 = weightedVarBasic values weights
+        neff = foldSum weights
+        nu0 = 1
+        sigma02 = varSample values
+
+--weightedSD :: [Double] -> [Double] -> Double
+--weightedSD values weights =
+--    sqrt $ weightedVar values weights
+
+--weightedSEM :: [Double] -> [Double] -> Double
+--weightedSEM values weights =
+--    sqrt (weightedVar values weights / neff)
+--    where
+--        neff = totalWeight
+--        totalWeight = foldSum weights
+
+--posteriorMu :: [Double] -> [Double] ->  Either String (LinearTransform StudentT)
+--posteriorMu values weights = generalizedStudentT mu scale dof
+--    where
+--        mu = weightedAvg values weights
+--        scale = weightedSD values weights / sqrt neff
+--        dof = neff1
+--        neff1 = neff - 1
+--        neff = totalWeight + 1
+--        totalWeight = foldSum weights
+
+posteriorPredictive :: [Double] -> [Double] -> Either String (LinearTransform StudentT)
+posteriorPredictive values weights = generalizedStudentT mu scale dof
+    where
+        mu = weightedAvg values weights
+        scale = sqrt ((1 + 1/neff) * weightedVar values weights)
+        dof = neff - 1
+        neff = foldSum weights + 1
