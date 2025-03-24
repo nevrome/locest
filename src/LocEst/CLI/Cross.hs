@@ -69,7 +69,7 @@ runCross (
                  in (ks, ds)
     -- read observations
     observationsRaw <- readObservations inObsFile
-    -- count nr of iterations
+    -- count nr of permutations
     let numKernDefs = length $ concat kernDefsSets
         numObs = length observationsRaw
         (testFraction, numIterations) = case subsetMode of
@@ -138,13 +138,8 @@ runCross (
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-readSupplement ::
-       [String]
-    -> SupplementSettings
-    -> V.Vector Observation
-    -> IO Supplement
-readSupplement
-    indepVarsWanted
+readSupplement :: [String] -> SupplementSettings -> V.Vector Observation -> IO Supplement
+readSupplement indepVarsWanted
     (SupplementSettings
             distanceFilterThresholdsRaw
             inSpatDistFile

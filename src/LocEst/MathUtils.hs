@@ -1,5 +1,5 @@
 module LocEst.MathUtils (
-       infinity,
+       inf,
        nan,
        foldSum,
        avg,
@@ -11,8 +11,8 @@ import           Statistics.Distribution.StudentT  (StudentT,
                                                     studentTUnstandardized)
 import           Statistics.Distribution.Transform (LinearTransform)
 
-infinity :: Fractional a => a
-infinity = 1/0
+inf :: Fractional a => a
+inf = 1/0
 
 nan :: Fractional a => a
 nan = 0/0

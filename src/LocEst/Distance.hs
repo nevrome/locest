@@ -61,7 +61,7 @@ getDist
         let keys = getKeys obsArbitraryDimPos
             obsPos  = getValues obsArbitraryDimPos
             gridPos = getValues gridAbritryDimPos
-            arbitraryDimDist = ValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
+            arbitraryDimDist = makeValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
 -- wrong input
 getDist _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"

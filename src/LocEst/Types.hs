@@ -153,12 +153,12 @@ instance Csv.ToRecord CrossvalOutput where
         <> Csv.toRecord algo
         <> Csv.record [Csv.toField sumDist]
         <> Csv.record [Csv.toField meanSquaredDist]
-        <> Csv.record [Csv.toField $ OutInfDouble sumProb]
+        <> Csv.record [Csv.toField $ OutDouble sumProb]
     toRecord (CrossvalOutput _ algo sumDist meanSquaredDist sumProb) =
            Csv.toRecord algo
         <> Csv.record [Csv.toField sumDist]
         <> Csv.record [Csv.toField meanSquaredDist]
-        <> Csv.record [Csv.toField $ OutInfDouble sumProb]
+        <> Csv.record [Csv.toField $ OutDouble sumProb]
 
 crossSummaryHeader :: Csv.Header
 crossSummaryHeader = Csv.header ["sum_dep_dist_euclidean","mean_squared_dep_dist_euclidean","sum_log_likelihood"]
@@ -640,9 +640,9 @@ data InterpolationResultOneDepVar = KAS {
          , _irKASWeightedVar     :: Double        -- weighted variance
         , _irKASWeightedVarPrior :: Double        -- weighted variance with prior
         , _irKASPosterior        :: OutBool       -- could a posterior distribution be calculated?
-        , _irKASLowerBound       :: OutInfDouble  -- lower boundary of the 95% interval
+        , _irKASLowerBound       :: OutDouble  -- lower boundary of the 95% interval
         , _irKASMedian           :: Double        -- median (weighted average)
-        , _irKASUpperBound       :: OutInfDouble  -- upper boundary of the 95% interval
+        , _irKASUpperBound       :: OutDouble  -- upper boundary of the 95% interval
         , _irKASLogLikelihood    :: Maybe Double  -- Log-likelihood for search value
     } deriving (Eq, Show, Generic)
 
@@ -676,19 +676,19 @@ instance Csv.ToField OutBool where
     toField (OutBool False) = "FALSE"
 
 -- | A data type that wraps around Doubles to modify the way they are rendered in the .tsv output.
--- This is specifically done for the representation of infinity to make it easily readable in R
-newtype OutInfDouble = OutInfDouble Double
+-- This is specifically done for the representation of inf to make it easily readable in R
+newtype OutDouble = OutDouble Double
     deriving (Eq, Generic)
-instance NFData OutInfDouble
-instance Csv.ToField OutInfDouble where
-    toField (OutInfDouble x)
-        | x == infinity    = "Inf"
-        | x == (-infinity) = "-Inf"
+instance NFData OutDouble
+instance Csv.ToField OutDouble where
+    toField (OutDouble x)
+        | x == inf    = "Inf"
+        | x == (-inf) = "-Inf"
         | otherwise        = Bchs.pack $ show x
-instance Show OutInfDouble where
-    show (OutInfDouble x)
-        | x == infinity    = "Inf"
-        | x == (-infinity) = "-Inf"
+instance Show OutDouble where
+    show (OutDouble x)
+        | x == inf    = "Inf"
+        | x == (-inf) = "-Inf"
         | otherwise        = show x
 
 -- | A data type for dependent vars with some value
@@ -715,7 +715,7 @@ instance Csv.DefaultOrdered ValuesPerDepVar where
         V.map Bchs.pack $ V.fromList $ map fst l
 instance Csv.ToRecord ValuesPerDepVar where
     toRecord (ValuesPerDepVar l) =
-        V.map (Bchs.pack . show) $ V.map OutInfDouble $ V.fromList $ map snd l
+        V.map (Bchs.pack . show) $ V.map OutDouble $ V.fromList $ map snd l
 instance PseudoMap ValuesPerDepVar Double where
     toList (ValuesPerDepVar l) = l
     getKeys (ValuesPerDepVar l) = map fst l

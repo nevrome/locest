@@ -39,14 +39,16 @@ data DepVarsPredGridSettings =
       DirectDepVarsGridSettings [DepVarsPos]
     | SearchObsDepVarsGridSettings FilePath
 
-data IndepVarsPredGridSettings = SpaceTimeGridSettings {
+data IndepVarsPredGridSettings =
+    SpaceTimeGridSettings {
       _stgsInSpatGridFile     :: FilePath
     , _stgsInTempGrid         :: [AbsRelTempPos]
     , _stgsSupplementSettings :: SupplementSettings
-} | ArbitraryDimGridSettings {
+    } |
+    ArbitraryDimGridSettings {
       _adgsInArbitraryDimGridFile :: FilePath
     , _adgsSupplementSettings     :: SupplementSettings
-}
+    }
 
 data SupplementSettings = SupplementSettings {
       _stcsDistFilterThresholds :: Maybe DistanceThresholds
@@ -130,9 +132,7 @@ runSearch (
 
 readIndepVarsPredGrid :: [String] -> V.Vector Observation -> IndepVarsPredGridSettings -> IO IndepVarsPredGrid
 -- spatiotemporal case
-readIndepVarsPredGrid
-    _
-    observations
+readIndepVarsPredGrid _ observations
     (SpaceTimeGridSettings inSpatGridFile inTempGrid
         (SupplementSettings distanceFilterThresholds inSpatDistFile inObsTempSamplesFile noOrderCheck)
     ) = do
@@ -143,9 +143,7 @@ readIndepVarsPredGrid
     -- ordering of distance filter tresholds not necessary here; see cross
     return $ SpaceTimeGrid inSpatGrid inTempGrid distanceFilterThresholds inSpatDists inObsTempSamples
 -- arbitrary dimension case
-readIndepVarsPredGrid
-    indepVarsWanted
-    _
+readIndepVarsPredGrid indepVarsWanted _
     (ArbitraryDimGridSettings inArbitraryDimGridFile
         (SupplementSettings distanceFilterThresholdsRaw _ _ _)
     ) = do
@@ -157,16 +155,12 @@ readIndepVarsPredGrid
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
-    -- reorder depVarsPos
     let depVarsPosReordered = map (filterByKey depVars) depVarsPos
-    -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPosReordered
 readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
-    -- read search observations
-    obsVec <- readObservations path
+    obsVec <- readObservations path -- search observations
     let obsVecReordered = filterVarsInObs depVars indepVars obsVec
         searchObservations = V.toList obsVecReordered
-    -- return grid
     return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
 
 createSupplement :: IndepVarsPredGrid -> Supplement

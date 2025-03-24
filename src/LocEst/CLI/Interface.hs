@@ -138,7 +138,7 @@ optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
 optParseIndepVarsThresholds = OP.option (OP.eitherReader readIndepVarsThresholds) (
        OP.long "indepVarsThresholds"
     <> OP.metavar "c(space=DOUBLE,time=DOUBLE,indepV1=DOUBLE,...)"
-    <> OP.value (ValuesPerIndepVar [])
+    <> OP.value (makeValuesPerIndepVar [])
     <> OP.helpDoc ( Just (
                       s2d "Thresholds for the filtering distances across independent variables. \
                           \When computing a variogram for temporal distances it might for example \
@@ -155,7 +155,7 @@ readIndepVarsThresholds s =
     where
         parseIndepVarsThresholds = do
             res <- parseNamedVector parseIndepVarName parsePositiveDouble
-            return (ValuesPerIndepVar res)
+            return (makeValuesPerIndepVar res)
 
 readSpaceTime :: String -> Either String (Double, Double)
 readSpaceTime s =
@@ -210,7 +210,7 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
         parseOneBinMax = do
             res <- parseRecordType "OneBinMax" $ do
                 maxPerIndepVar <- parseArgument "max" (parseNamedVector parseIndepVarName parseDouble)
-                return $ ValuesPerIndepVar maxPerIndepVar
+                return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
 optParseCrossSettings :: OP.Parser CrossSettings
@@ -612,7 +612,7 @@ readFilterThresholds s =
         makeSpatTempOrAbritraryDim :: [(String, Double)] -> Either String (Either (Double, Double) ArbitraryDimThresholds)
         makeSpatTempOrAbritraryDim xs
             | sort (map fst xs) == ["space", "time"] = Right $ Left $ tuplify xs
-            | all (isPrefixOf "indep" . fst) xs      = Right $ Right $ ValuesPerIndepVar xs
+            | all (isPrefixOf "indep" . fst) xs      = Right $ Right $ makeValuesPerIndepVar xs
             | otherwise                              = Left "--indepMinFilter and --indepMaxFilter can fit \
                                                               \either to a spatiotemporal or a arbitrary variable setup"
         tuplify :: [(String,Double)] -> (Double,Double)
@@ -757,7 +757,7 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
             let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
                 grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
                 permutations = sequenceA grouped
-            return $ map ValuesPerDepVar permutations
+            return $ map makeValuesPerDepVar permutations
             where
                 parseSequence = parseDoubleSequence
                 parseList = parseVector parseDouble
@@ -839,7 +839,7 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
-        parseKernelLengths = KernelLengths . ValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
+        parseKernelLengths = KernelLengths . makeValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
 
 optParseCoAnalyseDepVars :: OP.Parser Bool
 optParseCoAnalyseDepVars = OP.switch (
@@ -903,7 +903,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
             res <- parseNamedVector parseIndepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
             let flattened = map (\(name,vs) -> map (name,) vs) res
                 permutations = sequenceA flattened
-            return $ map (KernelLengths . ValuesPerIndepVar) permutations
+            return $ map (KernelLengths . makeValuesPerIndepVar) permutations
         parseSequence = parseDoubleSequence
         parseList = parseVector parseDouble
         parseSingle = singleton <$> parseDouble

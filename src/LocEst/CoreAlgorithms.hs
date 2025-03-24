@@ -24,9 +24,9 @@ coreObsWeights spatDistUnitScaling nrTopObs coreSupplement
      depVars observations sett@(Permutation _ _ kernelDefinition _ _) =
     let (obs,dists)      = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar = getValues kernelDefinition
-        weights = flip V.map dists $
-            \dist -> ValuesPerDepVar $
-                zipWith (\depVar kernelPerDepVar -> (depVar, getWeight kernelPerDepVar dist)) depVars kernelsPerDepVar
+        weights = flip V.map dists $ \dist -> ValuesPerDepVar $
+            zipWith (\depVar kernelPerDepVar -> (depVar, getWeight kernelPerDepVar dist))
+                depVars kernelsPerDepVar
         obsWithWeights = V.zipWith3 ObsWithWeights obs dists weights
         obsWithWeightsSubset = V.fromList $ take nrTopObs $ sortBy (flip compare) $ V.toList obsWithWeights
     in V.map (ObsWeight sett) obsWithWeightsSubset
@@ -37,27 +37,23 @@ coreSamples :: Double -> Supplement -> [DepVarName]
             -> V.Vector InterpolationSample
 coreSamples spatDistUnitScaling coreSupplement
      depVars observations (sett@(Permutation _ _ kernelDefinition _ _), randIterations) =
-    let (obs,dists)        = filterObs spatDistUnitScaling coreSupplement sett observations
-        kernelsPerDepVar   = getValues kernelDefinition
-        samplesPerDepVar   = map (second drawSamples) randIterations
-        drawSamples r      = ValuesPerDepVar $
+    let (obs,dists)      = filterObs spatDistUnitScaling coreSupplement sett observations
+        kernelsPerDepVar = getValues kernelDefinition
+        samplesPerDepVar = map (second drawSamples) randIterations
+        drawSamples r    = ValuesPerDepVar $
             zipWith (getRandomSample obs dists r) depVars kernelsPerDepVar
     in V.fromList $ map (uncurry (InterpolationSample sett)) samplesPerDepVar
 
-getRandomSample ::
-       V.Vector Observation
-    -> V.Vector IndepVarsDist
-    -> DepVarsRands
-    -> DepVarName
-    -> KernelOneDepVar
-    -> (DepVarName, Double)
+getRandomSample :: V.Vector Observation -> V.Vector IndepVarsDist
+                -> DepVarsRands -> DepVarName -> KernelOneDepVar
+                -> (DepVarName, Double)
 getRandomSample obs dists depVarsRands depVar kernel = do
-    let values      = VU.convert $ V.map (getDepVarsPos depVar) obs
-        weights     = M.fromRows [VU.convert $ V.map (getWeight kernel) dists]
-        random01    = lookupUnsafe depVarsRands depVar
+    let values   = VU.convert $ V.map (getDepVarsPos depVar) obs
+        weights  = M.fromRows [VU.convert $ V.map (getWeight kernel) dists]
+        random01 = lookupUnsafe depVarsRands depVar
     case V.head $ kas weights values of
         (_, _, _, _, Right distribution) -> (depVar, quantile distribution random01)
-        (_, _, _, _, Left _)             -> (depVar,nan)
+        (_, _, _, _, Left _)             -> (depVar, nan)
 
 -- interpolation and search application
 coreNormal :: Double -> Supplement -> [DepVarName]
@@ -65,17 +61,18 @@ coreNormal :: Double -> Supplement -> [DepVarName]
            -> SearchResult
 coreNormal spatDistUnitScaling coreSupplement
      depVars observations sett@(Permutation _ searchDepVarPos kernelDefinition _ _) =
-    let (obs,dists)        = filterObs spatDistUnitScaling coreSupplement sett observations
-        kernelsPerDepVar   = getValues kernelDefinition
-        searchPerDepVar    = case searchDepVarPos of
+    let (obs,dists)      = filterObs spatDistUnitScaling coreSupplement sett observations
+        kernelsPerDepVar = getValues kernelDefinition
+        searchPerDepVar  = case searchDepVarPos of
             Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
             Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
             Nothing                          -> replicate (length depVars) Nothing
         interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernelsPerDepVar searchPerDepVar
     in SearchResult {
-           _srPermutation = sett
-         , _srInterpolation   = InterpolationResult interpolPerDepVar
-         , _srLikelihood      = case mapMaybe getLogLikelihood interpolPerDepVar of
+           _srPermutation   = sett
+         , _srInterpolation = InterpolationResult interpolPerDepVar
+         , _srLikelihood    =
+             case mapMaybe getLogLikelihood interpolPerDepVar of
                 [] -> Nothing
                 xs ->
                     let valuesPerDepVar = catMaybes searchPerDepVar
@@ -87,26 +84,22 @@ coreNormal spatDistUnitScaling coreSupplement
                     }
          }
 
-interpol ::
-       V.Vector Observation
-    -> V.Vector IndepVarsDist
-    -> DepVarName
-    -> KernelOneDepVar
-    -> Maybe Double
-    -> InterpolationResultOneDepVar
+interpol :: V.Vector Observation -> V.Vector IndepVarsDist
+         -> DepVarName -> KernelOneDepVar -> Maybe Double
+         -> InterpolationResultOneDepVar
 interpol obs dists depVar kernel maybeSearchValue = do
-    let values      = VS.convert $ V.map (getDepVarsPos depVar) obs
-        weights     = M.fromRows [VS.convert $ V.map (getWeight kernel) dists]
+    let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
+        weights = M.fromRows [VS.convert $ V.map (getWeight kernel) dists]
     case V.head $ kas weights values of
         (neff, wvb, wv, mu, Right distribution) ->
             let lower  = quantile distribution 0.025
                 median = mu -- quantile distribution 0.5
                 upper  = quantile distribution 0.975
                 logL   = fmap (logDensity distribution) maybeSearchValue -- log-likelihood
-            in KAS depVar neff wvb wv (OutBool True) (OutInfDouble lower) median (OutInfDouble upper) logL
+            in KAS depVar neff wvb wv (OutBool True) (OutDouble lower) median (OutDouble upper) logL
         (neff, wvb, wv, mu, Left _) -> case maybeSearchValue of
-            Just _  -> KAS depVar neff wvb wv (OutBool False) (OutInfDouble (-infinity)) mu (OutInfDouble infinity) (Just (-infinity))
-            Nothing -> KAS depVar neff wvb wv (OutBool False) (OutInfDouble (-infinity)) mu (OutInfDouble infinity) Nothing
+            Just _  -> KAS depVar neff wvb wv (OutBool False) (OutDouble (-inf)) mu (OutDouble inf) (Just (-inf))
+            Nothing -> KAS depVar neff wvb wv (OutBool False) (OutDouble (-inf)) mu (OutDouble inf) Nothing
 
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
