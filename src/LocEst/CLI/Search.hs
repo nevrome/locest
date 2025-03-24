@@ -137,22 +137,10 @@ readIndepVarsPredGrid
         (CoreSupplementSettings distanceFilterThresholds inSpatDistFile inObsTempSamplesFile noOrderCheck)
     ) = do
     hPutStrLn stderr "Assuming a spatiotemporal system"
-    -- read spatial grid
     inSpatGrid <- readSpatPos inSpatGridFile
-    -- read spatial distances
-    inSpatDists <- case inSpatDistFile of
-        Nothing   -> pure Nothing
-        Just path -> case takeExtension path of
-            ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
-            _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations (Just inSpatGrid) path)
-    -- read temporal distances
-    inObsTempSamples <- case inObsTempSamplesFile of
-        Nothing   -> pure Nothing
-        Just path -> case takeExtension path of
-            ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
-            _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
-    -- ordering of distance filter tresholds not necessary here
-    -- return grid
+    inSpatDists <- readMaybeSpatDist noOrderCheck observations (Just inSpatGrid) inSpatDistFile
+    inObsTempSamples <- readMaybeObsTempSamples noOrderCheck observations inObsTempSamplesFile
+    -- ordering of distance filter tresholds not necessary here; see cross
     return $ SpaceTimeGrid inSpatGrid inTempGrid distanceFilterThresholds inSpatDists inObsTempSamples
 -- arbitrary dimension case
 readIndepVarsPredGrid
@@ -162,12 +150,9 @@ readIndepVarsPredGrid
         (CoreSupplementSettings distanceFilterThresholdsRaw _ _ _)
     ) = do
     hPutStrLn stderr "Assuming an arbitrary-dimension system"
-    -- read arbitrary-dimension grid
     inArbitraryDimPosRaw <- readArbitraryDimPos inArbitraryDimGridFile
     let inArbitraryDimPos = filterVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
-    -- filter distance filter tresholds
     let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
-    -- return grid
     return $ ArbitraryDimGrid inArbitraryDimPos distanceFilterThresholds
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid

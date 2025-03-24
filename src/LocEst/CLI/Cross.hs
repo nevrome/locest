@@ -153,21 +153,9 @@ readCoreSupplement
     )
     observations = do
     hPutStrLn stderr "Reading supplements"
-    -- read spatial distances
-    inSpatDists <- case inSpatDistFile of
-        Nothing   -> pure Nothing
-        Just path -> case takeExtension path of
-            ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
-            _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
-    -- read temporal positions
-    inObsTempSamples <- case inObsTempSamplesFile of
-        Nothing   -> pure Nothing
-        Just path -> case takeExtension path of
-            ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
-            _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
-    -- filter distance filter tresholds
+    inSpatDists <- readMaybeSpatDist noOrderCheck observations Nothing inSpatDistFile
+    inObsTempSamples <- readMaybeObsTempSamples noOrderCheck observations inObsTempSamplesFile
     let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
-    -- return supplement
     return $ CoreSupplement distanceFilterThresholds inSpatDists inObsTempSamples
 
 summarizeFunc :: [CrossSearchResult] -> CrossvalOutput

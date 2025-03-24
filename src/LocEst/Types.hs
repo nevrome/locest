@@ -1,4 +1,3 @@
-{-# LANGUAGE ApplicativeDo          #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings      #-}
@@ -110,8 +109,6 @@ instance Csv.ToRecord CsvNamedRecord where
     toRecord (CsvNamedRecord nr) =
         V.fromList $ HM.elems nr
 
--- special types for the cross subcommand
-
 -- | A data type for search results with a depVar label
 data CrossSearchResult = CrossSearchResult {
       _csrDepVars      :: [DepVarName]
@@ -166,8 +163,6 @@ instance Csv.ToRecord CrossvalOutput where
 crossSummaryHeader :: Csv.Header
 crossSummaryHeader = Csv.header ["sum_dep_dist_euclidean","mean_squared_dep_dist_euclidean","sum_log_likelihood"]
 
--- special types for the vario subcommands
-
 -- | A data type for an empirical variogram
 newtype EmpiricalVariogram = EmpiricalVariogram [((Double,Double,Double), Double)]
     deriving Show
@@ -188,8 +183,6 @@ instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
     toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv) =
         Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax, Csv.toField dv]
-
--- general types or types specifically relevant for the search subcommand
 
 -- | A data type for normalisation of search output
 data Normalisation = NormBySpace | NoNorm
@@ -270,7 +263,7 @@ data SamplingRange =
 -- | A data type for observation weights per core permutation
 data ObsWeight = ObsWeight {
       _powPermutation :: Permutation
-    , _powObsWeights      :: ObsWithWeights
+    , _powObsWeights  :: ObsWithWeights
     } deriving (Generic)
 
 instance NFData ObsWeight
@@ -282,9 +275,8 @@ instance Csv.ToRecord ObsWeight where
         Csv.toRecord corePermutation <> Csv.toRecord obsWithWeights
 
 -- | A datatype for interpolation samples produced by the core algorithm
-data InterpolationSample =
-      InterpolationSample {
-        _isPermutation       :: Permutation
+data InterpolationSample = InterpolationSample {
+        _isPermutation           :: Permutation
       , _isInterpolRandIteration :: Int
       , _isInterpolRandSamples   :: DepVarSamples
       } deriving (Show, Generic)
@@ -298,11 +290,10 @@ instance Csv.ToRecord InterpolationSample where
         Csv.toRecord corePermutation <>  Csv.record [Csv.toField randIteration] <> Csv.toRecord depVarSamples
 
 -- | A data type for search results produced by the core algorithm
-data SearchResult =
-      SearchResult {
-        _srPermutation :: Permutation
-      , _srInterpolation   :: InterpolationResult
-      , _srLikelihood      :: Maybe SearchLikelihood
+data SearchResult = SearchResult {
+        _srPermutation   :: Permutation
+      , _srInterpolation :: InterpolationResult
+      , _srLikelihood    :: Maybe SearchLikelihood
       } deriving (Show, Generic)
 
 instance NFData SearchResult
@@ -646,7 +637,7 @@ getLogLikelihood i@(KAS {})  = _irKASLogLikelihood i
 data InterpolationResultOneDepVar = KAS {
           _irKASDepVarName       :: DepVarName    -- name of the dependent variable
         , _irKASEffN             :: Double        -- effective number of samples
-         , _irKASWeightedVar      :: Double        -- weighted variance
+         , _irKASWeightedVar     :: Double        -- weighted variance
         , _irKASWeightedVarPrior :: Double        -- weighted variance with prior
         , _irKASPosterior        :: OutBool       -- could a posterior distribution be calculated?
         , _irKASLowerBound       :: OutInfDouble  -- lower boundary of the 95% interval
