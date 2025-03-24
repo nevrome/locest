@@ -17,7 +17,6 @@ import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import           Data.Maybe                    (catMaybes)
 import qualified Data.Vector                   as V
-import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random.Stateful        as R
 
@@ -206,17 +205,14 @@ nrTempSamples (Just (TempSampleMatrix n _ _)) = n
 
 normalise :: Monad m => Normalisation -> Con.ConduitT SearchResult SearchResult m ()
 normalise NoNorm = ConC.map id
-normalise NormBySpace =
-       ConL.groupBy groupingCriteria
-    .| ConC.map scaleProbs
-    .| ConC.concat
+normalise NormBySpace = ConL.groupBy groupFunc .| ConC.map scaleProbs .| ConC.concat
     where
-    groupingCriteria :: SearchResult -> SearchResult -> Bool
-    groupingCriteria
+    groupFunc :: SearchResult -> SearchResult -> Bool
+    groupFunc
         (SearchResult (Permutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1 _) _ _)
         (SearchResult (Permutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2 _) _ _) =
             t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
-    groupingCriteria _ _ = False
+    groupFunc _ _ = False
     scaleProbs :: [SearchResult] -> [SearchResult]
     scaleProbs stps =
         let maybeLogLikelihoods = map getLogL stps

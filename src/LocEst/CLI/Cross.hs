@@ -19,7 +19,6 @@ import           Data.List                     (intercalate, singleton)
 import           Data.Maybe                    (mapMaybe)
 import qualified Data.Vector                   as V
 import           Immutable.Shuffle             (shuffle)
-import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
 
