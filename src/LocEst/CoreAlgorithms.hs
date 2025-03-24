@@ -6,21 +6,21 @@ import           LocEst.MathUtils
 import           LocEst.Types
 
 import           Data.Bifunctor          (second)
-import           Data.List               (sortBy, zipWith4)
+import           Data.List               (sortBy)
 import           Data.Maybe              (catMaybes, mapMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Unboxed     as VU
 import           Statistics.Distribution (logDensity, quantile)
-import Numeric.LinearAlgebra as M
+import qualified Numeric.LinearAlgebra as M
 import qualified Data.Vector.Storable as VS
 import Statistics.Distribution.Transform (LinearTransform)
 import Statistics.Distribution.StudentT (StudentT)
 
 -- weights-per-obs application
-coreOutObsWeight :: Double -> Int -> CoreSupplement -> [DepVarName]
+coreObsWeights :: Double -> Int -> CoreSupplement -> [DepVarName]
                     -> V.Vector Observation -> CorePermutation
                     -> V.Vector ObsWeight
-coreOutObsWeight spatDistUnitScaling nrTopObs coreSupplement
+coreObsWeights spatDistUnitScaling nrTopObs coreSupplement
      depVars observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let (obs,dists)      = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar = getValues kernelDefinition
@@ -32,17 +32,17 @@ coreOutObsWeight spatDistUnitScaling nrTopObs coreSupplement
     in V.map (ObsWeight sett) obsWithWeightsSubset
 
 -- random interpolation sampling application
-coreOutInterpolSamples :: Double -> DepVarVariances -> CoreSupplement -> [DepVarName]
+coreSamples :: Double -> DepVarVariances -> CoreSupplement -> [DepVarName]
                           -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)])
                           -> V.Vector InterpolationSample
-coreOutInterpolSamples spatDistUnitScaling depVarVariances coreSupplement
+coreSamples spatDistUnitScaling depVarVariances coreSupplement
      depVars observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
     let (obs,dists)        = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar   = getValues kernelDefinition
         variancesPerDepVar = getValues depVarVariances
         samplesPerDepVar   = map (second drawSamples) randIterations
         drawSamples r      = ValuesPerDepVar $
-            zipWith3 (getRandomSample obs dists r) depVars kernelsPerDepVar variancesPerDepVar
+            zipWith (getRandomSample obs dists r) depVars kernelsPerDepVar
     in V.fromList $ map (uncurry (InterpolationSample sett)) samplesPerDepVar
 
 getRandomSample ::
@@ -51,19 +51,14 @@ getRandomSample ::
     -> DepVarsRands
     -> DepVarName
     -> KernelOneDepVar
-    -> Double
     -> (DepVarName, Double)
-getRandomSample obs dists depVarsRands depVar kernel variance = do
+getRandomSample obs dists depVarsRands depVar kernel = do
     let values      = VU.convert $ V.map (getDepVarsPos depVar) obs
-        weights     = VU.convert $ V.map (getWeight kernel) dists
+        weights     = M.fromRows [VU.convert $ V.map (getWeight kernel) dists]
         random01    = lookupUnsafe depVarsRands depVar
-        totalWeight = VU.sum weights
-        weightedA   = weightedAvg_ totalWeight values weights
-        weightedVB  = weightedVarBasic_ totalWeight weightedA values weights
-        weightedV   = weightedVar_ variance weightedVB totalWeight
-    case posteriorPredictive_ totalWeight weightedA weightedV of
-        Right distribution -> (depVar, quantile distribution random01)
-        Left _             -> (depVar,nan)
+    case kas weights values of
+        (_, _, _, _, Right distribution) -> (depVar, quantile distribution random01)
+        (_, _, _, _, Left _)             -> (depVar,nan)
 
 -- interpolation and search application
 coreNormal :: Double -> CoreSupplement -> [DepVarName]

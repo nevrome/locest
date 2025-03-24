@@ -90,7 +90,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany permutations
                 .| ConC.conduitVector 100
-                .| ConAA.asyncMapC numThreads (V.map (coreOutObsWeight spatDistUnitScaling nrTopObs supplement depVars observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreObsWeights spatDistUnitScaling nrTopObs supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
@@ -114,7 +114,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany randomIts
                 .| ConC.conduitVector 100
-                .| ConAA.asyncMapC numThreads (V.map (coreOutInterpolSamples spatDistUnitScaling variancesPerDepVar supplement depVars observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreSamples spatDistUnitScaling variancesPerDepVar supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
