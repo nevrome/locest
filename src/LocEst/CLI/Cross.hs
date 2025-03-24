@@ -114,7 +114,7 @@ runCross (
                                 \(iteration,testData,trainingData) ->
                                        V.map (
                                         \obs ->
-                                            let perm = CorePermutation
+                                            let perm = Permutation
                                                     (_hyposIndepVarsPos $ _obsPos obs)
                                                     (Just $ DepVarsPredPosSearchObs obs)
                                                     kernDef 0 iteration
@@ -173,7 +173,7 @@ readCoreSupplement
 summarizeFunc :: [CrossSearchResult] -> CrossvalOutput
 summarizeFunc xs =
     let depVars = _csrDepVars $ head xs
-        oneProb = _srCorePermutation $ _csrSearchResult $ head xs
+        oneProb = _srPermutation $ _csrSearchResult $ head xs
         kerndef = _casKernelDefinition oneProb
         dists   = mapMaybe (fmap _slhEuclideanDep  . _srLikelihood . _csrSearchResult) xs
         logLs   = mapMaybe (fmap _slhLogLikelihood . _srLikelihood . _csrSearchResult) xs
@@ -183,13 +183,13 @@ summarizeFunc xs =
     in CrossvalOutput depVars kerndef sumDists meanSquaredDists sumLogLs
 
 groupFunc :: CrossSearchResult -> CrossSearchResult -> Bool
-groupFunc (CrossSearchResult depVarA (SearchResult (CorePermutation _ _ kernDefA _ _) _ _))
-          (CrossSearchResult depVarB (SearchResult (CorePermutation _ _ kernDefB _ _) _ _)) =
+groupFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
+          (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
     depVarA == depVarB && kernDefA == kernDefB
 
 sortFunc :: CrossSearchResult -> CrossSearchResult -> Ordering
-sortFunc (CrossSearchResult depVarA (SearchResult (CorePermutation _ _ kernDefA _ _) _ _))
-         (CrossSearchResult depVarB (SearchResult (CorePermutation _ _ kernDefB _ _) _ _)) =
+sortFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
+         (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
     compare depVarA depVarB <> compare kernDefA kernDefB
 
 splitTestTraining :: Int -> V.Vector a -> Int -> Int -> (Int, V.Vector a, V.Vector a)

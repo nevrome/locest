@@ -269,7 +269,7 @@ data SamplingRange =
 
 -- | A data type for observation weights per core permutation
 data ObsWeight = ObsWeight {
-      _powCorePermutation :: CorePermutation
+      _powPermutation :: Permutation
     , _powObsWeights      :: ObsWithWeights
     } deriving (Generic)
 
@@ -284,7 +284,7 @@ instance Csv.ToRecord ObsWeight where
 -- | A datatype for interpolation samples produced by the core algorithm
 data InterpolationSample =
       InterpolationSample {
-        _isCorePermutation       :: CorePermutation
+        _isPermutation       :: Permutation
       , _isInterpolRandIteration :: Int
       , _isInterpolRandSamples   :: DepVarSamples
       } deriving (Show, Generic)
@@ -300,7 +300,7 @@ instance Csv.ToRecord InterpolationSample where
 -- | A data type for search results produced by the core algorithm
 data SearchResult =
       SearchResult {
-        _srCorePermutation :: CorePermutation
+        _srPermutation :: Permutation
       , _srInterpolation   :: InterpolationResult
       , _srLikelihood      :: Maybe SearchLikelihood
       } deriving (Show, Generic)
@@ -367,7 +367,7 @@ data DistanceThresholds = SpaceTimeFilterThresholds {
 }
 
 -- | A data type with core-algorithm settings (for one run of the core algorithm)
-data CorePermutation = CorePermutation {
+data Permutation = Permutation {
       _casIndepVarsPos          :: IndepVarsPos
     , _casSearchObs             :: Maybe DepVarsPredPos
     , _casKernelDefinition      :: KernelDefinition
@@ -375,27 +375,27 @@ data CorePermutation = CorePermutation {
     , _casCrossIteration        :: Int
 } deriving (Show, Generic)
 
-instance NFData CorePermutation
-instance Csv.DefaultOrdered CorePermutation where
-    headerOrder (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm _ _) =
+instance NFData Permutation
+instance Csv.DefaultOrdered Permutation where
+    headerOrder (Permutation indepVarsPos (Just depVarsPredPos) algorithm _ _) =
            Csv.headerOrder indepVarsPos
         <> Csv.headerOrder depVarsPredPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["temp_sampling_iteration"]
         <> Csv.header ["cross_iteration"]
-    headerOrder (CorePermutation indepVarsPos Nothing algorithm _ _) =
+    headerOrder (Permutation indepVarsPos Nothing algorithm _ _) =
            Csv.headerOrder indepVarsPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["temp_sampling_iteration"]
         <> Csv.header ["cross_iteration"]
-instance Csv.ToRecord CorePermutation where
-    toRecord (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm tempSamplingIteration crossIteration) =
+instance Csv.ToRecord Permutation where
+    toRecord (Permutation indepVarsPos (Just depVarsPredPos) algorithm tempSamplingIteration crossIteration) =
            Csv.toRecord indepVarsPos
         <> Csv.toRecord depVarsPredPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
         <> Csv.record [Csv.toField crossIteration]
-    toRecord (CorePermutation indepVarsPos Nothing algorithm tempSamplingIteration crossIteration) =
+    toRecord (Permutation indepVarsPos Nothing algorithm tempSamplingIteration crossIteration) =
            Csv.toRecord indepVarsPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]

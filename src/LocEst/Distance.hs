@@ -8,7 +8,7 @@ import qualified Data.Vector       as V
 filterObs ::
        Double
     -> CoreSupplement
-    -> CorePermutation
+    -> Permutation
     -> V.Vector Observation
     -> (V.Vector Observation, V.Vector IndepVarsDist)
 filterObs spatDistUnitScaling (CoreSupplement filterThresholds maybeSpatDistMap maybeTempSamples) sett =
@@ -23,13 +23,13 @@ filterObs spatDistUnitScaling (CoreSupplement filterThresholds maybeSpatDistMap 
 
 getDist ::
        Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix
-    -> CorePermutation
+    -> Permutation
     -> Observation
     -> IndepVarsDist
 -- spatiotemporal distances
 getDist
     spatDistUnitScaling maybeSpatDistMap maybeTempSamples
-    (CorePermutation (IndepSpatTempPos (SpatTempPos gridSpatPos gridTempPos)) _ _ tempSampIteration _)
+    (Permutation (IndepSpatTempPos (SpatTempPos gridSpatPos gridTempPos)) _ _ tempSampIteration _)
     (Observation obsIndex _ (HyperPos (IndepSpatTempPos (SpatTempPos obsSpatPos obsTempPos)) _) _) =
         let spatDist = findSpatDist maybeSpatDistMap
             spaceDistScaled = spatDist * spatDistUnitScaling
@@ -56,7 +56,7 @@ getDist
 -- arbitrary dim distances
 getDist
     _ _ _
-    (CorePermutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
+    (Permutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
     (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _) =
         let keys = getKeys obsArbitraryDimPos
             obsPos  = getValues obsArbitraryDimPos

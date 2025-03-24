@@ -190,7 +190,7 @@ createCoreSupplement (SpaceTimeGrid _ _ distFilterThresholds maybeSpatDistMap ma
 createCoreSupplement (ArbitraryDimGrid _ distFilterThresholds) =
     CoreSupplement distFilterThresholds Nothing Nothing
 
-createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [CorePermutation]
+createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [Permutation]
 -- spatiotemporal, search
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) = do
     tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
@@ -202,7 +202,7 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempS
                 (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
                 _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
     spatPos <- V.toList inSpatGrid
-    return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
+    return $ Permutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
 -- spatiotemporal, no search
 createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing = do
     tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
@@ -211,14 +211,14 @@ createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempS
             AbsTempPos x -> x
             RelTempPos _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
     spatPos <- V.toList inSpatGrid
-    return $ CorePermutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
+    return $ Permutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
 -- arbitrary dims, search
 createPermutations kernelDef (ArbitraryDimGrid gridPos _) (Just (DepVarsPredGrid depVarPos)) =
-    [ CorePermutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0 0
+    [ Permutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0 0
     | indepPos <- V.toList gridPos, depPos <- depVarPos]
 -- arbitrary dims, no search
 createPermutations kernelDef (ArbitraryDimGrid gridPos _) Nothing =
-    [ CorePermutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0 0
+    [ Permutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0 0
     | indepPos <- V.toList gridPos]
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
@@ -234,8 +234,8 @@ normalise NormBySpace =
     where
     groupingCriteria :: SearchResult -> SearchResult -> Bool
     groupingCriteria
-        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1 _) _ _)
-        (SearchResult (CorePermutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2 _) _ _) =
+        (SearchResult (Permutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1 _) _ _)
+        (SearchResult (Permutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2 _) _ _) =
             t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
     groupingCriteria _ _ = False
     scaleProbs :: [SearchResult] -> [SearchResult]

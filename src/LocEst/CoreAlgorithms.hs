@@ -18,10 +18,10 @@ import Statistics.Distribution.StudentT (StudentT)
 
 -- weights-per-obs application
 coreObsWeights :: Double -> Int -> CoreSupplement -> [DepVarName]
-               -> V.Vector Observation -> CorePermutation
+               -> V.Vector Observation -> Permutation
                -> V.Vector ObsWeight
 coreObsWeights spatDistUnitScaling nrTopObs coreSupplement
-     depVars observations sett@(CorePermutation _ _ kernelDefinition _ _) =
+     depVars observations sett@(Permutation _ _ kernelDefinition _ _) =
     let (obs,dists)      = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar = getValues kernelDefinition
         weights = flip V.map dists $
@@ -33,10 +33,10 @@ coreObsWeights spatDistUnitScaling nrTopObs coreSupplement
 
 -- random interpolation sampling application
 coreSamples :: Double -> CoreSupplement -> [DepVarName]
-            -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)])
+            -> V.Vector Observation -> (Permutation, [(Int, DepVarsRands)])
             -> V.Vector InterpolationSample
 coreSamples spatDistUnitScaling coreSupplement
-     depVars observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
+     depVars observations (sett@(Permutation _ _ kernelDefinition _ _), randIterations) =
     let (obs,dists)        = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar   = getValues kernelDefinition
         samplesPerDepVar   = map (second drawSamples) randIterations
@@ -61,10 +61,10 @@ getRandomSample obs dists depVarsRands depVar kernel = do
 
 -- interpolation and search application
 coreNormal :: Double -> CoreSupplement -> [DepVarName]
-           -> V.Vector Observation -> CorePermutation
+           -> V.Vector Observation -> Permutation
            -> SearchResult
 coreNormal spatDistUnitScaling coreSupplement
-     depVars observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
+     depVars observations sett@(Permutation _ searchDepVarPos kernelDefinition _ _) =
     let (obs,dists)        = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar   = getValues kernelDefinition
         searchPerDepVar    = case searchDepVarPos of
@@ -73,7 +73,7 @@ coreNormal spatDistUnitScaling coreSupplement
             Nothing                          -> replicate (length depVars) Nothing
         interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernelsPerDepVar searchPerDepVar
     in SearchResult {
-           _srCorePermutation = sett
+           _srPermutation = sett
          , _srInterpolation   = InterpolationResult interpolPerDepVar
          , _srLikelihood      = case mapMaybe getLogLikelihood interpolPerDepVar of
                 [] -> Nothing
