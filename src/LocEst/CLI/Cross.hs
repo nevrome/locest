@@ -2,8 +2,7 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (CoreSupplementSettings (..),
-                                                calculateVariances)
+import           LocEst.CLI.Search             (CoreSupplementSettings (..))
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (avg, foldSum)
@@ -90,9 +89,6 @@ runCross (
                 let observations = filterVarsInObs depVars indepVars observationsRaw
                 -- read core supplements
                 coreSupp <- liftIO $ readCoreSupplement indepVars crossSuppSettings observationsRaw
-                -- variance
-                liftIO $ hPutStrLn stderr "Calculating total variance"
-                let variancesPerDepVar = calculateVariances depVars observations
                 -- permutation: one run of the core algorithm
                 -- iteration: one test/training split
                 iterations <- case subsetMode of

@@ -17,7 +17,6 @@ import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import           Data.Maybe                    (catMaybes)
 import qualified Data.Vector                   as V
-import qualified Data.Vector.Unboxed           as VU
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random.Stateful        as R
@@ -71,9 +70,6 @@ runSearch (
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     -- read observations
     !observations <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
-    -- variance
-    hPutStrLn stderr "Calculating total variances"
-    let !variancesPerDepVar = calculateVariances depVars observations
     -- read and prepare prediction grids
     hPutStrLn stderr "Preparing prediction grid"
     !indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
@@ -114,7 +110,7 @@ runSearch (
             Con.runConduitRes $
                 ConC.yieldMany randomIts
                 .| ConC.conduitVector 100
-                .| ConAA.asyncMapC numThreads (V.map (coreSamples spatDistUnitScaling variancesPerDepVar supplement depVars observations))
+                .| ConAA.asyncMapC numThreads (V.map (coreSamples spatDistUnitScaling supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
                 .| ConC.concatMap id
@@ -131,18 +127,6 @@ runSearch (
                 .| normalise normalisation
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
-
-calculateVariances :: [DepVarName] -> V.Vector Observation -> DepVarVariances
-calculateVariances depVars obs =
-    let valuesPerDepVar = map (\depVar -> (depVar, VU.convert $ V.map (getValueOneBasicObsOneDepVar depVar) obs)) depVars
-    in ValuesPerDepVar $ map calculateVariance valuesPerDepVar
-    where
-        getValueOneBasicObsOneDepVar :: DepVarName -> Observation -> Double
-        getValueOneBasicObsOneDepVar depVar (Observation _ _ (HyperPos _ depVarPos) _) = lookupUnsafe depVarPos depVar
-        calculateVariance :: (DepVarName, VU.Vector Double) -> (DepVarName, Double)
-        calculateVariance (depVar,values) =
-            let nrSamples = fromIntegral $ VU.length values
-            in (depVar, varSample_ nrSamples values)
 
 readIndepVarsPredGrid :: [String] -> V.Vector Observation -> IndepVarsPredGridSettings -> IO IndepVarsPredGrid
 -- spatiotemporal case

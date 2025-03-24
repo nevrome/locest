@@ -11,15 +11,13 @@ filterObs ::
     -> CorePermutation
     -> V.Vector Observation
     -> (V.Vector Observation, V.Vector IndepVarsDist)
-filterObs
-    spatDistUnitScaling
-    (CoreSupplement distanceFilterThresholds maybeSpatDistMap maybeTempSamples)
-    sett = V.unzip . V.mapMaybe handleOne
+filterObs spatDistUnitScaling (CoreSupplement filterThresholds maybeSpatDistMap maybeTempSamples) sett =
+    V.unzip . V.mapMaybe handleOne
     where
         handleOne :: Observation -> Maybe (Observation, IndepVarsDist)
         handleOne obs =
             let dist = getDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett obs
-            in if inFilterRange distanceFilterThresholds dist
+            in if inFilterRange filterThresholds dist
                then Just (obs,dist)
                else Nothing
 

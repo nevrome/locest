@@ -536,10 +536,6 @@ makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
 type SquaredWeightedDist = Double
 
-computeWeight :: KernelShape -> SquaredWeightedDist -> Double
-computeWeight SquaredExponential d = 1 / exp d
-computeWeight Linear             d = 1 / (1 + sqrt d)
-
 -- | A data type for a observation with a distance and weight in relation to a point of interest
 data ObsWithWeights = ObsWithWeights {
       _owdObservation      :: Observation

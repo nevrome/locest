@@ -18,8 +18,8 @@ import Statistics.Distribution.StudentT (StudentT)
 
 -- weights-per-obs application
 coreObsWeights :: Double -> Int -> CoreSupplement -> [DepVarName]
-                    -> V.Vector Observation -> CorePermutation
-                    -> V.Vector ObsWeight
+               -> V.Vector Observation -> CorePermutation
+               -> V.Vector ObsWeight
 coreObsWeights spatDistUnitScaling nrTopObs coreSupplement
      depVars observations sett@(CorePermutation _ _ kernelDefinition _ _) =
     let (obs,dists)      = filterObs spatDistUnitScaling coreSupplement sett observations
@@ -32,14 +32,13 @@ coreObsWeights spatDistUnitScaling nrTopObs coreSupplement
     in V.map (ObsWeight sett) obsWithWeightsSubset
 
 -- random interpolation sampling application
-coreSamples :: Double -> DepVarVariances -> CoreSupplement -> [DepVarName]
-                          -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)])
-                          -> V.Vector InterpolationSample
-coreSamples spatDistUnitScaling depVarVariances coreSupplement
+coreSamples :: Double -> CoreSupplement -> [DepVarName]
+            -> V.Vector Observation -> (CorePermutation, [(Int, DepVarsRands)])
+            -> V.Vector InterpolationSample
+coreSamples spatDistUnitScaling coreSupplement
      depVars observations (sett@(CorePermutation _ _ kernelDefinition _ _), randIterations) =
     let (obs,dists)        = filterObs spatDistUnitScaling coreSupplement sett observations
         kernelsPerDepVar   = getValues kernelDefinition
-        variancesPerDepVar = getValues depVarVariances
         samplesPerDepVar   = map (second drawSamples) randIterations
         drawSamples r      = ValuesPerDepVar $
             zipWith (getRandomSample obs dists r) depVars kernelsPerDepVar
@@ -62,8 +61,8 @@ getRandomSample obs dists depVarsRands depVar kernel = do
 
 -- interpolation and search application
 coreNormal :: Double -> CoreSupplement -> [DepVarName]
-              -> V.Vector Observation -> CorePermutation
-              -> SearchResult
+           -> V.Vector Observation -> CorePermutation
+           -> SearchResult
 coreNormal spatDistUnitScaling coreSupplement
      depVars observations sett@(CorePermutation _ searchDepVarPos kernelDefinition _ _) =
     let (obs,dists)        = filterObs spatDistUnitScaling coreSupplement sett observations
@@ -149,3 +148,7 @@ getWeight (KernelOneDepVar _ shape lengths) dists =
             in foldSum (zipWith (\d t -> (d / t) ** 2) distances thetas)
         squaredWeightedDist _ _ =
             throwL "mismatch of independent variable definitions in weight calculation"
+
+computeWeight :: KernelShape -> SquaredWeightedDist -> Double
+computeWeight SquaredExponential d = 1 / exp d
+computeWeight Linear             d = 1 / (1 + sqrt d)
