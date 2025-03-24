@@ -56,7 +56,7 @@ getRandomSample obs dists depVarsRands depVar kernel = do
     let values      = VU.convert $ V.map (getDepVarsPos depVar) obs
         weights     = M.fromRows [VU.convert $ V.map (getWeight kernel) dists]
         random01    = lookupUnsafe depVarsRands depVar
-    case kas weights values of
+    case V.head $ kas weights values of
         (_, _, _, _, Right distribution) -> (depVar, quantile distribution random01)
         (_, _, _, _, Left _)             -> (depVar,nan)
 
@@ -98,7 +98,7 @@ interpol ::
 interpol obs dists depVar kernel maybeSearchValue = do
     let values      = VS.convert $ V.map (getDepVarsPos depVar) obs
         weights     = M.fromRows [VS.convert $ V.map (getWeight kernel) dists]
-    case kas weights values of
+    case V.head $ kas weights values of
         (neff, wvb, wv, mu, Right distribution) ->
             let lower  = quantile distribution 0.025
                 median = mu -- quantile distribution 0.5
@@ -112,17 +112,13 @@ interpol obs dists depVar kernel maybeSearchValue = do
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
 
--- for this case application here weights is a vector
--- that simplifies the algorithm but it brings little gain in performance
--- I decided to keep the matrix version in case I want to refactor later
-kas :: M.Matrix M.R -> M.Vector M.R -> (Double, Double, Double, Double, Either String (LinearTransform StudentT))
-kas weights y = (
-        totalWeight M.! 0,
-        weightedVarBasic M.! 0,
-        weightedVar M.! 0,
-        mu M.! 0,
-        generalizedStudentT (mu M.! 0) (scale M.! 0) (dof M.! 0)
-    )
+-- for this case application here weights is a vector and that simplifies the algorithm
+-- I decided to keep the matrix version anyway, in case I want to refactor later
+kas :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Double, Double, Double, Double, Either String (LinearTransform StudentT))
+kas weights y =
+    V.zipWith6 (\neff wvb wv _mu _scale _dof -> (neff, wvb, wv, _mu, generalizedStudentT _mu _scale _dof))
+        (V.convert totalWeight) (V.convert weightedVarBasic) (V.convert weightedVar)
+        (V.convert mu) (V.convert scale) (V.convert dof)
     where
       totalWeight = sumRows weights
       weightedAvg = M.flatten (weights M.<> M.asColumn y) / totalWeight
