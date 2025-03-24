@@ -54,7 +54,16 @@ system('locest cross --configFile code/2D/experiment_2D_cross.conf')
 
 cross <- readr::read_tsv("data/2D/cross.tsv")
 
-View(cross)
+cross %>%
+  ggplot() +
+  geom_point(
+    aes(x = kernel_indepV1_length, y = sum_log_likelihood)
+  ) +
+  geom_vline(
+    data = cross %>% dplyr::slice_max(sum_log_likelihood),
+    mapping = aes(xintercept = kernel_indepV1_length),
+    color = "red"
+  )
 
 system('locest search --configFile code/2D/experiment_2D.conf')
 

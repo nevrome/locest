@@ -27,7 +27,7 @@ vario %>%
 # stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
 # profiteur locest.prof
 
-system('time locest cross --configFile code/spatiotemporal/cross.conf +RTS -N3 -RTS')
+system('time locest cross --configFile code/spatiotemporal/cross.conf +RTS -N10 -RTS')
 
 cross <- readr::read_tsv("data/spatiotemporal/cross.tsv")
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE ApplicativeDo          #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings      #-}
@@ -110,8 +109,6 @@ instance Csv.ToRecord CsvNamedRecord where
     toRecord (CsvNamedRecord nr) =
         V.fromList $ HM.elems nr
 
--- special types for the cross subcommand
-
 -- | A data type for search results with a depVar label
 data CrossSearchResult = CrossSearchResult {
       _csrDepVars      :: [DepVarName]
@@ -156,17 +153,15 @@ instance Csv.ToRecord CrossvalOutput where
         <> Csv.toRecord algo
         <> Csv.record [Csv.toField sumDist]
         <> Csv.record [Csv.toField meanSquaredDist]
-        <> Csv.record [Csv.toField $ OutInfDouble sumProb]
+        <> Csv.record [Csv.toField $ OutDouble sumProb]
     toRecord (CrossvalOutput _ algo sumDist meanSquaredDist sumProb) =
            Csv.toRecord algo
         <> Csv.record [Csv.toField sumDist]
         <> Csv.record [Csv.toField meanSquaredDist]
-        <> Csv.record [Csv.toField $ OutInfDouble sumProb]
+        <> Csv.record [Csv.toField $ OutDouble sumProb]
 
 crossSummaryHeader :: Csv.Header
 crossSummaryHeader = Csv.header ["sum_dep_dist_euclidean","mean_squared_dep_dist_euclidean","sum_log_likelihood"]
-
--- special types for the vario subcommands
 
 -- | A data type for an empirical variogram
 newtype EmpiricalVariogram = EmpiricalVariogram [((Double,Double,Double), Double)]
@@ -188,8 +183,6 @@ instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
     toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv) =
         Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax, Csv.toField dv]
-
--- general types or types specifically relevant for the search subcommand
 
 -- | A data type for normalisation of search output
 data Normalisation = NormBySpace | NoNorm
@@ -260,8 +253,7 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
 data CoreOutMode =
       CoreOutObsWeight Int
     | CoreOutInterpolSamples Int (Maybe Int) (Maybe SamplingRange)
-    | CoreOutShort
-    | CoreOutFull
+    | CoreOutInterpolAndSearch
 
 data SamplingRange =
       OneSigma
@@ -270,8 +262,8 @@ data SamplingRange =
 
 -- | A data type for observation weights per core permutation
 data ObsWeight = ObsWeight {
-      _powCorePermutation :: CorePermutation
-    , _powObsWeights      :: ObsWithWeights
+      _powPermutation :: Permutation
+    , _powObsWeights  :: ObsWithWeights
     } deriving (Generic)
 
 instance NFData ObsWeight
@@ -283,9 +275,8 @@ instance Csv.ToRecord ObsWeight where
         Csv.toRecord corePermutation <> Csv.toRecord obsWithWeights
 
 -- | A datatype for interpolation samples produced by the core algorithm
-data InterpolationSample =
-      InterpolationSample {
-        _isCorePermutation       :: CorePermutation
+data InterpolationSample = InterpolationSample {
+        _isPermutation           :: Permutation
       , _isInterpolRandIteration :: Int
       , _isInterpolRandSamples   :: DepVarSamples
       } deriving (Show, Generic)
@@ -299,11 +290,10 @@ instance Csv.ToRecord InterpolationSample where
         Csv.toRecord corePermutation <>  Csv.record [Csv.toField randIteration] <> Csv.toRecord depVarSamples
 
 -- | A data type for search results produced by the core algorithm
-data SearchResult =
-      SearchResult {
-        _srCorePermutation :: CorePermutation
-      , _srInterpolation   :: InterpolationResult
-      , _srLikelihood      :: Maybe SearchLikelihood
+data SearchResult = SearchResult {
+        _srPermutation   :: Permutation
+      , _srInterpolation :: InterpolationResult
+      , _srLikelihood    :: Maybe SearchLikelihood
       } deriving (Show, Generic)
 
 instance NFData SearchResult
@@ -352,7 +342,7 @@ data IndepVarsPredGrid =
     }
 
 -- | A data type for supplementary information used in the core algorithm
-data CoreSupplement = CoreSupplement {
+data Supplement = Supplement {
       _csDistFilterThresholds :: Maybe DistanceThresholds
     , _csSpatDist             :: Maybe SpatDistMatrix
     , _csTempSamp             :: Maybe TempSampleMatrix
@@ -368,7 +358,7 @@ data DistanceThresholds = SpaceTimeFilterThresholds {
 }
 
 -- | A data type with core-algorithm settings (for one run of the core algorithm)
-data CorePermutation = CorePermutation {
+data Permutation = Permutation {
       _casIndepVarsPos          :: IndepVarsPos
     , _casSearchObs             :: Maybe DepVarsPredPos
     , _casKernelDefinition      :: KernelDefinition
@@ -376,27 +366,27 @@ data CorePermutation = CorePermutation {
     , _casCrossIteration        :: Int
 } deriving (Show, Generic)
 
-instance NFData CorePermutation
-instance Csv.DefaultOrdered CorePermutation where
-    headerOrder (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm _ _) =
+instance NFData Permutation
+instance Csv.DefaultOrdered Permutation where
+    headerOrder (Permutation indepVarsPos (Just depVarsPredPos) algorithm _ _) =
            Csv.headerOrder indepVarsPos
         <> Csv.headerOrder depVarsPredPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["temp_sampling_iteration"]
         <> Csv.header ["cross_iteration"]
-    headerOrder (CorePermutation indepVarsPos Nothing algorithm _ _) =
+    headerOrder (Permutation indepVarsPos Nothing algorithm _ _) =
            Csv.headerOrder indepVarsPos
         <> Csv.headerOrder algorithm
         <> Csv.header ["temp_sampling_iteration"]
         <> Csv.header ["cross_iteration"]
-instance Csv.ToRecord CorePermutation where
-    toRecord (CorePermutation indepVarsPos (Just depVarsPredPos) algorithm tempSamplingIteration crossIteration) =
+instance Csv.ToRecord Permutation where
+    toRecord (Permutation indepVarsPos (Just depVarsPredPos) algorithm tempSamplingIteration crossIteration) =
            Csv.toRecord indepVarsPos
         <> Csv.toRecord depVarsPredPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
         <> Csv.record [Csv.toField crossIteration]
-    toRecord (CorePermutation indepVarsPos Nothing algorithm tempSamplingIteration crossIteration) =
+    toRecord (Permutation indepVarsPos Nothing algorithm tempSamplingIteration crossIteration) =
            Csv.toRecord indepVarsPos
         <> Csv.toRecord algorithm
         <> Csv.record [Csv.toField tempSamplingIteration]
@@ -537,10 +527,6 @@ makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
 type SquaredWeightedDist = Double
 
-computeWeight :: KernelShape -> SquaredWeightedDist -> Double
-computeWeight SquaredExponential d = 1 / exp d
-computeWeight Linear             d = 1 / (1 + sqrt d)
-
 -- | A data type for a observation with a distance and weight in relation to a point of interest
 data ObsWithWeights = ObsWithWeights {
       _owdObservation      :: Observation
@@ -645,59 +631,40 @@ instance Csv.ToRecord InterpolationResult where
     toRecord (InterpolationResult l) = V.concat $ map Csv.toRecord l
 
 getLogLikelihood :: InterpolationResultOneDepVar -> Maybe Double
-getLogLikelihood (InterpolationResultOneDepVarShort {}) = error "should never happen"
-getLogLikelihood i@(InterpolationResultOneDepVarFull {})  = _irodvLogLikelihood i
+getLogLikelihood i@(KAS {})  = _irKASLogLikelihood i
 
 -- | A data type for interpolation output for one dependent variable
-data InterpolationResultOneDepVar =
-      InterpolationResultOneDepVarShort {
-          _irodvsDepVarName :: DepVarName   -- name of the dependent variable
-        , _irodvsLowerBound :: OutInfDouble -- lower boundary of the 95% interval
-        , _irodvsMedian     :: Double       -- median
-        , _irodvsUpperBound :: OutInfDouble -- upper boundary of the 95% interval
-    }
-    | InterpolationResultOneDepVarFull {
-          _irodvDepVarName       :: DepVarName    -- name of the dependent variable
-        , _irodvEffN             :: Double        -- effective number of samples
-        , _irodvWeightedAvg      :: Double        -- weighted average
-        , _irodvWeightedVar      :: Double        -- weighted variance
-        , _irodvWeightedVarPrior :: Double        -- weighted variance with prior
-        , _irodvPosterior        :: OutBool       -- could a posterior distribution be calculated?
-        , _irodvLowerBound       :: OutInfDouble  -- lower boundary of the 95% interval
-        , _irodvMedian           :: Double        -- median
-        , _irodvUpperBound       :: OutInfDouble  -- upper boundary of the 95% interval
-        , _irodvLogLikelihood    :: Maybe Double  -- Log-likelihood for search value
+data InterpolationResultOneDepVar = KAS {
+          _irKASDepVarName       :: DepVarName    -- name of the dependent variable
+        , _irKASEffN             :: Double        -- effective number of samples
+         , _irKASWeightedVar     :: Double        -- weighted variance
+        , _irKASWeightedVarPrior :: Double        -- weighted variance with prior
+        , _irKASPosterior        :: OutBool       -- could a posterior distribution be calculated?
+        , _irKASLowerBound       :: OutDouble  -- lower boundary of the 95% interval
+        , _irKASMedian           :: Double        -- median (weighted average)
+        , _irKASUpperBound       :: OutDouble  -- upper boundary of the 95% interval
+        , _irKASLogLikelihood    :: Maybe Double  -- Log-likelihood for search value
     } deriving (Eq, Show, Generic)
 
 instance NFData InterpolationResultOneDepVar
 instance Csv.DefaultOrdered InterpolationResultOneDepVar where
-    headerOrder (InterpolationResultOneDepVarShort n _ _ _ ) =
+    headerOrder (KAS n _ _ _ _ _ _ _ Nothing) =
         Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
-            ["low", "median", "up"]
-    headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ _ Nothing) =
+            ["neff", "var", "var_prior", "post", "low", "median", "up"]
+    headerOrder (KAS n _ _ _ _ _ _ _ (Just _)) =
         Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
-            ["neff", "avg", "var", "var_prior", "post", "low", "median", "up"]
-    headerOrder (InterpolationResultOneDepVarFull n _ _ _ _ _ _ _ _ (Just _)) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
-            ["neff", "avg", "var", "var_prior", "post", "low", "median", "up", "logl"]
+            ["neff", "var", "var_prior", "post", "low", "median", "up", "logl"]
 instance Csv.ToRecord InterpolationResultOneDepVar where
-    toRecord (InterpolationResultOneDepVarShort _ lb m ub) =
-        Csv.record [ Csv.toField lb, Csv.toField m, Csv.toField ub ]
-    toRecord (InterpolationResultOneDepVarFull _ neff a v vp po lb m ub Nothing) =
+    toRecord (KAS _ neff v vp po lb m ub Nothing) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po,
+            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField po,
             Csv.toField lb, Csv.toField m, Csv.toField ub
         ]
-    toRecord (InterpolationResultOneDepVarFull _ neff a v vp po lb m ub (Just l)) =
+    toRecord (KAS _ neff v vp po lb m ub (Just l)) =
         Csv.record [
-            Csv.toField neff, Csv.toField a, Csv.toField v, Csv.toField vp, Csv.toField po,
+            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField po,
             Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField l
         ]
-
-resOneDepvar2Short :: InterpolationResultOneDepVar -> InterpolationResultOneDepVar
-resOneDepvar2Short (InterpolationResultOneDepVarFull n _ _ _ _ _ lb m ub _) =
-    InterpolationResultOneDepVarShort n lb m ub
-resOneDepvar2Short x = x
 
 -- | A data type that wraps around bools to modify the way they are rendered in the .tsv output
 -- This is specifically done to make it easily readable in R
@@ -709,19 +676,19 @@ instance Csv.ToField OutBool where
     toField (OutBool False) = "FALSE"
 
 -- | A data type that wraps around Doubles to modify the way they are rendered in the .tsv output.
--- This is specifically done for the representation of infinity to make it easily readable in R
-newtype OutInfDouble = OutInfDouble Double
+-- This is specifically done for the representation of inf to make it easily readable in R
+newtype OutDouble = OutDouble Double
     deriving (Eq, Generic)
-instance NFData OutInfDouble
-instance Csv.ToField OutInfDouble where
-    toField (OutInfDouble x)
-        | x == infinity    = "Inf"
-        | x == (-infinity) = "-Inf"
+instance NFData OutDouble
+instance Csv.ToField OutDouble where
+    toField (OutDouble x)
+        | x == inf    = "Inf"
+        | x == (-inf) = "-Inf"
         | otherwise        = Bchs.pack $ show x
-instance Show OutInfDouble where
-    show (OutInfDouble x)
-        | x == infinity    = "Inf"
-        | x == (-infinity) = "-Inf"
+instance Show OutDouble where
+    show (OutDouble x)
+        | x == inf    = "Inf"
+        | x == (-inf) = "-Inf"
         | otherwise        = show x
 
 -- | A data type for dependent vars with some value
@@ -748,7 +715,7 @@ instance Csv.DefaultOrdered ValuesPerDepVar where
         V.map Bchs.pack $ V.fromList $ map fst l
 instance Csv.ToRecord ValuesPerDepVar where
     toRecord (ValuesPerDepVar l) =
-        V.map (Bchs.pack . show) $ V.map OutInfDouble $ V.fromList $ map snd l
+        V.map (Bchs.pack . show) $ V.map OutDouble $ V.fromList $ map snd l
 instance PseudoMap ValuesPerDepVar Double where
     toList (ValuesPerDepVar l) = l
     getKeys (ValuesPerDepVar l) = map fst l

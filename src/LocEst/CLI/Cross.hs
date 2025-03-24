@@ -2,8 +2,7 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (CoreSupplementSettings (..),
-                                                calculateVariances)
+import           LocEst.CLI.Search             (SupplementSettings (..))
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (avg, foldSum)
@@ -20,13 +19,12 @@ import           Data.List                     (intercalate, singleton)
 import           Data.Maybe                    (mapMaybe)
 import qualified Data.Vector                   as V
 import           Immutable.Shuffle             (shuffle)
-import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath
-    , _crossSupplementSettings :: CoreSupplementSettings
+    , _crossSupplementSettings :: SupplementSettings
     , _crossSettings           :: CrossSettings
     , _crossOutFile            :: Maybe FilePath
     , _crossOutMode            :: CrossOutModeSettings
@@ -70,7 +68,7 @@ runCross (
                  in (ks, ds)
     -- read observations
     observationsRaw <- readObservations inObsFile
-    -- count nr of iterations
+    -- count nr of permutations
     let numKernDefs = length $ concat kernDefsSets
         numObs = length observationsRaw
         (testFraction, numIterations) = case subsetMode of
@@ -89,10 +87,7 @@ runCross (
                 -- modify observations
                 let observations = filterVarsInObs depVars indepVars observationsRaw
                 -- read core supplements
-                coreSupp <- liftIO $ readCoreSupplement indepVars crossSuppSettings observationsRaw
-                -- variance
-                liftIO $ hPutStrLn stderr "Calculating total variance"
-                let variancesPerDepVar = calculateVariances depVars observations
+                coreSupp <- liftIO $ readSupplement indepVars crossSuppSettings observationsRaw
                 -- permutation: one run of the core algorithm
                 -- iteration: one test/training split
                 iterations <- case subsetMode of
@@ -118,13 +113,13 @@ runCross (
                                 \(iteration,testData,trainingData) ->
                                        V.map (
                                         \obs ->
-                                            let perm = CorePermutation
+                                            let perm = Permutation
                                                     (_hyposIndepVarsPos $ _obsPos obs)
                                                     (Just $ DepVarsPredPosSearchObs obs)
                                                     kernDef 0 iteration
                                             in coreNormal
-                                                spatDistUnitScaling CoreOutFull
-                                                variancesPerDepVar coreSupp
+                                                spatDistUnitScaling
+                                                coreSupp
                                                 depVars trainingData perm
                                        ) testData
                                ) .| ConC.concat
@@ -142,14 +137,9 @@ runCross (
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-readCoreSupplement ::
-       [String]
-    -> CoreSupplementSettings
-    -> V.Vector Observation
-    -> IO CoreSupplement
-readCoreSupplement
-    indepVarsWanted
-    (CoreSupplementSettings
+readSupplement :: [String] -> SupplementSettings -> V.Vector Observation -> IO Supplement
+readSupplement indepVarsWanted
+    (SupplementSettings
             distanceFilterThresholdsRaw
             inSpatDistFile
             inObsTempSamplesFile
@@ -157,27 +147,15 @@ readCoreSupplement
     )
     observations = do
     hPutStrLn stderr "Reading supplements"
-    -- read spatial distances
-    inSpatDists <- case inSpatDistFile of
-        Nothing   -> pure Nothing
-        Just path -> case takeExtension path of
-            ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
-            _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
-    -- read temporal positions
-    inObsTempSamples <- case inObsTempSamplesFile of
-        Nothing   -> pure Nothing
-        Just path -> case takeExtension path of
-            ".cbor" -> Just <$> readTempSamp (ReadTempSampDeserialise path)
-            _       -> Just <$> readTempSamp (ReadTempSampParse noOrderCheck observations path)
-    -- filter distance filter tresholds
+    inSpatDists <- readMaybeSpatDist noOrderCheck observations Nothing inSpatDistFile
+    inObsTempSamples <- readMaybeObsTempSamples noOrderCheck observations inObsTempSamplesFile
     let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
-    -- return supplement
-    return $ CoreSupplement distanceFilterThresholds inSpatDists inObsTempSamples
+    return $ Supplement distanceFilterThresholds inSpatDists inObsTempSamples
 
 summarizeFunc :: [CrossSearchResult] -> CrossvalOutput
 summarizeFunc xs =
     let depVars = _csrDepVars $ head xs
-        oneProb = _srCorePermutation $ _csrSearchResult $ head xs
+        oneProb = _srPermutation $ _csrSearchResult $ head xs
         kerndef = _casKernelDefinition oneProb
         dists   = mapMaybe (fmap _slhEuclideanDep  . _srLikelihood . _csrSearchResult) xs
         logLs   = mapMaybe (fmap _slhLogLikelihood . _srLikelihood . _csrSearchResult) xs
@@ -187,13 +165,13 @@ summarizeFunc xs =
     in CrossvalOutput depVars kerndef sumDists meanSquaredDists sumLogLs
 
 groupFunc :: CrossSearchResult -> CrossSearchResult -> Bool
-groupFunc (CrossSearchResult depVarA (SearchResult (CorePermutation _ _ kernDefA _ _) _ _))
-          (CrossSearchResult depVarB (SearchResult (CorePermutation _ _ kernDefB _ _) _ _)) =
+groupFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
+          (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
     depVarA == depVarB && kernDefA == kernDefB
 
 sortFunc :: CrossSearchResult -> CrossSearchResult -> Ordering
-sortFunc (CrossSearchResult depVarA (SearchResult (CorePermutation _ _ kernDefA _ _) _ _))
-         (CrossSearchResult depVarB (SearchResult (CorePermutation _ _ kernDefB _ _) _ _)) =
+sortFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
+         (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
     compare depVarA depVarB <> compare kernDefA kernDefB
 
 splitTestTraining :: Int -> V.Vector a -> Int -> Int -> (Int, V.Vector a, V.Vector a)

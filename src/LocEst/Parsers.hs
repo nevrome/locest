@@ -39,6 +39,12 @@ encodingOptions = Csv.defaultEncodeOptions {
 
 -- complex parsers
 
+readMaybeObsTempSamples :: Bool -> V.Vector Observation -> Maybe FilePath -> IO (Maybe TempSampleMatrix)
+readMaybeObsTempSamples _ _ Nothing = pure Nothing
+readMaybeObsTempSamples noOrderCheck obs (Just path)
+    | takeExtension path == ".cbor" = Just <$> readTempSamp (ReadTempSampDeserialise path)
+    | otherwise                     = Just <$> readTempSamp (ReadTempSampParse noOrderCheck obs path)
+
 data ReadTempSampSpec =
       ReadTempSampDeserialise FilePath
     | ReadTempSampParse Bool (V.Vector Observation) FilePath
@@ -100,6 +106,12 @@ readTempSamp (ReadTempSampParse noOrderCheck obs path) = do
                                 "Expected: " ++ expected ++ " but got: " ++ obsID
                     Nothing -> return ()
             loop [] = return ()
+
+readMaybeSpatDist :: Bool -> V.Vector Observation -> Maybe (V.Vector SpatPos) -> Maybe FilePath -> IO (Maybe SpatDistMatrix)
+readMaybeSpatDist _ _ _ Nothing = pure Nothing
+readMaybeSpatDist noOrderCheck obs maybeSpatGrid (Just path)
+    | takeExtension path == ".cbor" = Just <$> readSpatDist (ReadSpatDistDeserialise path)
+    | otherwise                     = Just <$> readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path)
 
 data ReadSpatDistSpec =
       ReadSpatDistDeserialise FilePath

@@ -124,7 +124,7 @@ varioOptParser = VarioOptions
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions
                         <$> optParseInObservationFile
-                        <*> optParseCoreSupplementSettings
+                        <*> optParseSupplementSettings
                         <*> optParseCrossSettings
                         <*> optParseOutFile
                         <*> optParseCrossOutMode
@@ -138,7 +138,7 @@ optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
 optParseIndepVarsThresholds = OP.option (OP.eitherReader readIndepVarsThresholds) (
        OP.long "indepVarsThresholds"
     <> OP.metavar "c(space=DOUBLE,time=DOUBLE,indepV1=DOUBLE,...)"
-    <> OP.value (ValuesPerIndepVar [])
+    <> OP.value (makeValuesPerIndepVar [])
     <> OP.helpDoc ( Just (
                       s2d "Thresholds for the filtering distances across independent variables. \
                           \When computing a variogram for temporal distances it might for example \
@@ -155,7 +155,7 @@ readIndepVarsThresholds s =
     where
         parseIndepVarsThresholds = do
             res <- parseNamedVector parseIndepVarName parsePositiveDouble
-            return (ValuesPerIndepVar res)
+            return (makeValuesPerIndepVar res)
 
 readSpaceTime :: String -> Either String (Double, Double)
 readSpaceTime s =
@@ -210,7 +210,7 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
         parseOneBinMax = do
             res <- parseRecordType "OneBinMax" $ do
                 maxPerIndepVar <- parseArgument "max" (parseNamedVector parseIndepVarName parseDouble)
-                return $ ValuesPerIndepVar maxPerIndepVar
+                return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
 optParseCrossSettings :: OP.Parser CrossSettings
@@ -282,11 +282,11 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
 optParseCoreOutMode :: OP.Parser CoreOutMode
 optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     OP.long "outMode" <>
-    OP.metavar "Short|Full|Obs(n)|Samples(n,seed)" <>
-    OP.value CoreOutShort
+    OP.metavar "Normal|Obs(n)|Samples(n,seed)" <>
+    OP.value CoreOutInterpolAndSearch
     <> OP.helpDoc ( Just (
                       s2d "The type of output that should be written to the --outFile. \
-                          \Short (default) and Full: Return mean interpolation and search results."
+                          \Normal (default): Return mean interpolation and search results."
     <> OH.hardline <>     "┌────────────────┬──────────┐"
     <> OH.hardline <>     "│spatID          │   indepV1│ Prediction position"
     <> OH.hardline <>     "│x or longitude  OR  indepV2│"
@@ -338,9 +338,8 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
             case P.runParser parseOutMode () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
-        parseOutMode = P.try parseShort P.<|> parseFull P.<|> parseObs P.<|> parseInterpolSample
-        parseShort = P.string "Short" >> return CoreOutShort
-        parseFull  = P.string "Full"  >> return CoreOutFull
+        parseOutMode = P.try parseNormal P.<|> parseObs P.<|> parseInterpolSample
+        parseNormal = P.string "Normal" >> return CoreOutInterpolAndSearch
         parseObs   = do
             parseRecordType "Obs" $ do
                 n <- parseArgument "n" parseInt
@@ -541,16 +540,16 @@ optParseIndepVarsPredGridSettings =
     (SpaceTimeGridSettings
         <$> optParseInSpatGridFile
         <*> optParseTempGridString
-        <*> optParseCoreSupplementSettings
+        <*> optParseSupplementSettings
     ) OP.<|>
     (ArbitraryDimGridSettings
         <$> optParseInArbitraryDimFile
-        <*> optParseCoreSupplementSettings
+        <*> optParseSupplementSettings
     )
 
-optParseCoreSupplementSettings :: OP.Parser CoreSupplementSettings
-optParseCoreSupplementSettings =
-    CoreSupplementSettings
+optParseSupplementSettings :: OP.Parser SupplementSettings
+optParseSupplementSettings =
+    SupplementSettings
         <$> optParseDistanceThresholds
         <*> OP.optional optParseInSpatDistMapFile
         <*> OP.optional optParseInObsTempSamplesFile
@@ -613,7 +612,7 @@ readFilterThresholds s =
         makeSpatTempOrAbritraryDim :: [(String, Double)] -> Either String (Either (Double, Double) ArbitraryDimThresholds)
         makeSpatTempOrAbritraryDim xs
             | sort (map fst xs) == ["space", "time"] = Right $ Left $ tuplify xs
-            | all (isPrefixOf "indep" . fst) xs      = Right $ Right $ ValuesPerIndepVar xs
+            | all (isPrefixOf "indep" . fst) xs      = Right $ Right $ makeValuesPerIndepVar xs
             | otherwise                              = Left "--indepMinFilter and --indepMaxFilter can fit \
                                                               \either to a spatiotemporal or a arbitrary variable setup"
         tuplify :: [(String,Double)] -> (Double,Double)
@@ -758,7 +757,7 @@ optParseSearchDepVarsPos = OP.option (OP.eitherReader readSearchDepVarsPos) (
             let flattened = concatMap (\(str, dblList) -> map (\dbl -> (str, dbl)) dblList) res
                 grouped = groupBy (\(str1, _) (str2, _) -> str1 == str2) flattened
                 permutations = sequenceA grouped
-            return $ map ValuesPerDepVar permutations
+            return $ map makeValuesPerDepVar permutations
             where
                 parseSequence = parseDoubleSequence
                 parseList = parseVector parseDouble
@@ -840,7 +839,7 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
-        parseKernelLengths = KernelLengths . ValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
+        parseKernelLengths = KernelLengths . makeValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
 
 optParseCoAnalyseDepVars :: OP.Parser Bool
 optParseCoAnalyseDepVars = OP.switch (
@@ -904,7 +903,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
             res <- parseNamedVector parseIndepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
             let flattened = map (\(name,vs) -> map (name,) vs) res
                 permutations = sequenceA flattened
-            return $ map (KernelLengths . ValuesPerIndepVar) permutations
+            return $ map (KernelLengths . makeValuesPerIndepVar) permutations
         parseSequence = parseDoubleSequence
         parseList = parseVector parseDouble
         parseSingle = singleton <$> parseDouble
