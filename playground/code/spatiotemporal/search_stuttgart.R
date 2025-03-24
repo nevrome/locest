@@ -50,6 +50,14 @@ system('time locest search --configFile code/spatiotemporal/basic.conf')
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
+# https://stackoverflow.com/questions/30510898/split-facet-plot-into-list-of-plots
+splitFacet <- function(x){
+  facet_vars <- names(x$facet$params$facets)        
+  x$facet    <- ggplot2::ggplot()$facet             
+  datasets   <- split(x$data, x$data[facet_vars])   
+  lapply(datasets,function(new_data) {x$data <- new_data; x})
+}
+
 hu5 %>%
   dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
@@ -67,7 +75,9 @@ hu5 %>%
     shape = 4, color = "red"
   ) +
   scale_fill_viridis_c() +
-  coord_fixed()
+  coord_fixed() -> p
+
+splitFacet(p)
 
 hu5 %>%
   ggplot() +
