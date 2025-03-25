@@ -27,7 +27,7 @@ vario %>%
 # stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
 # profiteur locest.prof
 
-system('time locest cross --configFile code/spatiotemporal/cross.conf +RTS -N10 -RTS')
+system('time locest cross --configFile code/spatiotemporal/cross.conf +RTS -N3 -RTS')
 
 cross <- readr::read_tsv("data/spatiotemporal/cross.tsv")
 
@@ -46,7 +46,7 @@ cross %>%
 # profiteur locest.prof
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy
 # hp2ps -c locest.hp
-system('time locest search --configFile code/spatiotemporal/basic.conf')
+system('time locest search --configFile code/spatiotemporal/basic.conf  +RTS -N22 -RTS')
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 

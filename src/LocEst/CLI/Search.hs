@@ -119,9 +119,12 @@ runSearch (
         CoreOutInterpolAndSearch -> do
             Con.runConduitRes $
                 ConC.yieldMany permutations
-                -- non-chunked solution
+                -- sequential solution
+                -- .| ConL.map (coreNormal spatDistUnitScaling supplement depVars observations)
+                -- non-chunked parallel solution
                 -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling supplement depVars observations)
-                .| ConC.conduitVector 100
+                -- chunked parallel solution
+                .| ConC.conduitVector 100 -- (ceiling (fromIntegral numPerms / fromIntegral numThreads))
                 .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling supplement depVars observations))
                 .| ConC.concat
                 .| progress 1000 (Just numPerms)
