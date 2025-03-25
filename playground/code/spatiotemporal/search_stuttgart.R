@@ -86,7 +86,50 @@ hu5 %>%
   scale_fill_viridis_c() +
   coord_fixed()
 
-# # one position test
+threed <- hu5 %>%
+  dplyr::mutate(
+    log_likelihood_na_0 = dplyr::case_when(
+      is.infinite(log_likelihood) & log_likelihood < 0 ~ min(log_likelihood[!is.infinite(log_likelihood)]),
+      .default = log_likelihood
+    )
+  ) %>%
+  dplyr::transmute(
+    x = x/1000, 
+    y = y/1000,
+    z = yearBCAD,
+    color = viridis::viridis(50)[as.numeric(cut(log_likelihood_na_0, breaks = 50))],
+    size = (log_likelihood_na_0 + abs(min(log_likelihood_na_0))) * 10
+  )
+
+scatterplot3d::scatterplot3d(
+  threed$x, threed$y, threed$z, color = threed$color,
+  pch = 18, cex.symbols = threed$size,
+  angle = -70, # 70 for view from Africa
+  xlab = "x", ylab = "y", zlab = "time calBC/AD",
+  col.axis = "grey",
+  #zlim = c(-8000, 2000),
+  mar = c(2.7, 2, 0, 2.7)
+)
+
+s3d <- scatterplot3d(threed$x, threed$y, threed$z,
+                     type = "n", grid = FALSE, angle = 70)
+
+threed %>%
+  dplyr::group_split(x, y) %>%
+  purrr::walk(
+    function(t) {
+      s3d$points3d(t$x + t$size, t$y, t$z, type = "l")
+      s3d$points3d(t$x - t$size, t$y, t$z, type = "l")
+    }
+  )
+
+for(i in 20:1) {
+  
+}
+for(i in length(x2):1)
+  s3d$points3d(x1, rep(x2[i], length(x1)), dens[,i], type = "l")
+
+
 # system('time locest search -i test2Obs.tsv -g test2GridOnePoint.tsv -t "c(-5750, -5500,-5250, -5000, -4750)" -d "c(varC1=-0.0885337:0.0570383:0.01,varC2=-0.0669435:0.1100580:0.01)" -a "SepIDW(c(varC1 = LinearSum(0.00001, 0.00001), varC2 = LinearSum(0.00001, 0.00001)), DistanceWeightedMean)" -o test_res/test2Interpolate.tsv')
 # 
 # hu <- readr::read_tsv("test_res/test2Interpolate.tsv")
