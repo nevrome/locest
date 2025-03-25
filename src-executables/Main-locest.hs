@@ -61,9 +61,10 @@ main = do
     (Options subcommand quiet spatDistUnitScaling) <-
         OP.handleParseResult $
             OP.execParserPure (OP.defaultPrefs {
-                  OP.prefShowHelpOnError = True
+                  OP.prefShowHelpOnError = False
+                , OP.prefShowHelpOnEmpty = True
                 , OP.prefColumns = 100
-                , OP.prefHelpShowGlobal = True
+                , OP.prefHelpShowGlobal = False
             }) optParserInfo mergedCmdArgs
     -- number of threads
     numThreads <- setNumberOfThreads
