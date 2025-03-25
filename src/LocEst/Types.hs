@@ -323,9 +323,9 @@ instance Csv.DefaultOrdered SearchLikelihood where
         Csv.header ["dep_dist_euclidean", "log_likelihood", "probability"]
 instance Csv.ToRecord SearchLikelihood where
     toRecord (SearchLikelihood depDist logLikelihood Nothing) =
-        Csv.record [Csv.toField depDist, Csv.toField logLikelihood]
+        Csv.record [Csv.toField depDist, Csv.toField $ OutDouble logLikelihood]
     toRecord (SearchLikelihood depDist logLikelihood (Just prob)) =
-        Csv.record [Csv.toField depDist, Csv.toField logLikelihood, Csv.toField prob]
+        Csv.record [Csv.toField depDist, Csv.toField $ OutDouble logLikelihood, Csv.toField prob]
 
 -- | A data type for the independent variable space prediction grid
 data IndepVarsPredGrid =
@@ -639,10 +639,10 @@ data InterpolationResultOneDepVar = KAS {
         , _irKASEffN             :: Double       -- effective number of samples
         , _irKASWeightedVar      :: Double       -- weighted variance
         , _irKASWeightedVarPrior :: Double       -- weighted variance with prior
-        , _irKASPosterior        :: OutBool      -- could a posterior distribution be calculated?
-        , _irKASLowerBound       :: OutDouble    -- lower boundary of the 95% interval
+        , _irKASPosterior        :: Bool      -- could a posterior distribution be calculated?
+        , _irKASLowerBound       :: Double    -- lower boundary of the 95% interval
         , _irKASMedian           :: Double       -- median (weighted average)
-        , _irKASUpperBound       :: OutDouble    -- upper boundary of the 95% interval
+        , _irKASUpperBound       :: Double    -- upper boundary of the 95% interval
         , _irKASLogLikelihood    :: Maybe Double -- Log-likelihood for search value
     } deriving (Eq, Show, Generic)
 
@@ -657,13 +657,13 @@ instance Csv.DefaultOrdered InterpolationResultOneDepVar where
 instance Csv.ToRecord InterpolationResultOneDepVar where
     toRecord (KAS _ neff v vp po lb m ub Nothing) =
         Csv.record [
-            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField po,
-            Csv.toField lb, Csv.toField m, Csv.toField ub
+            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField $ OutBool po,
+            Csv.toField $ OutDouble lb, Csv.toField m, Csv.toField $ OutDouble ub
         ]
     toRecord (KAS _ neff v vp po lb m ub (Just l)) =
         Csv.record [
-            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField po,
-            Csv.toField lb, Csv.toField m, Csv.toField ub, Csv.toField l
+            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField $ OutBool po,
+            Csv.toField $ OutDouble lb, Csv.toField  m, Csv.toField $ OutDouble ub, Csv.toField $ OutDouble l
         ]
 
 -- | A data type that wraps around bools to modify the way they are rendered in the .tsv output

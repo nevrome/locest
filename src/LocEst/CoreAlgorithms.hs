@@ -96,10 +96,10 @@ interpol obs dists depVar kernel maybeSearchValue = do
                 median = mu -- quantile distribution 0.5
                 upper  = quantile distribution 0.975
                 logL   = fmap (logDensity distribution) maybeSearchValue -- log-likelihood
-            in KAS depVar neff wvb wv (OutBool True) (OutDouble lower) median (OutDouble upper) logL
+            in KAS depVar neff wvb wv True lower median upper logL
         (neff, wvb, wv, mu, Left _) -> case maybeSearchValue of
-            Just _  -> KAS depVar neff wvb wv (OutBool False) (OutDouble (-inf)) mu (OutDouble inf) (Just (-inf))
-            Nothing -> KAS depVar neff wvb wv (OutBool False) (OutDouble (-inf)) mu (OutDouble inf) Nothing
+            Just _  -> KAS depVar neff wvb wv False (-inf) mu inf (Just (-inf))
+            Nothing -> KAS depVar neff wvb wv False (-inf) mu inf Nothing
 
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
