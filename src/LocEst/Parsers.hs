@@ -188,6 +188,12 @@ readSpatPos path = do
     let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)
     return resWithID
 
+readIndepVarsPos :: FilePath -> IO (V.Vector IndepVarsPos)
+readIndepVarsPos path = do
+    hPutStrLn stderr "Reading spatial grid positions"
+    res <- readToVector path
+    return res
+
 readToVector :: (Csv.FromNamedRecord a, S.Serialise a) => FilePath -> IO (V.Vector a)
 readToVector path
     | takeExtension path == ".cbor" = do
