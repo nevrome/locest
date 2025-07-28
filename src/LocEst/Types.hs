@@ -67,6 +67,11 @@ filterVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
                 indepRes = filterByKey indepVarsWanted indepInObs
             in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
 
+filterVarsInIndepVarsPos :: [String] -> IndepVarsPos -> IndepVarsPos
+filterVarsInIndepVarsPos _ x@(IndepSpatTempPos _) = x
+filterVarsInIndepVarsPos indepVarsWanted (IndepArbitraryDimPos x) =
+    IndepArbitraryDimPos $ filterByKey indepVarsWanted x
+
 filterVarsInArbitraryPos :: [String] -> V.Vector ValuesPerIndepVar -> V.Vector ValuesPerIndepVar
 filterVarsInArbitraryPos indepVarsWanted = V.map (filterByKey indepVarsWanted)
 

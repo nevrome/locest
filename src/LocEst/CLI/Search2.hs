@@ -22,25 +22,39 @@ import qualified Numeric.LinearAlgebra             as M
 import qualified Data.Vector.Storable              as VS
 
 data Search2Options = Search2Options
-    { _search2InObservationFile  :: FilePath
-    , _search2InPredGridFile     :: FilePath
-    , _search2Algorithm          :: KernelDefinition
-    , _searchOutFile             :: Maybe FilePath
+    { _search2InObservationFile   :: FilePath
+    , _search2InIndepPredGridFile :: FilePath
+    , _search2InDepSearchGrid     :: Maybe DepVarsPredGridSettings
+    , _search2Algorithm           :: KernelDefinition
+    , _searchOutFile              :: Maybe FilePath
     }
 
+data DepVarsPredGridSettings =
+      DirectDepVarsGridSettings [DepVarsPos]
+    | SearchObsDepVarsGridSettings FilePath
+
 runSearch2 :: Search2Options -> Double -> IO ()
-runSearch2 (Search2Options inObsFile inPredGridFile kernelDefinition outFile) spatDistUnitScaling = do
+runSearch2 (Search2Options
+    inObsFile inIndepVarsPredGridFile inMaybeDepSearchGrid kernelDefinition outFile
+    ) spatDistUnitScaling = do
     -- list of variables
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
         kernels   = getValues kernelDefinition
     -- read observations
     !obs <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
-    -- read prediction grid positions
-    !gridPos <- readIndepVarsPos inPredGridFile
-    -- compute distances and weights
-    dists <- calcObsGridDistances spatDistUnitScaling obs gridPos
-    -- obtain values
+    -- read indepVar prediction grid positions
+    !indepPredGrid <- V.map (filterVarsInIndepVarsPos indepVars) <$> readIndepVarsPos inIndepVarsPredGridFile
+    dists <- calcObsGridDistances spatDistUnitScaling obs indepPredGrid
+    -- TODO: case maybeDistFile of ...
+    -- ... 
+    -- read depVar search grid
+    !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
+    -- run interpolation and search
+    --Con.runConduitRes $
+        
+        
+    
     
     let interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernels (repeat Nothing)
     
@@ -48,7 +62,15 @@ runSearch2 (Search2Options inObsFile inPredGridFile kernelDefinition outFile) sp
     
     putStrLn "Done"
 
-        
+
+readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO (V.Vector DepVarsPredPos)
+readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
+    let depVarsPosReordered = V.map (filterByKey depVars) $ V.fromList depVarsPos
+    return $ V.map DepVarsPredPosDirect depVarsPosReordered
+readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
+    !obs <- readObservations path -- search observations
+    let obsFiltered = filterVarsInObs depVars indepVars obs
+    return $ V.map DepVarsPredPosSearchObs obsFiltered
 
 interpol :: V.Vector Observation -> V.Vector IndepVarsDist
          -> DepVarName -> KernelOneDepVar -> Maybe Double
