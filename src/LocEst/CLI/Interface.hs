@@ -11,6 +11,7 @@ import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
 import           LocEst.Exceptions
 import           LocEst.Types
+import LocEst.CLI.Search2 (Search2Options (..))
 
 import           Data.Char                (isSpace, toLower)
 import           Data.List                (groupBy, isPrefixOf, singleton, sort)
@@ -18,6 +19,7 @@ import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.String       as P
+
 
 -- helper functions for optparse applicative help text
 s2d :: String -> OH.Doc
@@ -110,6 +112,13 @@ searchOptParser = SearchOptions
                         <*> optParseNormalisation
                         <*> optParseOutFile
                         <*> optParseCoreOutMode
+
+search2OptParser :: OP.Parser Search2Options
+search2OptParser = Search2Options
+                        <$> optParseInObservationFile
+                        <*> optParseInSpatGridFile
+                        <*> optParseKernDefString
+                        <*> optParseOutFile
 
 varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions

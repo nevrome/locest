@@ -46,7 +46,7 @@ cross %>%
 # profiteur locest.prof
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy
 # hp2ps -c locest.hp
-system('time locest search --configFile code/spatiotemporal/basic.conf  +RTS -N22 -RTS')
+system('time locest search2 --configFile code/spatiotemporal/basic.conf  +RTS -N22 -RTS')
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
