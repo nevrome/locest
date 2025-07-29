@@ -21,6 +21,11 @@ import           Statistics.Distribution.StudentT  (StudentT)
 import           Statistics.Distribution.Transform (LinearTransform)
 import qualified Numeric.LinearAlgebra             as M
 import qualified Data.Vector.Storable              as VS
+import           Data.Conduit                  ((.|))
+import qualified Data.Conduit                  as Con
+import qualified Data.Conduit.Algorithms.Async as ConAA
+import qualified Data.Conduit.Combinators      as ConC
+import qualified Data.Conduit.List             as ConL
 
 data Search2Options = Search2Options
     { _search2InObservationFile   :: FilePath
@@ -49,49 +54,89 @@ runSearch2 (Search2Options
     -- read depVar search grid
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
     -- permutations
-    
+    hPutStrLn stderr "Preparing permutations"
+    let permutations = createPermutations2 obs Nothing indepPredGrid depSearchGrid maybeTempGrid
     -- run interpolation and search
+    Con.runConduitRes $
+           ConC.yieldMany permutations
+        .| ConL.map (core spatDistUnitScaling depVars kernels)
+        -- .| progress 1000 (Just numPerms)
+        -- .| normalise normalisation
+        .| sinkNamedCSV outFile
             
         
         
     
     
-    let interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernels (repeat Nothing)
+    --let interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernels (repeat Nothing)
     
-    putStrLn $ show interpolPerDepVar
+    --putStrLn $ show interpolPerDepVar
     
     putStrLn "Done"
+
+core :: Double -> [DepVarName] -> [KernelOneDepVar] -> Permutation2 -> IO SearchResult
+core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation2 tempSamplingIteration obs grid searchDepVarPos) = do
+    dists <- calcObsGridDistances spatDistUnitScaling obs grid
+    let searchPerDepVar = case searchDepVarPos of
+            Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
+            Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
+            Nothing                          -> replicate (length depVars) Nothing
+        interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernelsPerDepVar searchPerDepVar
+    return $ SearchResult {
+           _srPermutation   = perm
+         , _srInterpolation = InterpolationResult interpolPerDepVar
+         , _srLikelihood    =
+             case mapMaybe getLogLikelihood interpolPerDepVar of
+                [] -> Nothing
+                xs ->
+                    let valuesPerDepVar = catMaybes searchPerDepVar
+                        depDist = euclideanDistance (map _irKASMedian interpolPerDepVar) valuesPerDepVar
+                    in Just SearchLikelihood {
+                      _slhEuclideanDep  = depDist
+                    , _slhLogLikelihood = foldSum xs -- sum, not product, because log-likelihood
+                    , _slhProbability   = Nothing
+                    }
+         }
 
 data Permutation2 = Permutation2 {
       _permTempSamplingIteration :: Int
     , _permObs                   :: V.Vector Observation
     , _permIndepVarsPos          :: V.Vector IndepVarsPos
-    , _permDepVar                :: DepVarName
+    , _permSearch                :: Maybe DepVarsPredPos
 } deriving (Show)
 
 createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix
-                       -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Maybe [AbsRelTempPos]
-                       -> [DepVarName] -> [Permutation2]
-createPermutations2 obs maybeTempSampleMatrix grid maybeSearchPos maybeAbsRelTempPos depVars = do
+                       -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Maybe [AbsRelTempPos] -> [Permutation2]
+createPermutations2 obs maybeTempSampleMatrix grid maybeSearchPos maybeAbsRelTempPos = do
     -- apply temp resampling to obs
     tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
     let modObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
     -- create analysis grids
-    modGrid <- case maybeAbsRelTempPos of
-            Nothing -> return grid
+    (searchPos,modGrid) <- case maybeAbsRelTempPos of
+            Nothing -> return (Nothing,grid)
             Just absRelTempPoss -> do
                 absRelTempPos <- absRelTempPoss
                 case absRelTempPos of
-                    AbsTempPos a -> return $ V.map (applyAbsRelTempPos a) grid
+                    AbsTempPos a -> return (Nothing,V.map (applyAbsRelTempPos a) grid)
                     RelTempPos a -> do
                         case maybeSearchPos of
-                            _ -> return grid -- interesting case not covered
-                        
-    depVar <- depVars
-    
-    return $ Permutation2 tempSamp modObs modGrid depVar
+                            Just searchPoss -> do
+                                searchPos <- V.toList searchPoss
+                                case searchPos of
+                                    obs@(DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) ->
+                                        undefined
+                                    _ -> return (Just searchPos,grid)
+                            _ -> return (Nothing,grid)
+    searchPosFinal <- case searchPos of
+        Just x -> [Just x]
+        Nothing -> case maybeSearchPos of
+            Just y -> map Just $ V.toList y
+            Nothing -> [Nothing]
+    --depVar <- depVars
+    --let kernelOneDepVar = lookupUnsafe kernelDefinition depVar
+    return $ Permutation2 tempSamp modObs modGrid searchPosFinal
 
--- (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _))
+-- 
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
