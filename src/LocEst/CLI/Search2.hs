@@ -63,33 +63,42 @@ runSearch2 (Search2Options
     putStrLn "Done"
 
 data Permutation2 = Permutation2 {
-      _permObs                   :: V.Vector Observation
-    , _permTempSamplingIteration :: Int
+      _permTempSamplingIteration :: Int
+    , _permObs                   :: V.Vector Observation
     , _permIndepVarsPos          :: V.Vector IndepVarsPos
     , _permDepVar                :: DepVarName
 } deriving (Show)
 
-createPermutations2 :: (V.Vector Observation) -> Maybe TempSampleMatrix -> (V.Vector IndepVarsPos) -> Maybe [AbsRelTempPos] -> [DepVarName] -> [Permutation]
--- arbitrary dims
-createPermutations2 obs maybeTempSampleMatrix grid maybeTempGrid depVars = do
+createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix
+                       -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Maybe [AbsRelTempPos]
+                       -> [DepVarName] -> [Permutation2]
+createPermutations2 obs maybeTempSampleMatrix grid maybeSearchPos maybeAbsRelTempPos depVars = do
     -- apply temp resampling to obs
     tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
-    let tempSampObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
-    --
-    --absRelTempPos <- inTempGrid
-    --depPos <- depVarPos
-    --let tempPos = case absRelTempPos of
-    --        AbsTempPos x -> x
-    --        RelTempPos x -> case depPos of
-    --            (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
-    --            _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
-    --spatPos <- V.toList inSpatGrid
-    --return $ Permutation
-    return undefined
+    let modObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
+    -- create analysis grids
+    modGrid <- case maybeAbsRelTempPos of
+            Nothing -> return grid
+            Just absRelTempPoss -> do
+                absRelTempPos <- absRelTempPoss
+                case absRelTempPos of
+                    AbsTempPos a -> return $ V.map (applyAbsRelTempPos a) grid
+                    RelTempPos a -> do
+                        case maybeSearchPos of
+                            _ -> return grid -- interesting case not covered
+                        
+    depVar <- depVars
+    
+    return $ Permutation2 tempSamp modObs modGrid depVar
+
+-- (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _))
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
+
+applyAbsRelTempPos :: YearBCAD -> IndepVarsPos -> IndepVarsPos
+applyAbsRelTempPos _ _ = undefined
 
 applyTempSamp :: Maybe TempSampleMatrix -> Int -> Observation -> Observation
 applyTempSamp (Just m) i obs@(Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos age))) i4) i5) =
