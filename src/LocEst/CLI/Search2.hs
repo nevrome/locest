@@ -82,9 +82,16 @@ core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Per
     dists <- calcObsGridDistances spatDistUnitScaling obs grid
     let interpolPerDepVar = zipWith (interpol obs dists searchDepVarPos) depVars kernelsPerDepVar
     return $ SearchResult2 {
-           _sr2Permutation   = perm
-         , _sr2Interpolation = undefined --interpolPerDepVar
+           _sr2TempSamplingIteration = tempSamplingIteration
+         , _sr2Grid = grid
+         , _sr2Search = searchDepVarPos
+         , _sr2Interpolation = interpolPerDepVar
          }
+
+zipWithN :: ([a] -> b) -> [V.Vector a] -> V.Vector b
+zipWithN f vs 
+  | null vs   = V.empty
+  | otherwise = V.generate (V.length $ head vs) (\i -> f (map (V.! i) vs))
 
 data Permutation2 = Permutation2 {
       _permTempSamplingIteration :: Int
@@ -93,8 +100,10 @@ data Permutation2 = Permutation2 {
 
 -- | A data type for search results produced by the core algorithm
 data SearchResult2 = SearchResult2 {
-        _sr2Permutation   :: Permutation2
-      , _sr2Interpolation :: InterpolationResult
+        _sr2TempSamplingIteration :: Int
+      , _sr2Grid                  :: V.Vector IndepVarsPos
+      , _sr2Search                :: Maybe (V.Vector DepVarsPredPos)
+      , _sr2Interpolation         :: [V.Vector InterpolationResultOneDepVar2]
       } deriving (Show)
 
 createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix -> [Permutation2]
@@ -103,8 +112,6 @@ createPermutations2 obs maybeTempSampleMatrix = do
     tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
     let modObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
     return $ Permutation2 tempSamp modObs
-
--- 
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
