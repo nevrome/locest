@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module LocEst.CLI.Search2 where
 
@@ -57,11 +58,11 @@ runSearch2 (Search2Options
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
     -- permutations
     hPutStrLn stderr "Preparing permutations"
-    let permutations = createPermutations2 obs Nothing indepPredGrid maybeTempGrid
+    let permutations = createPermutations2 obs Nothing
     -- run interpolation and search
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.map (core spatDistUnitScaling depVars kernels depSearchGrid)
+        .| ConL.map (core spatDistUnitScaling depVars kernels indepPredGrid depSearchGrid)
         -- .| progress 1000 (Just numPerms)
         -- .| normalise normalisation
         .| sinkNamedCSV outFile
@@ -76,23 +77,18 @@ runSearch2 (Search2Options
     
     putStrLn "Done"
 
-core :: Double -> [DepVarName] -> [KernelOneDepVar] -> Maybe (V.Vector DepVarsPredPos) -> Permutation2 -> IO SearchResult2
-core spatDistUnitScaling depVars kernelsPerDepVar searchDepVarPos perm@(Permutation2 tempSamplingIteration obs grid) = do
+core :: Double -> [DepVarName] -> [KernelOneDepVar] -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Permutation2 -> IO SearchResult2
+core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Permutation2 tempSamplingIteration obs) = do
     dists <- calcObsGridDistances spatDistUnitScaling obs grid
-    let searchPerDepVar = case searchDepVarPos of
-            Just (DepVarsPredPosDirect x)    -> Just <$> getValues x
-            Just (DepVarsPredPosSearchObs x) -> Just <$> getValues ((_hyposDepVarsPos . _obsPos) x)
-            Nothing                          -> replicate (length depVars) Nothing
-        interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernelsPerDepVar searchPerDepVar
+    let interpolPerDepVar = zipWith (interpol obs dists searchDepVarPos) depVars kernelsPerDepVar
     return $ SearchResult2 {
            _sr2Permutation   = perm
-         , _sr2Interpolation = InterpolationResult interpolPerDepVar
+         , _sr2Interpolation = undefined --interpolPerDepVar
          }
 
 data Permutation2 = Permutation2 {
       _permTempSamplingIteration :: Int
     , _permObs                   :: V.Vector Observation
-    , _permIndepVarsPos          :: V.Vector IndepVarsPos
 } deriving (Show)
 
 -- | A data type for search results produced by the core algorithm
@@ -101,13 +97,12 @@ data SearchResult2 = SearchResult2 {
       , _sr2Interpolation :: InterpolationResult
       } deriving (Show)
 
-createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix
-                       -> V.Vector IndepVarsPos -> Maybe [AbsRelTempPos] -> [Permutation2]
-createPermutations2 obs maybeTempSampleMatrix grid maybeSearchPos maybeAbsRelTempPos = do
+createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix -> [Permutation2]
+createPermutations2 obs maybeTempSampleMatrix = do
     -- apply temp resampling to obs
     tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
     let modObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
-    return $ Permutation2 tempSamp modObs modGrid
+    return $ Permutation2 tempSamp modObs
 
 -- 
 
@@ -134,23 +129,37 @@ readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     let obsFiltered = filterVarsInObs depVars indepVars obs
     return $ V.map DepVarsPredPosSearchObs obsFiltered
 
-interpol :: V.Vector Observation -> V.Vector IndepVarsDist
-         -> DepVarName -> KernelOneDepVar -> Maybe Double
-         -> V.Vector InterpolationResultOneDepVar
-interpol obs dists depVar kernel maybeSearchValue =
+interpol :: V.Vector Observation -> V.Vector IndepVarsDist -> Maybe (V.Vector DepVarsPredPos)
+         -> DepVarName -> KernelOneDepVar 
+         -> V.Vector InterpolationResultOneDepVar2
+interpol obs dists maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         weights = M.reshape (V.length obs) $ VS.convert $ V.map (getWeight2 kernel) dists
-    in V.map search $ kas weights values
+        searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
+    in V.map (search searchValues) $ kas weights values
     where
-        search (neff, wvb, wv, mu, Right distribution) =
+        search searchValues (neff, wvb, wv, mu, Right distribution) =
             let lower  = quantile distribution 0.025
                 median = mu -- quantile distribution 0.5
                 upper  = quantile distribution 0.975
-                logL   = fmap (logDensity distribution) maybeSearchValue -- log-likelihood
-            in KAS depVar neff wvb wv True lower median upper logL
-        search (neff, wvb, wv, mu, Left _) = case maybeSearchValue of
-            Just _  -> KAS depVar neff wvb wv False (-inf) mu inf (Just (-inf))
-            Nothing -> KAS depVar neff wvb wv False (-inf) mu inf Nothing
+                logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
+            in KAS2 depVar neff wvb wv True lower median upper logL
+        search searchValues (neff, wvb, wv, mu, Left _) = case searchValues of
+            Just x  -> KAS2 depVar neff wvb wv False (-inf) mu inf (Just (V.replicate (V.length x) (-inf)))
+            Nothing -> KAS2 depVar neff wvb wv False (-inf) mu inf Nothing
+
+-- | A data type for interpolation output for one dependent variable
+data InterpolationResultOneDepVar2 = KAS2 {
+          _irKASDepVarName       :: DepVarName   -- name of the dependent variable
+        , _irKASEffN             :: Double       -- effective number of samples
+        , _irKASWeightedVar      :: Double       -- weighted variance
+        , _irKASWeightedVarPrior :: Double       -- weighted variance with prior
+        , _irKASPosterior        :: Bool      -- could a posterior distribution be calculated?
+        , _irKASLowerBound       :: Double    -- lower boundary of the 95% interval
+        , _irKASMedian           :: Double       -- median (weighted average)
+        , _irKASUpperBound       :: Double    -- upper boundary of the 95% interval
+        , _irKASLogLikelihood    :: Maybe (V.Vector Double) -- Log-likelihood for search value
+    } deriving (Eq, Show, Generic)
 
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)

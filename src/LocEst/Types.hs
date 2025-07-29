@@ -418,6 +418,10 @@ instance Csv.ToRecord DepVarsPredPos where
     toRecord (DepVarsPredPosSearchObs searchObs) =
            Csv.toRecord searchObs
 
+getDepVarsPos2 :: DepVarName -> DepVarsPredPos -> Double
+getDepVarsPos2 depVar (DepVarsPredPosDirect depVarsPos) = lookupUnsafe depVarsPos depVar
+getDepVarsPos2 depVar (DepVarsPredPosSearchObs obs) = getDepVarsPos depVar obs
+
 -- | A data type to specify a kernel across multiple depvars and indepvars
 newtype KernelDefinition = KernelDefinition {
         _kdefPerDepVar :: [KernelOneDepVar]
