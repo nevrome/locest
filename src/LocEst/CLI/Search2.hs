@@ -8,6 +8,7 @@ import           LocEst.Parsers
 import LocEst.Exceptions (throwL)
 import LocEst.MathUtils
 import           LocEst.Distance
+import           LocEst.CLI.Search (DepVarsPredGridSettings (..))
 
 import qualified Data.Vector       as V
 import qualified Data.Vector.Mutable   as VM
@@ -24,18 +25,15 @@ import qualified Data.Vector.Storable              as VS
 data Search2Options = Search2Options
     { _search2InObservationFile   :: FilePath
     , _search2InIndepPredGridFile :: FilePath
+    , _search2InTempGrid          :: Maybe [AbsRelTempPos]
     , _search2InDepSearchGrid     :: Maybe DepVarsPredGridSettings
     , _search2Algorithm           :: KernelDefinition
     , _searchOutFile              :: Maybe FilePath
     }
 
-data DepVarsPredGridSettings =
-      DirectDepVarsGridSettings [DepVarsPos]
-    | SearchObsDepVarsGridSettings FilePath
-
 runSearch2 :: Search2Options -> Double -> IO ()
 runSearch2 (Search2Options
-    inObsFile inIndepVarsPredGridFile inMaybeDepSearchGrid kernelDefinition outFile
+    inObsFile inIndepVarsPredGridFile maybeTempGrid inMaybeDepSearchGrid kernelDefinition outFile
     ) spatDistUnitScaling = do
     -- list of variables
     let depVars   = getKeys kernelDefinition
@@ -50,8 +48,10 @@ runSearch2 (Search2Options
     -- ... 
     -- read depVar search grid
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
+    -- permutations
+    
     -- run interpolation and search
-    --Con.runConduitRes $
+            
         
         
     
@@ -62,6 +62,41 @@ runSearch2 (Search2Options
     
     putStrLn "Done"
 
+data Permutation2 = Permutation2 {
+      _permObs                   :: V.Vector Observation
+    , _permTempSamplingIteration :: Int
+    , _permIndepVarsPos          :: V.Vector IndepVarsPos
+    , _permDepVar                :: DepVarName
+} deriving (Show)
+
+createPermutations2 :: (V.Vector Observation) -> Maybe TempSampleMatrix -> (V.Vector IndepVarsPos) -> Maybe [AbsRelTempPos] -> [DepVarName] -> [Permutation]
+-- arbitrary dims
+createPermutations2 obs maybeTempSampleMatrix grid maybeTempGrid depVars = do
+    -- apply temp resampling to obs
+    tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
+    let tempSampObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
+    --
+    --absRelTempPos <- inTempGrid
+    --depPos <- depVarPos
+    --let tempPos = case absRelTempPos of
+    --        AbsTempPos x -> x
+    --        RelTempPos x -> case depPos of
+    --            (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
+    --            _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
+    --spatPos <- V.toList inSpatGrid
+    --return $ Permutation
+    return undefined
+
+nrTempSamples :: Maybe TempSampleMatrix -> Int
+nrTempSamples Nothing                         = 1
+nrTempSamples (Just (TempSampleMatrix n _ _)) = n
+
+applyTempSamp :: Maybe TempSampleMatrix -> Int -> Observation -> Observation
+applyTempSamp (Just m) i obs@(Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos age))) i4) i5) =
+    let obsIndex = getIndex obs
+        newage = lookUpTempSample m i obsIndex
+    in Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos newage))) i4) i5
+applyTempSamp _ _ obs = obs
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO (V.Vector DepVarsPredPos)
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do

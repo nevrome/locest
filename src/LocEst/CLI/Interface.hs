@@ -117,6 +117,8 @@ search2OptParser :: OP.Parser Search2Options
 search2OptParser = Search2Options
                         <$> optParseInObservationFile
                         <*> optParseInSpatGridFile
+                        <*> OP.optional optParseTempGridString
+                        <*> OP.optional optParseSearchPositions
                         <*> optParseKernDefString
                         <*> optParseOutFile
 
