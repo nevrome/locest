@@ -70,6 +70,7 @@ runSearch (SearchOptions
            ConC.yieldMany permutations
         .| ConL.mapM (liftIO . core spatDistUnitScaling depVars kernels indepPredGrid depSearchGrid)
         -- .| progress 1000 (Just numPerms)
+        .| ConL.concatMap toSearchResult3s
         -- .| normalise normalisation
         .| sinkNamedCSV outFile
             
@@ -112,44 +113,40 @@ data SearchResult2 = SearchResult2 {
       , _sr2Interpolation         :: [V.Vector InterpolationResultOneDepVar2]
       } deriving (Show)
 
--- helper to add a "grid_i_" prefix to a header vector
-prefixGridIdx :: Bchs.ByteString -> V.Vector Bchs.ByteString -> V.Vector Bchs.ByteString
-prefixGridIdx i = V.map (("grid_" <> i <> "_") <>)
+toSearchResult3s :: SearchResult2 -> [SearchResult3]
+toSearchResult3s (SearchResult2 tsi grid mSearch interps) =
+  let lens = [V.length grid]
+          ++ maybe [] (\sv -> [V.length sv]) mSearch
+          ++ map V.length interps
+      n = if null lens then 0 else minimum lens
+      mk i = SearchResult3 {
+          _sr3TempSamplingIteration = tsi
+           , _sr3Grid               = grid V.! i
+           , _sr3Search             = fmap (V.!i) mSearch
+           , _sr3Interpolation      = map (V.!i) interps
+           }
+  in map mk [0 .. n-1]
 
-instance Csv.DefaultOrdered SearchResult2 where
-  headerOrder (SearchResult2 tsi grid mSearch interps) =
-    let gridHdr = V.concatMap (\pos -> prefixGridIdx "test" (Csv.headerOrder pos)) grid
-        -- optional search positions (DepVarsPredPos) per grid index
-        searchHdr =
-          case mSearch of
-            Nothing    -> V.empty
-            Just svec  ->
-              V.concat $ V.toList $
-                V.imap (\i sp -> prefixGridIdx "test" (Csv.headerOrder sp)) svec
-        -- interpolation result columns per grid index, across all depvars
-        -- interps :: [V.Vector InterpolationResultOneDepVar2]
-        n = V.length grid
-        perGridInterpHdr i =
-          V.concat $ map (\v -> Csv.headerOrder (v V.! i)) interps
-        interpHdr =
-          V.concat $ V.toList $
-            V.generate n (\i -> prefixGridIdx "test" (perGridInterpHdr i))
-    in Csv.header ["temp_sampling_iteration"] <> gridHdr <> searchHdr <> interpHdr
+data SearchResult3 = SearchResult3 {
+        _sr3TempSamplingIteration :: Int
+      , _sr3Grid                  :: IndepVarsPos
+      , _sr3Search                :: Maybe DepVarsPredPos
+      , _sr3Interpolation         :: [InterpolationResultOneDepVar2]
+      } deriving (Show)
 
-instance Csv.ToRecord SearchResult2 where
-  toRecord (SearchResult2 tsi grid mSearch interps) =
-    let baseRec = Csv.record [Csv.toField tsi]
+instance Csv.DefaultOrdered SearchResult3 where
+  headerOrder (SearchResult3 _ grid mSearch interps) =
+       Csv.header ["temp_sampling_iteration"]
+    <> Csv.headerOrder grid
+    <> maybe V.empty Csv.headerOrder mSearch
+    <> V.concat (map Csv.headerOrder interps)
 
-        -- flatten Vectors of records
-        gridRec   = V.concatMap Csv.toRecord grid
-        searchRec = maybe V.empty (V.concatMap Csv.toRecord) mSearch
-
-        n = V.length grid
-        perGridInterpRec i =
-          V.concat $ map (\v -> Csv.toRecord (v V.! i)) interps
-        interpRec = V.concat $ V.toList $ V.generate n perGridInterpRec
-
-    in baseRec <> gridRec <> searchRec <> interpRec
+instance Csv.ToRecord SearchResult3 where
+  toRecord (SearchResult3 tsi grid mSearch interps) =
+       Csv.record [Csv.toField tsi]
+    <> Csv.toRecord grid
+    <> maybe V.empty Csv.toRecord mSearch
+    <> V.concat (map Csv.toRecord interps)
 
 createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix -> [Permutation2]
 createPermutations2 obs maybeTempSampleMatrix = do
