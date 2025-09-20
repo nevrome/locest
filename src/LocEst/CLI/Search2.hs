@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module LocEst.CLI.Search2 where
 
@@ -29,6 +30,8 @@ import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
 import qualified Data.Csv as Csv
 import GHC.Generics (Generic)
+import qualified Data.ByteString.Char8 as Bchs
+import Conduit (liftIO)
 
 data Search2Options = Search2Options
     { _search2InObservationFile   :: FilePath
@@ -62,7 +65,7 @@ runSearch2 (Search2Options
     -- run interpolation and search
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.map (core spatDistUnitScaling depVars kernels indepPredGrid depSearchGrid)
+        .| ConL.mapM (liftIO . core spatDistUnitScaling depVars kernels indepPredGrid depSearchGrid)
         -- .| progress 1000 (Just numPerms)
         -- .| normalise normalisation
         .| sinkNamedCSV outFile
@@ -105,6 +108,45 @@ data SearchResult2 = SearchResult2 {
       , _sr2Search                :: Maybe (V.Vector DepVarsPredPos)
       , _sr2Interpolation         :: [V.Vector InterpolationResultOneDepVar2]
       } deriving (Show)
+
+-- helper to add a "grid_i_" prefix to a header vector
+prefixGridIdx :: Bchs.ByteString -> V.Vector Bchs.ByteString -> V.Vector Bchs.ByteString
+prefixGridIdx i = V.map (("grid_" <> i <> "_") <>)
+
+instance Csv.DefaultOrdered SearchResult2 where
+  headerOrder (SearchResult2 tsi grid mSearch interps) =
+    let gridHdr = V.concatMap (\pos -> prefixGridIdx "test" (Csv.headerOrder pos)) grid
+        -- optional search positions (DepVarsPredPos) per grid index
+        searchHdr =
+          case mSearch of
+            Nothing    -> V.empty
+            Just svec  ->
+              V.concat $ V.toList $
+                V.imap (\i sp -> prefixGridIdx "test" (Csv.headerOrder sp)) svec
+        -- interpolation result columns per grid index, across all depvars
+        -- interps :: [V.Vector InterpolationResultOneDepVar2]
+        n = V.length grid
+        perGridInterpHdr i =
+          V.concat $ map (\v -> Csv.headerOrder (v V.! i)) interps
+        interpHdr =
+          V.concat $ V.toList $
+            V.generate n (\i -> prefixGridIdx "test" (perGridInterpHdr i))
+    in Csv.header ["temp_sampling_iteration"] <> gridHdr <> searchHdr <> interpHdr
+
+instance Csv.ToRecord SearchResult2 where
+  toRecord (SearchResult2 tsi grid mSearch interps) =
+    let baseRec = Csv.record [Csv.toField tsi]
+
+        -- flatten Vectors of records
+        gridRec   = V.concatMap Csv.toRecord grid
+        searchRec = maybe V.empty (V.concatMap Csv.toRecord) mSearch
+
+        n = V.length grid
+        perGridInterpRec i =
+          V.concat $ map (\v -> Csv.toRecord (v V.! i)) interps
+        interpRec = V.concat $ V.toList $ V.generate n perGridInterpRec
+
+    in baseRec <> gridRec <> searchRec <> interpRec
 
 createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix -> [Permutation2]
 createPermutations2 obs maybeTempSampleMatrix = do
@@ -167,6 +209,37 @@ data InterpolationResultOneDepVar2 = KAS2 {
         , _irKASUpperBound       :: Double    -- upper boundary of the 95% interval
         , _irKASLogLikelihood    :: Maybe (V.Vector Double) -- Log-likelihood for search value
     } deriving (Eq, Show, Generic)
+
+instance Csv.DefaultOrdered InterpolationResultOneDepVar2 where
+  headerOrder (KAS2 dep _ _ _ _ _ _ _ Nothing) =
+    Csv.header $ map (Bchs.pack . (\x -> "interpol_" ++ dep ++ "_" ++ x))
+                     ["neff","var","var_prior","post","low","median","up"]
+  headerOrder (KAS2 dep _ _ _ _ _ _ _ (Just lls)) =
+    let base = V.fromList $ map (Bchs.pack . (\x -> "interpol_" ++ dep ++ "_" ++ x))
+                                ["neff","var","var_prior","post","low","median","up"]
+        llCols = V.imap (\j _ -> Bchs.pack ("interpol_" ++ dep ++ "_logl_" ++ show j)) lls
+    in base <> llCols
+
+instance Csv.ToRecord InterpolationResultOneDepVar2 where
+  toRecord (KAS2 _ neff v vp po lb m ub Nothing) =
+    Csv.record [ Csv.toField neff
+               , Csv.toField v
+               , Csv.toField vp
+               , Csv.toField (OutBool po)
+               , Csv.toField (OutDouble lb)
+               , Csv.toField m
+               , Csv.toField (OutDouble ub)
+               ]
+  toRecord (KAS2 _ neff v vp po lb m ub (Just lls)) =
+    Csv.record [ Csv.toField neff
+               , Csv.toField v
+               , Csv.toField vp
+               , Csv.toField (OutBool po)
+               , Csv.toField (OutDouble lb)
+               , Csv.toField m
+               , Csv.toField (OutDouble ub)
+               ]
+    <> V.map (Csv.toField . OutDouble) lls
 
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
