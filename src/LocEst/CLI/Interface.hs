@@ -11,7 +11,6 @@ import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
 import           LocEst.Exceptions
 import           LocEst.Types
-import LocEst.CLI.Search2 (Search2Options (..))
 
 import           Data.Char                (isSpace, toLower)
 import           Data.List                (groupBy, isPrefixOf, singleton, sort)
@@ -106,15 +105,6 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions
-                        <$> optParseInObservationFile
-                        <*> optParseSearchGridSettings
-                        <*> optParseKernDefString
-                        <*> optParseNormalisation
-                        <*> optParseOutFile
-                        <*> optParseCoreOutMode
-
-search2OptParser :: OP.Parser Search2Options
-search2OptParser = Search2Options
                         <$> optParseInObservationFile
                         <*> optParseInSpatGridFile
                         <*> OP.optional optParseTempGridString
@@ -535,28 +525,28 @@ optParseInObsTempSamplesFile = OP.strOption (
     ))
     )
 
-optParseSearchGridSettings :: OP.Parser SearchGridSettings
-optParseSearchGridSettings =
-    SearchGridSettings
-        <$> optParseIndepVarsPredGridSettings
-        <*> OP.optional optParseSearchPositions
+-- optParseSearchGridSettings :: OP.Parser SearchGridSettings
+-- optParseSearchGridSettings =
+--     SearchGridSettings
+--         <$> optParseIndepVarsPredGridSettings
+--         <*> OP.optional optParseSearchPositions
 
 optParseSearchPositions :: OP.Parser DepVarsPredGridSettings
 optParseSearchPositions =
            DirectDepVarsGridSettings <$> optParseSearchDepVarsPos
     OP.<|> SearchObsDepVarsGridSettings <$> optParseInSearchObservationFile
 
-optParseIndepVarsPredGridSettings :: OP.Parser IndepVarsPredGridSettings
-optParseIndepVarsPredGridSettings =
-    (SpaceTimeGridSettings
-        <$> optParseInSpatGridFile
-        <*> optParseTempGridString
-        <*> optParseSupplementSettings
-    ) OP.<|>
-    (ArbitraryDimGridSettings
-        <$> optParseInArbitraryDimFile
-        <*> optParseSupplementSettings
-    )
+-- optParseIndepVarsPredGridSettings :: OP.Parser IndepVarsPredGridSettings
+-- optParseIndepVarsPredGridSettings =
+--     (SpaceTimeGridSettings
+--         <$> optParseInSpatGridFile
+--         <*> optParseTempGridString
+--         <*> optParseSupplementSettings
+--     ) OP.<|>
+--     (ArbitraryDimGridSettings
+--         <$> optParseInArbitraryDimFile
+--         <*> optParseSupplementSettings
+--     )
 
 optParseSupplementSettings :: OP.Parser SupplementSettings
 optParseSupplementSettings =

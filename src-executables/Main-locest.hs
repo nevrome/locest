@@ -3,7 +3,6 @@
 import           LocEst.CLI.Cross         (CrossOptions (..), runCross)
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
-import           LocEst.CLI.Search2        (Search2Options (..), runSearch2)
 import           LocEst.CLI.Serialise     (SerialiseOptions (..), runSerialise)
 import           LocEst.CLI.Utils         (setNumberOfThreads)
 import           LocEst.CLI.Vario         (VarioOptions (..), runVario)
@@ -32,7 +31,6 @@ data Options = Options {
 data Subcommand =
       CmdSerialise SerialiseOptions
     | CmdSearch SearchOptions
-    | CmdSearch2 Search2Options
     | CmdVario VarioOptions
     | CmdCross CrossOptions
 
@@ -103,8 +101,7 @@ run o numThreads True spatDistUnitScaling = do
 runCmd :: Subcommand -> Int -> Double -> IO ()
 runCmd o numThreads spatDistUnitScaling = case o of
     CmdSerialise opts -> runSerialise opts
-    CmdSearch opts    -> runSearch opts numThreads spatDistUnitScaling
-    CmdSearch2 opts    -> runSearch2 opts spatDistUnitScaling
+    CmdSearch opts    -> runSearch opts spatDistUnitScaling
     CmdVario opts     -> runVario opts numThreads spatDistUnitScaling
     CmdCross opts     -> runCross opts numThreads spatDistUnitScaling
 
@@ -132,7 +129,6 @@ versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.hel
 subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
            OP.command "search" searchOptInfo
-        <> OP.command "search2" search2OptInfo
         <> OP.command "vario" varioOptInfo
         <> OP.command "cross" crossOptInfo
         <> OP.command "serialise" serialiseOptInfo
@@ -142,8 +138,6 @@ subcommandParser = OP.subparser (
             (OP.progDesc "Interpolate dependent variables in space and time (or any independent \
                          \variable space) and optionally determine a probabilistic measure of similarity \
                          \for individual \"search\" observations.")
-        search2OptInfo = OP.info (OP.helper <*> (CmdSearch2 <$> search2OptParser))
-            (OP.progDesc "test.")
         varioOptInfo = OP.info (OP.helper <*> (CmdVario <$> varioOptParser))
             (OP.progDesc "Calculate variograms binned based on distances in independent variable space.")
         crossOptInfo = OP.info (OP.helper <*> (CmdCross <$> crossOptParser))

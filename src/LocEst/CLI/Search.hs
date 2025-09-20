@@ -1,240 +1,389 @@
 {-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module LocEst.CLI.Search where
 
-import           LocEst.CLI.Utils
-import           LocEst.CoreAlgorithms
-import           LocEst.Exceptions
-import           LocEst.MathUtils
+import LocEst.Types
 import           LocEst.Parsers
-import           LocEst.Types
+--import           LocEst.CoreAlgorithms
+import LocEst.Exceptions (throwL)
+import LocEst.MathUtils
+import           LocEst.Distance
 
+import qualified Data.Vector       as V
+import qualified Data.Vector.Mutable   as VM
+import qualified Data.Vector.Unboxed           as VU
+import qualified Data.Vector.Unboxed.Mutable           as VUM
+import           System.IO                     (hPutStrLn, stderr)
+import           Control.Monad                 (replicateM, zipWithM_)
+import           Statistics.Distribution           (logDensity, quantile)
+import           Statistics.Distribution.StudentT  (StudentT)
+import           Statistics.Distribution.Transform (LinearTransform)
+import qualified Numeric.LinearAlgebra             as M
+import qualified Data.Vector.Storable              as VS
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import           Data.Maybe                    (catMaybes)
-import qualified Data.Vector                   as V
-import           System.IO                     (hPutStrLn, stderr)
-import           System.Random.Stateful        as R
+import qualified Data.Csv as Csv
+import GHC.Generics (Generic)
+import qualified Data.ByteString.Char8 as Bchs
+import Conduit (liftIO)
 
 data SearchOptions = SearchOptions
-    { _searchInObservationFile  :: FilePath
-    , _searchSearchGridSettings :: SearchGridSettings
-    , _searchAlgorithm          :: KernelDefinition
-    , _normalise                :: Normalisation
-    , _searchOutFile            :: Maybe FilePath
-    , _searchOutMode            :: CoreOutMode
+    { _searchInObservationFile   :: FilePath
+    , _searchInIndepPredGridFile :: FilePath
+    , _searchInTempGrid          :: Maybe [AbsRelTempPos]
+    , _searchInDepSearchGrid     :: Maybe DepVarsPredGridSettings
+    , _searchAlgorithm           :: KernelDefinition
+    , _searchOutFile             :: Maybe FilePath
     }
-
-data SearchGridSettings = SearchGridSettings {
-      _searchPosSetIndepVarsGrid :: IndepVarsPredGridSettings
-    , _searchPosSetDepVarsGrid   :: Maybe DepVarsPredGridSettings
-}
 
 data DepVarsPredGridSettings =
       DirectDepVarsGridSettings [DepVarsPos]
     | SearchObsDepVarsGridSettings FilePath
 
-data IndepVarsPredGridSettings =
-    SpaceTimeGridSettings {
-      _stgsInSpatGridFile     :: FilePath
-    , _stgsInTempGrid         :: [AbsRelTempPos]
-    , _stgsSupplementSettings :: SupplementSettings
-    } |
-    ArbitraryDimGridSettings {
-      _adgsInArbitraryDimGridFile :: FilePath
-    , _adgsSupplementSettings     :: SupplementSettings
-    }
-
-data SupplementSettings = SupplementSettings {
-      _stcsDistFilterThresholds :: Maybe DistanceThresholds
-    , _stcsInSpatDistFile       :: Maybe FilePath
-    , _stcsInObsTempSamplesFile :: Maybe FilePath
-    , _stcsNoOrderCheck         :: Bool
-}
-
-runSearch :: SearchOptions -> Int -> Double -> IO ()
-runSearch (
-    SearchOptions
-        inObsFile
-        (SearchGridSettings indepVarsPredGridSettings depVarsPredGridSettings)
-        kernelDefinition
-        normalisation
-        outFile
-        outMode
-    ) numThreads spatDistUnitScaling = do
+runSearch :: SearchOptions -> Double -> IO ()
+runSearch (SearchOptions
+    inObsFile inIndepVarsPredGridFile maybeTempGrid inMaybeDepSearchGrid kernelDefinition outFile
+    ) spatDistUnitScaling = do
     -- list of variables
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
+        kernels   = getValues kernelDefinition
     -- read observations
-    !observations <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
-    -- read and prepare prediction grids
-    hPutStrLn stderr "Preparing prediction grid"
-    !indepVarsPredGrid <- readIndepVarsPredGrid indepVars observations indepVarsPredGridSettings
-    !depVarsPredGrid   <- traverse (readDepVarsPredGrid depVars indepVars) depVarsPredGridSettings
-    let supplement = createSupplement indepVarsPredGrid
-    -- prepare permutations
+    !obs <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
+    -- read indepVar prediction grid positions
+    !indepPredGrid <- V.map (filterVarsInIndepVarsPos indepVars) <$> readIndepVarsPos inIndepVarsPredGridFile
+    dists <- calcObsGridDistances spatDistUnitScaling obs indepPredGrid
+    -- TODO: case maybeDistFile of ...
+    -- ... 
+    -- read depVar search grid
+    !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
+    -- permutations
     hPutStrLn stderr "Preparing permutations"
-    let !permutations = createPermutations kernelDefinition indepVarsPredGrid depVarsPredGrid
-        numPerms = length permutations
-    -- run analysis pipeline
-    hPutStrLn stderr "Running analysis"
-    case outMode of
-        CoreOutObsWeight nrTopObs -> do
-            Con.runConduitRes $
-                ConC.yieldMany permutations
-                .| ConC.conduitVector 100
-                .| ConAA.asyncMapC numThreads (V.map (coreObsWeights spatDistUnitScaling nrTopObs supplement depVars observations))
-                .| ConC.concat
-                .| progress 1000 (Just numPerms)
-                .| ConC.concatMap id
-                .| sinkNamedCSV outFile
-        CoreOutInterpolSamples nrRandomIts maybeSeed maybeSamplingRange -> do
-            let range = case maybeSamplingRange of
-                    Just OneSigma         -> (0.159, 0.841)
-                    Just TwoSigma         -> (0.025, 0.975)
-                    Just FullDistribution -> (0,1)
-                    Nothing               -> (0,1)
-            rng <- case maybeSeed of
-                    Nothing   -> newIOGenM =<< R.getStdGen
-                    Just seed -> newIOGenM $ mkStdGen seed
-            randomIts <- forM permutations $ \p -> do
-                 rss <- forM  [0..nrRandomIts-1] $ \i -> do
-                    rs <- forM depVars $ \d -> do
-                            r <- R.uniformRM range rng
-                            return (d, r)
-                    return (i, ValuesPerDepVar rs)
-                 return (p, rss)
-            Con.runConduitRes $
-                ConC.yieldMany randomIts
-                .| ConC.conduitVector 100
-                .| ConAA.asyncMapC numThreads (V.map (coreSamples spatDistUnitScaling supplement depVars observations))
-                .| ConC.concat
-                .| progress 1000 (Just numPerms)
-                .| ConC.concatMap id
-                .| sinkNamedCSV outFile
-        CoreOutInterpolAndSearch -> do
-            Con.runConduitRes $
-                ConC.yieldMany permutations
-                -- sequential solution
-                -- .| ConL.map (coreNormal spatDistUnitScaling supplement depVars observations)
-                -- non-chunked parallel solution
-                -- .| ConAA.asyncMapC numThreads (coreNormal spatDistUnitScaling supplement depVars observations)
-                -- chunked parallel solution
-                .| ConC.conduitVector 100 -- (ceiling (fromIntegral numPerms / fromIntegral numThreads))
-                .| ConAA.asyncMapC numThreads (V.map (coreNormal spatDistUnitScaling supplement depVars observations))
-                .| ConC.concat
-                .| progress 1000 (Just numPerms)
-                .| normalise normalisation
-                .| sinkNamedCSV outFile
-    hPutStrLn stderr "Done"
+    let permutations = createPermutations2 obs Nothing
+    -- run interpolation and search
+    Con.runConduitRes $
+           ConC.yieldMany permutations
+        .| ConL.mapM (liftIO . core spatDistUnitScaling depVars kernels indepPredGrid depSearchGrid)
+        -- .| progress 1000 (Just numPerms)
+        -- .| normalise normalisation
+        .| sinkNamedCSV outFile
+            
+        
+        
+    
+    
+    --let interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernels (repeat Nothing)
+    
+    --putStrLn $ show interpolPerDepVar
+    
+    putStrLn "Done"
 
-readIndepVarsPredGrid :: [String] -> V.Vector Observation -> IndepVarsPredGridSettings -> IO IndepVarsPredGrid
--- spatiotemporal case
-readIndepVarsPredGrid _ observations
-    (SpaceTimeGridSettings inSpatGridFile inTempGrid
-        (SupplementSettings distanceFilterThresholds inSpatDistFile inObsTempSamplesFile noOrderCheck)
-    ) = do
-    hPutStrLn stderr "Assuming a spatiotemporal system"
-    inSpatGrid <- readSpatPos inSpatGridFile
-    inSpatDists <- readMaybeSpatDist noOrderCheck observations (Just inSpatGrid) inSpatDistFile
-    inObsTempSamples <- readMaybeObsTempSamples noOrderCheck observations inObsTempSamplesFile
-    -- ordering of distance filter tresholds not necessary here; see cross
-    return $ SpaceTimeGrid inSpatGrid inTempGrid distanceFilterThresholds inSpatDists inObsTempSamples
--- arbitrary dimension case
-readIndepVarsPredGrid indepVarsWanted _
-    (ArbitraryDimGridSettings inArbitraryDimGridFile
-        (SupplementSettings distanceFilterThresholdsRaw _ _ _)
-    ) = do
-    hPutStrLn stderr "Assuming an arbitrary-dimension system"
-    inArbitraryDimPosRaw <- readArbitraryDimPos inArbitraryDimGridFile
-    let inArbitraryDimPos = filterVarsInArbitraryPos indepVarsWanted inArbitraryDimPosRaw
-    let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
-    return $ ArbitraryDimGrid inArbitraryDimPos distanceFilterThresholds
+core :: Double -> [DepVarName] -> [KernelOneDepVar] -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Permutation2 -> IO SearchResult2
+core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Permutation2 tempSamplingIteration obs) = do
+    dists <- calcObsGridDistances spatDistUnitScaling obs grid
+    let interpolPerDepVar = zipWith (interpol obs dists searchDepVarPos) depVars kernelsPerDepVar
+    return $ SearchResult2 {
+           _sr2TempSamplingIteration = tempSamplingIteration
+         , _sr2Grid = grid
+         , _sr2Search = searchDepVarPos
+         , _sr2Interpolation = interpolPerDepVar
+         }
 
-readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO DepVarsPredGrid
-readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
-    let depVarsPosReordered = map (filterByKey depVars) depVarsPos
-    return $ DepVarsPredGrid $ map DepVarsPredPosDirect depVarsPosReordered
-readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
-    obsVec <- readObservations path -- search observations
-    let obsVecReordered = filterVarsInObs depVars indepVars obsVec
-        searchObservations = V.toList obsVecReordered
-    return $ DepVarsPredGrid $ map DepVarsPredPosSearchObs searchObservations
+zipWithN :: ([a] -> b) -> [V.Vector a] -> V.Vector b
+zipWithN f vs 
+  | null vs   = V.empty
+  | otherwise = V.generate (V.length $ head vs) (\i -> f (map (V.! i) vs))
 
-createSupplement :: IndepVarsPredGrid -> Supplement
-createSupplement (SpaceTimeGrid _ _ distFilterThresholds maybeSpatDistMap maybeTempSamples) =
-    Supplement distFilterThresholds maybeSpatDistMap maybeTempSamples
-createSupplement (ArbitraryDimGrid _ distFilterThresholds) =
-    Supplement distFilterThresholds Nothing Nothing
+data Permutation2 = Permutation2 {
+      _permTempSamplingIteration :: Int
+    , _permObs                   :: V.Vector Observation
+} deriving (Show)
 
-createPermutations :: KernelDefinition -> IndepVarsPredGrid -> Maybe DepVarsPredGrid -> [Permutation]
--- spatiotemporal, search
-createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) (Just (DepVarsPredGrid depVarPos)) = do
-    tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
-    absRelTempPos <- inTempGrid
-    depPos <- depVarPos
-    let tempPos = case absRelTempPos of
-            AbsTempPos x -> x
-            RelTempPos x -> case depPos of
-                (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> obsAge + x
-                _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
-    spatPos <- V.toList inSpatGrid
-    return $ Permutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) (Just depPos) kernelDef tempSamp 0
--- spatiotemporal, no search
-createPermutations kernelDef (SpaceTimeGrid inSpatGrid inTempGrid _ _ inObsTempSamples) Nothing = do
-    tempSamp <- [0..(nrTempSamples inObsTempSamples - 1)]
-    absRelTempPos <- inTempGrid
-    let tempPos = case absRelTempPos of
-            AbsTempPos x -> x
-            RelTempPos _ -> throwL "--tempGrid relative(...) can only be used with --searchObsFile"
-    spatPos <- V.toList inSpatGrid
-    return $ Permutation (IndepSpatTempPos (SpatTempPos spatPos (TempPos tempPos))) Nothing kernelDef tempSamp 0
--- arbitrary dims, search
-createPermutations kernelDef (ArbitraryDimGrid gridPos _) (Just (DepVarsPredGrid depVarPos)) =
-    [ Permutation (IndepArbitraryDimPos indepPos) (Just depPos) kernelDef 0 0
-    | indepPos <- V.toList gridPos, depPos <- depVarPos]
--- arbitrary dims, no search
-createPermutations kernelDef (ArbitraryDimGrid gridPos _) Nothing =
-    [ Permutation (IndepArbitraryDimPos indepPos) Nothing kernelDef 0 0
-    | indepPos <- V.toList gridPos]
+-- | A data type for search results produced by the core algorithm
+data SearchResult2 = SearchResult2 {
+        _sr2TempSamplingIteration :: Int
+      , _sr2Grid                  :: V.Vector IndepVarsPos
+      , _sr2Search                :: Maybe (V.Vector DepVarsPredPos)
+      , _sr2Interpolation         :: [V.Vector InterpolationResultOneDepVar2]
+      } deriving (Show)
+
+-- helper to add a "grid_i_" prefix to a header vector
+prefixGridIdx :: Bchs.ByteString -> V.Vector Bchs.ByteString -> V.Vector Bchs.ByteString
+prefixGridIdx i = V.map (("grid_" <> i <> "_") <>)
+
+instance Csv.DefaultOrdered SearchResult2 where
+  headerOrder (SearchResult2 tsi grid mSearch interps) =
+    let gridHdr = V.concatMap (\pos -> prefixGridIdx "test" (Csv.headerOrder pos)) grid
+        -- optional search positions (DepVarsPredPos) per grid index
+        searchHdr =
+          case mSearch of
+            Nothing    -> V.empty
+            Just svec  ->
+              V.concat $ V.toList $
+                V.imap (\i sp -> prefixGridIdx "test" (Csv.headerOrder sp)) svec
+        -- interpolation result columns per grid index, across all depvars
+        -- interps :: [V.Vector InterpolationResultOneDepVar2]
+        n = V.length grid
+        perGridInterpHdr i =
+          V.concat $ map (\v -> Csv.headerOrder (v V.! i)) interps
+        interpHdr =
+          V.concat $ V.toList $
+            V.generate n (\i -> prefixGridIdx "test" (perGridInterpHdr i))
+    in Csv.header ["temp_sampling_iteration"] <> gridHdr <> searchHdr <> interpHdr
+
+instance Csv.ToRecord SearchResult2 where
+  toRecord (SearchResult2 tsi grid mSearch interps) =
+    let baseRec = Csv.record [Csv.toField tsi]
+
+        -- flatten Vectors of records
+        gridRec   = V.concatMap Csv.toRecord grid
+        searchRec = maybe V.empty (V.concatMap Csv.toRecord) mSearch
+
+        n = V.length grid
+        perGridInterpRec i =
+          V.concat $ map (\v -> Csv.toRecord (v V.! i)) interps
+        interpRec = V.concat $ V.toList $ V.generate n perGridInterpRec
+
+    in baseRec <> gridRec <> searchRec <> interpRec
+
+createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix -> [Permutation2]
+createPermutations2 obs maybeTempSampleMatrix = do
+    -- apply temp resampling to obs
+    tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
+    let modObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
+    return $ Permutation2 tempSamp modObs
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
 
-normalise :: Monad m => Normalisation -> Con.ConduitT SearchResult SearchResult m ()
-normalise NoNorm = ConC.map id
-normalise NormBySpace = ConL.groupBy groupFunc .| ConC.map scaleProbs .| ConC.concat
+applyAbsRelTempPos :: YearBCAD -> IndepVarsPos -> IndepVarsPos
+applyAbsRelTempPos _ _ = undefined
+
+applyTempSamp :: Maybe TempSampleMatrix -> Int -> Observation -> Observation
+applyTempSamp (Just m) i obs@(Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos age))) i4) i5) =
+    let obsIndex = getIndex obs
+        newage = lookUpTempSample m i obsIndex
+    in Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos newage))) i4) i5
+applyTempSamp _ _ obs = obs
+
+readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO (V.Vector DepVarsPredPos)
+readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
+    let depVarsPosReordered = V.map (filterByKey depVars) $ V.fromList depVarsPos
+    return $ V.map DepVarsPredPosDirect depVarsPosReordered
+readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
+    !obs <- readObservations path -- search observations
+    let obsFiltered = filterVarsInObs depVars indepVars obs
+    return $ V.map DepVarsPredPosSearchObs obsFiltered
+
+interpol :: V.Vector Observation -> V.Vector IndepVarsDist -> Maybe (V.Vector DepVarsPredPos)
+         -> DepVarName -> KernelOneDepVar 
+         -> V.Vector InterpolationResultOneDepVar2
+interpol obs dists maybeSearchValues depVar kernel =
+    let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
+        weights = M.reshape (V.length obs) $ VS.convert $ V.map (getWeight2 kernel) dists
+        searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
+    in V.map (search searchValues) $ kas weights values
     where
-    groupFunc :: SearchResult -> SearchResult -> Bool
-    groupFunc
-        (SearchResult (Permutation (IndepSpatTempPos (SpatTempPos _ t1)) dv1 alg1 tri1 _) _ _)
-        (SearchResult (Permutation (IndepSpatTempPos (SpatTempPos _ t2)) dv2 alg2 tri2 _) _ _) =
-            t1 == t2 && dv1 == dv2 && alg1 == alg2 && tri1 == tri2
-    groupFunc _ _ = False
-    scaleProbs :: [SearchResult] -> [SearchResult]
-    scaleProbs stps =
-        let maybeLogLikelihoods = map getLogL stps
-            probabilities = case catMaybes maybeLogLikelihoods of
-                []          -> repeat Nothing
-                logls ->
-                    -- https://stats.stackexchange.com/questions/66616/converting-normalizing-very-small-likelihood-values-to-probability
-                    -- no explicit underflow handling implemented, because
-                    -- I think Haskell sets the output of exp reliably to zero
-                    -- for underflowing doubles
-                    let maxlogl = maximum logls
-                        ls = map (\logl -> exp $ logl - maxlogl) logls
-                        sumls = foldSum ls
-                    in map (\l -> Just $ l / sumls) ls
-        in zipWith setLogL stps probabilities
-    getLogL :: SearchResult -> Maybe Double
-    getLogL (SearchResult _ _ (Just (SearchLikelihood _ logL _))) = Just logL
-    getLogL _                                                     = Nothing
-    setLogL :: SearchResult -> Maybe Double -> SearchResult
-    setLogL stp@(SearchResult _ _ (Just slh@(SearchLikelihood {}))) p =
-        stp { _srLikelihood = Just slh { _slhProbability = p } }
-    setLogL stp _ = stp
+        search searchValues (neff, wvb, wv, mu, Right distribution) =
+            let lower  = quantile distribution 0.025
+                median = mu -- quantile distribution 0.5
+                upper  = quantile distribution 0.975
+                logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
+            in KAS2 depVar neff wvb wv True lower median upper logL
+        search searchValues (neff, wvb, wv, mu, Left _) = case searchValues of
+            Just x  -> KAS2 depVar neff wvb wv False (-inf) mu inf (Just (V.replicate (V.length x) (-inf)))
+            Nothing -> KAS2 depVar neff wvb wv False (-inf) mu inf Nothing
+
+-- | A data type for interpolation output for one dependent variable
+data InterpolationResultOneDepVar2 = KAS2 {
+          _irKASDepVarName       :: DepVarName   -- name of the dependent variable
+        , _irKASEffN             :: Double       -- effective number of samples
+        , _irKASWeightedVar      :: Double       -- weighted variance
+        , _irKASWeightedVarPrior :: Double       -- weighted variance with prior
+        , _irKASPosterior        :: Bool      -- could a posterior distribution be calculated?
+        , _irKASLowerBound       :: Double    -- lower boundary of the 95% interval
+        , _irKASMedian           :: Double       -- median (weighted average)
+        , _irKASUpperBound       :: Double    -- upper boundary of the 95% interval
+        , _irKASLogLikelihood    :: Maybe (V.Vector Double) -- Log-likelihood for search value
+    } deriving (Eq, Show, Generic)
+
+instance Csv.DefaultOrdered InterpolationResultOneDepVar2 where
+  headerOrder (KAS2 dep _ _ _ _ _ _ _ Nothing) =
+    Csv.header $ map (Bchs.pack . (\x -> "interpol_" ++ dep ++ "_" ++ x))
+                     ["neff","var","var_prior","post","low","median","up"]
+  headerOrder (KAS2 dep _ _ _ _ _ _ _ (Just lls)) =
+    let base = V.fromList $ map (Bchs.pack . (\x -> "interpol_" ++ dep ++ "_" ++ x))
+                                ["neff","var","var_prior","post","low","median","up"]
+        llCols = V.imap (\j _ -> Bchs.pack ("interpol_" ++ dep ++ "_logl_" ++ show j)) lls
+    in base <> llCols
+
+instance Csv.ToRecord InterpolationResultOneDepVar2 where
+  toRecord (KAS2 _ neff v vp po lb m ub Nothing) =
+    Csv.record [ Csv.toField neff
+               , Csv.toField v
+               , Csv.toField vp
+               , Csv.toField (OutBool po)
+               , Csv.toField (OutDouble lb)
+               , Csv.toField m
+               , Csv.toField (OutDouble ub)
+               ]
+  toRecord (KAS2 _ neff v vp po lb m ub (Just lls)) =
+    Csv.record [ Csv.toField neff
+               , Csv.toField v
+               , Csv.toField vp
+               , Csv.toField (OutBool po)
+               , Csv.toField (OutDouble lb)
+               , Csv.toField m
+               , Csv.toField (OutDouble ub)
+               ]
+    <> V.map (Csv.toField . OutDouble) lls
+
+sumRows :: M.Matrix M.R -> M.Vector M.R
+sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
+
+kas :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Double, Double, Double, Double, Either String (LinearTransform StudentT))
+kas weights y =
+    V.zipWith6 (\neff wvb wv _mu _scale _dof -> (neff, wvb, wv, _mu, generalizedStudentT _mu _scale _dof))
+        (V.convert totalWeight) (V.convert weightedVarBasic) (V.convert weightedVar)
+        (V.convert mu) (V.convert scale) (V.convert dof)
+    where
+      totalWeight = sumRows weights
+      weightedAvg = M.flatten (weights M.<> M.asColumn y) / totalWeight
+      values = M.fromRows $ replicate (M.rows weights) y
+      weightedVarBasic = sumRows (weights * (values - M.asColumn weightedAvg) ** 2) / (totalWeight - 1)
+      meanY = M.sumElements y / fromIntegral (M.size y)
+      varSample = M.dot (y - M.scalar meanY) (y - M.scalar meanY) / fromIntegral (M.size y - 1)
+      scaledS2 = (totalWeight - 1) * weightedVarBasic
+      weightedVar = (scaledS2 + M.scalar varSample) / (totalWeight + 1)
+      mu = weightedAvg
+      scale = M.cmap sqrt ((1 + 1/(totalWeight + 1)) * weightedVar)
+      dof = totalWeight
+
+computeWeight :: KernelShape -> SquaredWeightedDist -> Double
+computeWeight SquaredExponential d = 1 / exp d
+computeWeight Linear             d = 1 / (1 + sqrt d)
+
+getWeight2 :: KernelOneDepVar -> IndepVarsDist -> Double
+getWeight2 (KernelOneDepVar _ shape lengths) dists =
+    computeWeight shape (squaredWeightedDist lengths dists)
+    where
+        squaredWeightedDist :: KernelLengths -> IndepVarsDist -> Double
+        squaredWeightedDist
+            (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
+            (IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
+            (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
+        squaredWeightedDist
+            kernLengths
+            (IndepArbitraryDimDist namedDists) =
+            let distances = getValues namedDists
+                thetas    = getValues kernLengths
+            in foldSum (zipWith (\d t -> (d / t) ** 2) distances thetas)
+        squaredWeightedDist _ _ =
+            throwL "mismatch of independent variable definitions in weight calculation"
+
+makeObsGridPairs :: V.Vector Observation -> V.Vector IndepVarsPos -> [(Int, (Observation, IndepVarsPos))]
+makeObsGridPairs obs grid =
+    let obsIndexMax = V.length obs - 1
+        gridIndexMax = V.length grid - 1
+        obsGridPairs = [(obs V.! x, grid V.! y) | y <- [0..gridIndexMax], x <- [0..obsIndexMax]]
+    in zip [0..] obsGridPairs
+
+calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO (V.Vector IndepVarsDist)
+calcObsGridDistances spatDistUnitScaling obs grid = do
+    let nrObs = V.length obs
+        nrGrid = V.length grid
+        nrPairs = nrObs * nrGrid
+        obsGridPairs = makeObsGridPairs obs grid
+        (Observation _ _ (HyperPos indepPos _) _) = V.head obs
+    weightVec <- VM.new nrPairs
+    mapM_ (computeDist weightVec) obsGridPairs
+    weightVecNonMut <- V.unsafeFreeze weightVec
+    return weightVecNonMut --AUDistMatrix nrObs nrGrid weightVecNonMut
+    where
+        computeDist :: VM.IOVector IndepVarsDist -> (Int, (Observation, IndepVarsPos)) -> IO ()
+        computeDist weightVec (i, (Observation i1 _ (HyperPos p1 _) _, p2)) = do
+            let dist = getDist2 spatDistUnitScaling p1 p2
+            VM.write weightVec i dist
+
+getDist2 :: Double -> IndepVarsPos -> IndepVarsPos -> IndepVarsDist
+-- spatiotemporal distances
+getDist2 spatDistUnitScaling
+        (IndepSpatTempPos (SpatTempPos spatPos1 tempPos1))
+        (IndepSpatTempPos (SpatTempPos spatPos2 tempPos2)) =
+        let spatDist = spatialDistSpatPos spatPos1 spatPos2
+            spaceDistScaled = spatDist * spatDistUnitScaling
+            tempDist = temporalDistTempPos tempPos1 tempPos2
+        in IndepSpatTempDist (SpatTempDist spaceDistScaled tempDist)
+-- arbitrary dim distances
+getDist2 spatDistUnitScaling
+        (IndepArbitraryDimPos arbitraryDimPos1)
+        (IndepArbitraryDimPos arbitraryDimPos2) =
+        let keys = getKeys arbitraryDimPos1
+            obsPos  = getValues arbitraryDimPos1
+            gridPos = getValues arbitraryDimPos2
+            arbitraryDimDist = makeValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
+        in IndepArbitraryDimDist arbitraryDimDist
+-- wrong input
+getDist2 _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
+
+makeObsPairs :: V.Vector Observation -> [(Int, (Observation, Observation))]
+makeObsPairs obs =
+    let obsIndexMax = V.length obs - 1
+        obsPairs = [(obs V.! x, obs V.! y) | x <- [0..obsIndexMax], y <- [0..obsIndexMax], x > y]
+    in zip [0..] obsPairs
+
+calcObsDistances :: Double -> V.Vector Observation -> IO MatrixPerIndepVar
+calcObsDistances spatDistUnitScaling obs = do
+    let obsPairs = makeObsPairs obs
+        nrPairs = length obsPairs
+        (Observation _ _ (HyperPos indepPos _) _) = V.head obs
+    case indepPos of
+        -- spatiotemporal system
+        (IndepSpatTempPos _) -> do
+            -- create mutable vectors to write distances directly
+            spaceVec <- VUM.new nrPairs
+            timeVec  <- VUM.new nrPairs
+            -- calculate and write distances to mutable memory
+            mapM_ (distSpaceTime spaceVec timeVec) obsPairs
+            -- make result vectors immutable for easier handling
+            spaceVecNonMut <- VU.unsafeFreeze spaceVec
+            timeVecNonMut  <- VU.unsafeFreeze timeVec
+            return $ MatrixPerIndepVar [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
+        -- arbitrary dimension system
+        (IndepArbitraryDimPos pos@(ValuesPerIndepVar l)) -> do
+            arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
+            mapM_ (distArbitrary arbitraryVecs) obsPairs
+            arbitraryVecsNonMut <- mapM VU.unsafeFreeze arbitraryVecs
+            return $ MatrixPerIndepVar $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
+    where
+        distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
+        distSpaceTime
+            spaceVec timeVec
+            (i,
+            (Observation i1 _ (HyperPos (IndepSpatTempPos (SpatTempPos s1 t1)) _) _,
+             Observation i2 _ (HyperPos (IndepSpatTempPos (SpatTempPos s2 t2)) _) _)
+            ) = do
+            let timeDist  = temporalDistTempPos t1 t2
+                spaceDist = spatialDistSpatPos s1 s2
+                spaceDistScaled = spaceDist * spatDistUnitScaling
+            -- write distances to mutable vector
+            VUM.write spaceVec i spaceDistScaled
+            VUM.write timeVec  i timeDist
+        distSpaceTime _ _ _ = error "impossible state in spatial independent variable distance calculation"
+        distArbitrary :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
+        distArbitrary
+            arbitraryVecs
+            (i,
+            (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _) _,
+             Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _) _)
+            ) = do
+            -- this assumes that p1 and p2 have the same order of indep variables
+            let arbitraryDists = allDistances (getValues p1) (getValues p2)
+            zipWithM_ (`VUM.write` i) arbitraryVecs arbitraryDists
+        distArbitrary _ _ = error "impossible state in arbitrary independent variable distance calculation"

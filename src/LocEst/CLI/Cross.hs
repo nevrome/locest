@@ -2,7 +2,6 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (SupplementSettings (..))
 import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.MathUtils              (avg, foldSum)
@@ -29,6 +28,13 @@ data CrossOptions = CrossOptions
     , _crossOutFile            :: Maybe FilePath
     , _crossOutMode            :: CrossOutModeSettings
     }
+
+data SupplementSettings = SupplementSettings {
+      _stcsDistFilterThresholds :: Maybe DistanceThresholds
+    , _stcsInSpatDistFile       :: Maybe FilePath
+    , _stcsInObsTempSamplesFile :: Maybe FilePath
+    , _stcsNoOrderCheck         :: Bool
+}
 
 data CrossSettings = CrossSettings {
       _crossvalInKernDef        :: [[KernelOneDepVar]]
