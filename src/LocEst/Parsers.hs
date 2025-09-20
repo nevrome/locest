@@ -190,7 +190,7 @@ readSpatPos path = do
 
 readIndepVarsPos :: FilePath -> IO (V.Vector IndepVarsPos)
 readIndepVarsPos path = do
-    hPutStrLn stderr "Reading spatial grid positions"
+    hPutStrLn stderr "Reading grid positions"
     res <- readToVector path
     return res
 

@@ -46,7 +46,7 @@ cross %>%
 # profiteur locest.prof
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy
 # hp2ps -c locest.hp
-system('time locest search2 --configFile code/spatiotemporal/basic.conf  +RTS -N22 -RTS')
+system('time locest search --configFile code/spatiotemporal/basic.conf  +RTS -N22 -RTS')
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
@@ -59,10 +59,10 @@ splitFacet <- function(x){
 }
 
 hu5 %>%
-  dplyr::filter(temp_sampling_iteration == 0) %>%
+  dplyr::filter(depVar == "depC2") %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
-  geom_raster(aes(x, y, fill = probability)) +
+  geom_raster(aes(x, y, fill = log_likelihood)) +
   geom_raster(
     data = hu5 %>% dplyr::filter(!interpol_depC1_post),
     aes(x, y), fill = "white", alpha = 0.3
