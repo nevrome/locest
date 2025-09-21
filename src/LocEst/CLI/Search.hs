@@ -83,18 +83,12 @@ core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Per
     -- ... 
     let perDepVar :: [V.Vector InterpolationResultOneDepVar2]
         perDepVar = zipWith (interpol obs dists searchDepVarPos) depVars kernelsPerDepVar
-    
         nGrid = V.length grid
     
-        -- build one or more rows for grid index i (one per search candidate if present)
+        -- build one or more rows for grid index i
         rowsForGridIdx :: Int -> [SearchResultRow]
         rowsForGridIdx i =
-            let kas2sAtI = map (\v -> v V.! i) perDepVar
-
-                -- per-depVar likelihood vectors (may be Nothing)
-                llsPerDep :: [Maybe (V.Vector Double)]
-                llsPerDep = map _irKAS2LogLikelihood kas2sAtI
-        
+            let kas2sAtI = map (V.! i) perDepVar
                 mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
                 mkRow mSearchOne llsOne =
                   SearchResultRow
@@ -114,15 +108,14 @@ core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Per
                         , _irKAS3AggLogLikelihood = sumIfAllJustNonEmpty llsOne
                         }
                     }
-    
             in case searchDepVarPos of
                  Nothing ->
                    -- No search candidates: one row per grid position, no log-likelihoods
-                   [ mkRow Nothing (replicate (length (map _irKAS2DepVarName       kas2sAtI)) Nothing) ]
+                   [ mkRow Nothing (replicate (length (map _irKAS2DepVarName kas2sAtI)) Nothing) ]
                  Just svec ->
                    let m = V.length svec
                        llsAt j = [ mv >>= (\v -> if j < V.length v then Just (v V.! j) else Nothing)
-                                 | mv <- llsPerDep
+                                 | mv <- map _irKAS2LogLikelihood kas2sAtI
                                  ]
                    in [ mkRow (Just (svec V.! j)) (llsAt j) | j <- [0 .. m-1] ]
 
