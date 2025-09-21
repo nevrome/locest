@@ -10,6 +10,7 @@ import           LocEst.CoreAlgorithms
 import LocEst.Exceptions (throwL)
 import LocEst.MathUtils
 import           LocEst.Distance
+import           LocEst.CLI.Utils
 
 import qualified Data.Vector       as V
 import qualified Data.Vector.Mutable   as VM
@@ -31,6 +32,7 @@ import qualified Data.Csv as Csv
 import GHC.Generics (Generic)
 import qualified Data.ByteString.Char8 as Bchs
 import Conduit (liftIO)
+import Data.Maybe (mapMaybe)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -61,18 +63,19 @@ runSearch (SearchOptions
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
     -- permutations
     hPutStrLn stderr "Preparing permutations"
-    let permutations = createPermutations2 obs Nothing
+    let permutations = createPermutations obs Nothing indepPredGrid depSearchGrid maybeTempGrid
     -- run interpolation and search
+    hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . core spatDistUnitScaling depVars kernels indepPredGrid depSearchGrid)
-        -- .| progress 1000 (Just numPerms)
+        .| ConL.concatMapM (liftIO . core spatDistUnitScaling depVars kernels)
+        .| progress 1000 Nothing
         -- .| normalise normalisation
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
-core :: Double -> [DepVarName] -> [KernelOneDepVar] -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Permutation -> IO [SearchResultRow]
-core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Permutation tempSamplingIteration obs) = do
+core :: Double -> [DepVarName] -> [KernelOneDepVar] -> Permutation -> IO [SearchResultRow]
+core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
     dists <- calcObsGridDistances spatDistUnitScaling obs grid
     -- TODO: case maybeDistFile of ...
     -- ... 
@@ -123,18 +126,41 @@ zipWithN f vs
 data Permutation = Permutation {
       _permTempSamplingIteration :: Int
     , _permObs                   :: V.Vector Observation
+    , _permIndepPredGrid         :: V.Vector IndepVarsPos
+    , _permDepSearchGrid         :: Maybe (V.Vector DepVarsPredPos)
 } deriving (Show)
 
-createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix -> [Permutation]
-createPermutations2 obs maybeTempSampleMatrix = do
+createPermutations :: V.Vector Observation -> Maybe TempSampleMatrix
+                    -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Maybe [AbsRelTempPos]
+                    -> [Permutation]
+createPermutations obs maybeTempSampleMatrix indepPredGrid depSearchGrid maybeTempGrid = do
     -- apply temp resampling to obs
     tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
     let modObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
-    return $ Permutation tempSamp modObs
+    -- search samples
+    (indepPredPos,depSearchPos) <- case maybeTempGrid of
+        Nothing -> [(indepPredGrid, depSearchGrid)]
+        Just absRelTempPos ->
+            let spatPos = V.mapMaybe (\(IndepSpatTempPos (SpatTempPos s _)) -> Just s) indepPredGrid
+            in concat $ mapMaybe (f spatPos depSearchGrid) absRelTempPos
+    return $ Permutation tempSamp modObs indepPredPos depSearchPos
+
+f :: V.Vector SpatPos -> Maybe (V.Vector DepVarsPredPos) -> AbsRelTempPos -> Maybe [(V.Vector IndepVarsPos, Maybe (V.Vector DepVarsPredPos))]
+f spatPos depSearchGrid (AbsTempPos yearBCAD) =
+    let indepVarsPos = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos yearBCAD))) spatPos
+    in Just [(indepVarsPos, depSearchGrid)]
+f spatPos depSearchGrid@(Just searchGrid) (RelTempPos yearDist) =
+    let refAge = V.toList $ V.mapMaybe (\(DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> Just obsAge) searchGrid
+        indepVarsPos = map (\r -> V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos $ r + yearDist))) spatPos) refAge
+    in Just $ zip indepVarsPos (map Just $ V.group searchGrid)
+f _ _ _ = Nothing
+    
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
+
+
 
 applyAbsRelTempPos :: YearBCAD -> IndepVarsPos -> IndepVarsPos
 applyAbsRelTempPos _ _ = undefined
