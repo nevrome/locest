@@ -99,6 +99,93 @@ filterLookupMulti m names =
 
 -- data types
 
+data SearchResultRow = SearchResultRow {
+      _srrTempSamplingIteration :: Int
+    , _srrGrid                  :: IndepVarsPos
+    , _srrInterpolation         :: InterpolationResultOneDepVar3
+} deriving (Show, Generic)
+
+instance Csv.DefaultOrdered SearchResultRow where
+  headerOrder (SearchResultRow _ grid kas3) =
+       Csv.header ["temp_sampling_iteration"]
+    <> Csv.headerOrder grid
+    <> Csv.headerOrder kas3
+
+instance Csv.ToRecord SearchResultRow where
+  toRecord (SearchResultRow tsi grid kas3) =
+       Csv.record [Csv.toField tsi]
+    <> Csv.toRecord grid
+    <> Csv.toRecord kas3
+
+-- | A data type for interpolation output for one dependent variable
+data InterpolationResultOneDepVar2 = KAS2 {
+          _irKAS2DepVarName       :: DepVarName   -- name of the dependent variable
+        , _irKAS2EffN             :: Double       -- effective number of samples
+        , _irKAS2WeightedVar      :: Double       -- weighted variance
+        , _irKAS2WeightedVarPrior :: Double       -- weighted variance with prior
+        , _irKAS2Posterior        :: Bool      -- could a posterior distribution be calculated?
+        , _irKAS2LowerBound       :: Double    -- lower boundary of the 95% interval
+        , _irKAS2Median           :: Double       -- median (weighted average)
+        , _irKAS2UpperBound       :: Double    -- upper boundary of the 95% interval
+        , _irKAS2SearchPos        :: Maybe (V.Vector DepVarsPredPos) -- search values
+        , _irKAS2LogLikelihood    :: Maybe (V.Vector Double) -- Log-likelihood for search value
+    } deriving (Eq, Show, Generic)
+
+-- Aggregated row type (per grid position and per search candidate)
+data InterpolationResultOneDepVar3 = KAS3 {
+      _irKAS3DepVarName       :: [DepVarName]
+    , _irKAS3EffN             :: [Double]
+    , _irKAS3WeightedVar      :: [Double]
+    , _irKAS3WeightedVarPrior :: [Double]
+    , _irKAS3Posterior        :: [Bool]
+    , _irKAS3LowerBound       :: [Double]
+    , _irKAS3Median           :: [Double]
+    , _irKAS3UpperBound       :: [Double]
+    , _irKAS3SearchPos        :: Maybe DepVarsPredPos
+    , _irKAS3LogLikelihood    :: [Maybe Double]
+    , _irKAS3AggLogLikelihood    :: Maybe Double
+} deriving (Eq, Show, Generic)
+
+instance Csv.DefaultOrdered InterpolationResultOneDepVar3 where
+  headerOrder (KAS3 names _ _ _ _ _ _ _ mSearch _lls _agglls) =
+    let perDepCols :: DepVarName -> [Bchs.ByteString]
+        perDepCols dv =
+          map Bchs.pack
+              [ "interpol_neff_"    ++ dv
+              , "interpol_var_"     ++ dv
+              , "interpol_var_prior_" ++ dv
+              , "interpol_post_"    ++ dv
+              , "interpol_low_"     ++ dv
+              , "interpol_median_"  ++ dv
+              , "interpol_up_"      ++ dv
+              , "log_likelihood_"   ++ dv
+              ]
+        aggCols = V.fromList (concatMap perDepCols names)
+        searchHdr = maybe V.empty Csv.headerOrder mSearch
+    in searchHdr <> aggCols <> Csv.header ["agg_log_likelihood"]
+
+instance Csv.ToRecord InterpolationResultOneDepVar3 where
+  toRecord (KAS3 names effN wvar wvarPr post lowB medV upB mSearch lls agglls) =
+    let n = length names
+        seg i =
+          Csv.record
+            [ Csv.toField (effN  !! i)
+            , Csv.toField (wvar  !! i)
+            , Csv.toField (wvarPr!! i)
+            , Csv.toField (OutBool (post !! i))
+            , Csv.toField (OutDouble (lowB !! i))
+            , Csv.toField (medV  !! i)
+            , Csv.toField (OutDouble (upB  !! i))
+            , toFieldMaybeDouble (lls  !! i)
+            ]
+        aggRec = V.concat [ seg i | i <- [0 .. n-1] ]
+        searchRec = maybe V.empty Csv.toRecord mSearch
+    in searchRec <> aggRec <> Csv.record ([toFieldMaybeDouble agglls])
+
+toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
+toFieldMaybeDouble Nothing  = Bchs.empty
+toFieldMaybeDouble (Just x) = Csv.toField (OutDouble x)
+
 -- | A datatype to collect additional, unpecified .csv/tsv file columns (a hashmap in cassava/Data.Csv)
 newtype CsvNamedRecord = CsvNamedRecord Csv.NamedRecord deriving (Show, Eq, Generic)
 
@@ -254,6 +341,15 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
     parseNamedRecord m =
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
+-- | A data type for distance filter thresholds
+data DistanceThresholds = SpaceTimeFilterThresholds {
+      _stftMinFilter :: Maybe (Double, Double)
+    , _stftMaxFilter :: Maybe (Double, Double)
+} | ArbitraryDimFilterThresholds {
+      _adftMinFilter :: Maybe ArbitraryDimThresholds
+    , _adftMaxFilter :: Maybe ArbitraryDimThresholds
+}
+
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutObsWeight Int
@@ -264,55 +360,6 @@ data SamplingRange =
       OneSigma
     | TwoSigma
     | FullDistribution
-
--- | A data type specifically for the likelihood output of the core search
-data SearchLikelihood = SearchLikelihood {
-      _slhEuclideanDep  :: Double -- Euclidean distance in dependent variable space between interpolation and search depvar position
-    , _slhLogLikelihood :: Double -- Likelihood of the search value
-    , _slhProbability   :: Maybe Double -- Normalised likelihood (= probability) of the search depvar position
-} deriving (Show, Generic)
-
-instance NFData SearchLikelihood
-instance Csv.DefaultOrdered SearchLikelihood where
-    headerOrder (SearchLikelihood _ _ Nothing) =
-        Csv.header ["dep_dist_euclidean", "log_likelihood"]
-    headerOrder (SearchLikelihood _ _ (Just _)) =
-        Csv.header ["dep_dist_euclidean", "log_likelihood", "probability"]
-instance Csv.ToRecord SearchLikelihood where
-    toRecord (SearchLikelihood depDist logLikelihood Nothing) =
-        Csv.record [Csv.toField depDist, Csv.toField $ OutDouble logLikelihood]
-    toRecord (SearchLikelihood depDist logLikelihood (Just prob)) =
-        Csv.record [Csv.toField depDist, Csv.toField $ OutDouble logLikelihood, Csv.toField prob]
-
--- | A data type for the independent variable space prediction grid
-data IndepVarsPredGrid =
-    SpaceTimeGrid {
-      _stGridSpatPos              :: V.Vector SpatPos
-    , _stGridTempPos              :: [AbsRelTempPos]
-    , _stGridDistFilterThresholds :: Maybe DistanceThresholds
-    , _stGridSpatDist             :: Maybe SpatDistMatrix
-    , _stGridTempSamples          :: Maybe TempSampleMatrix
-    } |
-    ArbitraryDimGrid {
-      _adGridPos                 :: V.Vector ArbitraryDimPos
-    , _adGriDistFilterThresholds :: Maybe DistanceThresholds
-    }
-
--- | A data type for supplementary information used in the core algorithm
-data Supplement = Supplement {
-      _csDistFilterThresholds :: Maybe DistanceThresholds
-    , _csSpatDist             :: Maybe SpatDistMatrix
-    , _csTempSamp             :: Maybe TempSampleMatrix
-}
-
--- | A data type for distance filter thresholds
-data DistanceThresholds = SpaceTimeFilterThresholds {
-      _stftMinFilter :: Maybe (Double, Double)
-    , _stftMaxFilter :: Maybe (Double, Double)
-} | ArbitraryDimFilterThresholds {
-      _adftMinFilter :: Maybe ArbitraryDimThresholds
-    , _adftMaxFilter :: Maybe ArbitraryDimThresholds
-}
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]

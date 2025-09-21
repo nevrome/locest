@@ -93,7 +93,7 @@ runCross (
                 -- modify observations
                 let observations = filterVarsInObs depVars indepVars observationsRaw
                 -- read core supplements
-                coreSupp <- liftIO $ readSupplement indepVars crossSuppSettings observationsRaw
+                coreSupp <- undefined -- liftIO $ readSupplement indepVars crossSuppSettings observationsRaw
                 -- permutation: one run of the core algorithm
                 -- iteration: one test/training split
                 iterations <- case subsetMode of
@@ -143,20 +143,20 @@ runCross (
                 .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-readSupplement :: [String] -> SupplementSettings -> V.Vector Observation -> IO Supplement
-readSupplement indepVarsWanted
-    (SupplementSettings
-            distanceFilterThresholdsRaw
-            inSpatDistFile
-            inObsTempSamplesFile
-            noOrderCheck
-    )
-    observations = do
-    hPutStrLn stderr "Reading supplements"
-    inSpatDists <- readMaybeSpatDist noOrderCheck observations Nothing inSpatDistFile
-    inObsTempSamples <- readMaybeObsTempSamples noOrderCheck observations inObsTempSamplesFile
-    let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
-    return $ Supplement distanceFilterThresholds inSpatDists inObsTempSamples
+-- readSupplement :: [String] -> SupplementSettings -> V.Vector Observation -> IO Supplement
+-- readSupplement indepVarsWanted
+--     (SupplementSettings
+--             distanceFilterThresholdsRaw
+--             inSpatDistFile
+--             inObsTempSamplesFile
+--             noOrderCheck
+--     )
+--     observations = do
+--     hPutStrLn stderr "Reading supplements"
+--     inSpatDists <- readMaybeSpatDist noOrderCheck observations Nothing inSpatDistFile
+--     inObsTempSamples <- readMaybeObsTempSamples noOrderCheck observations inObsTempSamplesFile
+--     let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
+--     return $ Supplement distanceFilterThresholds inSpatDists inObsTempSamples
 
 summarizeFunc :: [CrossSearchResult] -> CrossvalOutput
 summarizeFunc xs = undefined
