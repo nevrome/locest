@@ -19,7 +19,7 @@ import           Statistics.Distribution.Transform (LinearTransform)
 
 interpol :: V.Vector Observation -> V.Vector IndepVarsDist -> Maybe (V.Vector DepVarsPredPos)
          -> DepVarName -> KernelOneDepVar 
-         -> V.Vector InterpolationResultOneDepVar2
+         -> V.Vector SearchResultLong
 interpol obs dists maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         weights = M.reshape (V.length obs) $ VS.convert $ V.map (getWeight2 kernel) dists
@@ -31,10 +31,10 @@ interpol obs dists maybeSearchValues depVar kernel =
                 median = mu -- quantile distribution 0.5
                 upper  = quantile distribution 0.975
                 logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
-            in KAS2 depVar neff wvb wv True lower median upper maybeSearchValues logL
+            in SSLKAS depVar neff wvb wv True lower median upper maybeSearchValues logL
         search searchValues (neff, wvb, wv, mu, Left _) = case searchValues of
-            Just x  -> KAS2 depVar neff wvb wv False (-inf) mu inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
-            Nothing -> KAS2 depVar neff wvb wv False (-inf) mu inf maybeSearchValues Nothing
+            Just x  -> SSLKAS depVar neff wvb wv False (-inf) mu inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
+            Nothing -> SSLKAS depVar neff wvb wv False (-inf) mu inf maybeSearchValues Nothing
 
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)

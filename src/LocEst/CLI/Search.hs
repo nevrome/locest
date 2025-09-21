@@ -69,11 +69,6 @@ runSearch (SearchOptions
         -- .| progress 1000 (Just numPerms)
         -- .| normalise normalisation
         .| sinkNamedCSV outFile
-    
-    --let interpolPerDepVar = zipWith3 (interpol obs dists) depVars kernels (repeat Nothing)
-    
-    --putStrLn $ show interpolPerDepVar
-    
     putStrLn "Done"
 
 core :: Double -> [DepVarName] -> [KernelOneDepVar] -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Permutation2 -> IO [SearchResultRow]
@@ -81,41 +76,37 @@ core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Per
     dists <- calcObsGridDistances spatDistUnitScaling obs grid
     -- TODO: case maybeDistFile of ...
     -- ... 
-    let perDepVar :: [V.Vector InterpolationResultOneDepVar2]
-        perDepVar = zipWith (interpol obs dists searchDepVarPos) depVars kernelsPerDepVar
+    let perDepVar = zipWith (interpol obs dists searchDepVarPos) depVars kernelsPerDepVar
         nGrid = V.length grid
     
         -- build one or more rows for grid index i
         rowsForGridIdx :: Int -> [SearchResultRow]
         rowsForGridIdx i =
-            let kas2sAtI = map (V.! i) perDepVar
+            let resAtI = map (V.! i) perDepVar
                 mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
-                mkRow mSearchOne llsOne =
-                  SearchResultRow
-                    { _srrTempSamplingIteration = tempSamplingIteration
-                    , _srrGrid                  = grid V.! i
-                    , _srrInterpolation         = KAS3
-                        { _irKAS3DepVarName       = map _irKAS2DepVarName       kas2sAtI
-                        , _irKAS3EffN             = map _irKAS2EffN             kas2sAtI
-                        , _irKAS3WeightedVar      = map _irKAS2WeightedVar      kas2sAtI
-                        , _irKAS3WeightedVarPrior = map _irKAS2WeightedVarPrior kas2sAtI
-                        , _irKAS3Posterior        = map _irKAS2Posterior        kas2sAtI
-                        , _irKAS3LowerBound       = map _irKAS2LowerBound       kas2sAtI
-                        , _irKAS3Median           = map _irKAS2Median           kas2sAtI
-                        , _irKAS3UpperBound       = map _irKAS2UpperBound       kas2sAtI
-                        , _irKAS3SearchPos        = mSearchOne
-                        , _irKAS3LogLikelihood    = llsOne
-                        , _irKAS3AggLogLikelihood = sumIfAllJustNonEmpty llsOne
-                        }
+                mkRow mSearchOne llsOne = SSRKAS
+                    { _ssrKASTempSampIter     = tempSamplingIteration
+                    , _ssrKASIndepVarsPos     = grid V.! i
+                    , _ssrKASDepVarName       = map _sslKASDepVarName       resAtI
+                    , _ssrKASEffN             = map _sslKASEffN             resAtI
+                    , _ssrKASWeightedVar      = map _sslKASWeightedVar      resAtI
+                    , _ssrKASWeightedVarPrior = map _sslKASWeightedVarPrior resAtI
+                    , _ssrKASPosterior        = map _sslKASPosterior        resAtI
+                    , _ssrKASLowerBound       = map _sslKASLowerBound       resAtI
+                    , _ssrKASMedian           = map _sslKASMedian           resAtI
+                    , _ssrKASUpperBound       = map _sslKASUpperBound       resAtI
+                    , _ssrKASSearchPos        = mSearchOne
+                    , _ssrKASLogLikelihood    = llsOne
+                    , _ssrKASAggLogLikelihood = sumIfAllJustNonEmpty llsOne
                     }
             in case searchDepVarPos of
                  Nothing ->
                    -- No search candidates: one row per grid position, no log-likelihoods
-                   [ mkRow Nothing (replicate (length (map _irKAS2DepVarName kas2sAtI)) Nothing) ]
+                   [ mkRow Nothing (replicate (length (map _sslKASDepVarName resAtI)) Nothing) ]
                  Just svec ->
                    let m = V.length svec
                        llsAt j = [ mv >>= (\v -> if j < V.length v then Just (v V.! j) else Nothing)
-                                 | mv <- map _irKAS2LogLikelihood kas2sAtI
+                                 | mv <- map _sslKASLogLikelihood resAtI
                                  ]
                    in [ mkRow (Just (svec V.! j)) (llsAt j) | j <- [0 .. m-1] ]
 

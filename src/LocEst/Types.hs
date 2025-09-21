@@ -77,6 +77,31 @@ filterVarsInArbitraryPos indepVarsWanted = V.map (filterByKey indepVarsWanted)
 
 -- helper functions for cassava
 
+-- | A data type that wraps around bools to modify the way they are rendered in the .tsv output
+-- This is specifically done to make it easily readable in R
+newtype OutBool = OutBool Bool
+    deriving (Eq, Show, Generic)
+instance NFData OutBool
+instance Csv.ToField OutBool where
+    toField (OutBool True)  = "TRUE"
+    toField (OutBool False) = "FALSE"
+
+-- | A data type that wraps around Doubles to modify the way they are rendered in the .tsv output.
+-- This is specifically done for the representation of inf to make it easily readable in R
+newtype OutDouble = OutDouble Double
+    deriving (Eq, Generic)
+instance NFData OutDouble
+instance Csv.ToField OutDouble where
+    toField (OutDouble x)
+        | x == inf    = "Inf"
+        | x == (-inf) = "-Inf"
+        | otherwise        = Bchs.pack $ show x
+instance Show OutDouble where
+    show (OutDouble x)
+        | x == inf    = "Inf"
+        | x == (-inf) = "-Inf"
+        | otherwise        = show x
+
 -- lookup one column by name
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
 filterLookup m name = maybe empty Csv.parseField $ HM.lookup name m
@@ -99,55 +124,39 @@ filterLookupMulti m names =
 
 -- data types
 
-data SearchResultRow = SearchResultRow {
-      _srrTempSamplingIteration :: Int
-    , _srrGrid                  :: IndepVarsPos
-    , _srrInterpolation         :: InterpolationResultOneDepVar3
-} deriving (Show, Generic)
-
-instance Csv.DefaultOrdered SearchResultRow where
-  headerOrder (SearchResultRow _ grid kas3) =
-       Csv.header ["temp_sampling_iteration"]
-    <> Csv.headerOrder grid
-    <> Csv.headerOrder kas3
-
-instance Csv.ToRecord SearchResultRow where
-  toRecord (SearchResultRow tsi grid kas3) =
-       Csv.record [Csv.toField tsi]
-    <> Csv.toRecord grid
-    <> Csv.toRecord kas3
-
 -- | A data type for interpolation output for one dependent variable
-data InterpolationResultOneDepVar2 = KAS2 {
-          _irKAS2DepVarName       :: DepVarName   -- name of the dependent variable
-        , _irKAS2EffN             :: Double       -- effective number of samples
-        , _irKAS2WeightedVar      :: Double       -- weighted variance
-        , _irKAS2WeightedVarPrior :: Double       -- weighted variance with prior
-        , _irKAS2Posterior        :: Bool      -- could a posterior distribution be calculated?
-        , _irKAS2LowerBound       :: Double    -- lower boundary of the 95% interval
-        , _irKAS2Median           :: Double       -- median (weighted average)
-        , _irKAS2UpperBound       :: Double    -- upper boundary of the 95% interval
-        , _irKAS2SearchPos        :: Maybe (V.Vector DepVarsPredPos) -- search values
-        , _irKAS2LogLikelihood    :: Maybe (V.Vector Double) -- Log-likelihood for search value
-    } deriving (Eq, Show, Generic)
-
--- Aggregated row type (per grid position and per search candidate)
-data InterpolationResultOneDepVar3 = KAS3 {
-      _irKAS3DepVarName       :: [DepVarName]
-    , _irKAS3EffN             :: [Double]
-    , _irKAS3WeightedVar      :: [Double]
-    , _irKAS3WeightedVarPrior :: [Double]
-    , _irKAS3Posterior        :: [Bool]
-    , _irKAS3LowerBound       :: [Double]
-    , _irKAS3Median           :: [Double]
-    , _irKAS3UpperBound       :: [Double]
-    , _irKAS3SearchPos        :: Maybe DepVarsPredPos
-    , _irKAS3LogLikelihood    :: [Maybe Double]
-    , _irKAS3AggLogLikelihood    :: Maybe Double
+data SearchResultLong = SSLKAS {
+      _sslKASDepVarName       :: DepVarName   -- name of the dependent variable
+    , _sslKASEffN             :: Double       -- effective number of samples
+    , _sslKASWeightedVar      :: Double       -- weighted variance
+    , _sslKASWeightedVarPrior :: Double       -- weighted variance with prior
+    , _sslKASPosterior        :: Bool      -- could a posterior distribution be calculated?
+    , _sslKASLowerBound       :: Double    -- lower boundary of the 95% interval
+    , _sslKASMedian           :: Double       -- median (weighted average)
+    , _sslKASUpperBound       :: Double    -- upper boundary of the 95% interval
+    , _sslKASSearchPos        :: Maybe (V.Vector DepVarsPredPos) -- search values
+    , _sslKASLogLikelihood    :: Maybe (V.Vector Double) -- Log-likelihood for search value
 } deriving (Eq, Show, Generic)
 
-instance Csv.DefaultOrdered InterpolationResultOneDepVar3 where
-  headerOrder (KAS3 names _ _ _ _ _ _ _ mSearch _lls _agglls) =
+-- Aggregated row type (per grid position and per search candidate)
+data SearchResultRow = SSRKAS {
+      _ssrKASTempSampIter     :: Int
+    , _ssrKASIndepVarsPos     :: IndepVarsPos
+    , _ssrKASDepVarName       :: [DepVarName]
+    , _ssrKASEffN             :: [Double]
+    , _ssrKASWeightedVar      :: [Double]
+    , _ssrKASWeightedVarPrior :: [Double]
+    , _ssrKASPosterior        :: [Bool]
+    , _ssrKASLowerBound       :: [Double]
+    , _ssrKASMedian           :: [Double]
+    , _ssrKASUpperBound       :: [Double]
+    , _ssrKASSearchPos        :: Maybe DepVarsPredPos
+    , _ssrKASLogLikelihood    :: [Maybe Double]
+    , _ssrKASAggLogLikelihood    :: Maybe Double
+} deriving (Eq, Show, Generic)
+
+instance Csv.DefaultOrdered SearchResultRow where
+  headerOrder (SSRKAS _ grid names _ _ _ _ _ _ _ mSearch _lls _agglls) =
     let perDepCols :: DepVarName -> [Bchs.ByteString]
         perDepCols dv =
           map Bchs.pack
@@ -162,10 +171,14 @@ instance Csv.DefaultOrdered InterpolationResultOneDepVar3 where
               ]
         aggCols = V.fromList (concatMap perDepCols names)
         searchHdr = maybe V.empty Csv.headerOrder mSearch
-    in searchHdr <> aggCols <> Csv.header ["agg_log_likelihood"]
+    in    Csv.header ["temp_sampling_iteration"]
+       <> Csv.headerOrder grid
+       <> searchHdr
+       <> aggCols
+       <> Csv.header ["agg_log_likelihood"]
 
-instance Csv.ToRecord InterpolationResultOneDepVar3 where
-  toRecord (KAS3 names effN wvar wvarPr post lowB medV upB mSearch lls agglls) =
+instance Csv.ToRecord SearchResultRow where
+  toRecord (SSRKAS tsi grid names effN wvar wvarPr post lowB medV upB mSearch lls agglls) =
     let n = length names
         seg i =
           Csv.record
@@ -180,7 +193,11 @@ instance Csv.ToRecord InterpolationResultOneDepVar3 where
             ]
         aggRec = V.concat [ seg i | i <- [0 .. n-1] ]
         searchRec = maybe V.empty Csv.toRecord mSearch
-    in searchRec <> aggRec <> Csv.record ([toFieldMaybeDouble agglls])
+    in    Csv.record [Csv.toField tsi]
+       <> Csv.toRecord grid
+       <> searchRec
+       <> aggRec
+       <> Csv.record ([toFieldMaybeDouble agglls])
 
 toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
 toFieldMaybeDouble Nothing  = Bchs.empty
@@ -592,77 +609,6 @@ instance Csv.DefaultOrdered HyperPos where
 instance Csv.ToRecord HyperPos where
     toRecord (HyperPos indepVarsPos depVarsPos) =
         Csv.toRecord indepVarsPos <> Csv.toRecord depVarsPos
-
--- | A data type for the interpolation output
-newtype InterpolationResult = InterpolationResult [InterpolationResultOneDepVar]
-    deriving (Eq, Show, Generic)
-
-instance NFData InterpolationResult
-instance Csv.DefaultOrdered InterpolationResult where
-    headerOrder (InterpolationResult l) = V.concat $ map Csv.headerOrder l
-instance Csv.ToRecord InterpolationResult where
-    toRecord (InterpolationResult l) = V.concat $ map Csv.toRecord l
-
-getLogLikelihood :: InterpolationResultOneDepVar -> Maybe Double
-getLogLikelihood i@(KAS {})  = _irKASLogLikelihood i
-
--- | A data type for interpolation output for one dependent variable
-data InterpolationResultOneDepVar = KAS {
-          _irKASDepVarName       :: DepVarName   -- name of the dependent variable
-        , _irKASEffN             :: Double       -- effective number of samples
-        , _irKASWeightedVar      :: Double       -- weighted variance
-        , _irKASWeightedVarPrior :: Double       -- weighted variance with prior
-        , _irKASPosterior        :: Bool      -- could a posterior distribution be calculated?
-        , _irKASLowerBound       :: Double    -- lower boundary of the 95% interval
-        , _irKASMedian           :: Double       -- median (weighted average)
-        , _irKASUpperBound       :: Double    -- upper boundary of the 95% interval
-        , _irKASLogLikelihood    :: Maybe Double -- Log-likelihood for search value
-    } deriving (Eq, Show, Generic)
-
-instance NFData InterpolationResultOneDepVar
-instance Csv.DefaultOrdered InterpolationResultOneDepVar where
-    headerOrder (KAS n _ _ _ _ _ _ _ Nothing) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
-            ["neff", "var", "var_prior", "post", "low", "median", "up"]
-    headerOrder (KAS n _ _ _ _ _ _ _ (Just _)) =
-        Csv.header $ map (\x -> Bchs.pack $ "interpol_" ++ n ++ "_" ++ x)
-            ["neff", "var", "var_prior", "post", "low", "median", "up", "logl"]
-instance Csv.ToRecord InterpolationResultOneDepVar where
-    toRecord (KAS _ neff v vp po lb m ub Nothing) =
-        Csv.record [
-            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField $ OutBool po,
-            Csv.toField $ OutDouble lb, Csv.toField m, Csv.toField $ OutDouble ub
-        ]
-    toRecord (KAS _ neff v vp po lb m ub (Just l)) =
-        Csv.record [
-            Csv.toField neff, Csv.toField v, Csv.toField vp, Csv.toField $ OutBool po,
-            Csv.toField $ OutDouble lb, Csv.toField  m, Csv.toField $ OutDouble ub, Csv.toField $ OutDouble l
-        ]
-
--- | A data type that wraps around bools to modify the way they are rendered in the .tsv output
--- This is specifically done to make it easily readable in R
-newtype OutBool = OutBool Bool
-    deriving (Eq, Show, Generic)
-instance NFData OutBool
-instance Csv.ToField OutBool where
-    toField (OutBool True)  = "TRUE"
-    toField (OutBool False) = "FALSE"
-
--- | A data type that wraps around Doubles to modify the way they are rendered in the .tsv output.
--- This is specifically done for the representation of inf to make it easily readable in R
-newtype OutDouble = OutDouble Double
-    deriving (Eq, Generic)
-instance NFData OutDouble
-instance Csv.ToField OutDouble where
-    toField (OutDouble x)
-        | x == inf    = "Inf"
-        | x == (-inf) = "-Inf"
-        | otherwise        = Bchs.pack $ show x
-instance Show OutDouble where
-    show (OutDouble x)
-        | x == inf    = "Inf"
-        | x == (-inf) = "-Inf"
-        | otherwise        = show x
 
 -- | A data type for dependent vars with some value
 type DepVarsPos = ValuesPerDepVar

@@ -30,12 +30,12 @@ calcObsGridDistances spatDistUnitScaling obs grid = do
     where
         computeDist :: VM.IOVector IndepVarsDist -> (Int, (Observation, IndepVarsPos)) -> IO ()
         computeDist weightVec (i, (Observation i1 _ (HyperPos p1 _) _, p2)) = do
-            let dist = getDist2 spatDistUnitScaling p1 p2
+            let dist = getDist spatDistUnitScaling p1 p2
             VM.write weightVec i dist
 
-getDist2 :: Double -> IndepVarsPos -> IndepVarsPos -> IndepVarsDist
+getDist :: Double -> IndepVarsPos -> IndepVarsPos -> IndepVarsDist
 -- spatiotemporal distances
-getDist2 spatDistUnitScaling
+getDist spatDistUnitScaling
         (IndepSpatTempPos (SpatTempPos spatPos1 tempPos1))
         (IndepSpatTempPos (SpatTempPos spatPos2 tempPos2)) =
         let spatDist = spatialDistSpatPos spatPos1 spatPos2
@@ -43,7 +43,7 @@ getDist2 spatDistUnitScaling
             tempDist = temporalDistTempPos tempPos1 tempPos2
         in IndepSpatTempDist (SpatTempDist spaceDistScaled tempDist)
 -- arbitrary dim distances
-getDist2 spatDistUnitScaling
+getDist spatDistUnitScaling
         (IndepArbitraryDimPos arbitraryDimPos1)
         (IndepArbitraryDimPos arbitraryDimPos2) =
         let keys = getKeys arbitraryDimPos1
@@ -52,7 +52,7 @@ getDist2 spatDistUnitScaling
             arbitraryDimDist = makeValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
         in IndepArbitraryDimDist arbitraryDimDist
 -- wrong input
-getDist2 _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
+getDist _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
 
 makeObsPairs :: V.Vector Observation -> [(Int, (Observation, Observation))]
 makeObsPairs obs =
