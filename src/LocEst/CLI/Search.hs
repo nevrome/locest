@@ -111,6 +111,7 @@ core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Per
                         , _irKAS3UpperBound       = map _irKAS2UpperBound       kas2sAtI
                         , _irKAS3SearchPos        = mSearchOne
                         , _irKAS3LogLikelihood    = llsOne
+                        , _irKAS3AggLogLikelihood = sumIfAllJustNonEmpty llsOne
                         }
                     }
     
@@ -126,6 +127,12 @@ core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Per
                    in [ mkRow (Just (svec V.! j)) (llsAt j) | j <- [0 .. m-1] ]
 
     pure $ concatMap rowsForGridIdx [0 .. nGrid-1]
+
+-- Variant: also returns Nothing for [].
+sumIfAllJustNonEmpty :: [Maybe Double] -> Maybe Double
+sumIfAllJustNonEmpty xs = do
+  ys <- sequence xs
+  if null ys then Nothing else Just (sum ys)
 
 data SearchResultRow = SearchResultRow {
       _srrTempSamplingIteration :: Int
@@ -157,10 +164,11 @@ data InterpolationResultOneDepVar3 = KAS3 {
     , _irKAS3UpperBound       :: [Double]
     , _irKAS3SearchPos        :: Maybe DepVarsPredPos
     , _irKAS3LogLikelihood    :: [Maybe Double]
+    , _irKAS3AggLogLikelihood    :: Maybe Double
 } deriving (Eq, Show, Generic)
 
 instance Csv.DefaultOrdered InterpolationResultOneDepVar3 where
-  headerOrder (KAS3 names _ _ _ _ _ _ _ mSearch _lls) =
+  headerOrder (KAS3 names _ _ _ _ _ _ _ mSearch _lls _agglls) =
     let perDepCols :: DepVarName -> [Bchs.ByteString]
         perDepCols dv =
           map Bchs.pack
@@ -175,21 +183,11 @@ instance Csv.DefaultOrdered InterpolationResultOneDepVar3 where
               ]
         aggCols = V.fromList (concatMap perDepCols names)
         searchHdr = maybe V.empty Csv.headerOrder mSearch
-    in aggCols <> searchHdr
+    in searchHdr <> aggCols <> Csv.header ["agg_log_likelihood"]
 
 instance Csv.ToRecord InterpolationResultOneDepVar3 where
-  toRecord (KAS3 names effN wvar wvarPr post lowB medV upB mSearch lls) =
-    let n = minimum
-              [ length names
-              , length effN
-              , length wvar
-              , length wvarPr
-              , length post
-              , length lowB
-              , length medV
-              , length upB
-              , length lls
-              ]
+  toRecord (KAS3 names effN wvar wvarPr post lowB medV upB mSearch lls agglls) =
+    let n = length names
         seg i =
           Csv.record
             [ Csv.toField (effN  !! i)
@@ -203,7 +201,7 @@ instance Csv.ToRecord InterpolationResultOneDepVar3 where
             ]
         aggRec = V.concat [ seg i | i <- [0 .. n-1] ]
         searchRec = maybe V.empty Csv.toRecord mSearch
-    in aggRec <> searchRec
+    in searchRec <> aggRec <> Csv.record ([toFieldMaybeDouble agglls])
 
 toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
 toFieldMaybeDouble Nothing  = Bchs.empty

@@ -59,10 +59,10 @@ splitFacet <- function(x){
 }
 
 hu5 %>%
-  dplyr::filter(depVar == "depC2") %>%
+  dplyr::filter() %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
-  geom_raster(aes(x, y, fill = log_likelihood)) +
+  geom_raster(aes(x, y, fill = exp(agg_log_likelihood))) +
   geom_raster(
     data = hu5 %>% dplyr::filter(!interpol_depC1_post),
     aes(x, y), fill = "white", alpha = 0.3
