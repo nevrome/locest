@@ -81,26 +81,52 @@ core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Per
     dists <- calcObsGridDistances spatDistUnitScaling obs grid
     -- TODO: case maybeDistFile of ...
     -- ... 
-    let perDepVar = zipWith (interpol obs dists searchDepVarPos) depVars kernelsPerDepVar
-    let n = V.length grid
-    let rowsForGridIdx :: Int -> [SearchResultRow]
+    let perDepVar :: [V.Vector InterpolationResultOneDepVar2]
+        perDepVar = zipWith (interpol obs dists searchDepVarPos) depVars kernelsPerDepVar
+    
+        nGrid = V.length grid
+    
+        -- build one or more rows for grid index i (one per search candidate if present)
+        rowsForGridIdx :: Int -> [SearchResultRow]
         rowsForGridIdx i =
-            -- for each depvar, explode KAS2 at grid index i into KAS3 rows
-            concatMap (\vkas2 ->
-              let kas2 = vkas2 V.! i
-                  kas3s = explodeKAS2 kas2
-                  gp    = grid V.! i
-              in [ SearchResultRow
-                     { _srrTempSamplingIteration = tempSamplingIteration
-                     , _srrGrid                  = gp
-                     , _srrInterpolation         = kas3
-                     }
-                 | kas3 <- kas3s
-                 ]
-            ) perDepVar
+            let kas2sAtI = map (\v -> v V.! i) perDepVar
 
-    return $ concatMap rowsForGridIdx [0 .. n-1]
-         
+                -- per-depVar likelihood vectors (may be Nothing)
+                llsPerDep :: [Maybe (V.Vector Double)]
+                llsPerDep = map _irKAS2LogLikelihood kas2sAtI
+        
+                mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
+                mkRow mSearchOne llsOne =
+                  SearchResultRow
+                    { _srrTempSamplingIteration = tempSamplingIteration
+                    , _srrGrid                  = grid V.! i
+                    , _srrInterpolation         = KAS3
+                        { _irKAS3DepVarName       = map _irKAS2DepVarName       kas2sAtI
+                        , _irKAS3EffN             = map _irKAS2EffN             kas2sAtI
+                        , _irKAS3WeightedVar      = map _irKAS2WeightedVar      kas2sAtI
+                        , _irKAS3WeightedVarPrior = map _irKAS2WeightedVarPrior kas2sAtI
+                        , _irKAS3Posterior        = map _irKAS2Posterior        kas2sAtI
+                        , _irKAS3LowerBound       = map _irKAS2LowerBound       kas2sAtI
+                        , _irKAS3Median           = map _irKAS2Median           kas2sAtI
+                        , _irKAS3UpperBound       = map _irKAS2UpperBound       kas2sAtI
+                        , _irKAS3SearchPos        = mSearchOne
+                        , _irKAS3LogLikelihood    = llsOne
+                        }
+                    }
+    
+            in case searchDepVarPos of
+                 Nothing ->
+                   -- No search candidates: one row per grid position, no log-likelihoods
+                   [ mkRow Nothing (replicate (length (map _irKAS2DepVarName       kas2sAtI)) Nothing) ]
+                 Just svec ->
+                   let m = V.length svec
+                       llsAt j = [ mv >>= (\v -> if j < V.length v then Just (v V.! j) else Nothing)
+                                 | mv <- llsPerDep
+                                 ]
+                   in [ mkRow (Just (svec V.! j)) (llsAt j) | j <- [0 .. m-1] ]
+
+    pure $ concatMap rowsForGridIdx [0 .. nGrid-1]
+
 data SearchResultRow = SearchResultRow {
       _srrTempSamplingIteration :: Int
     , _srrGrid                  :: IndepVarsPos
@@ -109,68 +135,79 @@ data SearchResultRow = SearchResultRow {
 
 instance Csv.DefaultOrdered SearchResultRow where
   headerOrder (SearchResultRow _ grid kas3) =
-      Csv.header ["temp_sampling_iteration"]
-   <> Csv.headerOrder grid
-   <> Csv.headerOrder kas3
+       Csv.header ["temp_sampling_iteration"]
+    <> Csv.headerOrder grid
+    <> Csv.headerOrder kas3
 
 instance Csv.ToRecord SearchResultRow where
   toRecord (SearchResultRow tsi grid kas3) =
-      Csv.record [Csv.toField tsi]
-   <> Csv.toRecord grid
-   <> Csv.toRecord kas3
+       Csv.record [Csv.toField tsi]
+    <> Csv.toRecord grid
+    <> Csv.toRecord kas3
 
+-- Aggregated row type (per grid position and per search candidate)
 data InterpolationResultOneDepVar3 = KAS3 {
-          _irKAS3DepVarName       :: DepVarName   -- name of the dependent variable
-        , _irKAS3EffN             :: Double       -- effective number of samples
-        , _irKAS3WeightedVar      :: Double       -- weighted variance
-        , _irKAS3WeightedVarPrior :: Double       -- weighted variance with prior
-        , _irKAS3Posterior        :: Bool      -- could a posterior distribution be calculated?
-        , _irKAS3LowerBound       :: Double    -- lower boundary of the 95% interval
-        , _irKAS3Median           :: Double       -- median (weighted average)
-        , _irKAS3UpperBound       :: Double    -- upper boundary of the 95% interval
-        , _irKAS3SearchPos        :: Maybe DepVarsPredPos
-        , _irKAS3LogLikelihood    :: Maybe Double -- Log-likelihood for search value
-    } deriving (Eq, Show, Generic)
-
-explodeKAS2 :: InterpolationResultOneDepVar2 -> [InterpolationResultOneDepVar3]
-explodeKAS2 (KAS2 dep neff v vp po lb m ub mSearch mLL) =
-  let n = maybe 0 V.length mSearch
-      mk i = KAS3
-               { _irKAS3DepVarName       = dep
-               , _irKAS3EffN             = neff
-               , _irKAS3WeightedVar      = v
-               , _irKAS3WeightedVarPrior = vp
-               , _irKAS3Posterior        = po
-               , _irKAS3LowerBound       = lb
-               , _irKAS3Median           = m
-               , _irKAS3UpperBound       = ub
-               , _irKAS3SearchPos        = fmap (V.! i) mSearch
-               , _irKAS3LogLikelihood    = fmap (V.! i) mLL
-               }
-  in map mk [0..n-1]
+      _irKAS3DepVarName       :: [DepVarName]
+    , _irKAS3EffN             :: [Double]
+    , _irKAS3WeightedVar      :: [Double]
+    , _irKAS3WeightedVarPrior :: [Double]
+    , _irKAS3Posterior        :: [Bool]
+    , _irKAS3LowerBound       :: [Double]
+    , _irKAS3Median           :: [Double]
+    , _irKAS3UpperBound       :: [Double]
+    , _irKAS3SearchPos        :: Maybe DepVarsPredPos
+    , _irKAS3LogLikelihood    :: [Maybe Double]
+} deriving (Eq, Show, Generic)
 
 instance Csv.DefaultOrdered InterpolationResultOneDepVar3 where
-  headerOrder (KAS3 _ _ _ _ _ _ _ _ mSearch mLL) =
-      let base = Csv.header ["depVar","interpol_neff","interpol_var","interpol_var_prior"
-                            ,"interpol_post","interpol_low","interpol_median","interpol_up"]
-          searchHdr = maybe V.empty Csv.headerOrder mSearch
-          llHdr     = if mLL == Nothing then V.empty else Csv.header ["log_likelihood"]
-      in base <> searchHdr <> llHdr
+  headerOrder (KAS3 names _ _ _ _ _ _ _ mSearch _lls) =
+    let perDepCols :: DepVarName -> [Bchs.ByteString]
+        perDepCols dv =
+          map Bchs.pack
+              [ "interpol_neff_"    ++ dv
+              , "interpol_var_"     ++ dv
+              , "interpol_var_prior_" ++ dv
+              , "interpol_post_"    ++ dv
+              , "interpol_low_"     ++ dv
+              , "interpol_median_"  ++ dv
+              , "interpol_up_"      ++ dv
+              , "log_likelihood_"   ++ dv
+              ]
+        aggCols = V.fromList (concatMap perDepCols names)
+        searchHdr = maybe V.empty Csv.headerOrder mSearch
+    in aggCols <> searchHdr
 
 instance Csv.ToRecord InterpolationResultOneDepVar3 where
-  toRecord (KAS3 dep neff v vp po lb m ub mSearch mLL) =
-      Csv.record [Csv.toField dep]
-   <> Csv.record [ Csv.toField neff
-                 , Csv.toField v
-                 , Csv.toField vp
-                 , Csv.toField (OutBool po)
-                 , Csv.toField (OutDouble lb)
-                 , Csv.toField m
-                 , Csv.toField (OutDouble ub)
-                 ]
-   <> maybe V.empty Csv.toRecord mSearch
-   <> maybe V.empty (V.singleton . Csv.toField . OutDouble) mLL
+  toRecord (KAS3 names effN wvar wvarPr post lowB medV upB mSearch lls) =
+    let n = minimum
+              [ length names
+              , length effN
+              , length wvar
+              , length wvarPr
+              , length post
+              , length lowB
+              , length medV
+              , length upB
+              , length lls
+              ]
+        seg i =
+          Csv.record
+            [ Csv.toField (effN  !! i)
+            , Csv.toField (wvar  !! i)
+            , Csv.toField (wvarPr!! i)
+            , Csv.toField (OutBool (post !! i))
+            , Csv.toField (OutDouble (lowB !! i))
+            , Csv.toField (medV  !! i)
+            , Csv.toField (OutDouble (upB  !! i))
+            , toFieldMaybeDouble (lls  !! i)
+            ]
+        aggRec = V.concat [ seg i | i <- [0 .. n-1] ]
+        searchRec = maybe V.empty Csv.toRecord mSearch
+    in aggRec <> searchRec
 
+toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
+toFieldMaybeDouble Nothing  = Bchs.empty
+toFieldMaybeDouble (Just x) = Csv.toField (OutDouble x)
 
 zipWithN :: ([a] -> b) -> [V.Vector a] -> V.Vector b
 zipWithN f vs 
@@ -233,16 +270,16 @@ interpol obs dists maybeSearchValues depVar kernel =
 
 -- | A data type for interpolation output for one dependent variable
 data InterpolationResultOneDepVar2 = KAS2 {
-          _irKASDepVarName       :: DepVarName   -- name of the dependent variable
-        , _irKASEffN             :: Double       -- effective number of samples
-        , _irKASWeightedVar      :: Double       -- weighted variance
-        , _irKASWeightedVarPrior :: Double       -- weighted variance with prior
-        , _irKASPosterior        :: Bool      -- could a posterior distribution be calculated?
-        , _irKASLowerBound       :: Double    -- lower boundary of the 95% interval
-        , _irKASMedian           :: Double       -- median (weighted average)
-        , _irKASUpperBound       :: Double    -- upper boundary of the 95% interval
-        , _irKASSearchPos        :: Maybe (V.Vector DepVarsPredPos) -- search values
-        , _irKASLogLikelihood    :: Maybe (V.Vector Double) -- Log-likelihood for search value
+          _irKAS2DepVarName       :: DepVarName   -- name of the dependent variable
+        , _irKAS2EffN             :: Double       -- effective number of samples
+        , _irKAS2WeightedVar      :: Double       -- weighted variance
+        , _irKAS2WeightedVarPrior :: Double       -- weighted variance with prior
+        , _irKAS2Posterior        :: Bool      -- could a posterior distribution be calculated?
+        , _irKAS2LowerBound       :: Double    -- lower boundary of the 95% interval
+        , _irKAS2Median           :: Double       -- median (weighted average)
+        , _irKAS2UpperBound       :: Double    -- upper boundary of the 95% interval
+        , _irKAS2SearchPos        :: Maybe (V.Vector DepVarsPredPos) -- search values
+        , _irKAS2LogLikelihood    :: Maybe (V.Vector Double) -- Log-likelihood for search value
     } deriving (Eq, Show, Generic)
 
 sumRows :: M.Matrix M.R -> M.Vector M.R
