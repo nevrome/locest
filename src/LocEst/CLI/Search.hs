@@ -71,15 +71,14 @@ runSearch (SearchOptions
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
-core :: Double -> [DepVarName] -> [KernelOneDepVar] -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Permutation2 -> IO [SearchResultRow]
-core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Permutation2 tempSamplingIteration obs) = do
+core :: Double -> [DepVarName] -> [KernelOneDepVar] -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Permutation -> IO [SearchResultRow]
+core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Permutation tempSamplingIteration obs) = do
     dists <- calcObsGridDistances spatDistUnitScaling obs grid
     -- TODO: case maybeDistFile of ...
     -- ... 
     let perDepVar = zipWith (interpol obs dists searchDepVarPos) depVars kernelsPerDepVar
         nGrid = V.length grid
-    
-        -- build one or more rows for grid index i
+        -- turn SSL to SSR
         rowsForGridIdx :: Int -> [SearchResultRow]
         rowsForGridIdx i =
             let resAtI = map (V.! i) perDepVar
@@ -97,45 +96,41 @@ core spatDistUnitScaling depVars kernelsPerDepVar grid searchDepVarPos perm@(Per
                     , _ssrKASUpperBound       = map _sslKASUpperBound       resAtI
                     , _ssrKASSearchPos        = mSearchOne
                     , _ssrKASLogLikelihood    = llsOne
-                    , _ssrKASAggLogLikelihood = sumIfAllJustNonEmpty llsOne
+                    , _ssrKASAggLogLikelihood = sumIfAllJust llsOne
                     }
-            in case searchDepVarPos of
-                 Nothing ->
-                   -- No search candidates: one row per grid position, no log-likelihoods
-                   [ mkRow Nothing (replicate (length (map _sslKASDepVarName resAtI)) Nothing) ]
-                 Just svec ->
-                   let m = V.length svec
-                       llsAt j = [ mv >>= (\v -> if j < V.length v then Just (v V.! j) else Nothing)
-                                 | mv <- map _sslKASLogLikelihood resAtI
-                                 ]
-                   in [ mkRow (Just (svec V.! j)) (llsAt j) | j <- [0 .. m-1] ]
-
+                -- extract per-depVar likelihoods at index j (safely)
+                llsAt :: Int -> [Maybe Double]
+                llsAt j = [ mv >>= (V.!? j) | mv <- map _sslKASLogLikelihood resAtI ]
+                -- branches for absent/present search candidates
+                depCount  = length perDepVar
+                rowsNoSearch :: [SearchResultRow]
+                rowsNoSearch = [ mkRow Nothing (replicate depCount Nothing) ]
+                rowsWithSearch :: V.Vector DepVarsPredPos -> [SearchResultRow]
+                rowsWithSearch svec = V.toList $ V.imap (\j sp -> mkRow (Just sp) (llsAt j)) svec
+            in maybe rowsNoSearch rowsWithSearch searchDepVarPos
     pure $ concatMap rowsForGridIdx [0 .. nGrid-1]
 
--- Variant: also returns Nothing for [].
-sumIfAllJustNonEmpty :: [Maybe Double] -> Maybe Double
-sumIfAllJustNonEmpty xs = do
+sumIfAllJust :: [Maybe Double] -> Maybe Double
+sumIfAllJust xs = do
   ys <- sequence xs
   if null ys then Nothing else Just (sum ys)
-
-
 
 zipWithN :: ([a] -> b) -> [V.Vector a] -> V.Vector b
 zipWithN f vs 
   | null vs   = V.empty
   | otherwise = V.generate (V.length $ head vs) (\i -> f (map (V.! i) vs))
 
-data Permutation2 = Permutation2 {
+data Permutation = Permutation {
       _permTempSamplingIteration :: Int
     , _permObs                   :: V.Vector Observation
 } deriving (Show)
 
-createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix -> [Permutation2]
+createPermutations2 :: V.Vector Observation -> Maybe TempSampleMatrix -> [Permutation]
 createPermutations2 obs maybeTempSampleMatrix = do
     -- apply temp resampling to obs
     tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
     let modObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
-    return $ Permutation2 tempSamp modObs
+    return $ Permutation tempSamp modObs
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
