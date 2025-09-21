@@ -111,26 +111,26 @@ runCross (
                         return $ V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
                 -- run cross-validation pipeline
                 liftIO $ hPutStrLn stderr "Running analysis"
-                ConC.yieldMany kernDefs
-                    .| Con.awaitForever (
-                        \kernDef ->
-                               ConC.yieldMany iterations
-                            .| ConAA.asyncMapC numThreads (
-                                \(iteration,testData,trainingData) ->
-                                       V.map (
-                                        \obs ->
-                                            let perm = Permutation
-                                                    (_hyposIndepVarsPos $ _obsPos obs)
-                                                    (Just $ DepVarsPredPosSearchObs obs)
-                                                    kernDef 0 iteration
-                                            in coreNormal
-                                                spatDistUnitScaling
-                                                coreSupp
-                                                depVars trainingData perm
-                                       ) testData
-                               ) .| ConC.concat
-                       )
-                    .| ConC.map (CrossSearchResult depVars)
+                -- ConC.yieldMany kernDefs
+                --     .| Con.awaitForever (
+                --         \kernDef ->
+                --                ConC.yieldMany iterations
+                --             .| ConAA.asyncMapC numThreads (
+                --                 \(iteration,testData,trainingData) ->
+                --                        V.map (
+                --                         \obs ->
+                --                             let perm = Permutation
+                --                                     (_hyposIndepVarsPos $ _obsPos obs)
+                --                                     (Just $ DepVarsPredPosSearchObs obs)
+                --                                     kernDef 0 iteration
+                --                             in coreNormal
+                --                                 spatDistUnitScaling
+                --                                 coreSupp
+                --                                 depVars trainingData perm
+                --                        ) testData
+                --                ) .| ConC.concat
+                --        )
+                --     .| ConC.map (CrossSearchResult depVars)
 
            )
         .| progress 1000 (Just numPermutations)
@@ -159,26 +159,28 @@ readSupplement indepVarsWanted
     return $ Supplement distanceFilterThresholds inSpatDists inObsTempSamples
 
 summarizeFunc :: [CrossSearchResult] -> CrossvalOutput
-summarizeFunc xs =
-    let depVars = _csrDepVars $ head xs
-        oneProb = _srPermutation $ _csrSearchResult $ head xs
-        kerndef = _casKernelDefinition oneProb
-        dists   = mapMaybe (fmap _slhEuclideanDep  . _srLikelihood . _csrSearchResult) xs
-        logLs   = mapMaybe (fmap _slhLogLikelihood . _srLikelihood . _csrSearchResult) xs
-        sumDists         = foldSum dists
-        meanSquaredDists = avg $ map (**2) dists
-        sumLogLs         = foldSum logLs
-    in CrossvalOutput depVars kerndef sumDists meanSquaredDists sumLogLs
+summarizeFunc xs = undefined
+    -- let depVars = _csrDepVars $ head xs
+    --     oneProb = _srPermutation $ _csrSearchResult $ head xs
+    --     kerndef = _casKernelDefinition oneProb
+    --     dists   = mapMaybe (fmap _slhEuclideanDep  . _srLikelihood . _csrSearchResult) xs
+    --     logLs   = mapMaybe (fmap _slhLogLikelihood . _srLikelihood . _csrSearchResult) xs
+    --     sumDists         = foldSum dists
+    --     meanSquaredDists = avg $ map (**2) dists
+    --     sumLogLs         = foldSum logLs
+    -- in CrossvalOutput depVars kerndef sumDists meanSquaredDists sumLogLs
 
 groupFunc :: CrossSearchResult -> CrossSearchResult -> Bool
-groupFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
-          (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
-    depVarA == depVarB && kernDefA == kernDefB
+groupFunc _ _ = undefined -- TODO
+--groupFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
+--          (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
+--    depVarA == depVarB && kernDefA == kernDefB
 
 sortFunc :: CrossSearchResult -> CrossSearchResult -> Ordering
-sortFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
-         (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
-    compare depVarA depVarB <> compare kernDefA kernDefB
+sortFunc _ _ = undefined -- TODO
+-- sortFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
+--          (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
+--     compare depVarA depVarB <> compare kernDefA kernDefB
 
 splitTestTraining :: Int -> V.Vector a -> Int -> Int -> (Int, V.Vector a, V.Vector a)
 splitTestTraining iteration observations numTestObs seedOneIteration =

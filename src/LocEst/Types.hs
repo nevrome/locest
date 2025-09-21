@@ -117,15 +117,15 @@ instance Csv.ToRecord CsvNamedRecord where
 -- | A data type for search results with a depVar label
 data CrossSearchResult = CrossSearchResult {
       _csrDepVars      :: [DepVarName]
-    , _csrSearchResult :: SearchResult
+    , _csrSearchResult :: String -- TODO: SearchResult
 } deriving (Show, Generic)
 
 instance NFData CrossSearchResult
 instance Csv.DefaultOrdered CrossSearchResult where
     headerOrder (CrossSearchResult [depVar] searchResult) =
-        Csv.header ["depVar"] <> removeDepVarFromHeader depVar (Csv.headerOrder searchResult)
+        Csv.header ["depVar"] -- <> removeDepVarFromHeader depVar (Csv.headerOrder searchResult)
     headerOrder (CrossSearchResult _ searchResult) =
-        Csv.headerOrder searchResult
+        Csv.header ["TODO"] --Csv.headerOrder searchResult
 instance Csv.ToRecord CrossSearchResult where
     toRecord (CrossSearchResult [depVar] searchResult) =
         Csv.toRecord [Csv.toField depVar] <> Csv.toRecord searchResult
@@ -265,54 +265,6 @@ data SamplingRange =
     | TwoSigma
     | FullDistribution
 
--- | A data type for observation weights per core permutation
-data ObsWeight = ObsWeight {
-      _powPermutation :: Permutation
-    , _powObsWeights  :: ObsWithWeights
-    } deriving (Generic)
-
-instance NFData ObsWeight
-instance Csv.DefaultOrdered ObsWeight where
-    headerOrder (ObsWeight corePermutation obsWithWeights) =
-        Csv.headerOrder corePermutation <> Csv.headerOrder obsWithWeights
-instance Csv.ToRecord ObsWeight where
-    toRecord (ObsWeight corePermutation obsWithWeights) =
-        Csv.toRecord corePermutation <> Csv.toRecord obsWithWeights
-
--- | A datatype for interpolation samples produced by the core algorithm
-data InterpolationSample = InterpolationSample {
-        _isPermutation           :: Permutation
-      , _isInterpolRandIteration :: Int
-      , _isInterpolRandSamples   :: DepVarSamples
-      } deriving (Show, Generic)
-
-instance NFData InterpolationSample
-instance Csv.DefaultOrdered InterpolationSample where
-    headerOrder (InterpolationSample corePermutation _ depVarSamples) =
-        Csv.headerOrder corePermutation <> Csv.header ["random_iteration"] <> Csv.headerOrder depVarSamples
-instance Csv.ToRecord InterpolationSample where
-    toRecord (InterpolationSample corePermutation randIteration depVarSamples) =
-        Csv.toRecord corePermutation <>  Csv.record [Csv.toField randIteration] <> Csv.toRecord depVarSamples
-
--- | A data type for search results produced by the core algorithm
-data SearchResult = SearchResult {
-        _srPermutation   :: Permutation
-      , _srInterpolation :: InterpolationResult
-      , _srLikelihood    :: Maybe SearchLikelihood
-      } deriving (Show, Generic)
-
-instance NFData SearchResult
-instance Csv.DefaultOrdered SearchResult where
-    headerOrder (SearchResult corePermutation interpolationResult Nothing) =
-        Csv.headerOrder corePermutation <> Csv.headerOrder interpolationResult
-    headerOrder (SearchResult corePermutation interpolationResult (Just searchLikelihood)) =
-        Csv.headerOrder corePermutation <> Csv.headerOrder interpolationResult <> Csv.headerOrder searchLikelihood
-instance Csv.ToRecord SearchResult where
-    toRecord (SearchResult corePermutation interpolationResult Nothing) =
-        Csv.toRecord corePermutation <> Csv.toRecord interpolationResult
-    toRecord (SearchResult corePermutation interpolationResult (Just searchLikelihood)) =
-        Csv.toRecord corePermutation <> Csv.toRecord interpolationResult <> Csv.toRecord searchLikelihood
-
 -- | A data type specifically for the likelihood output of the core search
 data SearchLikelihood = SearchLikelihood {
       _slhEuclideanDep  :: Double -- Euclidean distance in dependent variable space between interpolation and search depvar position
@@ -361,41 +313,6 @@ data DistanceThresholds = SpaceTimeFilterThresholds {
       _adftMinFilter :: Maybe ArbitraryDimThresholds
     , _adftMaxFilter :: Maybe ArbitraryDimThresholds
 }
-
--- | A data type with core-algorithm settings (for one run of the core algorithm)
-data Permutation = Permutation {
-      _casIndepVarsPos          :: IndepVarsPos
-    , _casSearchObs             :: Maybe DepVarsPredPos
-    , _casKernelDefinition      :: KernelDefinition
-    , _casTempSamplingIteration :: Int
-    , _casCrossIteration        :: Int
-} deriving (Show, Generic)
-
-instance NFData Permutation
-instance Csv.DefaultOrdered Permutation where
-    headerOrder (Permutation indepVarsPos (Just depVarsPredPos) algorithm _ _) =
-           Csv.headerOrder indepVarsPos
-        <> Csv.headerOrder depVarsPredPos
-        <> Csv.headerOrder algorithm
-        <> Csv.header ["temp_sampling_iteration"]
-        <> Csv.header ["cross_iteration"]
-    headerOrder (Permutation indepVarsPos Nothing algorithm _ _) =
-           Csv.headerOrder indepVarsPos
-        <> Csv.headerOrder algorithm
-        <> Csv.header ["temp_sampling_iteration"]
-        <> Csv.header ["cross_iteration"]
-instance Csv.ToRecord Permutation where
-    toRecord (Permutation indepVarsPos (Just depVarsPredPos) algorithm tempSamplingIteration crossIteration) =
-           Csv.toRecord indepVarsPos
-        <> Csv.toRecord depVarsPredPos
-        <> Csv.toRecord algorithm
-        <> Csv.record [Csv.toField tempSamplingIteration]
-        <> Csv.record [Csv.toField crossIteration]
-    toRecord (Permutation indepVarsPos Nothing algorithm tempSamplingIteration crossIteration) =
-           Csv.toRecord indepVarsPos
-        <> Csv.toRecord algorithm
-        <> Csv.record [Csv.toField tempSamplingIteration]
-        <> Csv.record [Csv.toField crossIteration]
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
