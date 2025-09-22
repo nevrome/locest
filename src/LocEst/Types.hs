@@ -387,6 +387,10 @@ data DepVarsPredPos =
     | DepVarsPredPosSearchObs Observation
     deriving (Show, Generic, Eq)
 
+getObsAge :: DepVarsPredPos -> Maybe YearBCAD
+getObsAge (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) = Just obsAge
+getObsAge _ = Nothing
+
 instance NFData DepVarsPredPos
 instance Csv.DefaultOrdered DepVarsPredPos where
     headerOrder (DepVarsPredPosDirect depVarsPos) =
@@ -402,6 +406,11 @@ instance Csv.ToRecord DepVarsPredPos where
 getDepVarsPos2 :: DepVarName -> DepVarsPredPos -> Double
 getDepVarsPos2 depVar (DepVarsPredPosDirect depVarsPos) = lookupUnsafe depVarsPos depVar
 getDepVarsPos2 depVar (DepVarsPredPosSearchObs obs) = getDepVarsPos depVar obs
+
+-- | A data type for preparing dependent variable positions
+data DepVarsPredGridSettings =
+      DirectDepVarsGridSettings [DepVarsPos]
+    | SearchObsDepVarsGridSettings FilePath
 
 -- | A data type to specify a kernel across multiple depvars and indepvars
 newtype KernelDefinition = KernelDefinition {

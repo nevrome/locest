@@ -43,10 +43,6 @@ data SearchOptions = SearchOptions
     , _searchOutFile             :: Maybe FilePath
     }
 
-data DepVarsPredGridSettings =
-      DirectDepVarsGridSettings [DepVarsPos]
-    | SearchObsDepVarsGridSettings FilePath
-
 runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
     inObsFile inIndepVarsPredGridFile maybeTempGrid inMaybeDepSearchGrid kernelDefinition outFile
@@ -123,6 +119,8 @@ zipWithN f vs
   | null vs   = V.empty
   | otherwise = V.generate (V.length $ head vs) (\i -> f (map (V.! i) vs))
 
+
+-- Permutation mechanism
 data Permutation = Permutation {
       _permTempSamplingIteration :: Int
     , _permObs                   :: V.Vector Observation
@@ -137,33 +135,13 @@ createPermutations obs maybeTempSampleMatrix indepPredGrid depSearchGrid maybeTe
     -- apply temp resampling to obs
     tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
     let modObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
-    -- search samples
-    (indepPredPos,depSearchPos) <- case maybeTempGrid of
-        Nothing -> [(indepPredGrid, depSearchGrid)]
-        Just absRelTempPos ->
-            let spatPos = V.mapMaybe (\(IndepSpatTempPos (SpatTempPos s _)) -> Just s) indepPredGrid
-            in concat $ mapMaybe (f spatPos depSearchGrid) absRelTempPos
+    -- grid construction including time
+    (indepPredPos, depSearchPos) <- splitDataByTempGrid maybeTempGrid indepPredGrid depSearchGrid
     return $ Permutation tempSamp modObs indepPredPos depSearchPos
-
-f :: V.Vector SpatPos -> Maybe (V.Vector DepVarsPredPos) -> AbsRelTempPos -> Maybe [(V.Vector IndepVarsPos, Maybe (V.Vector DepVarsPredPos))]
-f spatPos depSearchGrid (AbsTempPos yearBCAD) =
-    let indepVarsPos = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos yearBCAD))) spatPos
-    in Just [(indepVarsPos, depSearchGrid)]
-f spatPos depSearchGrid@(Just searchGrid) (RelTempPos yearDist) =
-    let refAge = V.toList $ V.mapMaybe (\(DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) -> Just obsAge) searchGrid
-        indepVarsPos = map (\r -> V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos $ r + yearDist))) spatPos) refAge
-    in Just $ zip indepVarsPos (map Just $ V.group searchGrid)
-f _ _ _ = Nothing
-    
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
-
-
-
-applyAbsRelTempPos :: YearBCAD -> IndepVarsPos -> IndepVarsPos
-applyAbsRelTempPos _ _ = undefined
 
 applyTempSamp :: Maybe TempSampleMatrix -> Int -> Observation -> Observation
 applyTempSamp (Just m) i obs@(Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos age))) i4) i5) =
@@ -172,11 +150,21 @@ applyTempSamp (Just m) i obs@(Observation i1 i2 (HyperPos (IndepSpatTempPos (Spa
     in Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos newage))) i4) i5
 applyTempSamp _ _ obs = obs
 
-readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO (V.Vector DepVarsPredPos)
-readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
-    let depVarsPosReordered = V.map (filterByKey depVars) $ V.fromList depVarsPos
-    return $ V.map DepVarsPredPosDirect depVarsPosReordered
-readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
-    !obs <- readObservations path -- search observations
-    let obsFiltered = filterVarsInObs depVars indepVars obs
-    return $ V.map DepVarsPredPosSearchObs obsFiltered
+splitDataByTempGrid :: Maybe [AbsRelTempPos] -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos)
+                    -> [(V.Vector IndepVarsPos, Maybe (V.Vector DepVarsPredPos))]
+splitDataByTempGrid Nothing indepPredGrid depSearchGrid = [(indepPredGrid, depSearchGrid)]
+splitDataByTempGrid (Just absRelTempPos) indepPredGrid depSearchGrid =
+    let spatPos = V.mapMaybe (\(IndepSpatTempPos (SpatTempPos s _)) -> Just s) indepPredGrid
+    in concat $ mapMaybe (\t -> build t spatPos depSearchGrid) absRelTempPos
+  where
+    build :: AbsRelTempPos -> V.Vector SpatPos -> Maybe (V.Vector DepVarsPredPos)
+          -> Maybe [(V.Vector IndepVarsPos, Maybe (V.Vector DepVarsPredPos))]
+    build (AbsTempPos yearBCAD) spatPos depGrid =
+      let indepVarsPos = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos yearBCAD))) spatPos
+      in Just [(indepVarsPos, depGrid)]
+    build (RelTempPos yearDist) spatPos depGrid@(Just searchGrid) =
+      let refAge = V.toList $ V.mapMaybe getObsAge searchGrid
+          indepVarsPos = for refAge $
+              \r -> V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos $ r + yearDist))) spatPos
+      in Just $ zip indepVarsPos (map Just $ V.group searchGrid)
+    build _ _ _ = Nothing 

@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Strict           #-}
+{-# LANGUAGE BangPatterns        #-}
 
 module LocEst.Parsers where
 
@@ -165,6 +166,15 @@ readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path) = do
                                 "Expected: " ++ show expected ++ " but got: " ++ show (obsID, spatID)
                     Nothing -> return ()
             loop [] = return ()
+
+readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO (V.Vector DepVarsPredPos)
+readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
+    let depVarsPosReordered = V.map (filterByKey depVars) $ V.fromList depVarsPos
+    return $ V.map DepVarsPredPosDirect depVarsPosReordered
+readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
+    !obs <- readObservations path -- search observations
+    let obsFiltered = filterVarsInObs depVars indepVars obs
+    return $ V.map DepVarsPredPosSearchObs obsFiltered
 
 -- simpler parsers without additional file requirements
 
