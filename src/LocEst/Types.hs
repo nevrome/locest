@@ -41,16 +41,11 @@ allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
 
+-- filtering and sorting variables
+
 -- filter variables
 filterByKeyList :: Eq a => [String] -> [(String,a)] -> [(String,a)]
 filterByKeyList keys = filter (\(k,_) -> k `elem` keys)
-
-filterDistanceThresholds :: [String] -> DistanceThresholds -> DistanceThresholds
-filterDistanceThresholds _ f@(SpaceTimeFilterThresholds _ _) = f
-filterDistanceThresholds indepVarsWanted (ArbitraryDimFilterThresholds minFilter maxFilter) =
-    ArbitraryDimFilterThresholds
-        (fmap (filterByKey indepVarsWanted) minFilter)
-        (fmap (filterByKey indepVarsWanted) maxFilter)
 
 filterVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
 filterVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
@@ -71,10 +66,7 @@ filterVarsInIndepVarsPos _ x@(IndepSpatTempPos _) = x
 filterVarsInIndepVarsPos indepVarsWanted (IndepArbitraryDimPos x) =
     IndepArbitraryDimPos $ filterByKey indepVarsWanted x
 
-filterVarsInArbitraryPos :: [String] -> V.Vector ValuesPerIndepVar -> V.Vector ValuesPerIndepVar
-filterVarsInArbitraryPos indepVarsWanted = V.map (filterByKey indepVarsWanted)
-
--- helper functions for cassava
+-- cassava helpers 
 
 -- | A data type that wraps around bools to modify the way they are rendered in the .tsv output
 -- This is specifically done to make it easily readable in R

@@ -11,7 +11,6 @@ import           Data.List                         (sortBy)
 import           Data.Maybe                        (catMaybes, mapMaybe)
 import qualified Data.Vector                       as V
 import qualified Data.Vector.Storable              as VS
-import qualified Data.Vector.Unboxed               as VU
 import qualified Numeric.LinearAlgebra             as M
 import           Statistics.Distribution           (logDensity, quantile)
 import           Statistics.Distribution.StudentT  (StudentT)

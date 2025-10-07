@@ -23,7 +23,7 @@ calcObsGridDistances spatDistUnitScaling obs grid = do
         !nrGrid = V.length grid
         !nrPairs = nrObs * nrGrid
     -- determine stride for arbitrary case:
-    let stride =  case (V.find isArb grid) of
+    let stride =  case V.find isArb grid of
             Just (IndepArbitraryDimPos arrDims) -> length (getValues arrDims)
             _                                   -> 2
     -- create empty result vectors
