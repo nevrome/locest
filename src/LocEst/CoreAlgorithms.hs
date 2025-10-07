@@ -37,9 +37,6 @@ interpol obs dists maybeSearchValues depVar kernel =
             Just x  -> SSLKAS depVar neff wvb wv False (-inf) mu inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
             Nothing -> SSLKAS depVar neff wvb wv False (-inf) mu inf maybeSearchValues Nothing
 
-sumRows :: M.Matrix M.R -> M.Vector M.R
-sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
-
 kas :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Double, Double, Double, Double, Either String (LinearTransform StudentT))
 kas weights y =
     V.zipWith6 (\neff wvb wv _mu _scale _dof -> (neff, wvb, wv, _mu, generalizedStudentT _mu _scale _dof))
@@ -57,6 +54,10 @@ kas weights y =
       mu = weightedAvg
       scale = M.cmap sqrt ((1 + 1/(totalWeight + 1)) * weightedVar)
       dof = totalWeight
+
+{-# INLINE sumRows #-}
+sumRows :: M.Matrix M.R -> M.Vector M.R
+sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
 
 {-# INLINE computeWeightsFlat #-}
 computeWeightsFlat :: KernelOneDepVar -> IndepVarsDistFlat -> VS.Vector Double
