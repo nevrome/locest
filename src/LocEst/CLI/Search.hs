@@ -5,6 +5,7 @@
 module LocEst.CLI.Search where
 
 import LocEst.Types
+import LocEst.TypesFlat
 import           LocEst.Parsers
 import           LocEst.CoreAlgorithms
 import LocEst.Exceptions (throwL)

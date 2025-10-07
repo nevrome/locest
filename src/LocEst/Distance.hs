@@ -2,6 +2,7 @@ module LocEst.Distance where
 
 import           LocEst.Exceptions
 import           LocEst.Types
+import           LocEst.TypesFlat
 
 import qualified Data.Vector       as V
 import qualified Data.Vector.Mutable   as VM

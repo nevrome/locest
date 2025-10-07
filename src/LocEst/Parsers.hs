@@ -7,6 +7,7 @@ module LocEst.Parsers where
 import           LocEst.CLI.Utils
 import           LocEst.Exceptions
 import           LocEst.Types
+import           LocEst.TypesFlat
 
 import qualified Codec.Serialise           as S
 import           Conduit                   (MonadIO, MonadResource, liftIO)
