@@ -4,6 +4,7 @@ import           LocEst.Distance
 import           LocEst.Exceptions
 import           LocEst.MathUtils
 import           LocEst.Types
+import           LocEst.TypesFlat
 
 import           Data.Bifunctor                    (second)
 import           Data.List                         (sortBy)
@@ -17,12 +18,12 @@ import           Statistics.Distribution.StudentT  (StudentT)
 import           Statistics.Distribution.Transform (LinearTransform)
 
 
-interpol :: V.Vector Observation -> V.Vector IndepVarsDist -> Maybe (V.Vector DepVarsPredPos)
+interpol :: V.Vector Observation -> IndepVarsDistFlat -> Maybe (V.Vector DepVarsPredPos)
          -> DepVarName -> KernelOneDepVar 
          -> V.Vector SearchResultLong
 interpol obs dists maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
-        weights = M.reshape (V.length obs) $ VS.convert $ V.map (getWeight2 kernel) dists
+        weights = M.reshape (V.length obs) $ computeWeightsFlat kernel dists
         searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
     in V.map (search searchValues) $ kas weights values
     where
@@ -57,26 +58,27 @@ kas weights y =
       scale = M.cmap sqrt ((1 + 1/(totalWeight + 1)) * weightedVar)
       dof = totalWeight
 
+{-# INLINE computeWeightsFlat #-}
+computeWeightsFlat :: KernelOneDepVar -> IndepVarsDistFlat -> VS.Vector Double
+computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
+    let thetas = getValues (_kodvLengths kernel)
+        thetasU = VS.fromList thetas
+    in VS.generate (VS.length tags) $ \i ->
+      if not (tags VS.! i)
+        then -- spat/temp case
+             let spatDist = payload VS.! (i*stride)
+                 tempDist = payload VS.! (i*stride + 1)
+                 (spaceKernelWidth,timeKernelWidth) = case thetas of
+                     [sw,tw] -> (sw, tw)
+                     _ -> error "kernel mismatch"
+             in computeWeight (_kodvShape kernel)
+                  ((spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2)
+        else -- arbitrary case
+             let dists = VS.slice (i*stride) stride payload
+                 dist2 = VS.sum $ VS.zipWith (\d t -> (d / t) ** 2) dists thetasU
+             in computeWeight (_kodvShape kernel) dist2
+
+{-# INLINE computeWeight #-}
 computeWeight :: KernelShape -> SquaredWeightedDist -> Double
 computeWeight SquaredExponential d = 1 / exp d
 computeWeight Linear             d = 1 / (1 + sqrt d)
-
-getWeight2 :: KernelOneDepVar -> IndepVarsDist -> Double
-getWeight2 (KernelOneDepVar _ shape lengths) dists =
-    computeWeight shape (squaredWeightedDist lengths dists)
-    where
-        squaredWeightedDist :: KernelLengths -> IndepVarsDist -> Double
-        squaredWeightedDist
-            (KernelLengths (ValuesPerIndepVar [(_,spaceKernelWidth), (_,timeKernelWidth)]))
-            (IndepSpatTempDist (SpatTempDist spatDist tempDist)) =
-            (spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2
-        squaredWeightedDist
-            kernLengths
-            (IndepArbitraryDimDist namedDists) =
-            let distances = getValues namedDists
-                thetas    = getValues kernLengths
-            in foldSum (zipWith (\d t -> (d / t) ** 2) distances thetas)
-        squaredWeightedDist _ _ =
-            throwL "mismatch of independent variable definitions in weight calculation"
-
-

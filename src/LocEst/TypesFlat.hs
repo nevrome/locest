@@ -2,16 +2,52 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE StrictData             #-}
+{-# LANGUAGE BangPatterns           #-}
 
 module LocEst.TypesFlat where
 
 import LocEst.Types
 import           LocEst.Exceptions     (throwL)
 
+import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed   as VU
+import qualified Data.Vector.Storable   as VS
 import           GHC.Generics          (Generic)
 import qualified Codec.Serialise       as S
 import           Control.DeepSeq
+
+data IndepVarsDistFlat = IndepVarsDistFlat {
+     tags    :: VS.Vector Bool -- False means IndepSpatTempDist, True means IndepArbitraryDimDist
+   , payload :: VS.Vector Double -- distances stored contiguously per row.
+   , stride  :: Int --  number of doubles per row (max of 2 or arbitrary dim length)
+   }
+
+flattenIndepVarsDists :: V.Vector IndepVarsDist -> IndepVarsDistFlat
+flattenIndepVarsDists vec
+  | V.null vec = IndepVarsDistFlat VS.empty VS.empty 0
+  | otherwise =
+    -- determine stride: in spatial/temporal case it's 2, in arbitrary case it is length of its ValuesPerIndepVar.
+    let !stride = case V.head vec of
+            IndepArbitraryDimDist (ValuesPerIndepVar xs) -> length xs
+            IndepSpatTempDist _ -> 2
+        !n = V.length vec
+    -- generate tags and payload in one pass.
+        tagsU :: VS.Vector Bool
+        tagsU = VS.generate n $ \i -> case V.unsafeIndex vec i of
+                    IndepSpatTempDist _ -> False
+                    IndepArbitraryDimDist _ -> True
+        payloadU :: VS.Vector Double
+        payloadU = VS.generate (n * stride) $ \j ->
+                    let (!row, !col) = j `quotRem` stride
+                    in case V.unsafeIndex vec row of
+                         IndepSpatTempDist (SpatTempDist sd td)
+                           | col == 0 -> sd
+                           | col == 1 -> td
+                           | otherwise -> 0.0 -- unused for spat/temp
+                         IndepArbitraryDimDist (ValuesPerIndepVar xs)
+                           -> let (_, d) = xs !! col
+                              in d
+    in IndepVarsDistFlat tagsU payloadU stride
 
 -- | A data type for a symmetric, unidirectional distance matrix
 -- this matrix has (n*n)/2 - n entries and a triangular shape

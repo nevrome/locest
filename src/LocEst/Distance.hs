@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module LocEst.Distance where
 
 import           LocEst.Exceptions
@@ -7,53 +9,56 @@ import           LocEst.TypesFlat
 import qualified Data.Vector       as V
 import qualified Data.Vector.Mutable   as VM
 import qualified Data.Vector.Unboxed           as VU
+import qualified Data.Vector.Storable           as VS
+import qualified Data.Vector.Storable.Mutable           as VSM
 import qualified Data.Vector.Unboxed.Mutable           as VUM
 import           Control.Monad                 (replicateM, zipWithM_)
+import Control.Applicative ((<|>))
+import Data.Foldable (forM_)
 
-makeObsGridPairs :: V.Vector Observation -> V.Vector IndepVarsPos -> [(Int, (Observation, IndepVarsPos))]
-makeObsGridPairs obs grid =
-    let obsIndexMax = V.length obs - 1
-        gridIndexMax = V.length grid - 1
-        obsGridPairs = [(obs V.! x, grid V.! y) | y <- [0..gridIndexMax], x <- [0..obsIndexMax]]
-    in zip [0..] obsGridPairs
 
-calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO (V.Vector IndepVarsDist)
+calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO IndepVarsDistFlat
 calcObsGridDistances spatDistUnitScaling obs grid = do
-    let nrObs = V.length obs
-        nrGrid = V.length grid
-        nrPairs = nrObs * nrGrid
-        obsGridPairs = makeObsGridPairs obs grid
-        (Observation _ _ (HyperPos indepPos _) _) = V.head obs
-    weightVec <- VM.new nrPairs
-    mapM_ (computeDist weightVec) obsGridPairs
-    weightVecNonMut <- V.unsafeFreeze weightVec
-    return weightVecNonMut --AUDistMatrix nrObs nrGrid weightVecNonMut
-    where
-        computeDist :: VM.IOVector IndepVarsDist -> (Int, (Observation, IndepVarsPos)) -> IO ()
-        computeDist weightVec (i, (Observation i1 _ (HyperPos p1 _) _, p2)) = do
-            let dist = getDist spatDistUnitScaling p1 p2
-            VM.write weightVec i dist
-
-getDist :: Double -> IndepVarsPos -> IndepVarsPos -> IndepVarsDist
--- spatiotemporal distances
-getDist spatDistUnitScaling
-        (IndepSpatTempPos (SpatTempPos spatPos1 tempPos1))
-        (IndepSpatTempPos (SpatTempPos spatPos2 tempPos2)) =
-        let spatDist = spatialDistSpatPos spatPos1 spatPos2
-            spaceDistScaled = spatDist * spatDistUnitScaling
-            tempDist = temporalDistTempPos tempPos1 tempPos2
-        in IndepSpatTempDist (SpatTempDist spaceDistScaled tempDist)
--- arbitrary dim distances
-getDist spatDistUnitScaling
-        (IndepArbitraryDimPos arbitraryDimPos1)
-        (IndepArbitraryDimPos arbitraryDimPos2) =
-        let keys = getKeys arbitraryDimPos1
-            obsPos  = getValues arbitraryDimPos1
-            gridPos = getValues arbitraryDimPos2
-            arbitraryDimDist = makeValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
-        in IndepArbitraryDimDist arbitraryDimDist
--- wrong input
-getDist _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
+    let !nrObs = V.length obs
+        !nrGrid = V.length grid
+        !nrPairs = nrObs * nrGrid
+    -- determine stride for arbitrary case:
+    let stride =  case (V.find isArb grid) of
+            Just (IndepArbitraryDimPos arrDims) -> length (getValues arrDims)
+            _                                   -> 2
+    -- create empty result vectors
+    tagsMV    <- VSM.new nrPairs :: IO (VSM.IOVector Bool)
+    payloadMV <- VSM.new (nrPairs * stride) :: IO (VSM.IOVector Double)
+    -- nested loop to match all obs and grid positions
+    forM_ [0 .. nrGrid-1] $ \gy -> do
+      let gpos = grid V.! gy
+      forM_ [0 .. nrObs-1] $ \ox -> do
+        let !idx = gy * nrObs + ox
+        let opos = obs V.! ox
+        case (posFromObs opos, gpos) of
+          (IndepSpatTempPos (SpatTempPos s1 t1),
+           IndepSpatTempPos (SpatTempPos s2 t2)) -> do
+              let !sd = spatialDistSpatPos s1 s2 * spatDistUnitScaling
+              let !td = temporalDistTempPos t1 t2
+              VSM.write tagsMV idx False
+              VSM.write payloadMV (idx*stride)     sd
+              VSM.write payloadMV (idx*stride + 1) td
+          (IndepArbitraryDimPos ad1,
+           IndepArbitraryDimPos ad2) -> do
+              let !dvec = allDistances (getValues ad1) (getValues ad2)
+              VSM.write tagsMV idx True
+              -- copy distances directly:
+              forM_ [0 .. stride-1] $ \c ->
+                VSM.write payloadMV (idx*stride + c) (dvec !! c)
+          _ -> throwL "mismatch in independent variable definitions"
+    -- freeze result vectors
+    tagsVS    <- VS.unsafeFreeze tagsMV
+    payloadVS <- VS.unsafeFreeze payloadMV
+    pure $ IndepVarsDistFlat tagsVS payloadVS stride
+  where
+    isArb (IndepArbitraryDimPos _) = True
+    isArb _                        = False
+    posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
 
 makeObsPairs :: V.Vector Observation -> [(Int, (Observation, Observation))]
 makeObsPairs obs =
