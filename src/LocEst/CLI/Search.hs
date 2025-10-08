@@ -87,10 +87,6 @@ core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSampling
                     { _ssrKASTempSampIter     = tempSamplingIteration
                     , _ssrKASIndepVarsPos     = grid V.! i
                     , _ssrKASDepVarName       = map _sslKASDepVarName       resAtI
-                    , _ssrKASEffN             = map _sslKASEffN             resAtI
-                    , _ssrKASWeightedVar      = map _sslKASWeightedVar      resAtI
-                    , _ssrKASWeightedVarPrior = map _sslKASWeightedVarPrior resAtI
-                    , _ssrKASPosterior        = map _sslKASPosterior        resAtI
                     , _ssrKASLowerBound       = map _sslKASLowerBound       resAtI
                     , _ssrKASMedian           = map _sslKASMedian           resAtI
                     , _ssrKASUpperBound       = map _sslKASUpperBound       resAtI

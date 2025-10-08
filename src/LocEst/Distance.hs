@@ -18,9 +18,9 @@ calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos 
 calcObsGridDistances scale obs grid =
     commonDistances
         scale (V.length grid) (V.length obs)
-        (\(Observation _ _ (HyperPos pos _) _) -> pos)
         id
-        obs grid
+        (\(Observation _ _ (HyperPos pos _) _) -> pos)
+        grid obs
 
 calcObsObsDistancesFlat :: Double -> V.Vector Observation -> IO IndepVarsDistFlat
 calcObsObsDistancesFlat scale obs =

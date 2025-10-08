@@ -28,20 +28,19 @@ interpol obs dists maybeSearchValues depVar kernel =
         searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
     in V.map (search searchValues) $ kas weights values
     where
-        search searchValues (neff, wvb, wv, mu, Right distribution) =
+        search searchValues (mu, Right distribution) =
             let lower  = quantile distribution 0.025
                 median = mu -- quantile distribution 0.5
                 upper  = quantile distribution 0.975
                 logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
-            in SSLKAS depVar neff wvb wv True lower median upper maybeSearchValues logL
-        search searchValues (neff, wvb, wv, mu, Left _) = case searchValues of
-            Just x  -> SSLKAS depVar neff wvb wv False (-inf) mu inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
-            Nothing -> SSLKAS depVar neff wvb wv False (-inf) mu inf maybeSearchValues Nothing
+            in SSLKAS depVar lower median upper maybeSearchValues logL
+        search searchValues (mu, Left _) = case searchValues of
+           Just x  -> SSLKAS depVar (-inf) mu inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
+           Nothing -> SSLKAS depVar (-inf) mu inf maybeSearchValues Nothing
 
-kas :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Double, Double, Double, Double, Either String (LinearTransform StudentT))
+kas :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Double, Either String (LinearTransform StudentT))
 kas weights y =
-    V.zipWith6 (\neff wvb wv _mu _scale _dof -> (neff, wvb, wv, _mu, generalizedStudentT _mu _scale _dof))
-        (V.convert totalWeight) (V.convert weightedVarBasic) (V.convert weightedVar)
+    V.zipWith3 (\_mu _scale _dof -> (_mu, generalizedStudentT _mu _scale _dof))
         (V.convert mu) (V.convert scale) (V.convert dof)
     where
       totalWeight = sumRows weights

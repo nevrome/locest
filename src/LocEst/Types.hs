@@ -51,10 +51,6 @@ filterVarsInIndepVarsPos indepVarsWanted (IndepArbitraryDimPos x) =
 -- | A data type for interpolation output for one dependent variable
 data SearchResultLong = SSLKAS {
       _sslKASDepVarName       :: DepVarName   -- name of the dependent variable
-    , _sslKASEffN             :: Double       -- effective number of samples
-    , _sslKASWeightedVar      :: Double       -- weighted variance
-    , _sslKASWeightedVarPrior :: Double       -- weighted variance with prior
-    , _sslKASPosterior        :: Bool      -- could a posterior distribution be calculated?
     , _sslKASLowerBound       :: Double    -- lower boundary of the 95% interval
     , _sslKASMedian           :: Double       -- median (weighted average)
     , _sslKASUpperBound       :: Double    -- upper boundary of the 95% interval
@@ -67,10 +63,6 @@ data SearchResultRow = SSRKAS {
       _ssrKASTempSampIter     :: Int
     , _ssrKASIndepVarsPos     :: IndepVarsPos
     , _ssrKASDepVarName       :: [DepVarName]
-    , _ssrKASEffN             :: [Double]
-    , _ssrKASWeightedVar      :: [Double]
-    , _ssrKASWeightedVarPrior :: [Double]
-    , _ssrKASPosterior        :: [Bool]
     , _ssrKASLowerBound       :: [Double]
     , _ssrKASMedian           :: [Double]
     , _ssrKASUpperBound       :: [Double]
@@ -80,15 +72,11 @@ data SearchResultRow = SSRKAS {
 } deriving (Eq, Show, Generic)
 
 instance Csv.DefaultOrdered SearchResultRow where
-  headerOrder (SSRKAS _ grid names _ _ _ _ _ _ _ mSearch _lls _agglls) =
+  headerOrder (SSRKAS _ grid names _ _ _ mSearch _lls _agglls) =
     let perDepCols :: DepVarName -> [Bchs.ByteString]
         perDepCols dv =
           map Bchs.pack
-              [ "interpol_neff_"    ++ dv
-              , "interpol_var_"     ++ dv
-              , "interpol_var_prior_" ++ dv
-              , "interpol_post_"    ++ dv
-              , "interpol_low_"     ++ dv
+              [ "interpol_low_"     ++ dv
               , "interpol_median_"  ++ dv
               , "interpol_up_"      ++ dv
               , "log_likelihood_"   ++ dv
@@ -102,15 +90,11 @@ instance Csv.DefaultOrdered SearchResultRow where
        <> Csv.header ["agg_log_likelihood"]
 
 instance Csv.ToRecord SearchResultRow where
-  toRecord (SSRKAS tsi grid names effN wvar wvarPr post lowB medV upB mSearch lls agglls) =
+  toRecord (SSRKAS tsi grid names lowB medV upB mSearch lls agglls) =
     let n = length names
         seg i =
           Csv.record
-            [ Csv.toField (effN  !! i)
-            , Csv.toField (wvar  !! i)
-            , Csv.toField (wvarPr!! i)
-            , Csv.toField (OutBool (post !! i))
-            , Csv.toField (OutDouble (lowB !! i))
+            [ Csv.toField (OutDouble (lowB !! i))
             , Csv.toField (medV  !! i)
             , Csv.toField (OutDouble (upB  !! i))
             , toFieldMaybeDouble (lls  !! i)
