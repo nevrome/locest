@@ -13,6 +13,7 @@ import qualified Data.Vector.Storable.Mutable           as VSM
 import           Control.Monad                 (replicateM, zipWithM_)
 import Control.Applicative ((<|>))
 import Data.Foldable (forM_)
+import qualified Control.Monad as OP
 
 calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO IndepVarsDistFlat
 calcObsGridDistances scale obs grid =
@@ -23,23 +24,14 @@ calcObsGridDistances scale obs grid =
         grid obs
 
 calcObsObsDistancesFlat :: Double -> V.Vector Observation -> IO IndepVarsDistFlat
-calcObsObsDistancesFlat scale obs =
-    commonDistances
-        scale (V.length obs) (V.length obs)
-        (\(Observation _ _ (HyperPos pos _) _) -> pos)
-        (\(Observation _ _ (HyperPos pos _) _) -> pos)
-        obs obs
+calcObsObsDistancesFlat scale = commonDistancesHalf scale (\(Observation _ _ (HyperPos pos _) _) -> pos)
 
 calcGridGridDistancesFlat :: Double -> V.Vector IndepVarsPos -> IO IndepVarsDistFlat
-calcGridGridDistancesFlat scale grid =
-    commonDistances
-        scale (V.length grid) (V.length grid)
-        id id
-        grid grid
+calcGridGridDistancesFlat scale = commonDistancesHalf scale id
 
 type GetPos a = a -> IndepVarsPos
 commonDistances
-   :: Double  -- scaling
+   :: Double  -- scaling factor
   -> Int      -- number of rows
   -> Int      -- number of cols
   -> GetPos r -- extract IndepVarsPos from row element
@@ -73,6 +65,56 @@ commonDistances spatDistUnitScaling nRows nCols getPosRow getPosCol rows cols = 
               let dvec = allDistancesVS vs1 vs2
               VSM.write tagsMV idx True
               VS.copy (VSM.slice (idx*stride) stride payloadMV) dvec
+          _ -> throwL "mismatch in independent variable definitions"
+    -- freeze result vectors
+    tagsVS    <- VS.unsafeFreeze tagsMV
+    payloadVS <- VS.unsafeFreeze payloadMV
+    pure $ IndepVarsDistFlat tagsVS payloadVS stride
+
+-- optimised symmetric distance calculation (upper triangle mirroring)
+commonDistancesHalf ::
+     Double     -- ^ scaling factor
+  -> GetPos a   -- ^ position extractor
+  -> V.Vector a
+  -> IO IndepVarsDistFlat
+commonDistancesHalf spatDistUnitScaling getPos vec = do
+    let nRows = V.length vec
+        nCols = nRows
+        stride = case getPos (vec V.! 0) of
+            IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.length ns
+            _                                             -> 2
+    -- create empty result vectors
+    tagsMV    <- VSM.new (nRows * nCols)
+    payloadMV <- VSM.new (nRows * nCols * stride)
+    -- loop upper triangle including diagonal
+    forM_ [0 .. nRows-1] $ \i -> do
+      let !pi = getPos (vec V.! i)
+      forM_ [i .. nCols-1] $ \j -> do
+        let !pj     = getPos (vec V.! j)
+            !idx    = i * nCols + j
+            !idxSym = j * nCols + i
+        case (pi, pj) of
+          (IndepSpatTempPos (SpatTempPos s1 t1),
+           IndepSpatTempPos (SpatTempPos s2 t2)) -> do
+              let !sd = spatialDistSpatPos s1 s2 * spatDistUnitScaling
+                  !td = temporalDistTempPos t1 t2
+              -- write (i,j)
+              VSM.write tagsMV idx False
+              VSM.write payloadMV (idx*stride)     sd
+              VSM.write payloadMV (idx*stride + 1) td
+              -- mirror (this also copies the diagonal, prevent with (i /= j))
+              VSM.write tagsMV idxSym False
+              VSM.write payloadMV (idxSym*stride)     sd
+              VSM.write payloadMV (idxSym*stride + 1) td
+          (IndepArbitraryDimPos (ValuesPerIndepVar _ vs1),
+           IndepArbitraryDimPos (ValuesPerIndepVar _ vs2)) -> do
+              let dvec = allDistancesVS vs1 vs2
+              -- write (i,j)
+              VSM.write tagsMV idx True
+              VS.copy (VSM.slice (idx*stride) stride payloadMV) dvec
+              -- mirror
+              VSM.write tagsMV idxSym True
+              VS.copy (VSM.slice (idxSym*stride) stride payloadMV) dvec
           _ -> throwL "mismatch in independent variable definitions"
     -- freeze result vectors
     tagsVS    <- VS.unsafeFreeze tagsMV
