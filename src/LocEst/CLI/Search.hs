@@ -73,10 +73,13 @@ runSearch (SearchOptions
 
 core :: Double -> [DepVarName] -> [KernelOneDepVar] -> Permutation -> IO [SearchResultRow]
 core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
-    distsObsGrid <- calcObsGridDistances spatDistUnitScaling obs grid
+    distsObsGrid  <- calcObsGridDistances spatDistUnitScaling obs grid
+    distsObsObs   <- calcObsObsDistancesFlat spatDistUnitScaling obs
+    distsGridGrid <- calcGridGridDistancesFlat spatDistUnitScaling grid
     -- TODO: case maybeDistFile of ...
     -- ... 
-    let perDepVar = zipWith (interpol obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
+    let --perDepVar = zipWith (interpol obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
+        perDepVar = zipWith (interpolGPR obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
         nGrid = V.length grid
         -- turn SSL to SSR
         rowsForGridIdx :: Int -> [SearchResultRow]

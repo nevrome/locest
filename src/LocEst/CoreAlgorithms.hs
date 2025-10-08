@@ -17,30 +17,100 @@ import qualified Numeric.LinearAlgebra             as M
 import           Statistics.Distribution           (logDensity, quantile)
 import           Statistics.Distribution.StudentT  (StudentT)
 import           Statistics.Distribution.Transform (LinearTransform)
+import Statistics.Distribution.Normal (NormalDistribution)
 
+
+interpolGPR :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> IndepVarsDistFlat -> IndepVarsDistFlat
+         -> Maybe (V.Vector DepVarsPredPos)
+         -> DepVarName -> KernelOneDepVar 
+         -> V.Vector SearchResultLong
+interpolGPR obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
+    let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
+        weightsObsObs   = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsObs
+        weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
+        weightsGridGrid = M.reshape (V.length grid) $ computeWeightsFlat kernel distsGridGrid
+        searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
+    in V.map (search searchValues) $ gpr weightsObsObs weightsObsGrid weightsGridGrid values 0.1 0.00001
+    where
+        search searchValues (Right distribution) =
+            let lower  = quantile distribution 0.025
+                median = quantile distribution 0.5
+                upper  = quantile distribution 0.975
+                logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
+            in SSLKAS depVar lower median upper maybeSearchValues logL
+        search searchValues (Left _) = case searchValues of
+           Just x  -> SSLKAS depVar (-inf) nan inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
+           Nothing -> SSLKAS depVar (-inf) nan inf maybeSearchValues Nothing
+
+gpr
+  :: M.Matrix Double      -- ^ K_train (nTrain × nTrain)  -- obs–obs kernel
+  -> M.Matrix Double      -- ^ K_cross (nPred × nTrain)    -- grid–obs kernel
+  -> M.Matrix Double      -- ^ K_pred  (nPred × nPred)     -- grid–grid kernel
+  -> M.Vector Double      -- ^ yVec    (nTrain)
+  -> Double               -- ^ nugget noise term g
+  -> Double               -- ^ jitter eps
+  -> V.Vector (Either String NormalDistribution)
+  -- -> (M.Vector Double, M.Matrix Double, M.Matrix Double) -- mean, covFull, covInterp
+gpr kTrain0 kCross kPred0 yVec g eps =
+    let nTrain = M.rows kTrain0
+        nPred  = M.rows kPred0
+
+        -- Training kernel + nugget
+        kTrain = kTrain0 + M.scale g (M.ident nTrain)
+
+        -- Solve instead of computing full inverse (this is better numerically than M.inv):
+        ki     = M.inv kTrain
+        -- GPR variance scale tau^2
+        tau2hat = (yVec `M.dot` (ki M.#> yVec)) / fromIntegral nTrain
+
+        -- Posterior mean
+        mup = M.flatten $ kCross M.<> M.asColumn (ki M.#> yVec)
+
+        -- Posterior cov (full)
+        kPredFull = kPred0 + M.scale g (M.ident nPred)
+        sigmaP    = M.scale tau2hat
+                      (kPredFull - kCross M.<> (ki M.<> M.tr kCross))
+
+        -- Posterior cov (interpolation variance)
+        kPredNoNoise = kPred0 + M.scale eps (M.ident nPred)
+        sigmaInt     = M.scale tau2hat
+                        (kPredNoNoise - kCross M.<> (ki M.<> M.tr kCross))
+
+    --in (mup, sigmaP, sigmaInt)
+    in marginals mup sigmaP
+    
+-- Build vector of marginals
+marginals :: M.Vector Double -> M.Matrix Double -> V.Vector (Either String NormalDistribution)
+marginals meanVec covMat =
+    let n = M.size meanVec
+    in V.generate n $ \i ->
+        let mu    = M.atIndex meanVec i
+            var   = M.atIndex covMat (i,i) -- diagonal element
+            std   = sqrt var
+        in normal mu std
 
 interpol :: V.Vector Observation -> IndepVarsDistFlat -> Maybe (V.Vector DepVarsPredPos)
          -> DepVarName -> KernelOneDepVar 
          -> V.Vector SearchResultLong
-interpol obs dists maybeSearchValues depVar kernel =
+interpol obs distsObsGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
-        weights = M.reshape (V.length obs) $ computeWeightsFlat kernel dists
+        weights = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
     in V.map (search searchValues) $ kas weights values
     where
-        search searchValues (mu, Right distribution) =
+        search searchValues (Right distribution) =
             let lower  = quantile distribution 0.025
-                median = mu -- quantile distribution 0.5
+                median = quantile distribution 0.5
                 upper  = quantile distribution 0.975
                 logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
             in SSLKAS depVar lower median upper maybeSearchValues logL
-        search searchValues (mu, Left _) = case searchValues of
-           Just x  -> SSLKAS depVar (-inf) mu inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
-           Nothing -> SSLKAS depVar (-inf) mu inf maybeSearchValues Nothing
+        search searchValues (Left _) = case searchValues of
+           Just x  -> SSLKAS depVar (-inf) nan inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
+           Nothing -> SSLKAS depVar (-inf) nan inf maybeSearchValues Nothing
 
-kas :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Double, Either String (LinearTransform StudentT))
+kas :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Either String (LinearTransform StudentT))
 kas weights y =
-    V.zipWith3 (\_mu _scale _dof -> (_mu, generalizedStudentT _mu _scale _dof))
+    V.zipWith3 (\_mu _scale _dof -> (generalizedStudentT _mu _scale _dof))
         (V.convert mu) (V.convert scale) (V.convert dof)
     where
       totalWeight = sumRows weights

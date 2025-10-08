@@ -3,12 +3,14 @@ module LocEst.MathUtils (
        nan,
        foldSum,
        avg,
-       generalizedStudentT
+       generalizedStudentT,
+       normal
     ) where
 
 import           Data.List                         (foldl')
 import           Statistics.Distribution.StudentT  (StudentT,
                                                     studentTUnstandardized)
+import Statistics.Distribution.Normal (NormalDistribution, normalDistr)
 import           Statistics.Distribution.Transform (LinearTransform)
 
 inf :: Fractional a => a
@@ -33,3 +35,10 @@ generalizedStudentT mu scale dof
     | scale <= 0  = Left "sigma must be > 0"
     | dof   <= 0  = Left "degree of freedoms must be > 0"
     | otherwise   = Right $ studentTUnstandardized dof mu scale
+
+normal :: Double -> Double -> Either String NormalDistribution
+normal mu std
+    | isNaN std = Left "sigma is NaN"
+    | std <= 0  = Left "sigma must be > 0"
+    | otherwise = Right $ normalDistr mu std
+    
