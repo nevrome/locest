@@ -62,23 +62,41 @@ gprCore ::
     -> V.Vector (Either String NormalDistribution)
   -- -> (M.Vector Double, M.Matrix Double, M.Matrix Double) -- mean, covFull, covInterp
 gprCore d dx dxx y g =
-    let nObs  = M.rows d
-        nGrid = M.rows dxx
-        -- training kernel + nugget
-        k  = d + M.scale g (M.ident nObs)
-        ki = M.inv k
-        -- GPR variance scale tau^2
-        tau2hat = (y `M.dot` (ki M.#> y)) / fromIntegral nObs
-        -- posterior mean
-        mup = M.flatten $ dx M.<> M.asColumn (ki M.#> y)
-        -- posterior cov (full)
-        dxxFull = dxx + M.scale g (M.ident nGrid)
-        sigmaP  = M.scale tau2hat (dxxFull - dx M.<> (ki M.<> M.tr dx))
-        -- posterior cov (interpolation variance)
+        -- Number of observation points and grid points
+    let nObs   = M.rows d
+        nGrid  = M.rows dxx
+        -- Step 1: Build training covariance matrix with nugget
+        -- k = K_obs_obs + g * I_nObs
+        k      = d + M.scale g (M.ident nObs)
+        -- Step 2: Cholesky factorisation (kernel matrix is SPD: symmetric positive definite)
+        -- trustSym tells hmatrix to treat 'k' as symmetric and avoid recomputing symmetry structure
+        cholK  = M.chol (M.trustSym k)   -- Lower-triangular L such that k = L * L^T
+        -- Step 3: Build right-hand side matrix for simultaneous solves
+        -- First column = y (vector), remaining columns = dx^T (transposed grid–obs weights)
+        rhs    = M.fromColumns (y : M.toColumns (M.tr dx))
+        -- Step 4: Solve k * X = rhs using precomputed Cholesky factor
+        -- This yields alpha (for y) and beta (for dx^T) without computing k^{-1} explicitly
+        sol    = M.cholSolve cholK rhs
+        -- Step 5: Extract alpha = k^{-1} * y   (first column of solution)
+        alphaCol = M.takeColumns 1 sol
+        -- Step 6: Extract beta = k^{-1} * dx^T (remaining columns of solution)
+        beta     = M.dropColumns 1 sol
+        -- Step 7: Variance scale tau^2-hat = (y^T * alpha) / nObs
+        -- This favours shorter amplitude when data fits the prior better
+        tau2hat  = (y `M.dot` M.flatten alphaCol) / fromIntegral nObs
+        -- Step 8: Posterior mean predictions for grid: mu_p = dx * alpha
+        mup      = M.flatten $ dx M.<> alphaCol
+        -- Step 9: Posterior covariance for grid points (full)
+        -- sigmaP = tau^2 [ (K_grid_grid + gI) - dx * beta ]
+        dxxFull  = dxx + M.scale g (M.ident nGrid)
+        sigmaP   = M.scale tau2hat (dxxFull - dx M.<> beta)
+        -- Step 10: Interpolation variance (without nugget noise in grid-grid block)
+        -- sigmaInt = tau^2 [ (K_grid_grid + epsI) - dx * beta ]
         -- dxxNoNoise = dxx + M.scale eps (M.ident nGrid)
-        -- sigmaInt     = M.scale tau2hat (dxxNoNoise - dx M.<> (ki M.<> M.tr dx))
-    --in (mup, sigmaP, sigmaInt)
+        -- sigmaInt   = M.scale tau2hat (dxxNoNoise - dx M.<> beta)
+    -- Step 11: Produce marginal NormalDistributions from mean and variance (full posterior)
     in marginals mup sigmaP
+    --in (mup, sigmaP, sigmaInt)
     
 marginals :: M.Vector Double -> M.Matrix Double -> V.Vector (Either String NormalDistribution)
 marginals meanVec covMat =
