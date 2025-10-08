@@ -114,17 +114,10 @@ core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSampling
                 rowsWithSearch :: V.Vector DepVarsPredPos -> [SearchResultRow]
                 rowsWithSearch svec = V.toList $ V.imap (\j sp -> mkRow (Just sp) (llsAt j)) svec
             in maybe rowsNoSearch rowsWithSearch searchDepVarPos
-
-sumIfAllJust :: [Maybe Double] -> Maybe Double
-sumIfAllJust xs = do
-  ys <- sequence xs
-  if null ys then Nothing else Just (sum ys)
-
-zipWithN :: ([a] -> b) -> [V.Vector a] -> V.Vector b
-zipWithN f vs 
-  | null vs   = V.empty
-  | otherwise = V.generate (V.length $ head vs) (\i -> f (map (V.! i) vs))
-
+        sumIfAllJust :: [Maybe Double] -> Maybe Double
+        sumIfAllJust xs = do
+          ys <- sequence xs
+          if null ys then Nothing else Just (sum ys)
 
 -- Permutation mechanism
 data Permutation = Permutation {

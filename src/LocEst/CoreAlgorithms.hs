@@ -27,7 +27,7 @@ gpr :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> Ind
 gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         weightsObsObs   = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsObs
-        weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
+        weightsObsGrid  = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsGrid
         weightsGridGrid = M.reshape (V.length grid) $ computeWeightsFlat kernel distsGridGrid
         resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values 0.1 0.00001
     in V.map (search depVar maybeSearchValues) resDistribution
@@ -53,44 +53,34 @@ search depVar maybeSearchValues (Left _) = case maybeSearchValues of
            Just x  -> SSLKAS depVar (-inf) nan inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
            Nothing -> SSLKAS depVar (-inf) nan inf maybeSearchValues Nothing
 
-gprCore
-  :: M.Matrix Double      -- ^ K_train (nTrain × nTrain)  -- obs–obs kernel
-  -> M.Matrix Double      -- ^ K_cross (nPred × nTrain)    -- grid–obs kernel
-  -> M.Matrix Double      -- ^ K_pred  (nPred × nPred)     -- grid–grid kernel
-  -> M.Vector Double      -- ^ yVec    (nTrain)
-  -> Double               -- ^ nugget noise term g
-  -> Double               -- ^ jitter eps
-  -> V.Vector (Either String NormalDistribution)
+gprCore ::
+       M.Matrix Double -- obs–obs weights
+    -> M.Matrix Double -- grid–obs weights
+    -> M.Matrix Double -- grid–grid weights
+    -> M.Vector Double -- y: measured values in dependent variable space
+    -> Double          -- nugget noise term g
+    -> Double          -- jitter eps
+    -> V.Vector (Either String NormalDistribution)
   -- -> (M.Vector Double, M.Matrix Double, M.Matrix Double) -- mean, covFull, covInterp
-gprCore kTrain0 kCross kPred0 yVec g eps =
-    let nTrain = M.rows kTrain0
-        nPred  = M.rows kPred0
-
-        -- Training kernel + nugget
-        kTrain = kTrain0 + M.scale g (M.ident nTrain)
-
-        -- Solve instead of computing full inverse (this is better numerically than M.inv):
-        ki     = M.inv kTrain
+gprCore d dx dxx y g eps =
+    let nObs  = M.rows d
+        nGrid = M.rows dxx
+        -- training kernel + nugget
+        k  = d + M.scale g (M.ident nObs)
+        ki = M.inv k
         -- GPR variance scale tau^2
-        tau2hat = (yVec `M.dot` (ki M.#> yVec)) / fromIntegral nTrain
-
-        -- Posterior mean
-        mup = M.flatten $ kCross M.<> M.asColumn (ki M.#> yVec)
-
-        -- Posterior cov (full)
-        kPredFull = kPred0 + M.scale g (M.ident nPred)
-        sigmaP    = M.scale tau2hat
-                      (kPredFull - kCross M.<> (ki M.<> M.tr kCross))
-
-        -- Posterior cov (interpolation variance)
-        kPredNoNoise = kPred0 + M.scale eps (M.ident nPred)
-        sigmaInt     = M.scale tau2hat
-                        (kPredNoNoise - kCross M.<> (ki M.<> M.tr kCross))
-
+        tau2hat = (y `M.dot` (ki M.#> y)) / fromIntegral nObs
+        -- posterior mean
+        mup = M.flatten $ dx M.<> M.asColumn (ki M.#> y)
+        -- posterior cov (full)
+        dxxFull = dxx + M.scale g (M.ident nGrid)
+        sigmaP  = M.scale tau2hat (dxxFull - dx M.<> (ki M.<> M.tr dx))
+        -- posterior cov (interpolation variance)
+        -- dxxNoNoise = dxx + M.scale eps (M.ident nGrid)
+        -- sigmaInt     = M.scale tau2hat (dxxNoNoise - dx M.<> (ki M.<> M.tr dx))
     --in (mup, sigmaP, sigmaInt)
     in marginals mup sigmaP
     
--- Build vector of marginals
 marginals :: M.Vector Double -> M.Matrix Double -> V.Vector (Either String NormalDistribution)
 marginals meanVec covMat =
     let n = M.size meanVec
@@ -100,7 +90,10 @@ marginals meanVec covMat =
             std   = sqrt var
         in normal mu std
 
-kasCore :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Either String (LinearTransform StudentT))
+kasCore ::
+       M.Matrix M.R
+    -> M.Vector M.R
+    -> V.Vector (Either String (LinearTransform StudentT))
 kasCore weights y =
     V.zipWith3 generalizedStudentT (V.convert mu) (V.convert scale) (V.convert dof)
     where
@@ -120,7 +113,6 @@ kasCore weights y =
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
 
-{-# INLINE computeWeightsFlat #-}
 computeWeightsFlat :: KernelOneDepVar -> IndepVarsDistFlat -> VS.Vector Double
 computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
     let thetasList = getValues (_kodvLengths kernel)
