@@ -59,7 +59,7 @@ splitFacet <- function(x){
 }
 
 hu5 %>%
-  dplyr::filter() %>%
+  dplyr::filter(search_obsID == "Stuttgart_published.DG") %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
   geom_raster(aes(x, y, fill = exp(agg_log_likelihood))) +

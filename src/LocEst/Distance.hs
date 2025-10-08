@@ -22,8 +22,8 @@ calcObsGridDistances spatDistUnitScaling obs grid = do
         !nrPairs = nrObs * nrGrid
     -- determine stride for arbitrary case:
     let stride = case grid V.!? 0 of
-           Just (IndepArbitraryDimPos arrDims) -> length (getValues arrDims)
-           _                                   -> 2
+           Just (IndepArbitraryDimPos (ValuesPerIndepVar ns _)) -> V.length ns
+           _                                                    -> 2
     -- create empty result vectors
     tagsMV    <- VSM.new nrPairs :: IO (VSM.IOVector Bool)
     payloadMV <- VSM.new (nrPairs * stride) :: IO (VSM.IOVector Double)
