@@ -34,6 +34,7 @@ import GHC.Generics (Generic)
 import qualified Data.ByteString.Char8 as Bchs
 import Conduit (liftIO)
 import Data.Maybe (mapMaybe)
+import Control.Concurrent.Async (async, wait)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -77,10 +78,13 @@ core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSampling
     -- ... 
     perDepVar <- case True of
         True -> do
-            --gpr
-            distsObsGrid  <- calcObsGridDistances spatDistUnitScaling obs grid
-            distsObsObs   <- calcObsObsDistancesFlat spatDistUnitScaling obs
-            distsGridGrid <- calcGridGridDistancesFlat spatDistUnitScaling grid
+            -- gpr
+            aObsGrid  <- async $ calcObsGridDistances  spatDistUnitScaling obs  grid
+            aObsObs   <- async $ calcObsObsDistancesFlat spatDistUnitScaling obs
+            aGridGrid <- async $ calcGridGridDistancesFlat spatDistUnitScaling grid
+            distsObsGrid  <- wait aObsGrid
+            distsObsObs   <- wait aObsObs
+            distsGridGrid <- wait aGridGrid
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
         False -> do
             -- kas
