@@ -17,8 +17,9 @@ import           Data.Function                 (on)
 import           Data.List                     (foldl', singleton, sort)
 import qualified Data.Vector                   as V
 import qualified Data.Vector.Algorithms.Intro  as VA
+import qualified Data.Vector.Storable           as VS
 import qualified Data.Vector.Unboxed           as VU
-import qualified Data.Vector.Unboxed.Mutable   as VUM
+import qualified Data.Vector.Storable.Mutable   as VSM
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 
@@ -94,15 +95,15 @@ runVario
             forM (toList distsPerIndepVar) $ \(indepVarName, SUDistMatrix indepDists) -> do
                 hPutStrLn stderr ("Working on " ++ indepVarName)
                 -- indexing (must be done before any filtering)
-                let indepDistsIndexed = VU.indexed indepDists
+                let indepDistsIndexed = VU.indexed $ VS.convert indepDists
                 -- indepVar cross-filtering - only when acrossIndepVars is inactive
                     indepDistsFiltered =
                         if acrossIndepVars
                         then indepDistsIndexed
                         else
                             let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsThresholds
-                                belowThresholdPerIndepVar = map (isBelowIndepVarsThreshold distsPerIndepVar) relevantThresholds
-                                belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VU.length indepDists) True) belowThresholdPerIndepVar
+                                belowThresholdPerIndepVar = map (VU.convert . isBelowIndepVarsThreshold distsPerIndepVar) relevantThresholds
+                                belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VS.length indepDists) True) belowThresholdPerIndepVar
                             in VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsIndexed
                 -- sort indep distance vector for easy binning
                 sortedIndepDists <- sortWithIndices indepDistsFiltered -- very time-consuming!
@@ -115,14 +116,14 @@ runVario
                                 let spaceThreshold  = lookupUnsafe thresholds "space"
                                     timeThreshold   = lookupUnsafe thresholds "time"
                                     mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
-                                in binIndepVarForNugget sortedIndepDists (ValuesPerIndepVar [("acrossIndep", mergedThreshold)]) indepVarName
+                                in binIndepVarForNugget sortedIndepDists (makeValuesPerIndepVar [("acrossIndep", mergedThreshold)]) indepVarName
                             else binIndepVarForNugget sortedIndepDists thresholds indepVarName
                 -- loop over depVars
                 forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
                     -- loop over bins
                     variancesPerBin <- Con.runConduitRes $
                             ConC.yieldMany startStopPerBin
-                            .| ConAA.asyncMapC numThreads (perBin sortedIndepDists depDists)
+                            .| ConAA.asyncMapC numThreads (perBin sortedIndepDists $ VU.convert depDists)
                             .| ConC.sinkList
                     hPutStrLn stderr ("-> " ++ depVarName)
                     return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
@@ -130,10 +131,10 @@ runVario
     writeVariograms (concat empiricalVariograms) outFile
     hPutStrLn stderr "Done"
 
-isBelowIndepVarsThreshold :: MatrixPerIndepVar -> (IndepVarName, Double) -> VU.Vector Bool
+isBelowIndepVarsThreshold :: MatrixPerIndepVar -> (IndepVarName, Double) -> VS.Vector Bool
 isBelowIndepVarsThreshold distsPerIndepVar (indepVarName, threshold) =
     let (SUDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVarName
-    in VU.map (<=threshold) dists
+    in VS.map (<=threshold) dists
 
 -- write variograms to the file system
 writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO ()
@@ -201,34 +202,34 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
         -- spatiotemporal system
         (IndepSpatTempPos _,False) -> do
             -- create mutable vectors to write distances directly
-            spaceVec <- VUM.new nrPairs
-            timeVec  <- VUM.new nrPairs
+            spaceVec <- VSM.new nrPairs
+            timeVec  <- VSM.new nrPairs
             -- calculate and write distances to mutable memory
             mapM_ (distSpaceTime spaceVec timeVec) obsPairs
             -- make result vectors immutable for easier handling
-            spaceVecNonMut <- VU.unsafeFreeze spaceVec
-            timeVecNonMut  <- VU.unsafeFreeze timeVec
+            spaceVecNonMut <- VS.unsafeFreeze spaceVec
+            timeVecNonMut  <- VS.unsafeFreeze timeVec
             return $ MatrixPerIndepVar [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
         (IndepSpatTempPos _,True) -> do
             hPutStrLn stderr $ "Using space-time scaling: space = " ++ show spaceScaling ++ ", time = " ++ show timeScaling
-            distVec <- VUM.new nrPairs
+            distVec <- VSM.new nrPairs
             mapM_ (distSpaceTimeMerged distVec) obsPairs
-            distVecNonMut <- VU.unsafeFreeze distVec
+            distVecNonMut <- VS.unsafeFreeze distVec
             return $ MatrixPerIndepVar [("acrossIndep", SUDistMatrix distVecNonMut)]
         -- arbitrary dimension system
-        (IndepArbitraryDimPos pos@(ValuesPerIndepVar l),False) -> do
-            arbitraryVecs <- replicateM (length l) (VUM.new nrPairs)
+        (IndepArbitraryDimPos pos@(ValuesPerIndepVar ns vs),False) -> do
+            arbitraryVecs <- replicateM (length ns) (VSM.new nrPairs)
             mapM_ (distArbitrary arbitraryVecs) obsPairs
-            arbitraryVecsNonMut <- mapM VU.unsafeFreeze arbitraryVecs
+            arbitraryVecsNonMut <- mapM VS.unsafeFreeze arbitraryVecs
             return $ MatrixPerIndepVar $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
         -- arbitrary dimensions merged
-        (IndepArbitraryDimPos (ValuesPerIndepVar _),True) -> do
-            distVec <- VUM.new nrPairs
+        (IndepArbitraryDimPos (ValuesPerIndepVar _ _),True) -> do
+            distVec <- VSM.new nrPairs
             mapM_ (distArbitraryMerged distVec) obsPairs
-            distVecNonMut <- VU.unsafeFreeze distVec
+            distVecNonMut <- VS.unsafeFreeze distVec
             return $ MatrixPerIndepVar [("acrossIndep", SUDistMatrix distVecNonMut)]
     where
-        distSpaceTime :: VUM.IOVector Double -> VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
+        distSpaceTime :: VSM.IOVector Double -> VSM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distSpaceTime
             spaceVec timeVec
             (i,
@@ -241,10 +242,10 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
                 spaceDistScaled = spaceDist * spatDistUnitScaling
             -- write distances to mutable vector
-            VUM.write spaceVec i spaceDistScaled
-            VUM.write timeVec  i timeDist
+            VSM.write spaceVec i spaceDistScaled
+            VSM.write timeVec  i timeDist
         distSpaceTime _ _ _ = error "impossible state in spatial independent variable distance calculation"
-        distSpaceTimeMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
+        distSpaceTimeMerged :: VSM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distSpaceTimeMerged
             distVec
             (i,
@@ -257,9 +258,9 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
                     Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
                 spaceDistScaled = spaceDist * spatDistUnitScaling
                 mergedDist = sqrt (((spaceDistScaled * spaceScaling) ** 2) + ((timeDist * timeScaling) ** 2))
-            VUM.write distVec i mergedDist
+            VSM.write distVec i mergedDist
         distSpaceTimeMerged _ _ = error "impossible state in spatial independent variable distance calculation"
-        distArbitrary :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
+        distArbitrary :: [VSM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
         distArbitrary
             arbitraryVecs
             (i,
@@ -268,9 +269,9 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             ) = do
             -- this assumes that p1 and p2 have the same order of indep variables
             let arbitraryDists = allDistances (getValues p1) (getValues p2)
-            zipWithM_ (`VUM.write` i) arbitraryVecs arbitraryDists
+            zipWithM_ (`VSM.write` i) arbitraryVecs arbitraryDists
         distArbitrary _ _ = error "impossible state in arbitrary independent variable distance calculation"
-        distArbitraryMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
+        distArbitraryMerged :: VSM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distArbitraryMerged
             distVec
             (i,
@@ -279,7 +280,7 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             ) = do
             -- this assumes that p1 and p2 have the same order of indep variables
             let arbitraryDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
-            VUM.write distVec i arbitraryDistEuclidean
+            VSM.write distVec i arbitraryDistEuclidean
         distArbitraryMerged _ _ = error "impossible state in merged arbitrary independent variable distance calculation"
 
 calcDepVarPairwiseDistances :: Bool -> V.Vector Observation -> IO [(DepVarName, SUDistMatrix)]
@@ -290,23 +291,23 @@ calcDepVarPairwiseDistances merge obs = do
     -- writing distances to mutable vectors
     if merge
     then do
-        distVec <- VUM.new nrPairs
+        distVec <- VSM.new nrPairs
         mapM_ (distDepMerged distVec) obsPairs
-        distVecNonMut <- VU.unsafeFreeze distVec
+        distVecNonMut <- VS.unsafeFreeze distVec
         return [("acrossDep", SUDistMatrix distVecNonMut)]
     else do
-        depVecs <- replicateM (length l) (VUM.new nrPairs)
+        depVecs <- replicateM (length l) (VSM.new nrPairs)
         mapM_ (distDep depVecs) obsPairs
-        depVecsNonMut <- mapM VU.unsafeFreeze depVecs
+        depVecsNonMut <- mapM VS.unsafeFreeze depVecs
         return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
     where
-        distDep :: [VUM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
+        distDep :: [VSM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
         distDep depVecs (i, (Observation _ _ (HyperPos _ p1) _, Observation _ _ (HyperPos _ p2) _)) = do
             -- this assumes that p1 and p2 have the same order of dep variables
             let depDists = allDistances (getValues p1) (getValues p2)
-            zipWithM_ (`VUM.write` i) depVecs depDists
-        distDepMerged :: VUM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
+            zipWithM_ (`VSM.write` i) depVecs depDists
+        distDepMerged :: VSM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
         distDepMerged distVec (i, (Observation _ _ (HyperPos _ p1) _, Observation _ _ (HyperPos _ p2) _)) = do
             -- this assumes that p1 and p2 have the same order of dep variables
             let depDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
-            VUM.write distVec i depDistEuclidean
+            VSM.write distVec i depDistEuclidean

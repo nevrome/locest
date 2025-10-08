@@ -18,6 +18,7 @@ import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           Data.List             (find, sortBy)
 import qualified Data.Vector           as V
+import qualified Data.Vector.Storable  as VS
 import           GHC.Generics          (Generic)
 
 -- filtering and sorting variables
@@ -516,11 +517,17 @@ type ArbitraryDimThresholds = ValuesPerIndepVar
 type ArbitraryDimPos = ValuesPerIndepVar
 type ArbitraryDimDists = ValuesPerIndepVar
 type ArbitraryDimLengths = ValuesPerIndepVar
-newtype ValuesPerIndepVar = ValuesPerIndepVar [(IndepVarName, Double)]
+--newtype ValuesPerIndepVar = ValuesPerIndepVar [(IndepVarName, Double)]
+--    deriving (Eq, Show, Ord, Generic)
+data ValuesPerIndepVar = ValuesPerIndepVar (V.Vector IndepVarName) (VS.Vector Double)
     deriving (Eq, Show, Ord, Generic)
 
-makeValuesPerIndepVar :: [(DepVarName, Double)] -> ValuesPerIndepVar
-makeValuesPerIndepVar xs = ValuesPerIndepVar $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
+makeValuesPerIndepVar :: [(IndepVarName, Double)] -> ValuesPerIndepVar
+makeValuesPerIndepVar xs =
+    let sorted = sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
+        namesV = V.fromList (map fst sorted)
+        valsVS = VS.fromList (map snd sorted)
+    in ValuesPerIndepVar namesV valsVS
 
 instance S.Serialise ValuesPerIndepVar
 instance NFData ValuesPerIndepVar
@@ -530,21 +537,23 @@ instance Csv.FromNamedRecord ValuesPerIndepVar where
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
         pure $ makeValuesPerIndepVar $ HM.toList extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerIndepVar where
-    headerOrder (ValuesPerIndepVar l) =
-        V.map Bchs.pack $ V.fromList $ map fst l
+    headerOrder (ValuesPerIndepVar ns _) = V.map Bchs.pack ns
 instance Csv.ToRecord ValuesPerIndepVar where
-    toRecord (ValuesPerIndepVar l) =
-        V.map (Bchs.pack . show) $ V.fromList $ map snd l
+    toRecord (ValuesPerIndepVar _ vs) = V.map (Bchs.pack . show) $ VS.convert vs
 instance PseudoMap ValuesPerIndepVar Double where
-    toList (ValuesPerIndepVar l) = l
-    getKeys (ValuesPerIndepVar l) = map fst l
-    getValues (ValuesPerIndepVar l) = map snd l
-    lookupUnsafe (ValuesPerIndepVar l) k =
-        case lookup k l of
-            Just x  -> x
-            Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
+    toList (ValuesPerIndepVar ns vs) = V.toList $ V.zip ns (VS.convert vs)
+    getKeys (ValuesPerIndepVar ns _) = V.toList ns
+    getValues (ValuesPerIndepVar _ vs) = VS.toList vs
+    lookupUnsafe (ValuesPerIndepVar ns vs) k =
+        case V.findIndex (== k) ns of
+          Just ix -> vs VS.! ix
+          Nothing -> throwL ("Missing key: " ++ k)
     allSameVars xs = allEqual $ map getKeys xs
-    filterByKey k (ValuesPerIndepVar l) = ValuesPerIndepVar (filterByKeyList k l)
+    filterByKey ks (ValuesPerIndepVar ns vs) =
+        let keepIx = V.findIndices (`elem` ks) ns
+        in ValuesPerIndepVar
+             (V.backpermute ns keepIx)
+             (VS.backpermute vs (VS.fromList (V.toList keepIx)))
 
 -- A data type for positions independent variable space, so here either a spatiotemporal
 -- or an arbitrary space

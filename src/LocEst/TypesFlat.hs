@@ -10,7 +10,6 @@ import LocEst.Types
 import           LocEst.Exceptions     (throwL)
 
 import qualified Data.Vector as V
-import qualified Data.Vector.Unboxed   as VU
 import qualified Data.Vector.Storable   as VS
 import           GHC.Generics          (Generic)
 import qualified Codec.Serialise       as S
@@ -22,37 +21,10 @@ data IndepVarsDistFlat = IndepVarsDistFlat {
    , stride  :: Int --  number of doubles per row (max of 2 or arbitrary dim length)
    }
 
-flattenIndepVarsDists :: V.Vector IndepVarsDist -> IndepVarsDistFlat
-flattenIndepVarsDists vec
-  | V.null vec = IndepVarsDistFlat VS.empty VS.empty 0
-  | otherwise =
-    -- determine stride: in spatial/temporal case it's 2, in arbitrary case it is length of its ValuesPerIndepVar.
-    let !stride = case V.head vec of
-            IndepArbitraryDimDist (ValuesPerIndepVar xs) -> length xs
-            IndepSpatTempDist _ -> 2
-        !n = V.length vec
-    -- generate tags and payload in one pass.
-        tagsU :: VS.Vector Bool
-        tagsU = VS.generate n $ \i -> case V.unsafeIndex vec i of
-                    IndepSpatTempDist _ -> False
-                    IndepArbitraryDimDist _ -> True
-        payloadU :: VS.Vector Double
-        payloadU = VS.generate (n * stride) $ \j ->
-                    let (!row, !col) = j `quotRem` stride
-                    in case V.unsafeIndex vec row of
-                         IndepSpatTempDist (SpatTempDist sd td)
-                           | col == 0 -> sd
-                           | col == 1 -> td
-                           | otherwise -> 0.0 -- unused for spat/temp
-                         IndepArbitraryDimDist (ValuesPerIndepVar xs)
-                           -> let (_, d) = xs !! col
-                              in d
-    in IndepVarsDistFlat tagsU payloadU stride
-
 -- | A data type for a symmetric, unidirectional distance matrix
 -- this matrix has (n*n)/2 - n entries and a triangular shape
 newtype SUDistMatrix = SUDistMatrix {
-    _sudmMatrix     :: VU.Vector Double
+    _sudmMatrix     :: VS.Vector Double
 } deriving (Generic, Show, Eq)
 -- If you need a  lookup function for this matrix you must consider that the
 -- triangular matrix packs its values in a certain order. In the case of a
@@ -87,13 +59,13 @@ instance PseudoMap MatrixPerIndepVar SUDistMatrix where
 data AUDistMatrix = AUDistMatrix {
       _audmNrCols :: Int -- column number
     , _audmNrRows :: Int -- row number
-    , _audmMatrix :: VU.Vector Double
+    , _audmMatrix :: VS.Vector Double
 } deriving (Generic)
 
 instance S.Serialise AUDistMatrix
 
 lookUpDistanceAU :: AUDistMatrix -> Int -> Int -> Double
-lookUpDistanceAU (AUDistMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
+lookUpDistanceAU (AUDistMatrix ncol _ vec) col row = vec VS.! (col + ncol * row)
 
 type SpatDistMatrix = AUDistMatrix
 
@@ -101,10 +73,10 @@ type SpatDistMatrix = AUDistMatrix
 data TempSampleMatrix = TempSampleMatrix {
       _tSMNrSamples :: Int -- column number
     , _tSMNrObs     :: Int -- row number
-    , _tSMMatrix    :: VU.Vector YearBCAD
+    , _tSMMatrix    :: VS.Vector YearBCAD
 } deriving (Generic)
 
 instance S.Serialise TempSampleMatrix
 
 lookUpTempSample :: TempSampleMatrix -> Int -> Int -> YearBCAD
-lookUpTempSample (TempSampleMatrix ncol _ vec) col row = vec VU.! (col + ncol * row)
+lookUpTempSample (TempSampleMatrix ncol _ vec) col row = vec VS.! (col + ncol * row)
