@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns             #-}
+
 module LocEst.CoreAlgorithms where
 
 import           LocEst.Distance
@@ -61,22 +63,33 @@ sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
 {-# INLINE computeWeightsFlat #-}
 computeWeightsFlat :: KernelOneDepVar -> IndepVarsDistFlat -> VS.Vector Double
 computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
-    let thetas = getValues (_kodvLengths kernel)
-        thetasU = VS.fromList thetas
+    let thetasList = getValues (_kodvLengths kernel)
+        thetasU    = VS.fromList thetasList
     in VS.generate (VS.length tags) $ \i ->
-      if not (tags VS.! i)
-        then -- spat/temp case
-             let spatDist = payload VS.! (i*stride)
-                 tempDist = payload VS.! (i*stride + 1)
-                 (spaceKernelWidth,timeKernelWidth) = case thetas of
-                     [sw,tw] -> (sw, tw)
-                     _ -> error "kernel mismatch"
-             in computeWeight (_kodvShape kernel)
-                  ((spatDist / spaceKernelWidth) ** 2 + (tempDist / timeKernelWidth) ** 2)
-        else -- arbitrary case
-             let dists = VS.slice (i*stride) stride payload
-                 dist2 = VS.sum $ VS.zipWith (\d t -> (d / t) ** 2) dists thetasU
-             in computeWeight (_kodvShape kernel) dist2
+        if not (tags `VS.unsafeIndex` i)
+        then
+            -- spat/temp case
+            case thetasList of
+              [spaceW, timeW] ->
+                  let spatDist = payload `VS.unsafeIndex` (i*stride)
+                      tempDist = payload `VS.unsafeIndex` (i*stride + 1)
+                      ds2      = (spatDist / spaceW) ^ 2
+                               + (tempDist / timeW) ^ 2
+                  in computeWeight (_kodvShape kernel) ds2
+              _ -> error "kernel mismatch for spat/temp case"
+        else
+            -- arbitrary case
+            let base = i*stride
+                !acc = go 0 0.0
+                  where
+                    go j !s
+                      | j >= stride = s
+                      | otherwise =
+                          let d = payload `VS.unsafeIndex` (base+j)
+                              t = thetasU `VS.unsafeIndex` j
+                              x = d / t
+                          in go (j+1) (s + x*x)
+            in computeWeight (_kodvShape kernel) acc
 
 {-# INLINE computeWeight #-}
 computeWeight :: KernelShape -> SquaredWeightedDist -> Double
