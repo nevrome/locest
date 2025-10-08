@@ -29,7 +29,7 @@ gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar ker
         weightsObsObs   = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsObs
         weightsObsGrid  = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsGrid
         weightsGridGrid = M.reshape (V.length grid) $ computeWeightsFlat kernel distsGridGrid
-        resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values 0.1 0.00001
+        resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values 0.1
     in V.map (search depVar maybeSearchValues) resDistribution
 
 kas :: V.Vector Observation -> IndepVarsDistFlat -> Maybe (V.Vector DepVarsPredPos)
@@ -59,10 +59,9 @@ gprCore ::
     -> M.Matrix Double -- grid–grid weights
     -> M.Vector Double -- y: measured values in dependent variable space
     -> Double          -- nugget noise term g
-    -> Double          -- jitter eps
     -> V.Vector (Either String NormalDistribution)
   -- -> (M.Vector Double, M.Matrix Double, M.Matrix Double) -- mean, covFull, covInterp
-gprCore d dx dxx y g eps =
+gprCore d dx dxx y g =
     let nObs  = M.rows d
         nGrid = M.rows dxx
         -- training kernel + nugget
@@ -83,10 +82,11 @@ gprCore d dx dxx y g eps =
     
 marginals :: M.Vector Double -> M.Matrix Double -> V.Vector (Either String NormalDistribution)
 marginals meanVec covMat =
-    let n = M.size meanVec
+    let diagCov = M.takeDiag covMat
+        n = M.size meanVec
     in V.generate n $ \i ->
         let mu    = M.atIndex meanVec i
-            var   = M.atIndex covMat (i,i) -- diagonal element
+            var   = M.atIndex diagCov i
             std   = sqrt var
         in normal mu std
 
