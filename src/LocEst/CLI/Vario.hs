@@ -192,6 +192,12 @@ getIndicesForBin sortedVec i1 i2 =
     --let !_ = unsafePerformIO $ putStrLn (show i1 ++ " " ++ show (i2 - i1))
     VU.map fst $ VU.slice i1 (i2 - i1) sortedVec
 
+makeObsPairs :: V.Vector Observation -> [(Int, (Observation, Observation))]
+makeObsPairs obs =
+    let obsIndexMax = V.length obs - 1
+        obsPairs = [(obs V.! x, obs V.! y) | x <- [0..obsIndexMax], y <- [0..obsIndexMax], x > y]
+    in zip [0..] obsPairs
+
 -- distance calculation functions
 calcIndepVarPairwiseDistances :: Bool -> Double -> (Double,Double) -> Maybe SpatDistMatrix -> V.Vector Observation -> IO MatrixPerIndepVar
 calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScaling) maybeSpatDistMatrix obs = do

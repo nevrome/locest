@@ -56,61 +56,43 @@ calcObsGridDistances spatDistUnitScaling obs grid = do
     isArb _                        = False
     posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
 
-makeObsPairs :: V.Vector Observation -> [(Int, (Observation, Observation))]
-makeObsPairs obs =
-    let obsIndexMax = V.length obs - 1
-        obsPairs = [(obs V.! x, obs V.! y) | x <- [0..obsIndexMax], y <- [0..obsIndexMax], x > y]
-    in zip [0..] obsPairs
-
-calcObsDistances :: Double -> V.Vector Observation -> IO MatrixPerIndepVar
-calcObsDistances spatDistUnitScaling obs = do
-    let obsPairs = makeObsPairs obs
-        nrPairs = length obsPairs
-        (Observation _ _ (HyperPos indepPos _) _) = V.head obs
-    case indepPos of
-        -- spatiotemporal system
-        (IndepSpatTempPos _) -> do
-            -- create mutable vectors to write distances directly
-            spaceVec <- VSM.new nrPairs
-            timeVec  <- VSM.new nrPairs
-            -- calculate and write distances to mutable memory
-            mapM_ (distSpaceTime spaceVec timeVec) obsPairs
-            -- make result vectors immutable for easier handling
-            spaceVecNonMut <- VS.unsafeFreeze spaceVec
-            timeVecNonMut  <- VS.unsafeFreeze timeVec
-            return $ MatrixPerIndepVar [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
-        -- arbitrary dimension system
-        (IndepArbitraryDimPos pos@(ValuesPerIndepVar ns vs)) -> do
-            arbitraryVecs <- replicateM (length ns) (VSM.new nrPairs)
-            mapM_ (distArbitrary arbitraryVecs) obsPairs
-            arbitraryVecsNonMut <- mapM VS.unsafeFreeze arbitraryVecs
-            return $ MatrixPerIndepVar $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
-    where
-        distSpaceTime :: VSM.IOVector Double -> VSM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
-        distSpaceTime
-            spaceVec timeVec
-            (i,
-            (Observation i1 _ (HyperPos (IndepSpatTempPos (SpatTempPos s1 t1)) _) _,
-             Observation i2 _ (HyperPos (IndepSpatTempPos (SpatTempPos s2 t2)) _) _)
-            ) = do
-            let timeDist  = temporalDistTempPos t1 t2
-                spaceDist = spatialDistSpatPos s1 s2
-                spaceDistScaled = spaceDist * spatDistUnitScaling
-            -- write distances to mutable vector
-            VSM.write spaceVec i spaceDistScaled
-            VSM.write timeVec  i timeDist
-        distSpaceTime _ _ _ = error "impossible state in spatial independent variable distance calculation"
-        distArbitrary :: [VSM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
-        distArbitrary
-            arbitraryVecs
-            (i,
-            (Observation _ _ (HyperPos (IndepArbitraryDimPos (ValuesPerIndepVar _ vs1)) _) _,
-             Observation _ _ (HyperPos (IndepArbitraryDimPos (ValuesPerIndepVar _ vs2)) _) _)
-            ) = do
-            -- this assumes that p1 and p2 have the same order of indep variables
-            let arbitraryDists = allDistances (VS.toList vs1) (VS.toList vs2)
-            zipWithM_ (`VSM.write` i) arbitraryVecs arbitraryDists
-        distArbitrary _ _ = error "impossible state in arbitrary independent variable distance calculation"
+calcObsObsDistancesFlat :: Double -> V.Vector Observation -> IO IndepVarsDistFlat
+calcObsObsDistancesFlat spatDistUnitScaling obs = do
+    let !nrObs   = V.length obs
+        !nrPairs = nrObs * (nrObs - 1) `div` 2
+    -- determine stride (arbitrary case or spat/temp)
+    let stride = case obs V.!? 0 of
+           Just (Observation _ _ (HyperPos (IndepArbitraryDimPos (ValuesPerIndepVar ns _)) _) _) -> V.length ns
+           _ -> 2
+    -- create empty result vectors
+    tagsMV    <- VSM.new nrPairs        :: IO (VSM.IOVector Bool)
+    payloadMV <- VSM.new (nrPairs * stride) :: IO (VSM.IOVector Double)
+    -- fill half-matrix
+    forM_ [1 .. nrObs-1] $ \i -> do
+      let oi = obs `V.unsafeIndex` i
+      forM_ [0 .. i-1] $ \j -> do
+        let oj  = obs `V.unsafeIndex` j
+            idx = (i * (i-1)) `div` 2 + j -- compact index for half-matrix
+        case (posFromObs oi, posFromObs oj) of
+          (IndepSpatTempPos (SpatTempPos s1 t1),
+           IndepSpatTempPos (SpatTempPos s2 t2)) -> do
+              let !sd = spatialDistSpatPos s1 s2 * spatDistUnitScaling
+                  !td = temporalDistTempPos t1 t2
+              VSM.write tagsMV idx False
+              VSM.write payloadMV (idx*stride)     sd
+              VSM.write payloadMV (idx*stride + 1) td
+          (IndepArbitraryDimPos (ValuesPerIndepVar _ vs1),
+           IndepArbitraryDimPos (ValuesPerIndepVar _ vs2)) -> do
+              let !dvec = allDistancesVS vs1 vs2
+              VSM.write tagsMV idx True
+              VS.copy (VSM.slice (idx*stride) stride payloadMV) dvec
+          _ -> throwL "mismatch in independent variable definitions"
+    -- freeze result vectors
+    tagsVS    <- VS.unsafeFreeze tagsMV
+    payloadVS <- VS.unsafeFreeze payloadMV
+    pure $ IndepVarsDistFlat tagsVS payloadVS stride
+  where
+    posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
 
 -- distance helper functions
 
