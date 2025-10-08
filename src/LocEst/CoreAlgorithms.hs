@@ -18,6 +18,8 @@ import           Statistics.Distribution           (logDensity, quantile, ContDi
 import           Statistics.Distribution.StudentT  (StudentT)
 import           Statistics.Distribution.Transform (LinearTransform)
 import Statistics.Distribution.Normal (NormalDistribution)
+import qualified Data.Vector.Storable.Mutable as VSM
+import Control.Monad (forM_)
 
 
 gpr :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> IndepVarsDistFlat -> IndepVarsDistFlat
@@ -127,33 +129,37 @@ computeWeightsFlat :: KernelOneDepVar -> IndepVarsDistFlat -> VS.Vector Double
 computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
     let thetasList = getValues (_kodvLengths kernel)
         thetasU    = VS.fromList thetasList
-    in VS.generate (VS.length tags) $ \i ->
-        if not (tags `VS.unsafeIndex` i)
-        then
-            -- spat/temp case
-            case thetasList of
-              [spaceW, timeW] ->
-                  let spatDist = payload `VS.unsafeIndex` (i*stride)
-                      tempDist = payload `VS.unsafeIndex` (i*stride + 1)
-                      ds2      = (spatDist / spaceW) ^ 2
-                               + (tempDist / timeW) ^ 2
-                  in computeWeight (_kodvShape kernel) ds2
-              _ -> error "kernel mismatch for spat/temp case"
-        else
-            -- arbitrary case
-            let base = i*stride
-                !acc = go 0 0.0
-                  where
-                    go j !s
-                      | j >= stride = s
-                      | otherwise =
-                          let d = payload `VS.unsafeIndex` (base+j)
-                              t = thetasU `VS.unsafeIndex` j
-                              x = d / t
-                          in go (j+1) (s + x*x)
-            in computeWeight (_kodvShape kernel) acc
+        -- multiplications are seemlingly faster in hot loops,
+        -- so better compute the inverse first
+        thetaInv   = VS.map (1/) thetasU
+        n          = VS.length tags
+        -- risky assumption: tag is always the same
+        firstTag   = tags `VS.unsafeIndex` 0
+        -- choose weight function based on kernel shape
+        !weightFun = case _kodvShape kernel of
+            SquaredExponential -> \ds2 -> 1 / exp ds2
+            Linear             -> \ds2 -> 1 / (1 + sqrt ds2)
+    in if not firstTag
+         -- spat/temp case (stride == 2)
+         then case thetasList of
+                [spaceW, timeW] ->
+                  let !spaceInv = 1 / spaceW
+                      !timeInv  = 1 / timeW
+                  in VS.generate n $ \i ->
+                         let base = i * stride
+                             sd   = payload `VS.unsafeIndex` base     * spaceInv
+                             td   = payload `VS.unsafeIndex` (base+1) * timeInv
+                         in weightFun (sd*sd + td*td)
+                _ -> error "kernel mismatch: spat/temp case expects 2 thetas"
 
-{-# INLINE computeWeight #-}
-computeWeight :: KernelShape -> SquaredWeightedDist -> Double
-computeWeight SquaredExponential d = 1 / exp d
-computeWeight Linear             d = 1 / (1 + sqrt d)
+         -- arbitrary case (small stride loop)
+         else VS.generate n $ \i ->
+                let base = i * stride
+                    !ds2 = let go !j !acc
+                                 | j >= stride = acc
+                                 | otherwise =
+                                     let x = payload `VS.unsafeIndex` (base+j)
+                                             * thetaInv `VS.unsafeIndex` j
+                                   in go (j+1) (acc + x*x)
+                           in go 0 0.0
+                in weightFun ds2
