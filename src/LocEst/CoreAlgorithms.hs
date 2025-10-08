@@ -14,35 +14,46 @@ import           Data.Maybe                        (catMaybes, mapMaybe)
 import qualified Data.Vector                       as V
 import qualified Data.Vector.Storable              as VS
 import qualified Numeric.LinearAlgebra             as M
-import           Statistics.Distribution           (logDensity, quantile)
+import           Statistics.Distribution           (logDensity, quantile, ContDistr)
 import           Statistics.Distribution.StudentT  (StudentT)
 import           Statistics.Distribution.Transform (LinearTransform)
 import Statistics.Distribution.Normal (NormalDistribution)
 
 
-interpolGPR :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> IndepVarsDistFlat -> IndepVarsDistFlat
+gpr :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> IndepVarsDistFlat -> IndepVarsDistFlat
          -> Maybe (V.Vector DepVarsPredPos)
          -> DepVarName -> KernelOneDepVar 
          -> V.Vector SearchResultLong
-interpolGPR obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
+gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         weightsObsObs   = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsObs
         weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         weightsGridGrid = M.reshape (V.length grid) $ computeWeightsFlat kernel distsGridGrid
-        searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
-    in V.map (search searchValues) $ gpr weightsObsObs weightsObsGrid weightsGridGrid values 0.1 0.00001
-    where
-        search searchValues (Right distribution) =
+        resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values 0.1 0.00001
+    in V.map (search depVar maybeSearchValues) resDistribution
+
+kas :: V.Vector Observation -> IndepVarsDistFlat -> Maybe (V.Vector DepVarsPredPos)
+         -> DepVarName -> KernelOneDepVar 
+         -> V.Vector SearchResultLong
+kas obs distsObsGrid maybeSearchValues depVar kernel =
+    let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
+        weights = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
+        resDistribution = kasCore weights values
+    in V.map (search depVar maybeSearchValues) resDistribution
+
+search :: ContDistr b => DepVarName -> Maybe (V.Vector DepVarsPredPos) -> Either String b -> SearchResultLong
+search depVar maybeSearchValues (Right distribution) =
             let lower  = quantile distribution 0.025
                 median = quantile distribution 0.5
                 upper  = quantile distribution 0.975
+                searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
                 logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
             in SSLKAS depVar lower median upper maybeSearchValues logL
-        search searchValues (Left _) = case searchValues of
+search depVar maybeSearchValues (Left _) = case maybeSearchValues of
            Just x  -> SSLKAS depVar (-inf) nan inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
            Nothing -> SSLKAS depVar (-inf) nan inf maybeSearchValues Nothing
 
-gpr
+gprCore
   :: M.Matrix Double      -- ^ K_train (nTrain × nTrain)  -- obs–obs kernel
   -> M.Matrix Double      -- ^ K_cross (nPred × nTrain)    -- grid–obs kernel
   -> M.Matrix Double      -- ^ K_pred  (nPred × nPred)     -- grid–grid kernel
@@ -51,7 +62,7 @@ gpr
   -> Double               -- ^ jitter eps
   -> V.Vector (Either String NormalDistribution)
   -- -> (M.Vector Double, M.Matrix Double, M.Matrix Double) -- mean, covFull, covInterp
-gpr kTrain0 kCross kPred0 yVec g eps =
+gprCore kTrain0 kCross kPred0 yVec g eps =
     let nTrain = M.rows kTrain0
         nPred  = M.rows kPred0
 
@@ -89,29 +100,9 @@ marginals meanVec covMat =
             std   = sqrt var
         in normal mu std
 
-interpol :: V.Vector Observation -> IndepVarsDistFlat -> Maybe (V.Vector DepVarsPredPos)
-         -> DepVarName -> KernelOneDepVar 
-         -> V.Vector SearchResultLong
-interpol obs distsObsGrid maybeSearchValues depVar kernel =
-    let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
-        weights = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
-        searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
-    in V.map (search searchValues) $ kas weights values
-    where
-        search searchValues (Right distribution) =
-            let lower  = quantile distribution 0.025
-                median = quantile distribution 0.5
-                upper  = quantile distribution 0.975
-                logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
-            in SSLKAS depVar lower median upper maybeSearchValues logL
-        search searchValues (Left _) = case searchValues of
-           Just x  -> SSLKAS depVar (-inf) nan inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
-           Nothing -> SSLKAS depVar (-inf) nan inf maybeSearchValues Nothing
-
-kas :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Either String (LinearTransform StudentT))
-kas weights y =
-    V.zipWith3 (\_mu _scale _dof -> (generalizedStudentT _mu _scale _dof))
-        (V.convert mu) (V.convert scale) (V.convert dof)
+kasCore :: M.Matrix M.R -> M.Vector M.R -> V.Vector (Either String (LinearTransform StudentT))
+kasCore weights y =
+    V.zipWith3 generalizedStudentT (V.convert mu) (V.convert scale) (V.convert dof)
     where
       totalWeight = sumRows weights
       weightedAvg = M.flatten (weights M.<> M.asColumn y) / totalWeight

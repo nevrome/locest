@@ -73,17 +73,24 @@ runSearch (SearchOptions
 
 core :: Double -> [DepVarName] -> [KernelOneDepVar] -> Permutation -> IO [SearchResultRow]
 core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
-    distsObsGrid  <- calcObsGridDistances spatDistUnitScaling obs grid
-    distsObsObs   <- calcObsObsDistancesFlat spatDistUnitScaling obs
-    distsGridGrid <- calcGridGridDistancesFlat spatDistUnitScaling grid
     -- TODO: case maybeDistFile of ...
     -- ... 
-    let --perDepVar = zipWith (interpol obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
-        perDepVar = zipWith (interpolGPR obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
-        nGrid = V.length grid
-        -- turn SSL to SSR
-        rowsForGridIdx :: Int -> [SearchResultRow]
-        rowsForGridIdx i =
+    perDepVar <- case True of
+        True -> do
+            --gpr
+            distsObsGrid  <- calcObsGridDistances spatDistUnitScaling obs grid
+            distsObsObs   <- calcObsObsDistancesFlat spatDistUnitScaling obs
+            distsGridGrid <- calcGridGridDistancesFlat spatDistUnitScaling grid
+            return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
+        False -> do
+            -- kas
+            distsObsGrid  <- calcObsGridDistances spatDistUnitScaling obs grid
+            return $ zipWith (kas obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
+    -- turn SSL to SSR
+    pure $ concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]
+    where
+        rowsForGridIdx :: [V.Vector SearchResultLong] -> Int -> [SearchResultRow]
+        rowsForGridIdx perDepVar i =
             let resAtI = map (V.! i) perDepVar
                 mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
                 mkRow mSearchOne llsOne = SSRKAS
@@ -107,7 +114,6 @@ core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSampling
                 rowsWithSearch :: V.Vector DepVarsPredPos -> [SearchResultRow]
                 rowsWithSearch svec = V.toList $ V.imap (\j sp -> mkRow (Just sp) (llsAt j)) svec
             in maybe rowsNoSearch rowsWithSearch searchDepVarPos
-    pure $ concatMap rowsForGridIdx [0 .. nGrid-1]
 
 sumIfAllJust :: [Maybe Double] -> Maybe Double
 sumIfAllJust xs = do
