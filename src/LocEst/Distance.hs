@@ -58,21 +58,21 @@ calcObsGridDistances spatDistUnitScaling obs grid = do
 
 calcObsObsDistancesFlat :: Double -> V.Vector Observation -> IO IndepVarsDistFlat
 calcObsObsDistancesFlat spatDistUnitScaling obs = do
-    let !nrObs   = V.length obs
-        !nrPairs = nrObs * (nrObs - 1) `div` 2
-    -- determine stride (arbitrary case or spat/temp)
-    let stride = case obs V.!? 0 of
-           Just (Observation _ _ (HyperPos (IndepArbitraryDimPos (ValuesPerIndepVar ns _)) _) _) -> V.length ns
-           _ -> 2
+    let !nrObs    = V.length obs
+        !nrPairs  = nrObs * nrObs
+        -- determine stride: number of independent vars in arbitrary case
+        stride = case obs V.!? 0 of
+            Just (Observation _ _ (HyperPos (IndepArbitraryDimPos (ValuesPerIndepVar ns _)) _) _) -> V.length ns
+            _ -> 2
     -- create empty result vectors
     tagsMV    <- VSM.new nrPairs        :: IO (VSM.IOVector Bool)
     payloadMV <- VSM.new (nrPairs * stride) :: IO (VSM.IOVector Double)
-    -- fill half-matrix
-    forM_ [1 .. nrObs-1] $ \i -> do
+    -- loop over all pairs (i,j)
+    forM_ [0 .. nrObs-1] $ \i -> do
       let oi = obs `V.unsafeIndex` i
-      forM_ [0 .. i-1] $ \j -> do
+      forM_ [0 .. nrObs-1] $ \j -> do
         let oj  = obs `V.unsafeIndex` j
-            idx = (i * (i-1)) `div` 2 + j -- compact index for half-matrix
+            idx = i * nrObs + j  -- full matrix row-major index
         case (posFromObs oi, posFromObs oj) of
           (IndepSpatTempPos (SpatTempPos s1 t1),
            IndepSpatTempPos (SpatTempPos s2 t2)) -> do
@@ -83,7 +83,7 @@ calcObsObsDistancesFlat spatDistUnitScaling obs = do
               VSM.write payloadMV (idx*stride + 1) td
           (IndepArbitraryDimPos (ValuesPerIndepVar _ vs1),
            IndepArbitraryDimPos (ValuesPerIndepVar _ vs2)) -> do
-              let !dvec = allDistancesVS vs1 vs2
+              let dvec = allDistancesVS vs1 vs2
               VSM.write tagsMV idx True
               VS.copy (VSM.slice (idx*stride) stride payloadMV) dvec
           _ -> throwL "mismatch in independent variable definitions"
@@ -93,6 +93,42 @@ calcObsObsDistancesFlat spatDistUnitScaling obs = do
     pure $ IndepVarsDistFlat tagsVS payloadVS stride
   where
     posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
+
+calcGridGridDistancesFlat :: Double -> V.Vector IndepVarsPos -> IO IndepVarsDistFlat
+calcGridGridDistancesFlat spatDistUnitScaling grid = do
+    let !nrGrid  = V.length grid
+        !nrPairs = nrGrid * nrGrid
+        -- determine stride
+        stride = case grid V.!? 0 of
+            Just (IndepArbitraryDimPos (ValuesPerIndepVar ns _)) -> V.length ns
+            _                                                    -> 2
+    -- create empty result vectors
+    tagsMV    <- VSM.new nrPairs                :: IO (VSM.IOVector Bool)
+    payloadMV <- VSM.new (nrPairs * stride)     :: IO (VSM.IOVector Double)
+    -- loop over all (i, j)
+    forM_ [0 .. nrGrid-1] $ \i -> do
+      let gi = grid `V.unsafeIndex` i
+      forM_ [0 .. nrGrid-1] $ \j -> do
+        let gj  = grid `V.unsafeIndex` j
+            idx = i * nrGrid + j
+        case (gi, gj) of
+          (IndepSpatTempPos (SpatTempPos s1 t1),
+           IndepSpatTempPos (SpatTempPos s2 t2)) -> do
+              let !sd = spatialDistSpatPos s1 s2 * spatDistUnitScaling
+                  !td = temporalDistTempPos t1 t2
+              VSM.write tagsMV idx False
+              VSM.write payloadMV (idx*stride)     sd
+              VSM.write payloadMV (idx*stride + 1) td
+          (IndepArbitraryDimPos (ValuesPerIndepVar _ vs1),
+           IndepArbitraryDimPos (ValuesPerIndepVar _ vs2)) -> do
+              let dvec = allDistancesVS vs1 vs2
+              VSM.write tagsMV idx True
+              VS.copy (VSM.slice (idx*stride) stride payloadMV) dvec
+          _ -> throwL "mismatch in independent variable definitions"
+    -- freeze
+    tagsVS    <- VS.unsafeFreeze tagsMV
+    payloadVS <- VS.unsafeFreeze payloadMV
+    pure $ IndepVarsDistFlat tagsVS payloadVS stride
 
 -- distance helper functions
 
