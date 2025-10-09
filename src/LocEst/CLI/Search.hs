@@ -49,6 +49,7 @@ runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
     inObsFile inIndepVarsPredGridFile maybeTempGrid inMaybeDepSearchGrid kernelDefinition outFile
     ) spatDistUnitScaling = do
+    let algorithm = _kdefAlgorithm kernelDefinition
     -- list of variables
     let depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
@@ -66,18 +67,18 @@ runSearch (SearchOptions
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . core spatDistUnitScaling depVars kernels)
+        .| ConL.concatMapM (liftIO . core algorithm spatDistUnitScaling depVars kernels)
         .| progress 1000 Nothing
         -- .| normalise normalisation
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
-core :: Double -> [DepVarName] -> [KernelOneDepVar] -> Permutation -> IO [SearchResultRow]
-core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
+core :: Algorithm -> Double -> [DepVarName] -> [KernelOneDepVar] -> Permutation -> IO [SearchResultRow]
+core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
     -- TODO: case maybeDistFile of ...
     -- ... 
-    perDepVar <- case True of
-        True -> do
+    perDepVar <- case algorithm of
+        GPR -> do
             -- gpr
             aObsGrid  <- async $ calcObsGridDistances  spatDistUnitScaling obs  grid
             aObsObs   <- async $ calcObsObsDistancesFlat spatDistUnitScaling obs
@@ -86,7 +87,7 @@ core spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSampling
             distsObsObs   <- wait aObsObs
             distsGridGrid <- wait aGridGrid
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
-        False -> do
+        KAS -> do
             -- kas
             distsObsGrid  <- calcObsGridDistances spatDistUnitScaling obs grid
             return $ zipWith (kas obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar

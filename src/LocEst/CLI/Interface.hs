@@ -800,13 +800,16 @@ optParseOutFile = OP.option (Just <$> OP.str) (
 
 optParseKernDefString :: OP.Parser KernelDefinition
 optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
-       OP.long    "kerndef"
-    <> OP.short   'k'
+       OP.long    "algodef"
+    <> OP.short   'a'
     <> OP.metavar "DSL"
     <> OP.helpDoc ( Just (
-                      s2d "Kernel parameter settings for the interpolation."
+                      s2d "Algorithm parameter settings for the interpolation."
     <> OH.hardline <>     "┌──────────────────┐"
-    <> OH.hardline <>     "│c(                │ named list of dependent variables"
+    <> OH.hardline <>     "│def(              │"
+    <> OH.hardline <>     "│  algorithm = GPR,│ interpolation algorithm"
+    <> OH.hardline <>     "│                  │ - either GPR or KAS"
+    <> OH.hardline <>     "│  depVars = c(    │ named list of dependent variables"
     <> OH.hardline <>     "│  depV1 = k(      │ - first dependent variable"
     <> OH.hardline <>     "│    shape = SqEx, │   - either SqEx = Squared exponential"
     <> OH.hardline <>     "│                  │         or Linear = Linear kernel"
@@ -830,13 +833,20 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
                 Right x  -> Right x
         parseAKernDefString :: P.Parser KernelDefinition
         parseAKernDefString = do
-                    nested <- parseNamedVector parseDepVarName parseShapeLengths
-                    return $ makeKernelDefinition $ map (\(name,(s,l)) -> KernelOneDepVar name s l) nested
+                    kerndef <- parseRecordType "def" $ do
+                        algo <- parseArgument "algorithm" parseAlgorithm
+                        kernelSets <- parseArgument "depVars" (parseNamedVector parseDepVarName parseShapeLengths)
+                        return (algo, kernelSets)
+                    return $ makeKernelDefinition (fst kerndef) $
+                        map (\(name,(s,l)) -> KernelOneDepVar name s l) (snd kerndef)
         parseShapeLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
                 l <- parseArgument "lengths" parseKernelLengths
                 return (s,l)
+        parseAlgorithm = do
+            algo <- parseAnyString
+            makeAlgorithm algo
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape

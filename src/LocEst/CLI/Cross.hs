@@ -60,57 +60,57 @@ runCross (
     CrossOptions inObsFile
     crossSuppSettings
     (CrossSettings kernsPerDepVar coAnalyseDepVars subsetMode) outFile outMode
-    ) numThreads spatDistUnitScaling = do
+    ) numThreads spatDistUnitScaling = undefined
     -- prepare kernel definitions
-    hPutStrLn stderr "Preparing kernel permutations"
-    let (kernDefsSets, depVarsSets) =
-            if coAnalyseDepVars
-            --kernsPerDepVar: [[kernForDepVar1], [kernForDepVar2], ..
-            then let ks = map makeKernelDefinition $ sequenceA kernsPerDepVar
-                     ds = getKeys $ head ks
-                 in (singleton ks, singleton ds)
-            else let ks = map (map (makeKernelDefinition . singleton)) kernsPerDepVar
-                     ds = map (getKeys . head) ks
-                 in (ks, ds)
+    -- hPutStrLn stderr "Preparing kernel permutations"
+    -- let (kernDefsSets, depVarsSets) =
+    --         if coAnalyseDepVars
+    --         --kernsPerDepVar: [[kernForDepVar1], [kernForDepVar2], ..
+    --         then let ks = map makeKernelDefinition $ sequenceA kernsPerDepVar
+    --                  ds = getKeys $ head ks
+    --              in (singleton ks, singleton ds)
+    --         else let ks = map (map (makeKernelDefinition . singleton)) kernsPerDepVar
+    --                  ds = map (getKeys . head) ks
+    --              in (ks, ds)
     -- read observations
-    observationsRaw <- readObservations inObsFile
+    -- observationsRaw <- readObservations inObsFile
     -- count nr of permutations
-    let numKernDefs = length $ concat kernDefsSets
-        numObs = length observationsRaw
-        (testFraction, numIterations) = case subsetMode of
-            CrossFull           -> (1,1)
-            CrossFraction f i _ -> (f,i)
-        numTestObs = round $ testFraction * fromIntegral numObs
-        numPermutations = numKernDefs * numTestObs * numIterations
+    -- let numKernDefs = length $ concat kernDefsSets
+    --     numObs = length observationsRaw
+    --     (testFraction, numIterations) = case subsetMode of
+    --         CrossFull           -> (1,1)
+    --         CrossFraction f i _ -> (f,i)
+    --     numTestObs = round $ testFraction * fromIntegral numObs
+    --     numPermutations = numKernDefs * numTestObs * numIterations
     -- run cross-validation for all depVars
-    Con.runConduitRes $
-           ConC.yieldMany (zip kernDefsSets depVarsSets)
-        .| Con.awaitForever (
-            \(kernDefs,depVars) -> do
-                liftIO $ hPutStrLn stderr $ "Working on: " ++ intercalate ", " depVars
+    -- Con.runConduitRes $
+    --        ConC.yieldMany (zip kernDefsSets depVarsSets)
+    --     .| Con.awaitForever (
+    --         \(kernDefs,depVars) -> do
+    --             liftIO $ hPutStrLn stderr $ "Working on: " ++ intercalate ", " depVars
                 -- list of independent variables
-                let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
+                -- let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
                 -- modify observations
-                let observations = filterVarsInObs depVars indepVars observationsRaw
+                -- let observations = filterVarsInObs depVars indepVars observationsRaw
                 -- read core supplements
-                coreSupp <- undefined -- liftIO $ readSupplement indepVars crossSuppSettings observationsRaw
+                --coreSupp <- undefined -- liftIO $ readSupplement indepVars crossSuppSettings observationsRaw
                 -- permutation: one run of the core algorithm
                 -- iteration: one test/training split
-                iterations <- case subsetMode of
-                    CrossFull -> do
-                        liftIO $ hPutStrLn stderr "Prepare all-by-all prediction"
-                        return $ V.singleton (0, observations, observations)
-                    CrossFraction _ iterations maybeSeed -> do
-                        liftIO $ hPutStrLn stderr "Splitting test and training data"
-                        seed <- case maybeSeed of
-                                    Nothing   -> do
-                                        rng <- R.initStdGen
-                                        let (seed,_) = R.genWord32 rng
-                                        return $ fromIntegral seed
-                                    Just seed -> pure seed
-                        return $ V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
+                -- iterations <- case subsetMode of
+                --     CrossFull -> do
+                --         liftIO $ hPutStrLn stderr "Prepare all-by-all prediction"
+                --         return $ V.singleton (0, observations, observations)
+                --     CrossFraction _ iterations maybeSeed -> do
+                --         liftIO $ hPutStrLn stderr "Splitting test and training data"
+                --         seed <- case maybeSeed of
+                --                     Nothing   -> do
+                --                         rng <- R.initStdGen
+                --                         let (seed,_) = R.genWord32 rng
+                --                         return $ fromIntegral seed
+                --                     Just seed -> pure seed
+                --         return $ V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
                 -- run cross-validation pipeline
-                liftIO $ hPutStrLn stderr "Running analysis"
+                -- liftIO $ hPutStrLn stderr "Running analysis"
                 -- ConC.yieldMany kernDefs
                 --     .| Con.awaitForever (
                 --         \kernDef ->
@@ -132,16 +132,16 @@ runCross (
                 --        )
                 --     .| ConC.map (CrossSearchResult depVars)
 
-           )
-        .| progress 1000 (Just numPermutations)
-        .| case outMode of
-            IndividualSearchObsResults -> do
-                   sinkNamedCSV outFile
-            SummedLikelihoodPerKernelSetting -> do
-                   ConL.groupBy groupFunc
-                .| ConC.map summarizeFunc
-                .| sinkNamedCSV outFile
-    hPutStrLn stderr "Done"
+    --        )
+    --     .| progress 1000 (Just numPermutations)
+    --     .| case outMode of
+    --         IndividualSearchObsResults -> do
+    --                sinkNamedCSV outFile
+    --         SummedLikelihoodPerKernelSetting -> do
+    --                ConL.groupBy groupFunc
+    --             .| ConC.map summarizeFunc
+    --             .| sinkNamedCSV outFile
+    -- hPutStrLn stderr "Done"
 
 -- readSupplement :: [String] -> SupplementSettings -> V.Vector Observation -> IO Supplement
 -- readSupplement indepVarsWanted

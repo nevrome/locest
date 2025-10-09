@@ -253,16 +253,19 @@ data DepVarsPredGridSettings =
     | SearchObsDepVarsGridSettings FilePath
 
 -- | A data type to specify a kernel across multiple depvars and indepvars
-newtype KernelDefinition = KernelDefinition {
-        _kdefPerDepVar :: [KernelOneDepVar]
+data KernelDefinition = KernelDefinition {
+        _kdefAlgorithm :: Algorithm
+      , _kdefPerDepVar :: [KernelOneDepVar]
     }
     deriving (Show, Eq, Ord, Generic)
 
-makeKernelDefinition :: [KernelOneDepVar] -> KernelDefinition
-makeKernelDefinition []       = throwL "No kernel settings provided"
-makeKernelDefinition kerndefs =
+
+
+makeKernelDefinition :: Algorithm -> [KernelOneDepVar] -> KernelDefinition
+makeKernelDefinition _ [] = throwL "No kernel settings provided"
+makeKernelDefinition algo kerndefs =
     if allSameVars $ map _kodvLengths kerndefs
-    then KernelDefinition $ sortBy (\k1 k2 -> compare (_kodvDepVarName k1) (_kodvDepVarName k2)) kerndefs
+    then KernelDefinition algo $ sortBy (\k1 k2 -> compare (_kodvDepVarName k1) (_kodvDepVarName k2)) kerndefs
     else throwL "Different independent variables across dependent variables in --kerndef"
 
 instance NFData KernelDefinition
@@ -270,32 +273,32 @@ instance NFData KernelDefinition
 -- there is a conceptual difference between looking at the complete KernelDefinition, which typically exists
 -- in one row, and the KernelOneDepVar values, which can form an own table for input and output
 instance Csv.DefaultOrdered KernelDefinition where
-    headerOrder (KernelDefinition l) =
-        Csv.header $ map (\x -> Bchs.pack $ "kernel_" ++ x) $ concatMap oneColSet l
+    headerOrder (KernelDefinition _ l) =
+        Csv.header $ ["algorithm"] ++ (map (\x -> Bchs.pack $ "kernel_" ++ x) $ concatMap oneColSet l)
         where
             oneColSet :: KernelOneDepVar -> [String]
             oneColSet (KernelOneDepVar name _ lengths) =
                 let lengthscaleCols = map (++ "_length") $ getKeys lengths
                 in map (\x -> name ++ "_" ++ x) $ "shape":lengthscaleCols
 instance Csv.ToRecord KernelDefinition where
-    toRecord (KernelDefinition l) =
-        V.concatMap oneColSet $ V.fromList l
+    toRecord (KernelDefinition algo l) =
+        V.cons (Csv.toField algo) $ V.concatMap oneColSet $ V.fromList l
         where
             oneColSet :: KernelOneDepVar -> Csv.Record
             oneColSet (KernelOneDepVar _ shape lengths) =
                 Csv.record [Csv.toField shape] <> Csv.toRecord lengths
 instance PseudoMap KernelDefinition KernelOneDepVar where
     toList m = zip (getKeys m) (getValues m)
-    getKeys   (KernelDefinition l) = map _kodvDepVarName l
-    getValues (KernelDefinition l) = l
-    lookupUnsafe (KernelDefinition l) k =
+    getKeys   (KernelDefinition _ l) = map _kodvDepVarName l
+    getValues (KernelDefinition _ l) = l
+    lookupUnsafe (KernelDefinition _ l) k =
         case find (\x -> k == _kodvDepVarName x) l of
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
-    allSameVars xs = allEqual $ map (\(KernelDefinition l) -> l) xs
-    filterByKey k kernDef@(KernelDefinition _) =
+    allSameVars xs = allEqual $ map (\(KernelDefinition _ l) -> l) xs
+    filterByKey k kernDef@(KernelDefinition algo _) =
         let kernList = zip (getKeys kernDef) (getValues kernDef)
-        in makeKernelDefinition $ map snd $ filterByKeyList k kernList
+        in makeKernelDefinition algo $ map snd $ filterByKeyList k kernList
 
 -- | A data type for a component of a kernel definition for one depvar
 data KernelOneDepVar = KernelOneDepVar {
@@ -345,6 +348,24 @@ instance PseudoMap KernelLengths Double where
     lookupUnsafe (KernelLengths arbitraryDimLengths) = lookupUnsafe arbitraryDimLengths
     allSameVars xs = allSameVars $ map (\(KernelLengths x) -> x) xs
     filterByKey k (KernelLengths arbitraryDimLengths) = KernelLengths (filterByKey k arbitraryDimLengths)
+
+-- | A data type to specify an interpolation algorithm
+data Algorithm =
+      GPR
+    | KAS
+    deriving (Show, Eq, Ord, Generic)
+
+instance NFData Algorithm
+instance Csv.FromField Algorithm where
+    parseField x = Csv.parseField x >>= makeAlgorithm
+instance Csv.ToField Algorithm where
+    toField GPR = "GPR"
+    toField KAS = "KAS"
+
+makeAlgorithm :: MonadFail m => String -> m Algorithm
+makeAlgorithm "GPR" = pure GPR
+makeAlgorithm "KAS" = pure KAS
+makeAlgorithm x        = fail $ "Algorithm " ++ show x ++ " not recognized"
 
 -- | A data type for kernel shapes
 data KernelShape =
