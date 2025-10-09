@@ -439,29 +439,6 @@ optParseSpaceTimeScaling = OP.option (OP.eitherReader readSpaceTime) (
     <> OP.value (1,1)
     )
 
-optParseNormalisation :: OP.Parser Normalisation
-optParseNormalisation = OP.option (OP.eitherReader readNormalisation) (
-    OP.long "normalisation" <>
-    OP.metavar "NoNorm|NormBySpace" <>
-    OP.value NoNorm
-    <> OP.helpDoc ( Just (
-                      s2d "Should the output likelihoods from the search algorithm should be normalised? \
-                          \Normalisation adds a column [probability] to the output table."
-    <> OH.hardline <> s2d "NoNorm (default): Apply no normalisation."
-    <> OH.hardline <> s2d "NormBySpace: Normalise across all spatial positions at one point in time \
-                          \so across one \"time slice\". Only relevant for spatiotemporal interpolation."
-    ))
-    )
-    where
-        readNormalisation :: String -> Either String Normalisation
-        readNormalisation s =
-            case P.runParser parseNormalisation () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-        parseNormalisation = P.try parseNormBySpace P.<|> parseNoNorm
-        parseNormBySpace = P.string "NormBySpace" >> return NormBySpace
-        parseNoNorm      = P.string "NoNorm"      >> return NoNorm
-
 optParseQuiet :: OP.Parser Bool
 optParseQuiet = OP.switch (
     OP.long "quiet" <>

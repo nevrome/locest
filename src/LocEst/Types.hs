@@ -68,11 +68,12 @@ data SearchResultRow = SSRKAS {
     , _ssrKASUpperBound       :: [Double]
     , _ssrKASSearchPos        :: Maybe DepVarsPredPos
     , _ssrKASLogLikelihood    :: [Maybe Double]
-    , _ssrKASAggLogLikelihood    :: Maybe Double
+    , _ssrKASAggLogLikelihood :: Maybe Double
+    , _ssrKASProbability      :: Maybe Double
 } deriving (Eq, Show, Generic)
 
 instance Csv.DefaultOrdered SearchResultRow where
-  headerOrder (SSRKAS _ grid names _ _ _ mSearch _lls _agglls) =
+  headerOrder (SSRKAS _ grid names _ _ _ mSearch _lls _agglls _) =
     let perDepCols :: DepVarName -> [Bchs.ByteString]
         perDepCols dv =
           map Bchs.pack
@@ -88,9 +89,10 @@ instance Csv.DefaultOrdered SearchResultRow where
        <> searchHdr
        <> aggCols
        <> Csv.header ["agg_log_likelihood"]
+       <> Csv.header ["probability"]
 
 instance Csv.ToRecord SearchResultRow where
-  toRecord (SSRKAS tsi grid names lowB medV upB mSearch lls agglls) =
+  toRecord (SSRKAS tsi grid names lowB medV upB mSearch lls agglls probs) =
     let n = length names
         seg i =
           Csv.record
@@ -105,7 +107,8 @@ instance Csv.ToRecord SearchResultRow where
        <> Csv.toRecord grid
        <> searchRec
        <> aggRec
-       <> Csv.record ([toFieldMaybeDouble agglls])
+       <> Csv.record [toFieldMaybeDouble agglls]
+       <> Csv.record [toFieldMaybeDouble probs]
 
 toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
 toFieldMaybeDouble Nothing  = Bchs.empty

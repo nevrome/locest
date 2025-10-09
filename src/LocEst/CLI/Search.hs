@@ -35,6 +35,8 @@ import qualified Data.ByteString.Char8 as Bchs
 import Conduit (liftIO)
 import Data.Maybe (mapMaybe)
 import Control.Concurrent.Async (async, wait)
+import qualified Data.Map.Strict as Map
+import Data.Foldable (foldl')
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -92,7 +94,10 @@ core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation te
             distsObsGrid  <- calcObsGridDistances spatDistUnitScaling obs grid
             return $ zipWith (kas obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
     -- turn SSL to SSR
-    pure $ concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]
+    let rawRows = concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]
+    if isSpatioTemporal grid
+    then return $ normaliseByTimeSlice rawRows
+    else return rawRows
     where
         rowsForGridIdx :: [V.Vector SearchResultLong] -> Int -> [SearchResultRow]
         rowsForGridIdx perDepVar i =
@@ -108,6 +113,7 @@ core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation te
                     , _ssrKASSearchPos        = mSearchOne
                     , _ssrKASLogLikelihood    = llsOne
                     , _ssrKASAggLogLikelihood = sumIfAllJust llsOne
+                    , _ssrKASProbability      = Nothing
                     }
                 -- extract per-depVar likelihoods at index j (safely)
                 llsAt :: Int -> [Maybe Double]
@@ -124,7 +130,38 @@ core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation te
           ys <- sequence xs
           if null ys then Nothing else Just (sum ys)
 
--- Permutation mechanism
+-- normalisation mechanism
+normaliseByTimeSlice :: [SearchResultRow] -> [SearchResultRow]
+normaliseByTimeSlice rows =
+    -- group all log-likelihoods per time slice
+    let grouped = foldl' (\m row ->
+                      case _ssrKASAggLogLikelihood row of
+                        Just ll -> Map.insertWith (++) (timeKey row) [ll] m
+                        Nothing -> Map.insertWith (++) (timeKey row) [] m
+                   ) Map.empty rows
+    -- compute log–sum–exp denom per time slice
+        factors = Map.map (\logs ->
+                     let maxLog = if null logs then 0 else maximum logs
+                         denom  = sum [exp (l - maxLog) | l <- logs]
+                     in (maxLog, denom)
+                  ) grouped
+    -- normalise each row within its time slice
+        normRow row = case (_ssrKASAggLogLikelihood row, Map.lookup (timeKey row) factors) of
+            (Just ll, Just (maxLog, denom)) | denom > 0 ->
+                 row { _ssrKASProbability = Just $ exp (ll - maxLog) / denom }
+            _ -> row { _ssrKASProbability = Nothing }
+    in map normRow rows
+
+timeKey :: SearchResultRow -> Int
+timeKey row = case _ssrKASIndepVarsPos row of
+    IndepSpatTempPos (SpatTempPos _ (TempPos t)) -> t
+    _ -> error "timeKey: Not spatio-temporal"
+
+isSpatioTemporal v = case v V.!? 0 of
+    Just (IndepSpatTempPos _) -> True
+    _                         -> False
+
+-- permutation mechanism
 data Permutation = Permutation {
       _permTempSamplingIteration :: Int
     , _permObs                   :: V.Vector Observation

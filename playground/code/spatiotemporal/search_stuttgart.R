@@ -50,6 +50,10 @@ system('time locest search --configFile code/spatiotemporal/basic.conf  +RTS -N 
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
+# normalization sanity check
+hu5 %>% dplyr::group_by(search_obsID, yearBCAD) %>%
+  dplyr::summarize(hu = sum(probability))
+
 # https://stackoverflow.com/questions/30510898/split-facet-plot-into-list-of-plots
 splitFacet <- function(x){
   facet_vars <- names(x$facet$params$facets)        
@@ -62,7 +66,7 @@ hu5 %>%
   dplyr::filter(search_obsID == "Stuttgart_published.DG") %>%#, yearBCAD == -7242) %>%
   ggplot() +
   facet_wrap(~yearBCAD) +
-  geom_raster(aes(x, y, fill = exp(agg_log_likelihood))) +
+  geom_raster(aes(x, y, fill = probability)) +
   geom_raster(
     data = hu5 %>% dplyr::filter(!interpol_depC1_post),
     aes(x, y), fill = "white", alpha = 0.3
