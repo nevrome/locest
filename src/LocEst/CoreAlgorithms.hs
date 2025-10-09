@@ -30,19 +30,24 @@ gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar ker
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
         weightsObsGrid  = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsGrid
-        weightsGridGrid = expandHalfToMatrix (V.length grid)$ computeWeightsFlat kernel distsGridGrid
+        weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
         resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values 0.1
     in V.map (search depVar maybeSearchValues) resDistribution
 
 expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
 expandHalfToMatrix n halfVec =
-    let fullVec = VS.generate (n*n) $ \k ->
-          let col = k `div` n
-              row = k `mod` n
-              (a,b) = if row >= col then (row,col) else (col,row)
-              idxHalf = a * (a+1) `div` 2 + b
-          in halfVec VS.! idxHalf
-    in M.reshape n fullVec
+    let mv = VS.create $ do
+          mvec <- VSM.new (n*n)
+          let idx col row = col*n + row  -- column-major index
+              idxHalf i j = i * (i+1) `div` 2 + j
+          forM_ [0..n-1] $ \i -> 
+            forM_ [0..i] $ \j -> do
+              let v = halfVec VS.! idxHalf i j
+              -- write (i,j) and (j,i)
+              VSM.unsafeWrite mvec (idx j i) v
+              VSM.unsafeWrite mvec (idx i j) v
+          pure mvec
+    in M.reshape n mv
 
 kas :: V.Vector Observation -> IndepVarsDistFlat -> Maybe (V.Vector DepVarsPredPos)
          -> DepVarName -> KernelOneDepVar 
