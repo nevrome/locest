@@ -33,7 +33,7 @@ import qualified Data.Csv as Csv
 import GHC.Generics (Generic)
 import qualified Data.ByteString.Char8 as Bchs
 import Conduit (liftIO)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, isJust)
 import Control.Concurrent.Async (async, wait)
 import qualified Data.Map.Strict as Map
 import Data.Foldable (foldl')
@@ -95,7 +95,7 @@ core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation te
             return $ zipWith (kas obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
     -- turn SSL to SSR
     let rawRows = concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]
-    if isSpatioTemporal grid
+    if isJust searchDepVarPos && isSpatioTemporal grid
     then return $ normaliseByTimeSlice rawRows
     else return rawRows
     where
@@ -136,8 +136,8 @@ normaliseByTimeSlice rows =
     -- group all log-likelihoods per time slice
     let grouped = foldl' (\m row ->
                       case _ssrKASAggLogLikelihood row of
-                        Just ll -> Map.insertWith (++) (timeKey row) [ll] m
-                        Nothing -> Map.insertWith (++) (timeKey row) [] m
+                        Just ll -> Map.insertWith (++) (makeKey row) [ll] m
+                        Nothing -> Map.insertWith (++) (makeKey row) [] m
                    ) Map.empty rows
     -- compute log–sum–exp denom per time slice
         factors = Map.map (\logs ->
@@ -146,16 +146,21 @@ normaliseByTimeSlice rows =
                      in (maxLog, denom)
                   ) grouped
     -- normalise each row within its time slice
-        normRow row = case (_ssrKASAggLogLikelihood row, Map.lookup (timeKey row) factors) of
+        normRow row = case (_ssrKASAggLogLikelihood row, Map.lookup (makeKey row) factors) of
             (Just ll, Just (maxLog, denom)) | denom > 0 ->
                  row { _ssrKASProbability = Just $ exp (ll - maxLog) / denom }
             _ -> row { _ssrKASProbability = Nothing }
     in map normRow rows
 
-timeKey :: SearchResultRow -> Int
-timeKey row = case _ssrKASIndepVarsPos row of
-    IndepSpatTempPos (SpatTempPos _ (TempPos t)) -> t
-    _ -> error "timeKey: Not spatio-temporal"
+makeKey :: SearchResultRow -> (DepVarsPredPos, Int)
+makeKey row = 
+    let searchPos = case _ssrKASSearchPos row of
+            Just x -> x
+            _ -> error "impossible state"
+        t = case _ssrKASIndepVarsPos row of
+            IndepSpatTempPos (SpatTempPos _ (TempPos x)) -> x
+            _ -> error "impossible state"
+    in (searchPos, t)
 
 isSpatioTemporal v = case v V.!? 0 of
     Just (IndepSpatTempPos _) -> True

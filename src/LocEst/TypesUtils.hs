@@ -92,7 +92,7 @@ removeDepVarFromHeader depVar =
     in V.map (Bchs.intercalate "_" . filter (/= s) . Bchs.split '_')
 
 -- | A datatype to collect additional, unpecified .csv/tsv file columns (a hashmap in cassava/Data.Csv)
-newtype CsvNamedRecord = CsvNamedRecord Csv.NamedRecord deriving (Show, Eq, Generic)
+newtype CsvNamedRecord = CsvNamedRecord Csv.NamedRecord deriving (Show, Eq, Generic, Ord)
 
 getCsvNR :: CsvNamedRecord -> Csv.NamedRecord
 getCsvNR (CsvNamedRecord x) = x

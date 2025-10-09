@@ -219,7 +219,7 @@ newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
 data DepVarsPredPos =
       DepVarsPredPosDirect DepVarsPos
     | DepVarsPredPosSearchObs Observation
-    deriving (Show, Generic, Eq)
+    deriving (Show, Generic, Eq, Ord)
 
 getObsAge :: DepVarsPredPos -> Maybe YearBCAD
 getObsAge (DepVarsPredPosSearchObs (Observation _ _ (HyperPos (IndepSpatTempPos (SpatTempPos _ (TempPos obsAge))) _) _)) = Just obsAge
@@ -433,7 +433,7 @@ data Observation = Observation {
     , _obsID    :: String
     , _obsPos   :: HyperPos
     , _obsOther :: CsvNamedRecord
-} deriving (Show, Generic, Eq)
+} deriving (Show, Generic, Eq, Ord)
 
 getDepVarsPos :: DepVarName -> Observation -> Double
 getDepVarsPos depVar (Observation _ _ (HyperPos _ depVarsPos) _) = lookupUnsafe depVarsPos depVar
@@ -467,7 +467,7 @@ instance Identifiable Observation where
 data HyperPos = HyperPos {
       _hyposIndepVarsPos :: IndepVarsPos
     , _hyposDepVarsPos   :: DepVarsPos
-} deriving (Show, Generic, Eq)
+} deriving (Show, Generic, Eq, Ord)
 
 instance S.Serialise HyperPos
 instance NFData HyperPos
@@ -493,7 +493,7 @@ type DepVarsRands = ValuesPerDepVar
 type DepVarSamples = ValuesPerDepVar
 type DepVarVariances = ValuesPerDepVar
 newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Generic, Ord)
 
 makeValuesPerDepVar :: [(DepVarName, Double)] -> ValuesPerDepVar
 makeValuesPerDepVar xs = ValuesPerDepVar $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
@@ -569,7 +569,7 @@ instance PseudoMap ValuesPerIndepVar Double where
 -- A data type for positions independent variable space, so here either a spatiotemporal
 -- or an arbitrary space
 data IndepVarsPos = IndepSpatTempPos SpatTempPos | IndepArbitraryDimPos ArbitraryDimPos
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Generic, Ord)
 
 instance S.Serialise IndepVarsPos
 instance NFData IndepVarsPos
@@ -601,7 +601,7 @@ instance Csv.ToRecord SpatTempDist where
 data SpatTempPos = SpatTempPos {
       _spatialPos  :: SpatPos
     , _temporalPos :: TempPos
-} deriving (Eq, Show, Generic)
+} deriving (Eq, Show, Generic, Ord)
 
 instance S.Serialise SpatTempPos
 instance NFData SpatTempPos
@@ -648,7 +648,7 @@ instance Csv.ToField AbsRelTempPos where
 
 -- | A data type for temporal positions
 newtype TempPos = TempPos YearBCAD
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Generic, Ord)
 
 instance S.Serialise TempPos
 instance NFData TempPos
@@ -666,7 +666,7 @@ type YearRange = Word
 
 -- | A data type for spatial positions
 data SpatPos = SpatPosCartesian CartesianPos | SpatPosLongLat LongLatPos
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Generic, Ord)
 
 instance S.Serialise SpatPos
 instance NFData SpatPos
@@ -689,7 +689,7 @@ instance Identifiable SpatPos where
 
 -- | A data type for projected coordinates
 data CartesianPos = CartesianPos Int (Maybe String) Double Double
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Generic, Ord)
 
 instance S.Serialise CartesianPos
 instance NFData CartesianPos
@@ -710,7 +710,7 @@ instance Identifiable CartesianPos where
 
 -- | A data type for Long-Lat coordinates
 data LongLatPos = LongLatPos Int (Maybe String) Longitude Latitude
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Generic, Ord)
 
 instance S.Serialise LongLatPos
 instance NFData LongLatPos
@@ -735,7 +735,7 @@ instance Identifiable LongLatPos where
 
 -- | A data type for Longitudes
 newtype Longitude = Longitude Double
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Generic, Ord)
 
 makeLongitude :: MonadFail m => Double -> m Longitude
 makeLongitude x
@@ -751,7 +751,7 @@ instance Csv.FromField Longitude where
 
 -- | A data type for Latitudes
 newtype Latitude = Latitude Double
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show, Generic, Ord)
 
 makeLatitude :: MonadFail m => Double -> m Latitude
 makeLatitude x
