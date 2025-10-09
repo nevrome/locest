@@ -68,10 +68,10 @@ search depVar maybeSearchValues (Right distribution) =
                 upper  = quantile distribution 0.975
                 searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
                 logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
-            in SSLKAS depVar lower median upper maybeSearchValues logL
+            in SSL depVar lower median upper maybeSearchValues logL
 search depVar maybeSearchValues (Left _) = case maybeSearchValues of
-           Just x  -> SSLKAS depVar (-inf) nan inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
-           Nothing -> SSLKAS depVar (-inf) nan inf maybeSearchValues Nothing
+           Just x  -> SSL depVar (-inf) nan inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
+           Nothing -> SSL depVar (-inf) nan inf maybeSearchValues Nothing
 
 gprCore ::
        M.Matrix Double -- obs–obs weights

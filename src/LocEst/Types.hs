@@ -49,31 +49,31 @@ filterVarsInIndepVarsPos indepVarsWanted (IndepArbitraryDimPos x) =
 -- data types
 
 -- | A data type for interpolation output for one dependent variable
-data SearchResultLong = SSLKAS {
-      _sslKASDepVarName       :: DepVarName   -- name of the dependent variable
-    , _sslKASLowerBound       :: Double    -- lower boundary of the 95% interval
-    , _sslKASMedian           :: Double       -- median (weighted average)
-    , _sslKASUpperBound       :: Double    -- upper boundary of the 95% interval
-    , _sslKASSearchPos        :: Maybe (V.Vector DepVarsPredPos) -- search values
-    , _sslKASLogLikelihood    :: Maybe (V.Vector Double) -- Log-likelihood for search value
+data SearchResultLong = SSL {
+      _sslDepVarName       :: DepVarName -- name of the dependent variable
+    , _sslLowerBound       :: Double     -- lower boundary of the 95% interval
+    , _sslMedian           :: Double     -- median (weighted average)
+    , _sslUpperBound       :: Double     -- upper boundary of the 95% interval
+    , _sslSearchPos        :: Maybe (V.Vector DepVarsPredPos) -- search values
+    , _sslLogLikelihood    :: Maybe (V.Vector Double) -- log-likelihood for search value
 } deriving (Eq, Show, Generic)
 
--- Aggregated row type (per grid position and per search candidate)
-data SearchResultRow = SSRKAS {
-      _ssrKASTempSampIter     :: Int
-    , _ssrKASIndepVarsPos     :: IndepVarsPos
-    , _ssrKASDepVarName       :: [DepVarName]
-    , _ssrKASLowerBound       :: [Double]
-    , _ssrKASMedian           :: [Double]
-    , _ssrKASUpperBound       :: [Double]
-    , _ssrKASSearchPos        :: Maybe DepVarsPredPos
-    , _ssrKASLogLikelihood    :: [Maybe Double]
-    , _ssrKASAggLogLikelihood :: Maybe Double
-    , _ssrKASProbability      :: Maybe Double
+-- | A data type for nterpolation output, aggregated per row (so per grid position and per search candidate)
+data SearchResultRow = SSR {
+      _ssrTempSampIter     :: Int
+    , _ssrIndepVarsPos     :: IndepVarsPos
+    , _ssrDepVarName       :: [DepVarName]
+    , _ssrLowerBound       :: [Double]
+    , _ssrMedian           :: [Double]
+    , _ssrUpperBound       :: [Double]
+    , _ssrSearchPos        :: Maybe DepVarsPredPos
+    , _ssrLogLikelihood    :: [Maybe Double]
+    , _ssrAggLogLikelihood :: Maybe Double
+    , _ssrProbability      :: Maybe Double
 } deriving (Eq, Show, Generic)
 
 instance Csv.DefaultOrdered SearchResultRow where
-  headerOrder (SSRKAS _ grid names _ _ _ mSearch _lls _agglls _) =
+  headerOrder (SSR _ grid names _ _ _ mSearch _lls _agglls _) =
     let perDepCols :: DepVarName -> [Bchs.ByteString]
         perDepCols dv =
           map Bchs.pack
@@ -92,7 +92,7 @@ instance Csv.DefaultOrdered SearchResultRow where
        <> Csv.header ["probability"]
 
 instance Csv.ToRecord SearchResultRow where
-  toRecord (SSRKAS tsi grid names lowB medV upB mSearch lls agglls probs) =
+  toRecord (SSR tsi grid names lowB medV upB mSearch lls agglls probs) =
     let n = length names
         seg i =
           Csv.record

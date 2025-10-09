@@ -103,21 +103,21 @@ core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation te
         rowsForGridIdx perDepVar i =
             let resAtI = map (V.! i) perDepVar
                 mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
-                mkRow mSearchOne llsOne = SSRKAS
-                    { _ssrKASTempSampIter     = tempSamplingIteration
-                    , _ssrKASIndepVarsPos     = grid V.! i
-                    , _ssrKASDepVarName       = map _sslKASDepVarName       resAtI
-                    , _ssrKASLowerBound       = map _sslKASLowerBound       resAtI
-                    , _ssrKASMedian           = map _sslKASMedian           resAtI
-                    , _ssrKASUpperBound       = map _sslKASUpperBound       resAtI
-                    , _ssrKASSearchPos        = mSearchOne
-                    , _ssrKASLogLikelihood    = llsOne
-                    , _ssrKASAggLogLikelihood = sumIfAllJust llsOne
-                    , _ssrKASProbability      = Nothing
+                mkRow mSearchOne llsOne = SSR
+                    { _ssrTempSampIter     = tempSamplingIteration
+                    , _ssrIndepVarsPos     = grid V.! i
+                    , _ssrDepVarName       = map _sslDepVarName resAtI
+                    , _ssrLowerBound       = map _sslLowerBound resAtI
+                    , _ssrMedian           = map _sslMedian     resAtI
+                    , _ssrUpperBound       = map _sslUpperBound resAtI
+                    , _ssrSearchPos        = mSearchOne
+                    , _ssrLogLikelihood    = llsOne
+                    , _ssrAggLogLikelihood = sumIfAllJust llsOne
+                    , _ssrProbability      = Nothing
                     }
                 -- extract per-depVar likelihoods at index j (safely)
                 llsAt :: Int -> [Maybe Double]
-                llsAt j = [ mv >>= (V.!? j) | mv <- map _sslKASLogLikelihood resAtI ]
+                llsAt j = [ mv >>= (V.!? j) | mv <- map _sslLogLikelihood resAtI ]
                 -- branches for absent/present search candidates
                 depCount  = length perDepVar
                 rowsNoSearch :: [SearchResultRow]
@@ -135,7 +135,7 @@ normaliseByTimeSlice :: [SearchResultRow] -> [SearchResultRow]
 normaliseByTimeSlice rows =
     -- group all log-likelihoods per time slice
     let grouped = foldl' (\m row ->
-                      case _ssrKASAggLogLikelihood row of
+                      case _ssrAggLogLikelihood row of
                         Just ll -> Map.insertWith (++) (makeKey row) [ll] m
                         Nothing -> Map.insertWith (++) (makeKey row) [] m
                    ) Map.empty rows
@@ -146,18 +146,18 @@ normaliseByTimeSlice rows =
                      in (maxLog, denom)
                   ) grouped
     -- normalise each row within its time slice
-        normRow row = case (_ssrKASAggLogLikelihood row, Map.lookup (makeKey row) factors) of
+        normRow row = case (_ssrAggLogLikelihood row, Map.lookup (makeKey row) factors) of
             (Just ll, Just (maxLog, denom)) | denom > 0 ->
-                 row { _ssrKASProbability = Just $ exp (ll - maxLog) / denom }
-            _ -> row { _ssrKASProbability = Nothing }
+                 row { _ssrProbability = Just $ exp (ll - maxLog) / denom }
+            _ -> row { _ssrProbability = Nothing }
     in map normRow rows
 
 makeKey :: SearchResultRow -> (DepVarsPredPos, Int)
 makeKey row = 
-    let searchPos = case _ssrKASSearchPos row of
+    let searchPos = case _ssrSearchPos row of
             Just x -> x
             _ -> error "impossible state"
-        t = case _ssrKASIndepVarsPos row of
+        t = case _ssrIndepVarsPos row of
             IndepSpatTempPos (SpatTempPos _ (TempPos x)) -> x
             _ -> error "impossible state"
     in (searchPos, t)

@@ -63,30 +63,16 @@ splitFacet <- function(x){
 }
 
 hu5 %>%
-  dplyr::filter(search_obsID == "Stuttgart_published.DG") %>%#, yearBCAD == -7242) %>%
   ggplot() +
-  facet_wrap(~yearBCAD) +
+  facet_grid(rows = dplyr::vars(yearBCAD), cols = dplyr::vars(search_obsID)) +
   geom_raster(aes(x, y, fill = probability)) +
-  geom_raster(
-    data = hu5 %>% dplyr::filter(!interpol_depC1_post),
-    aes(x, y), fill = "white", alpha = 0.3
-  ) +
   geom_point(
     data = obs %>%
-      dplyr::filter(yearBCAD > -7500 & yearBCAD < -4500) %>%
+      dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%
       dplyr::mutate(yearBCAD = round(yearBCAD, -3)),
     aes(x,y),
     shape = 4, color = "red"
   ) +
-  scale_fill_viridis_c() +
-  coord_fixed() -> p
-
-splitFacet(p)
-
-hu5 %>%
-  ggplot() +
-  facet_wrap(~yearBCAD) +
-  geom_raster(aes(x, y, fill = dep_dist_euclidean)) +
   scale_fill_viridis_c() +
   coord_fixed()
 
