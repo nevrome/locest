@@ -816,7 +816,9 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
     <> OH.hardline <>     "│    lengths = c(  │   - named list with length scale"
     <> OH.hardline <>     "│      space = ... │     for each independent variable"
     <> OH.hardline <>     "│      time = ...  │     (can also be \"indep...\")"
-    <> OH.hardline <>     "│    )             │"
+    <> OH.hardline <>     "│    ),            │"
+    <> OH.hardline <>     "│    nugget = ...  │   - (optional) nugget parameter"
+    <> OH.hardline <>     "│                  │     only relevant for GPR"
     <> OH.hardline <>     "│  ),              │"
     <> OH.hardline <>     "│  depV2 = k(...)  │ - second dependent variable"
     <> OH.hardline <>     "│)                 │"
@@ -838,12 +840,13 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
                         kernelSets <- parseArgument "depVars" (parseNamedVector parseDepVarName parseShapeLengths)
                         return (algo, kernelSets)
                     return $ makeKernelDefinition (fst kerndef) $
-                        map (\(name,(s,l)) -> KernelOneDepVar name s l) (snd kerndef)
+                        map (\(name,(s,l,n)) -> KernelOneDepVar name s l n) (snd kerndef)
         parseShapeLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
                 l <- parseArgument "lengths" parseKernelLengths
-                return (s,l)
+                n <- parseArgumentOptional "nugget" parseNugget
+                return (s,l,n)
         parseAlgorithm = do
             algo <- parseAnyString
             makeAlgorithm algo
@@ -851,6 +854,7 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
             shape <- parseAnyString
             makeKernelShape shape
         parseKernelLengths = KernelLengths . makeValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
+        parseNugget = parsePositiveFloatNumber
 
 optParseCoAnalyseDepVars :: OP.Parser Bool
 optParseCoAnalyseDepVars = OP.switch (
@@ -900,7 +904,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
         parseAKernDefString :: P.Parser [[KernelOneDepVar]]
         parseAKernDefString = do
                     perDepVar <- parseNamedVector parseDepVarName parseShapeLengths
-                    return $ map (\(name,(s,ls)) -> map (KernelOneDepVar name s) ls) perDepVar
+                    return $ map (\(name,(s,ls)) -> map (\l -> KernelOneDepVar name s l Nothing) ls) perDepVar
         parseShapeLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes

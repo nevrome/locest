@@ -277,7 +277,10 @@ instance Csv.DefaultOrdered KernelDefinition where
         Csv.header $ ["algorithm"] ++ (map (\x -> Bchs.pack $ "kernel_" ++ x) $ concatMap oneColSet l)
         where
             oneColSet :: KernelOneDepVar -> [String]
-            oneColSet (KernelOneDepVar name _ lengths) =
+            oneColSet (KernelOneDepVar name _ lengths (Just _)) =
+                let lengthscaleCols = map (++ "_length") $ getKeys lengths
+                in map (\x -> name ++ "_" ++ x) $ "shape":lengthscaleCols ++ ["nugget"]
+            oneColSet (KernelOneDepVar name _ lengths Nothing) =
                 let lengthscaleCols = map (++ "_length") $ getKeys lengths
                 in map (\x -> name ++ "_" ++ x) $ "shape":lengthscaleCols
 instance Csv.ToRecord KernelDefinition where
@@ -285,7 +288,9 @@ instance Csv.ToRecord KernelDefinition where
         V.cons (Csv.toField algo) $ V.concatMap oneColSet $ V.fromList l
         where
             oneColSet :: KernelOneDepVar -> Csv.Record
-            oneColSet (KernelOneDepVar _ shape lengths) =
+            oneColSet (KernelOneDepVar _ shape lengths (Just nugget)) =
+                Csv.record [Csv.toField shape] <> Csv.toRecord lengths <> Csv.record [Csv.toField nugget]
+            oneColSet (KernelOneDepVar _ shape lengths Nothing) =
                 Csv.record [Csv.toField shape] <> Csv.toRecord lengths
 instance PseudoMap KernelDefinition KernelOneDepVar where
     toList m = zip (getKeys m) (getValues m)
@@ -305,6 +310,7 @@ data KernelOneDepVar = KernelOneDepVar {
       _kodvDepVarName :: DepVarName
     , _kodvShape      :: KernelShape
     , _kodvLengths    :: KernelLengths
+    , _kodvNugget     :: Maybe Double
     }
     deriving (Show, Eq, Ord, Generic)
 
@@ -314,16 +320,22 @@ instance Csv.FromNamedRecord KernelOneDepVar where
         depVarName <- filterLookup m "depVar"
         shape      <- filterLookup m "shape"
         lengths    <- Csv.parseNamedRecord m
+        nugget     <- filterLookup m "nugget"
         pure $ KernelOneDepVar {
               _kodvDepVarName = depVarName
             , _kodvShape      = shape
             , _kodvLengths    = lengths
+            , _kodvNugget     = nugget
             }
 instance Csv.DefaultOrdered KernelOneDepVar where
-    headerOrder (KernelOneDepVar _ _ lengths) =
-        Csv.header ["depVar"] <>  Csv.header ["shape"] <> Csv.headerOrder lengths
+    headerOrder (KernelOneDepVar _ _ lengths (Just _)) =
+        Csv.header ["depVar"] <> Csv.header ["shape"] <> Csv.headerOrder lengths
+    headerOrder (KernelOneDepVar _ _ lengths Nothing) =
+        Csv.header ["depVar"] <> Csv.header ["shape"] <> Csv.headerOrder lengths <> Csv.header ["Nugget"]
 instance Csv.ToRecord KernelOneDepVar where
-    toRecord (KernelOneDepVar name shape lengths) =
+    toRecord (KernelOneDepVar name shape lengths (Just nugget)) =
+        Csv.toRecord name <> Csv.toRecord [Csv.toField shape] <> Csv.toRecord lengths <> Csv.toRecord [Csv.toField nugget]
+    toRecord (KernelOneDepVar name shape lengths Nothing) =
         Csv.toRecord name <> Csv.toRecord [Csv.toField shape] <> Csv.toRecord lengths
 
 -- type definitions for easier readability

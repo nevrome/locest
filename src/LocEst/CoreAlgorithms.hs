@@ -31,7 +31,10 @@ gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar ker
         weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
         weightsObsGrid  = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsGrid
         weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
-        resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values 0.1
+        nugget = case _kodvNugget kernel of
+            Just x -> x
+            Nothing -> throwL "nugget parameter missing in kernel definition"
+        resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values nugget
     in V.map (search depVar maybeSearchValues) resDistribution
 
 expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
