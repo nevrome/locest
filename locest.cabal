@@ -74,6 +74,10 @@ executable locest
       -feager-blackholing
       -rtsopts
       "-with-rtsopts=-N"
+      -- https://downloads.haskell.org/~ghc/9.6.6/docs/users_guide/using-optimisation.html
+      -- causes all constructor fields which are marked strict (i.e. !) to be unpacked if possible
+      -- a bit of a sledgehammer: it might sometimes make things worse
+      -funbox-strict-fields
 
 test-suite spec
     hs-source-dirs:
