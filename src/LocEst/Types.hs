@@ -201,15 +201,6 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
     parseNamedRecord m =
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
--- | A data type for distance filter thresholds
-data DistanceThresholds = SpaceTimeFilterThresholds {
-      _stftMinFilter :: Maybe (Double, Double)
-    , _stftMaxFilter :: Maybe (Double, Double)
-} | ArbitraryDimFilterThresholds {
-      _adftMinFilter :: Maybe ArbitraryDimThresholds
-    , _adftMaxFilter :: Maybe ArbitraryDimThresholds
-}
-
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutObsWeight Int

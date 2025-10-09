@@ -30,8 +30,7 @@ data CrossOptions = CrossOptions
     }
 
 data SupplementSettings = SupplementSettings {
-      _stcsDistFilterThresholds :: Maybe DistanceThresholds
-    , _stcsInSpatDistFile       :: Maybe FilePath
+      _stcsInSpatDistFile       :: Maybe FilePath
     , _stcsInObsTempSamplesFile :: Maybe FilePath
     , _stcsNoOrderCheck         :: Bool
 }

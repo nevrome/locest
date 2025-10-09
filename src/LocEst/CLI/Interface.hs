@@ -313,19 +313,18 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     <> OH.hardline <>     "│interpol│depV1│neff,       │ Interpolation output"
     <> OH.hardline <>     "│        │depV2│avg, var    │"
     <> OH.hardline <>     "│        │...  │var_prior,  │"
-    <> OH.hardline <>     "│        │     │low +       │"
-    <> OH.hardline <>     "│        │     │median +    │"
-    <> OH.hardline <>     "│        │     │up +        │"
+    <> OH.hardline <>     "│        │     │low         │"
+    <> OH.hardline <>     "│        │     │median      │"
+    <> OH.hardline <>     "│        │     │up          │"
     <> OH.hardline <>     "│        │     │logl *      │"
     <> OH.hardline <>     "│        │     │prob *%     │"
     <> OH.hardline <>     "├────────┴─────┴────────────┤"
     <> OH.hardline <>     "│dep_dist_euclidean         │ Summary search"
     <> OH.hardline <>     "│log_likelihood             │ results across"
-    <> OH.hardline <>     "│probability %              │ all variables *"
+    <> OH.hardline <>     "│probability +              │ all variables *"
     <> OH.hardline <>     "└───────────────────────────┘"
-    <> OH.hardline <>     " * for the search case"
-    <> OH.hardline <>     " + with --outMode Short only these are returned"
-    <> OH.hardline <>     " % when normalisation is active"
+    <> OH.hardline <>     " * only for the search case"
+    <> OH.hardline <>     " + only for spatio-temporal systems"
     <> OH.hardline <> s2d "Samples(n,seed): Returns not the mean interpolation result but a random \
                           \sample from the posterior predictive distribution."
     <> OH.hardline <> s2d "Obs(n): Returns no interpolation results but a list of the n input \
@@ -528,55 +527,9 @@ optParseSearchPositions =
 optParseSupplementSettings :: OP.Parser SupplementSettings
 optParseSupplementSettings =
     SupplementSettings
-        <$> optParseDistanceThresholds
-        <*> OP.optional optParseInSpatDistMapFile
+        <$> OP.optional optParseInSpatDistMapFile
         <*> OP.optional optParseInObsTempSamplesFile
         <*> optParseInSpatDistNoOrderCheck
-
-optParseDistanceThresholds :: OP.Parser (Maybe DistanceThresholds)
-optParseDistanceThresholds = do
-    OP.liftA2 buildThresholds optParseIndepMinFilter optParseIndepMaxFilter
-    where
-        buildThresholds ::
-               Maybe (Either (Double, Double) ArbitraryDimThresholds)
-            -> Maybe (Either (Double, Double) ArbitraryDimThresholds)
-            -> Maybe DistanceThresholds
-        buildThresholds Nothing Nothing = Nothing
-        buildThresholds (Just minF) Nothing =
-            case minF of
-                Left x  -> Just $ SpaceTimeFilterThresholds (Just x) Nothing
-                Right x -> Just $ ArbitraryDimFilterThresholds (Just x) Nothing
-        buildThresholds Nothing (Just maxF) =
-            case maxF of
-                Left x  -> Just $ SpaceTimeFilterThresholds Nothing (Just x)
-                Right x -> Just $ ArbitraryDimFilterThresholds Nothing (Just x)
-        buildThresholds (Just minF) (Just maxF) =
-            case (minF, maxF) of
-                (Left _, Right _) -> throwL "--indepMinFilter and --indepMaxFilter must agree"
-                (Right _, Left _) -> throwL "--indepMinFilter and --indepMaxFilter must agree"
-                (Left miF, Left maF)   -> Just $ SpaceTimeFilterThresholds (Just miF) (Just maF)
-                (Right miF, Right maF) -> Just $ ArbitraryDimFilterThresholds (Just miF) (Just maF)
-
-optParseIndepMinFilter :: OP.Parser (Maybe (Either (Double, Double) ArbitraryDimThresholds))
-optParseIndepMinFilter = OP.optional $ OP.option (OP.eitherReader readFilterThresholds) (
-       OP.long    "indepMinFilter"
-    <> OP.metavar "c(space=DOUBLE,time=DOUBLE)|c(indepV1=DOUBLE,...)"
-    <> OP.helpDoc ( Just (
-                      s2d "Radius filter. Only consider observations above \
-                          \a certain minimum distance for the interpolation at the prediction \
-                          \grid points."
-    ))
-    )
-
-optParseIndepMaxFilter :: OP.Parser (Maybe (Either (Double, Double) ArbitraryDimThresholds))
-optParseIndepMaxFilter = OP.optional $ OP.option (OP.eitherReader readFilterThresholds) (
-       OP.long    "indepMaxFilter"
-    <> OP.metavar "c(space=DOUBLE,time=DOUBLE)|c(indepV1=DOUBLE,...)"
-    <> OP.helpDoc ( Just (
-                      s2d "Radius filter. Only consider observations below \
-                          \a certain maximum distance."
-    ))
-    )
 
 readFilterThresholds :: String -> Either String (Either (Double, Double) ArbitraryDimThresholds)
 readFilterThresholds s =
