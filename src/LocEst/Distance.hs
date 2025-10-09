@@ -71,51 +71,42 @@ commonDistances spatDistUnitScaling nRows nCols getPosRow getPosCol rows cols = 
     payloadVS <- VS.unsafeFreeze payloadMV
     pure $ IndepVarsDistFlat tagsVS payloadVS stride
 
--- optimised symmetric distance calculation (upper triangle mirroring)
+-- optimised symmetric distance calculation
 commonDistancesHalf ::
      Double     -- ^ scaling factor
   -> GetPos a   -- ^ position extractor
   -> V.Vector a
   -> IO IndepVarsDistFlat
 commonDistancesHalf spatDistUnitScaling getPos vec = do
-    let nRows = V.length vec
-        nCols = nRows
+    let n = V.length vec
         stride = case getPos (vec V.! 0) of
-            IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.length ns
-            _                                             -> 2
+                   IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.length ns
+                   _                                             -> 2
+        nHalf = n * (n+1) `div` 2 -- size of symmetrical half
     -- create empty result vectors
-    tagsMV    <- VSM.new (nRows * nCols)
-    payloadMV <- VSM.new (nRows * nCols * stride)
-    -- loop upper triangle including diagonal
-    forM_ [0 .. nRows-1] $ \i -> do
-      let !pi = getPos (vec V.! i)
-      forM_ [i .. nCols-1] $ \j -> do
-        let !pj     = getPos (vec V.! j)
-            !idx    = i * nCols + j
-            !idxSym = j * nCols + i
-        case (pi, pj) of
+    tagsMV    <- VSM.new nHalf
+    payloadMV <- VSM.new (nHalf * stride)
+    -- walk triangle only
+    let idxHalf i j = i * (i+1) `div` 2 + j
+    forM_ [0 .. n-1] $ \i -> do
+      let pi = getPos (vec V.! i)
+      forM_ [0 .. i] $ \j -> do
+        let pj  = getPos (vec V.! j)
+            idx = idxHalf i j
+        case (pi,pj) of
           (IndepSpatTempPos (SpatTempPos s1 t1),
            IndepSpatTempPos (SpatTempPos s2 t2)) -> do
               let !sd = spatialDistSpatPos s1 s2 * spatDistUnitScaling
                   !td = temporalDistTempPos t1 t2
-              -- write (i,j)
               VSM.write tagsMV idx False
               VSM.write payloadMV (idx*stride)     sd
-              VSM.write payloadMV (idx*stride + 1) td
-              -- mirror (this also copies the diagonal, prevent with (i /= j))
-              VSM.write tagsMV idxSym False
-              VSM.write payloadMV (idxSym*stride)     sd
-              VSM.write payloadMV (idxSym*stride + 1) td
+              VSM.write payloadMV (idx*stride+1)   td
           (IndepArbitraryDimPos (ValuesPerIndepVar _ vs1),
            IndepArbitraryDimPos (ValuesPerIndepVar _ vs2)) -> do
               let dvec = allDistancesVS vs1 vs2
-              -- write (i,j)
               VSM.write tagsMV idx True
               VS.copy (VSM.slice (idx*stride) stride payloadMV) dvec
-              -- mirror
-              VSM.write tagsMV idxSym True
-              VS.copy (VSM.slice (idxSym*stride) stride payloadMV) dvec
-          _ -> throwL "mismatch in independent variable definitions"
+          _ -> throwL "Mismatch in independent variables"
     -- freeze result vectors
     tagsVS    <- VS.unsafeFreeze tagsMV
     payloadVS <- VS.unsafeFreeze payloadMV

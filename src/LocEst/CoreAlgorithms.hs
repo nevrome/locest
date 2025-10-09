@@ -28,11 +28,21 @@ gpr :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> Ind
          -> V.Vector SearchResultLong
 gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
-        weightsObsObs   = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsObs
+        weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
         weightsObsGrid  = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsGrid
-        weightsGridGrid = M.reshape (V.length grid) $ computeWeightsFlat kernel distsGridGrid
+        weightsGridGrid = expandHalfToMatrix (V.length grid)$ computeWeightsFlat kernel distsGridGrid
         resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values 0.1
     in V.map (search depVar maybeSearchValues) resDistribution
+
+expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
+expandHalfToMatrix n halfVec =
+    let fullVec = VS.generate (n*n) $ \k ->
+          let col = k `div` n
+              row = k `mod` n
+              (a,b) = if row >= col then (row,col) else (col,row)
+              idxHalf = a * (a+1) `div` 2 + b
+          in halfVec VS.! idxHalf
+    in M.reshape n fullVec
 
 kas :: V.Vector Observation -> IndepVarsDistFlat -> Maybe (V.Vector DepVarsPredPos)
          -> DepVarName -> KernelOneDepVar 
@@ -151,7 +161,6 @@ computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
                              td   = payload `VS.unsafeIndex` (base+1) * timeInv
                          in weightFun (sd*sd + td*td)
                 _ -> error "kernel mismatch: spat/temp case expects 2 thetas"
-
          -- arbitrary case (small stride loop)
          else VS.generate n $ \i ->
                 let base = i * stride
