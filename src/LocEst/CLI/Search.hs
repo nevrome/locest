@@ -70,8 +70,8 @@ runSearch (SearchOptions
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
     -- read distances
     !obsGridDistances <- traverse (readAUDistMulti obs indepPredGrid) maybeObsGridDistFile
-    !obsObsDistances <- traverse (readSUDistMulti obs indepPredGrid) maybeObsObsDistFile
-    !gridGridDistances <- traverse (readSUDistMulti obs indepPredGrid) maybeGridGridDistFile
+    !obsObsDistances <- traverse (readSUDistMulti obs) maybeObsObsDistFile
+    !gridGridDistances <- traverse (readSUDistMulti indepPredGrid) maybeGridGridDistFile
     -- permutations
     hPutStrLn stderr "Preparing permutations"
     let permutations = createPermutations obs Nothing indepPredGrid depSearchGrid maybeTempGrid

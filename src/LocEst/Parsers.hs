@@ -45,7 +45,33 @@ encodingOptions = Csv.defaultEncodeOptions {
 
 -- matrix parsers
 
-readSUDistMulti = undefined
+readSUDistMulti :: V.Vector a -> FilePath -> IO SUDistMatrixPerIndepVar
+readSUDistMulti vec path = do
+    hPutStrLn stderr "Reading symmetric multidimensional distances"
+    hPutStrLn stderr $ "Parsing " ++ path
+    let n     = V.length vec
+        nHalf = n*(n+1) `div` 2
+    -- peek first row to discover dimension names and stride
+    namesV <- discoverNames path
+    let stride = V.length namesV
+    -- allocate one mutable vector per variable
+    matsMV <- forM [0..stride-1] $ const (VSM.new nHalf)
+    idxRef <- newIORef 0
+    Con.runConduitRes $
+         sourceCSV path
+      .| ConC.mapM unwrapCSVParsingErrors
+      .| ConC.mapM_ (\row -> do
+            let ValuesPerIndepVar _ valsVS = _sdrValues row
+            idx <- liftIO $ readIORef idxRef
+            forM_ [0..stride-1] $ \dimIx ->
+                VSM.write (matsMV !! dimIx) idx (valsVS VS.! dimIx)
+            liftIO $ writeIORef idxRef (idx + 1)
+        )
+    frozen <- forM (zip (V.toList namesV) matsMV) $ \(name, mv) -> do
+                 v <- VS.unsafeFreeze mv
+                 pure (name, SUDistMatrix v)
+    hPutStrLn stderr "Done"
+    pure (SUDistMatrixPerIndepVar frozen)
 
 readAUDistMulti :: V.Vector Observation -> V.Vector IndepVarsPos -> FilePath -> IO AUDistMatrixPerIndepVar
 readAUDistMulti obs grid path = do

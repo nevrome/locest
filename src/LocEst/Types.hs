@@ -215,6 +215,19 @@ instance Csv.FromNamedRecord SingleObsGridDist where
           <*> filterLookup m "gridID"
           <*> Csv.parseNamedRecord m 
 
+data SingleSymDistsRow = SingleSymDistsRow
+  { _sdrId1   :: String
+  , _sdrId2   :: String
+  , _sdrValues :: ValuesPerIndepVar
+  }
+
+instance Csv.FromNamedRecord SingleSymDistsRow where
+  parseNamedRecord m =
+    SingleSymDistsRow
+        <$> filterLookup m "id1"
+        <*> filterLookup m "id2"
+        <*> Csv.parseNamedRecord m
+
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutObsWeight Int
