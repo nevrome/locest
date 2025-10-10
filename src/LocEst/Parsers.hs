@@ -45,6 +45,8 @@ encodingOptions = Csv.defaultEncodeOptions {
 
 -- matrix parsers
 
+readSUDistMulti = undefined
+
 readAUDistMulti :: V.Vector Observation -> V.Vector IndepVarsPos -> FilePath -> IO AUDistMatrixPerIndepVar
 readAUDistMulti obs grid path = do
     hPutStrLn stderr "Reading asymmetric multidimensional distances"
@@ -75,19 +77,19 @@ readAUDistMulti obs grid path = do
                  pure (name, AUDistMatrix nObs nGrid v)
     hPutStrLn stderr "Done"
     pure $ AUDistMatrixPerIndepVar frozen
-  where
-    -- Discover dimension names by parsing only the header from the CSV
-    discoverNames :: FilePath -> IO (V.Vector IndepVarName)
-    discoverNames fp = do
-        hdr <- readCSVHeader fp
-        let indepCols = filter (\k -> Bchs.isPrefixOf "indep" k || k == "space" || k == "time") hdr
-        pure (V.fromList (map Bchs.unpack indepCols))
-    readCSVHeader :: FilePath -> IO [Bchs.ByteString]
-    readCSVHeader fp = do
-        h <- openFile fp ReadMode
-        firstLine <- Bchs.hGetLine h
-        hClose h
-        pure (Bchs.split '\t' firstLine)
+
+-- discover dimension names by parsing only the header from the CSV
+discoverNames :: FilePath -> IO (V.Vector IndepVarName)
+discoverNames fp = do
+    hdr <- readCSVHeader fp
+    let indepCols = filter (\k -> Bchs.isPrefixOf "indep" k || k == "space" || k == "time") hdr
+    pure (V.fromList (map Bchs.unpack indepCols))
+readCSVHeader :: FilePath -> IO [Bchs.ByteString]
+readCSVHeader fp = do
+    h <- openFile fp ReadMode
+    firstLine <- Bchs.hGetLine h
+    hClose h
+    pure (Bchs.split '\t' firstLine)
 
 -- complex parsers
 

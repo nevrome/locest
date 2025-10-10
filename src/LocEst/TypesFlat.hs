@@ -18,7 +18,7 @@ import           Control.DeepSeq
 data IndepVarsDistFlat = IndepVarsDistFlat {
      tags    :: VS.Vector Bool -- False means IndepSpatTempDist, True means IndepArbitraryDimDist
    , payload :: VS.Vector Double -- distances stored contiguously per row.
-   , stride  :: Int --  number of doubles per row (max of 2 or arbitrary dim length)
+   , stride  :: Int -- number of doubles per row (max of 2 or arbitrary dim length)
    }
 
 -- | A data type for a symmetric, unidirectional distance matrix

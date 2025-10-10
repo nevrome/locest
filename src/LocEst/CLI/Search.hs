@@ -45,6 +45,8 @@ data SearchOptions = SearchOptions
     , _searchInDepSearchGrid     :: Maybe DepVarsPredGridSettings
     , _searchAlgorithm           :: KernelDefinition
     , _searchInObsGridDistFile   :: Maybe FilePath
+    , _searchInObsObsDistFile    :: Maybe FilePath
+    , _searchInGridGridDistFile  :: Maybe FilePath
     , _searchOutFile             :: Maybe FilePath
     }
 
@@ -52,7 +54,7 @@ runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
     inObsFile inIndepVarsPredGridFile maybeTempGrid
     inMaybeDepSearchGrid kernelDefinition
-    maybeObsGridDistFile
+    maybeObsGridDistFile maybeObsObsDistFile maybeGridGridDistFile
     outFile
     ) spatDistUnitScaling = do
     let algorithm = _kdefAlgorithm kernelDefinition
@@ -68,6 +70,8 @@ runSearch (SearchOptions
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
     -- read distances
     !obsGridDistances <- traverse (readAUDistMulti obs indepPredGrid) maybeObsGridDistFile
+    !obsObsDistances <- traverse (readSUDistMulti obs indepPredGrid) maybeObsObsDistFile
+    !gridGridDistances <- traverse (readSUDistMulti obs indepPredGrid) maybeGridGridDistFile
     -- permutations
     hPutStrLn stderr "Preparing permutations"
     let permutations = createPermutations obs Nothing indepPredGrid depSearchGrid maybeTempGrid
@@ -75,15 +79,19 @@ runSearch (SearchOptions
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . core algorithm indepVars obsGridDistances spatDistUnitScaling depVars kernels)
+        .| ConL.concatMapM (liftIO . core algorithm indepVars obsGridDistances obsObsDistances gridGridDistances spatDistUnitScaling depVars kernels)
         .| progress 1000 Nothing
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
-core :: Algorithm -> [IndepVarName] -> Maybe AUDistMatrixPerIndepVar -> Double
+core :: Algorithm -> [IndepVarName]
+     -> Maybe AUDistMatrixPerIndepVar -> Maybe SUDistMatrixPerIndepVar -> Maybe SUDistMatrixPerIndepVar
+     -> Double
      -> [DepVarName] -> [KernelOneDepVar] -> Permutation
      -> IO [SearchResultRow]
-core algorithm indepVars maybeObsGridDists spatDistUnitScaling
+core algorithm indepVars
+     maybeObsGridDists maybeObsObsDists maybeGridGridDists
+     spatDistUnitScaling
      depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
     perDepVar <- case algorithm of
         GPR -> do

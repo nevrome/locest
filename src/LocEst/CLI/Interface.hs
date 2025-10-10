@@ -111,6 +111,8 @@ searchOptParser = SearchOptions
                         <*> OP.optional optParseSearchPositions
                         <*> optParseKernDefString
                         <*> OP.optional optParseInObsGridDistFile
+                        <*> OP.optional optParseInObsObsDistFile
+                        <*> OP.optional optParseInGridGridDistFile
                         <*> optParseOutFile
 
 varioOptParser :: OP.Parser VarioOptions
@@ -140,6 +142,18 @@ optParseSpatDistSetting = SpatDistSettings
 optParseInObsGridDistFile :: OP.Parser FilePath
 optParseInObsGridDistFile = OP.strOption (
        OP.long    "obsGridDistFile"
+    <> OP.metavar "FILE"
+    <> OP.help "..." )
+
+optParseInObsObsDistFile :: OP.Parser FilePath
+optParseInObsObsDistFile = OP.strOption (
+       OP.long    "obsObsDistFile"
+    <> OP.metavar "FILE"
+    <> OP.help "..." )
+
+optParseInGridGridDistFile :: OP.Parser FilePath
+optParseInGridGridDistFile = OP.strOption (
+       OP.long    "gridGridDistFile"
     <> OP.metavar "FILE"
     <> OP.help "..." )
 
