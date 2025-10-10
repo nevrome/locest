@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TupleSections #-}
 
 module LocEst.Distance where
 
@@ -16,46 +17,68 @@ import Data.Foldable (forM_)
 import qualified Control.Monad as OP
 import Data.Traversable (forM)
 
-calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO AUDistMatrixPerIndepVar
-calcObsGridDistances spatScale obs grid = do
-    let nrObs   = V.length obs
-        nrGrid  = V.length grid
-        indepVarNames = case grid V.! 0 of
-          IndepSpatTempPos _ ->
-              ["space", "time"]
-          IndepArbitraryDimPos (ValuesPerIndepVar ns _) ->
-              V.toList ns
-    -- mutable vectors for each indep var (full rectangular m*n)
-    matsMV <- forM indepVarNames (\_ -> VSM.new (nrGrid * nrObs))
-    -- fill each dimension's matrix
-    forM_ [0 .. nrGrid-1] $ \gy -> do
-      let gpos = grid V.! gy
-      forM_ [0 .. nrObs-1] $ \ox -> do
-        let opos = obs V.! ox
-            idx = gy * nrObs + ox
-        case (posFromObs opos, gpos) of
-          (IndepSpatTempPos (SpatTempPos s1 t1),
-           IndepSpatTempPos (SpatTempPos s2 t2)) -> do
-              -- dim 0: space
-              let sd = spatialDistSpatPos s1 s2 * spatScale
-              VSM.write (matsMV !! 0) idx sd
-              -- dim 1: time
-              let td = temporalDistTempPos t1 t2
-              VSM.write (matsMV !! 1) idx td
-          (IndepArbitraryDimPos (ValuesPerIndepVar _ vs1),
-           IndepArbitraryDimPos (ValuesPerIndepVar _ vs2)) -> do
-              let dvec = allDistancesVS vs1 vs2
-              forM_ [0 .. VS.length dvec - 1] $ \dimIx ->
-                VSM.write (matsMV !! dimIx) idx (dvec VS.! dimIx)
-          _ -> throwL "mismatch in indep variable definitions"
-    -- freeze and build AUDistMatrixPerIndepVar
-    frozen <- forM (zip indepVarNames matsMV) $
-      \(name, mv) -> do
-           v <- VS.unsafeFreeze mv
-           pure (name, AUDistMatrix nrObs nrGrid v)
-    pure $ AUDistMatrixPerIndepVar frozen
-  where
-    posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
+calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> [IndepVarName] -> IO AUDistMatrixPerIndepVar
+calcObsGridDistances spatScale obs grid varsToCompute = do
+    let indepVarNames = case grid V.! 0 of
+          IndepSpatTempPos _ -> ["space", "time"]
+          IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.toList ns
+    let selected = filter (`elem` varsToCompute) indepVarNames
+    mats <- mapM (calcObsGridOneDim spatScale obs grid) selected
+    pure (AUDistMatrixPerIndepVar mats)
+
+calcObsGridOneDim :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarName -> IO (IndepVarName, AUDistMatrix)
+calcObsGridOneDim spatScale obs grid varName = do
+  case grid V.! 0 of
+    IndepSpatTempPos _ ->
+      case varName of
+        "space" -> fmap (varName,) (computeSpaceAUDistMatrix spatScale obs grid)
+        "time"  -> fmap (varName,) (computeTimeAUDistMatrix obs grid)
+        _       -> error ("Unknown ST variable: " ++ varName)
+    IndepArbitraryDimPos (ValuesPerIndepVar names _) ->
+      case V.elemIndex varName names of
+        Just ix -> fmap (varName,) (computeArbitraryAUDistMatrix ix obs grid)
+        Nothing -> error ("Unknown arbitrary variable: " ++ varName)
+
+computeSpaceAUDistMatrix :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO AUDistMatrix
+computeSpaceAUDistMatrix spatScale obs grid = do
+  let nrObs  = V.length obs
+      nrGrid = V.length grid
+  mv <- VSM.new (nrGrid * nrObs)
+  forM_ [0 .. nrGrid-1] $ \gy ->
+    let IndepSpatTempPos (SpatTempPos s2 _) = grid V.! gy
+    in forM_ [0 .. nrObs-1] $ \ox ->
+         let IndepSpatTempPos (SpatTempPos s1 _) = posFromObs (obs V.! ox)
+         in VSM.write mv (gy*nrObs + ox) (spatialDistSpatPos s1 s2 * spatScale)
+  frozen <- VS.unsafeFreeze mv
+  pure (AUDistMatrix nrObs nrGrid frozen)
+
+computeTimeAUDistMatrix :: V.Vector Observation -> V.Vector IndepVarsPos -> IO AUDistMatrix
+computeTimeAUDistMatrix obs grid = do
+  let nrObs  = V.length obs
+      nrGrid = V.length grid
+  mv <- VSM.new (nrGrid * nrObs)
+  forM_ [0 .. nrGrid-1] $ \gy ->
+    let IndepSpatTempPos (SpatTempPos _ t2) = grid V.! gy
+    in forM_ [0 .. nrObs-1] $ \ox ->
+         let IndepSpatTempPos (SpatTempPos _ t1) = posFromObs (obs V.! ox)
+         in VSM.write mv (gy*nrObs + ox) (temporalDistTempPos t1 t2)
+  frozen <- VS.unsafeFreeze mv
+  pure (AUDistMatrix nrObs nrGrid frozen)
+
+computeArbitraryAUDistMatrix :: Int -> V.Vector Observation -> V.Vector IndepVarsPos -> IO AUDistMatrix
+computeArbitraryAUDistMatrix ix obs grid = do
+  let nrObs  = V.length obs
+      nrGrid = V.length grid
+  mv <- VSM.new (nrGrid * nrObs)
+  forM_ [0 .. nrGrid-1] $ \gy ->
+    let IndepArbitraryDimPos (ValuesPerIndepVar _ vs2) = grid V.! gy
+    in forM_ [0 .. nrObs-1] $ \ox ->
+         let IndepArbitraryDimPos (ValuesPerIndepVar _ vs1) = posFromObs (obs V.! ox)
+         in VSM.write mv (gy*nrObs + ox) (abs (vs1 VS.! ix - vs2 VS.! ix))
+  frozen <- VS.unsafeFreeze mv
+  pure (AUDistMatrix nrObs nrGrid frozen)
+
+posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
 
 auMatrixToFlat :: AUDistMatrixPerIndepVar -> IndepVarsDistFlat
 auMatrixToFlat audmPerIndepVar =

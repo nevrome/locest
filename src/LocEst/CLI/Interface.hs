@@ -110,6 +110,7 @@ searchOptParser = SearchOptions
                         <*> OP.optional optParseTempGridString
                         <*> OP.optional optParseSearchPositions
                         <*> optParseKernDefString
+                        <*> OP.optional optParseInObsGridDistFile
                         <*> optParseOutFile
 
 varioOptParser :: OP.Parser VarioOptions
@@ -134,6 +135,13 @@ optParseSpatDistSetting :: OP.Parser SpatDistSettings
 optParseSpatDistSetting = SpatDistSettings
                         <$> optParseInSpatDistMapFile
                         <*> optParseInSpatDistNoOrderCheck
+
+
+optParseInObsGridDistFile :: OP.Parser FilePath
+optParseInObsGridDistFile = OP.strOption (
+       OP.long    "obsGridDistFile"
+    <> OP.metavar "FILE"
+    <> OP.help "..." )
 
 optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
 optParseIndepVarsThresholds = OP.option (OP.eitherReader readIndepVarsThresholds) (

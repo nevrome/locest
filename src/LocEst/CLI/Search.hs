@@ -44,12 +44,16 @@ data SearchOptions = SearchOptions
     , _searchInTempGrid          :: Maybe [AbsRelTempPos]
     , _searchInDepSearchGrid     :: Maybe DepVarsPredGridSettings
     , _searchAlgorithm           :: KernelDefinition
+    , _searchInObsGridDistFile   :: Maybe FilePath
     , _searchOutFile             :: Maybe FilePath
     }
 
 runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
-    inObsFile inIndepVarsPredGridFile maybeTempGrid inMaybeDepSearchGrid kernelDefinition outFile
+    inObsFile inIndepVarsPredGridFile maybeTempGrid
+    inMaybeDepSearchGrid kernelDefinition
+    maybeObsGridDistFile
+    outFile
     ) spatDistUnitScaling = do
     let algorithm = _kdefAlgorithm kernelDefinition
     -- list of variables
@@ -69,17 +73,20 @@ runSearch (SearchOptions
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . core algorithm spatDistUnitScaling depVars kernels)
+        .| ConL.concatMapM (liftIO . core algorithm indepVars maybeObsGridDistFile spatDistUnitScaling depVars kernels)
         .| progress 1000 Nothing
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
-core :: Algorithm -> Double -> [DepVarName] -> [KernelOneDepVar] -> Permutation -> IO [SearchResultRow]
-core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
+core :: Algorithm -> [IndepVarName] -> Maybe FilePath -> Double
+     -> [DepVarName] -> [KernelOneDepVar] -> Permutation
+     -> IO [SearchResultRow]
+core algorithm indepVars maybeObsGridDistFile spatDistUnitScaling
+     depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
     perDepVar <- case algorithm of
         GPR -> do
             -- gpr
-            aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid
+            aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
             aObsObs   <- async $ suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs
             aGridGrid <- async $ suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid
             distsObsGrid  <- wait aObsGrid
@@ -88,7 +95,7 @@ core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation te
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
         KAS -> do
             -- kas
-            distsObsGrid  <- auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid
+            distsObsGrid  <- auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
             return $ zipWith (kas obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
     -- turn SSL to SSR
     let rawRows = concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]
