@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Strict           #-}
 {-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE OverloadedStrings        #-}
 
 module LocEst.Parsers where
 
@@ -11,7 +12,7 @@ import           LocEst.TypesFlat
 
 import qualified Codec.Serialise           as S
 import           Conduit                   (MonadIO, MonadResource, liftIO)
-import           Control.Monad             (when)
+import           Control.Monad             (when, forM_)
 import           Control.Monad.Error.Class
 import qualified Data.ByteString.Builder   as BB
 import qualified Data.ByteString.Char8     as Bchs
@@ -22,11 +23,13 @@ import qualified Data.Conduit.Combinators  as ConC
 import qualified Data.Csv                  as Csv
 import qualified Data.Csv.Builder          as CsvB
 import qualified Data.Csv.Conduit          as ConCsv
-import           Data.IORef                (modifyIORef, newIORef, readIORef)
+import           Data.IORef                (modifyIORef, newIORef, readIORef, writeIORef)
 import qualified Data.Vector               as V
 import           System.FilePath           (takeExtension)
 import           System.IO                 (Handle, IOMode (..), hClose,
                                             hPutStrLn, openFile, stderr, stdout)
+import qualified Data.Vector.Storable.Mutable as VSM
+import qualified Data.Vector.Storable as VS
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -38,6 +41,51 @@ encodingOptions :: Csv.EncodeOptions
 encodingOptions = Csv.defaultEncodeOptions {
         Csv.encDelimiter = fromIntegral (ord '\t')
     }
+
+
+-- matrix parsers
+
+readAUDistMulti :: V.Vector Observation -> V.Vector IndepVarsPos -> FilePath -> IO AUDistMatrixPerIndepVar
+readAUDistMulti obs grid path = do
+    hPutStrLn stderr $ "Reading multidimensional distances from " ++ path
+    let nObs  = V.length obs
+        nGrid = V.length grid
+        total = nObs * nGrid
+    -- peek the first row to discover dimension names and stride
+    namesV <- discoverNames path
+    let stride = V.length namesV
+    -- allocate one mutable vector per dimension
+    matsMV <- forM [0..stride-1] $ const (VSM.new total)
+    idxRef <- newIORef 0 -- keep track of overall row index for writes
+    -- stream parse and write
+    Con.runConduitRes $
+         sourceCSV path
+      .| ConC.mapM unwrapCSVParsingErrors
+      .| ConC.mapM_ (\row -> do
+            let ValuesPerIndepVar _ valsVS = _smdValues row
+            idx <- liftIO $ readIORef idxRef
+            forM_ [0..stride-1] $ \dimIx ->
+                VSM.write (matsMV !! dimIx) idx (valsVS VS.! dimIx)
+            liftIO $ writeIORef idxRef (idx + 1)
+        )
+    -- freeze
+    frozen <- forM (zip (V.toList namesV) matsMV) $ \(name, mv) -> do
+                 v <- VS.unsafeFreeze mv
+                 pure (name, AUDistMatrix nObs nGrid v)
+    pure $ AUDistMatrixPerIndepVar frozen
+  where
+    -- Discover dimension names by parsing only the header from the CSV
+    discoverNames :: FilePath -> IO (V.Vector IndepVarName)
+    discoverNames fp = do
+        hdr <- readCSVHeader fp
+        let indepCols = filter (Bchs.isPrefixOf "indep") hdr
+        pure (V.fromList (map Bchs.unpack indepCols))
+    readCSVHeader :: FilePath -> IO [Bchs.ByteString]
+    readCSVHeader fp = do
+        h <- openFile fp ReadMode
+        firstLine <- Bchs.hGetLine h
+        hClose h
+        pure (Bchs.split ',' firstLine)
 
 -- complex parsers
 
@@ -135,38 +183,23 @@ readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path) = do
     distVec <- Con.runConduitRes $
         sourceCSV path .|
         ConC.mapM unwrapCSVParsingErrors .|
-        (
-            if noOrderCheck
-            then ConC.map (\(SpatDistObsGrid _ _ dist) -> dist)
-            else checkOrder
-        ) .|
+        ConC.map (\(SpatDistObsGrid _ _ dist) -> dist) .|
         ConC.sinkVectorN (nObs * nGridPoints)
     hPutStrLn stderr "Done"
     return $ AUDistMatrix nGridPoints nObs distVec
-    where
-    checkOrder :: (MonadIO m) => ConduitT SpatDistObsGrid Double m ()
-    checkOrder = do
-        let outerCycle = V.map getID obs
-            innerCycle = maybe outerCycle (V.map getID) maybeSpatGrid
-            fullCycle  = [(o,i) | o <- V.toList outerCycle, i <- V.toList innerCycle]
-        loop fullCycle
-        where
-            loop (expected:rest) = do
-                val <- Con.await
-                case val of
-                    Just oneSpatDist -> do
-                        let (SpatDistObsGrid obsID spatID dist) = oneSpatDist
-                        if (obsID, spatID) == expected
-                        then do
-                            Con.yield dist
-                            loop rest
-                        else do
-                            -- throw an exception if the order is not as expected
-                            liftIO $ throwLIO $
-                                "Order of entries in --spatDistFile not equal to -i and -g. " ++
-                                "Expected: " ++ show expected ++ " but got: " ++ show (obsID, spatID)
-                    Nothing -> return ()
-            loop [] = return ()
+
+readAUDist :: V.Vector Observation -> V.Vector IndepVarsDist -> FilePath -> IO AUDistMatrix
+readAUDist obs grid path = do
+    hPutStrLn stderr $ "Reading distances in " ++ path
+    let nObs = V.length obs
+        nGrid = V.length grid
+    distVec <- Con.runConduitRes $
+        sourceCSV path .|
+        ConC.mapM unwrapCSVParsingErrors .|
+        ConC.map (\(SpatDistObsGrid _ _ dist) -> dist) .|
+        ConC.sinkVectorN (nObs * nGrid)
+    hPutStrLn stderr "Done"
+    return $ AUDistMatrix nGrid nObs distVec
 
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO (V.Vector DepVarsPredPos)
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do

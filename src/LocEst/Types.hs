@@ -189,7 +189,7 @@ data Normalisation = NormBySpace | NoNorm
     deriving (Show)
 
 -- | A data type for an individual distance between one observation and one prediction grid point.
--- Exists for reading from CSV into a SpatDistMatrix
+-- Exists for reading from CSV into a distance matrix
 data SpatDistObsGrid = SpatDistObsGrid {
       _spatDistObsGridObsID    :: String
     , _spatDistObsGridGridID   :: String
@@ -200,6 +200,20 @@ instance NFData SpatDistObsGrid
 instance Csv.FromNamedRecord SpatDistObsGrid where
     parseNamedRecord m =
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
+
+data SingleObsGridDist = SingleObsGridDist {
+      _smdObsID   :: String,
+      _smdGridID  :: String,
+      _smdValues  :: ValuesPerIndepVar
+} deriving (Show, Generic)
+
+instance NFData SingleObsGridDist
+instance Csv.FromNamedRecord SingleObsGridDist where
+    parseNamedRecord m =
+        SingleObsGridDist 
+          <$> filterLookup m "obsID"
+          <*> filterLookup m "spatID"
+          <*> Csv.parseNamedRecord m 
 
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
