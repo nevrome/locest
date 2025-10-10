@@ -66,6 +66,8 @@ runSearch (SearchOptions
     !indepPredGrid <- V.map (filterVarsInIndepVarsPos indepVars) <$> readIndepVarsPos inIndepVarsPredGridFile
     -- read depVar search grid
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
+    -- read distances
+    !obsGridDistances <- traverse (readAUDistMulti obs indepPredGrid) maybeObsGridDistFile
     -- permutations
     hPutStrLn stderr "Preparing permutations"
     let permutations = createPermutations obs Nothing indepPredGrid depSearchGrid maybeTempGrid
@@ -73,23 +75,30 @@ runSearch (SearchOptions
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . core algorithm indepVars maybeObsGridDistFile spatDistUnitScaling depVars kernels)
+        .| ConL.concatMapM (liftIO . core algorithm indepVars obsGridDistances spatDistUnitScaling depVars kernels)
         .| progress 1000 Nothing
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
-core :: Algorithm -> [IndepVarName] -> Maybe FilePath -> Double
+core :: Algorithm -> [IndepVarName] -> Maybe AUDistMatrixPerIndepVar -> Double
      -> [DepVarName] -> [KernelOneDepVar] -> Permutation
      -> IO [SearchResultRow]
-core algorithm indepVars maybeObsGridDistFile spatDistUnitScaling
+core algorithm indepVars maybeObsGridDists spatDistUnitScaling
      depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
     perDepVar <- case algorithm of
         GPR -> do
             -- gpr
-            aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
+            distsObsGrid <- case maybeObsGridDists of -- this could be refactored to be shorter
+                Nothing -> do
+                     aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
+                     wait aObsGrid
+                Just (AUDistMatrixPerIndepVar ms) -> auMatrixToFlat . AUDistMatrixPerIndepVar <$>
+                    forM indepVars (\name -> case lookup name ms of
+                       Just m  -> pure (name, m)
+                       Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
+           
             aObsObs   <- async $ suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs
             aGridGrid <- async $ suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid
-            distsObsGrid  <- wait aObsGrid
             distsObsObs   <- wait aObsObs
             distsGridGrid <- wait aGridGrid
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
@@ -157,7 +166,7 @@ normaliseByTimeSlice rows =
     in map normRow rows
 
 makeKey :: SearchResultRow -> (DepVarsPredPos, Int)
-makeKey row = 
+makeKey row =
     let searchPos = case _ssrSearchPos row of
             Just x -> x
             _ -> error "impossible state"
@@ -217,4 +226,4 @@ splitDataByTempGrid (Just absRelTempPos) indepPredGrid depSearchGrid =
           indepVarsPos = for refAge $
               \r -> V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos $ r + yearDist))) spatPos
       in Just $ zip indepVarsPos (map Just $ V.group searchGrid)
-    build _ _ _ = Nothing 
+    build _ _ _ = Nothing

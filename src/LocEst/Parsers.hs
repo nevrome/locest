@@ -47,7 +47,8 @@ encodingOptions = Csv.defaultEncodeOptions {
 
 readAUDistMulti :: V.Vector Observation -> V.Vector IndepVarsPos -> FilePath -> IO AUDistMatrixPerIndepVar
 readAUDistMulti obs grid path = do
-    hPutStrLn stderr $ "Reading multidimensional distances from " ++ path
+    hPutStrLn stderr "Reading asymmetric multidimensional distances"
+    hPutStrLn stderr $ "Parsing " ++ path
     let nObs  = V.length obs
         nGrid = V.length grid
         total = nObs * nGrid
@@ -72,6 +73,7 @@ readAUDistMulti obs grid path = do
     frozen <- forM (zip (V.toList namesV) matsMV) $ \(name, mv) -> do
                  v <- VS.unsafeFreeze mv
                  pure (name, AUDistMatrix nObs nGrid v)
+    hPutStrLn stderr "Done"
     pure $ AUDistMatrixPerIndepVar frozen
   where
     -- Discover dimension names by parsing only the header from the CSV
