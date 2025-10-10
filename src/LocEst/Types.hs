@@ -558,7 +558,8 @@ instance S.Serialise ValuesPerIndepVar
 instance NFData ValuesPerIndepVar
 instance Csv.FromNamedRecord ValuesPerIndepVar where
     parseNamedRecord m = do
-        let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k) m
+        -- pretty hacky to give space and time a special role here
+        let extractedVarsBS = HM.filterWithKey (\k _ -> Bchs.isPrefixOf "indep" k || k == "space" || k == "time") m
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
         pure $ makeValuesPerIndepVar $ HM.toList extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerIndepVar where

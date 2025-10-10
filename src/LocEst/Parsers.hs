@@ -80,7 +80,7 @@ readAUDistMulti obs grid path = do
     discoverNames :: FilePath -> IO (V.Vector IndepVarName)
     discoverNames fp = do
         hdr <- readCSVHeader fp
-        let indepCols = filter (Bchs.isPrefixOf "indep") hdr
+        let indepCols = filter (\k -> Bchs.isPrefixOf "indep" k || k == "space" || k == "time") hdr
         pure (V.fromList (map Bchs.unpack indepCols))
     readCSVHeader :: FilePath -> IO [Bchs.ByteString]
     readCSVHeader fp = do

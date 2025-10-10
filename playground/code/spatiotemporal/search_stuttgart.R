@@ -8,7 +8,7 @@ obsGridDists <- fields::rdist(
   as.matrix(obs[c("x", "y")]),
   as.matrix(grid[c("x", "y")])
 ) %>%
-  reshape2::melt(value.name = "indep_spatial") %>%
+  reshape2::melt() %>%
   dplyr::left_join(
     obs %>% dplyr::transmute(id = 1:dplyr::n(), obsID),
     by = c("Var1" = "id")
@@ -17,7 +17,7 @@ obsGridDists <- fields::rdist(
     grid %>% dplyr::transmute(id = 1:dplyr::n(), gridID = spatID),
     by = c("Var2" = "id")
   ) %>%
-  dplyr::select(obsID, gridID, indep_spatial)
+  dplyr::transmute(obsID, gridID, space = value/1000)
 readr::write_tsv(obsGridDists, "data/spatiotemporal/obsGridDistFile.tsv")
 
 # stack install --profile
@@ -72,12 +72,12 @@ hu5 %>% dplyr::group_by(search_obsID, yearBCAD) %>%
   dplyr::summarize(hu = sum(probability))
 
 # https://stackoverflow.com/questions/30510898/split-facet-plot-into-list-of-plots
-splitFacet <- function(x){
-  facet_vars <- names(x$facet$params$facets)        
-  x$facet    <- ggplot2::ggplot()$facet             
-  datasets   <- split(x$data, x$data[facet_vars])   
-  lapply(datasets,function(new_data) {x$data <- new_data; x})
-}
+# splitFacet <- function(x){
+#   facet_vars <- names(x$facet$params$facets)        
+#   x$facet    <- ggplot2::ggplot()$facet             
+#   datasets   <- split(x$data, x$data[facet_vars])   
+#   lapply(datasets,function(new_data) {x$data <- new_data; x})
+# }
 
 hu5 %>%
   ggplot() +
