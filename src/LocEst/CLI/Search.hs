@@ -97,8 +97,8 @@ core algorithm indepVars maybeObsGridDists spatDistUnitScaling
                        Just m  -> pure (name, m)
                        Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
            
-            aObsObs   <- async $ suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs
-            aGridGrid <- async $ suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid
+            aObsObs   <- async $ suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
+            aGridGrid <- async $ suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
             distsObsObs   <- wait aObsObs
             distsGridGrid <- wait aGridGrid
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
