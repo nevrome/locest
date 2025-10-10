@@ -20,6 +20,17 @@ obsGridDists <- fields::rdist(
   dplyr::transmute(obsID, gridID, space = value/1000)
 readr::write_tsv(obsGridDists, "data/spatiotemporal/obsGridDistFile.tsv")
 
+
+space_mat <- fields::rdist(as.matrix(obs[c("x","y")])) / 1000
+n <- nrow(obs)
+pairs <- do.call(rbind, lapply(0:(n-1), function(i) cbind(row = i, col = 0:i)))
+obsObsPacked <- tibble::tibble(
+  id1 = obs$obsID[pairs[, "row"] + 1],
+  id2 = obs$obsID[pairs[, "col"] + 1],
+  indep_space = space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)]
+)
+write_tsv(obsObsPacked, "data/spatiotemporal/obsObsDistFile.tsv")
+
 # stack install --profile
 # stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -hc -l
 # eventlog2html locest.eventlog
