@@ -75,11 +75,11 @@ auMatrixToFlat audmPerIndepVar =
             in _audmMatrix (mats !! dimIx) VS.! idx
     in IndepVarsDistFlat tagsVec payloadVec stride
 
-calcObsObsDistancesFlat :: Double -> V.Vector Observation -> IO SUDistMatrixPerIndepVar
-calcObsObsDistancesFlat scale = calcDistancesHalf scale (\(Observation _ _ (HyperPos pos _) _) -> pos)
+calcObsObsDistances :: Double -> V.Vector Observation -> IO SUDistMatrixPerIndepVar
+calcObsObsDistances scale = calcDistancesHalf scale (\(Observation _ _ (HyperPos pos _) _) -> pos)
 
-calcGridGridDistancesFlat :: Double -> V.Vector IndepVarsPos -> IO SUDistMatrixPerIndepVar
-calcGridGridDistancesFlat scale = calcDistancesHalf scale id
+calcGridGridDistances :: Double -> V.Vector IndepVarsPos -> IO SUDistMatrixPerIndepVar
+calcGridGridDistances scale = calcDistancesHalf scale id
 
 -- optimised symmetric distance calculation
 calcDistancesHalf :: Double -> (a -> IndepVarsPos) -> V.Vector a -> IO SUDistMatrixPerIndepVar
