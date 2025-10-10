@@ -29,7 +29,7 @@ gpr :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> Ind
 gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
-        weightsObsGrid  = M.reshape (V.length obs)  $ computeWeightsFlat kernel distsObsGrid
+        weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
         nugget = case _kodvNugget kernel of
             Just x -> x

@@ -80,8 +80,8 @@ core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation te
         GPR -> do
             -- gpr
             aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid
-            aObsObs   <- async $ calcObsObsDistancesFlat spatDistUnitScaling obs
-            aGridGrid <- async $ calcGridGridDistancesFlat spatDistUnitScaling grid
+            aObsObs   <- async $ suMatrixToFlatHalf <$> calcObsObsDistancesFlat spatDistUnitScaling obs
+            aGridGrid <- async $ suMatrixToFlatHalf <$> calcGridGridDistancesFlat spatDistUnitScaling grid
             distsObsGrid  <- wait aObsGrid
             distsObsObs   <- wait aObsObs
             distsGridGrid <- wait aGridGrid
