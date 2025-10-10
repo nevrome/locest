@@ -15,7 +15,7 @@ hu %>%
   dplyr::mutate(
     yearBCAD = -5000
   ) %>%
-  readr::write_tsv(file = "data/spatiotemporal/spatial_grid.tsv")
+  readr::write_tsv(file = "data/spatiotemporal/grid.tsv")
 
 janno_final %>%
   dplyr::select(

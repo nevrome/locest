@@ -37,6 +37,7 @@ import Data.Maybe (mapMaybe, isJust)
 import Control.Concurrent.Async (async, wait)
 import qualified Data.Map.Strict as Map
 import Data.Foldable (foldl')
+import GHC.IO (unsafePerformIO)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -104,11 +105,22 @@ core algorithm indepVars
                     forM indepVars (\name -> case lookup name ms of
                        Just m  -> pure (name, m)
                        Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
-           
-            aObsObs   <- async $ suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
-            aGridGrid <- async $ suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
-            distsObsObs   <- wait aObsObs
-            distsGridGrid <- wait aGridGrid
+            distsObsObs <- case maybeObsObsDists of -- this could be refactored to be shorter
+                Nothing -> do
+                     aObsObs   <- async $ suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
+                     wait aObsObs
+                Just (SUDistMatrixPerIndepVar ms) -> suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
+                    forM indepVars (\name -> case lookup name ms of
+                       Just m  -> pure (name, m)
+                       Nothing -> calcSUDistOneDim spatDistUnitScaling (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
+            distsGridGrid <- case maybeGridGridDists of -- this could be refactored to be shorter
+                Nothing -> do
+                     aGridGrid <- async $ suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
+                     wait aGridGrid
+                Just (SUDistMatrixPerIndepVar ms) -> suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
+                    forM indepVars (\name -> case lookup name ms of
+                       Just m  -> pure (name, m)
+                       Nothing -> calcSUDistOneDim spatDistUnitScaling id grid name)                       
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
         KAS -> do
             -- kas
