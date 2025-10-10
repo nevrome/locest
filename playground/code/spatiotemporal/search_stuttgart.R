@@ -66,13 +66,13 @@ hu5 %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(yearBCAD), cols = dplyr::vars(search_obsID)) +
   geom_raster(aes(x, y, fill = probability)) +
-  geom_point(
-    data = obs %>%
-      dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%
-      dplyr::mutate(yearBCAD = round(yearBCAD, -3)),
-    aes(x,y),
-    shape = 4, color = "red"
-  ) +
+  # geom_point(
+  #   data = obs %>%
+  #     dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%
+  #     dplyr::mutate(yearBCAD = round(yearBCAD, -3)),
+  #   aes(x,y),
+  #   shape = 4, color = "red"
+  # ) +
   scale_fill_viridis_c() +
   coord_fixed()
 

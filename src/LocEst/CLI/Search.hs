@@ -71,18 +71,15 @@ runSearch (SearchOptions
            ConC.yieldMany permutations
         .| ConL.concatMapM (liftIO . core algorithm spatDistUnitScaling depVars kernels)
         .| progress 1000 Nothing
-        -- .| normalise normalisation
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
 core :: Algorithm -> Double -> [DepVarName] -> [KernelOneDepVar] -> Permutation -> IO [SearchResultRow]
 core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
-    -- TODO: case maybeDistFile of ...
-    -- ... 
     perDepVar <- case algorithm of
         GPR -> do
             -- gpr
-            aObsGrid  <- async $ calcObsGridDistances  spatDistUnitScaling obs  grid
+            aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid
             aObsObs   <- async $ calcObsObsDistancesFlat spatDistUnitScaling obs
             aGridGrid <- async $ calcGridGridDistancesFlat spatDistUnitScaling grid
             distsObsGrid  <- wait aObsGrid
@@ -91,7 +88,7 @@ core algorithm spatDistUnitScaling depVars kernelsPerDepVar perm@(Permutation te
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
         KAS -> do
             -- kas
-            distsObsGrid  <- calcObsGridDistances spatDistUnitScaling obs grid
+            distsObsGrid  <- auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid
             return $ zipWith (kas obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
     -- turn SSL to SSR
     let rawRows = concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]

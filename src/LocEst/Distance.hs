@@ -14,14 +14,74 @@ import           Control.Monad                 (replicateM, zipWithM_)
 import Control.Applicative ((<|>))
 import Data.Foldable (forM_)
 import qualified Control.Monad as OP
+import Data.Traversable (forM)
 
-calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO IndepVarsDistFlat
-calcObsGridDistances scale obs grid =
-    commonDistances
-        scale (V.length grid) (V.length obs)
-        id
-        (\(Observation _ _ (HyperPos pos _) _) -> pos)
-        grid obs
+-- calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO IndepVarsDistFlat
+-- calcObsGridDistances scale obs grid =
+--     commonDistances
+--         scale (V.length grid) (V.length obs)
+--         id
+--         (\(Observation _ _ (HyperPos pos _) _) -> pos)
+--         grid obs
+
+calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO AUDistMatrixPerIndepVar
+calcObsGridDistances spatScale obs grid = do
+    let nrObs   = V.length obs
+        nrGrid  = V.length grid
+        indepVarNames = case grid V.! 0 of
+          IndepSpatTempPos _ ->
+              ["space", "time"]
+          IndepArbitraryDimPos (ValuesPerIndepVar ns _) ->
+              V.toList ns
+    -- mutable vectors for each indep var (full rectangular m*n)
+    matsMV <- forM indepVarNames (\_ -> VSM.new (nrGrid * nrObs))
+    -- fill each dimension's matrix
+    forM_ [0 .. nrGrid-1] $ \gy -> do
+      let gpos = grid V.! gy
+      forM_ [0 .. nrObs-1] $ \ox -> do
+        let opos = obs V.! ox
+            idx = gy * nrObs + ox
+        case (posFromObs opos, gpos) of
+          (IndepSpatTempPos (SpatTempPos s1 t1),
+           IndepSpatTempPos (SpatTempPos s2 t2)) -> do
+              -- dim 0: space
+              let sd = spatialDistSpatPos s1 s2 * spatScale
+              VSM.write (matsMV !! 0) idx sd
+              -- dim 1: time
+              let td = temporalDistTempPos t1 t2
+              VSM.write (matsMV !! 1) idx td
+          (IndepArbitraryDimPos (ValuesPerIndepVar _ vs1),
+           IndepArbitraryDimPos (ValuesPerIndepVar _ vs2)) -> do
+              let dvec = allDistancesVS vs1 vs2
+              forM_ [0 .. VS.length dvec - 1] $ \dimIx ->
+                VSM.write (matsMV !! dimIx) idx (dvec VS.! dimIx)
+          _ -> throwL "mismatch in indep variable definitions"
+    -- freeze and build AUDistMatrixPerIndepVar
+    frozen <- forM (zip indepVarNames matsMV) $
+      \(name, mv) -> do
+           v <- VS.unsafeFreeze mv
+           pure (name, AUDistMatrix nrObs nrGrid v)
+    pure $ AUDistMatrixPerIndepVar frozen
+  where
+    posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
+
+auMatrixToFlat :: AUDistMatrixPerIndepVar -> IndepVarsDistFlat
+auMatrixToFlat audmPerIndepVar =
+    let mats = getValues audmPerIndepVar -- [AUDistMatrix]
+        stride = length mats             -- number of dimensions
+        nRows  = _audmNrRows (head mats) -- grid size
+        nCols  = _audmNrCols (head mats) -- obs size
+        total  = nRows * nCols
+        -- tags vector: assume all same type — infer from dimension names or external info
+        tagsVec = VS.replicate total $
+                    case head (getKeys audmPerIndepVar) of
+                      "space" -> False
+                      _       -> True
+        -- payload: interleave dimensions per row/col
+        payloadVec = VS.generate (total * stride) $ \k ->
+            let (idx, dimIx) = k `divMod` stride
+            in _audmMatrix (mats !! dimIx) VS.! idx
+    in IndepVarsDistFlat tagsVec payloadVec stride
 
 calcObsObsDistancesFlat :: Double -> V.Vector Observation -> IO IndepVarsDistFlat
 calcObsObsDistancesFlat scale = commonDistancesHalf scale (\(Observation _ _ (HyperPos pos _) _) -> pos)
