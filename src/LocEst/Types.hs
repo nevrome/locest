@@ -212,7 +212,7 @@ instance Csv.FromNamedRecord SingleObsGridDist where
     parseNamedRecord m =
         SingleObsGridDist 
           <$> filterLookup m "obsID"
-          <*> filterLookup m "spatID"
+          <*> filterLookup m "gridID"
           <*> Csv.parseNamedRecord m 
 
 -- | A data type for requesting specific output of the core algorithm

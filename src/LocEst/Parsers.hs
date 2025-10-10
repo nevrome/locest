@@ -87,7 +87,7 @@ readAUDistMulti obs grid path = do
         h <- openFile fp ReadMode
         firstLine <- Bchs.hGetLine h
         hClose h
-        pure (Bchs.split ',' firstLine)
+        pure (Bchs.split '\t' firstLine)
 
 -- complex parsers
 

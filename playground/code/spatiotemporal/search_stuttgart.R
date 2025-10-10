@@ -2,6 +2,23 @@ library(magrittr)
 library(ggplot2)
 
 obs <- readr::read_tsv("data/spatiotemporal/obs.tsv")
+grid <- readr::read_tsv("data/spatiotemporal/grid.tsv")
+
+obsGridDists <- fields::rdist(
+  as.matrix(obs[c("x", "y")]),
+  as.matrix(grid[c("x", "y")])
+) %>%
+  reshape2::melt(value.name = "indep_spatial") %>%
+  dplyr::left_join(
+    obs %>% dplyr::transmute(id = 1:dplyr::n(), obsID),
+    by = c("Var1" = "id")
+  ) %>%
+  dplyr::left_join(
+    grid %>% dplyr::transmute(id = 1:dplyr::n(), gridID = spatID),
+    by = c("Var2" = "id")
+  ) %>%
+  dplyr::select(obsID, gridID, indep_spatial)
+readr::write_tsv(obsGridDists, "data/spatiotemporal/obsGridDistFile.tsv")
 
 # stack install --profile
 # stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -hc -l
