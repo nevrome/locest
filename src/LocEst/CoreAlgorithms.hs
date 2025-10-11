@@ -86,7 +86,7 @@ gprCore d dx dxx y g =
     let nObs  = M.rows d
         nGrid = M.rows dxx
         -- training kernel + nugget
-        k     = d + M.scale g (M.ident nObs)
+        k     = nearestPD 0.00001 $ d + M.scale g (M.ident nObs)
         -- Cholesky factorisation (SPD assumption)
         cholK = M.chol (M.trustSym k)
         -- RHS matrix: y and dx^T as columns
@@ -109,7 +109,15 @@ gprCore d dx dxx y g =
         -- sigmaInt   = M.scale tau2hat (dxxNoNoise - dx M.<> beta)
     in marginals mup sigmaP
     --in (mup, sigmaP, sigmaInt)
-    
+
+nearestPD :: Double -> M.Matrix Double -> M.Matrix Double
+nearestPD eps mIn =
+    let m       = M.sym mIn
+        (evals, evecs) = M.eigSH m              -- evals :: Vector Double, evecs :: Matrix Double
+        evalsPD = M.cmap (\x -> if x > eps then x else eps) evals
+        mPD     = evecs <> M.diag evalsPD <> M.tr evecs
+    in mPD
+
 marginals :: M.Vector Double -> M.Matrix Double -> V.Vector (Either String NormalDistribution)
 marginals meanVec covMat =
     let diagCov = M.takeDiag covMat
