@@ -134,7 +134,6 @@ computeSpaceSUDistMatrix spatScale getPos vec = do
   let n     = V.length vec
       nHalf = n*(n+1) `div` 2
   mv <- VSM.new nHalf
-  error "mist"
   let idxHalf i j = i*(i+1) `div` 2 + j
   forM_ [0..n-1] $ \i ->
     let IndepSpatTempPos (SpatTempPos s1 _) = getPos (vec V.! i)
