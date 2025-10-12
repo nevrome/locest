@@ -404,6 +404,7 @@ makeAlgorithm x        = fail $ "Algorithm " ++ show x ++ " not recognized"
 data KernelShape =
       SquaredExponential
     | Linear
+    | Exponential
     deriving (Show, Eq, Ord, Generic)
 
 instance NFData KernelShape
@@ -412,10 +413,12 @@ instance Csv.FromField KernelShape where
 instance Csv.ToField KernelShape where
     toField SquaredExponential = "SqEx"
     toField Linear             = "Linear"
+    toField Exponential        = "Ex"
 
 makeKernelShape :: MonadFail m => String -> m KernelShape
 makeKernelShape "SqEx"   = pure SquaredExponential
 makeKernelShape "Linear" = pure Linear
+makeKernelShape "Ex"     = pure Exponential
 makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
 type SquaredWeightedDist = Double

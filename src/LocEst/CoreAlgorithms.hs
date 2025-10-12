@@ -87,7 +87,8 @@ gprCore d dx dxx y g =
     let nObs  = M.rows d
         nGrid = M.rows dxx
         -- training kernel + nugget
-        k     = nearestPD 0.00001 $ d + M.scale g (M.ident nObs)
+       --k     = nearestPD 0.00001 $ d + M.scale g (M.ident nObs)
+        k     = d + M.scale g (M.ident nObs)
         -- Cholesky factorisation (SPD assumption)
         cholK = M.chol (M.trustSym k)
         -- RHS matrix: y and dx^T as columns
@@ -111,10 +112,11 @@ gprCore d dx dxx y g =
     in marginals mup sigmaP
     --in (mup, sigmaP, sigmaInt)
 
+-- make positive-definite with the sledgehammer
 nearestPD :: Double -> M.Matrix Double -> M.Matrix Double
 nearestPD eps mIn =
     let m       = M.sym mIn
-        (evals, evecs) = M.eigSH m              -- evals :: Vector Double, evecs :: Matrix Double
+        (evals, evecs) = M.eigSH m
         evalsPD = M.cmap (\x -> if x > eps then x else eps) evals
         mPD     = evecs <> M.diag evalsPD <> M.tr evecs
     in mPD
@@ -166,6 +168,7 @@ computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
         !weightFun = case _kodvShape kernel of
             SquaredExponential -> \ds2 -> 1 / exp ds2
             Linear             -> \ds2 -> 1 / (1 + sqrt ds2)
+            Exponential        -> \ds2 -> 1 / exp (sqrt ds2)
     in if not firstTag
          -- spat/temp case (stride == 2)
          then case thetasList of
