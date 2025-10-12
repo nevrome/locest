@@ -28,9 +28,10 @@ gpr :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> Ind
          -> V.Vector SearchResultLong
 gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
-        weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
         weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
+        weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
         weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
+    -- in error $ show $ VS.take 100 $ VS.reverse $ M.flatten $ weightsGridGrid
         nugget = case _kodvNugget kernel of
             Just x -> x
             Nothing -> throwL "nugget parameter missing in kernel definition"

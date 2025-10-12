@@ -120,11 +120,25 @@ core algorithm indepVars
                 Just (SUDistMatrixPerIndepVar ms) -> suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
                     forM indepVars (\name -> case lookup name ms of
                        Just m  -> pure (name, m)
-                       Nothing -> calcSUDistOneDim spatDistUnitScaling id grid name)                       
+                       Nothing -> calcSUDistOneDim spatDistUnitScaling id grid name)
+            --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsObsGrid
+            --putStrLn $ show $ VS.length $ payload distsObsGrid
+            --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsObsObs
+            --putStrLn $ show $ VS.length $ payload distsObsObs
+            --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsGridGrid
+            --putStrLn $ show $ VS.length $ payload distsGridGrid
+            --error "test"
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
         KAS -> do
             -- kas
-            distsObsGrid  <- auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
+            !distsObsGrid <- case maybeObsGridDists of -- this could be refactored to be shorter
+                Nothing -> do
+                     aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
+                     wait aObsGrid
+                Just (AUDistMatrixPerIndepVar ms) -> auMatrixToFlat . AUDistMatrixPerIndepVar <$>
+                    forM indepVars (\name -> case lookup name ms of
+                       Just m  -> pure (name, m)
+                       Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
             return $ zipWith (kas obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
     -- turn SSL to SSR
     let rawRows = concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]

@@ -19,7 +19,9 @@ data IndepVarsDistFlat = IndepVarsDistFlat {
      tags    :: VS.Vector Bool -- False means IndepSpatTempDist, True means IndepArbitraryDimDist
    , payload :: VS.Vector Double -- distances stored contiguously per row.
    , stride  :: Int -- number of doubles per row (max of 2 or arbitrary dim length)
-   }
+   } deriving (Generic)
+
+instance NFData IndepVarsDistFlat
 
 -- | A data type for a symmetric, unidirectional distance matrix
 -- this matrix has (n*n)/2 - n entries and a triangular shape
