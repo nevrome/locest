@@ -17,7 +17,8 @@ obsGridDists <- fields::rdist(
     grid %>% dplyr::transmute(id = 1:dplyr::n(), gridID = spatID),
     by = c("Var2" = "id")
   ) %>%
-  dplyr::transmute(obsID, gridID, space = value/1000)
+  #dplyr::transmute(obsID, gridID, space = value/1000)
+  dplyr::transmute(space = round(value/1000, 1))
 readr::write_tsv(obsGridDists, "data/spatiotemporal/obsGridDistFile.tsv")
 
 
@@ -25,9 +26,10 @@ space_mat <- fields::rdist(as.matrix(obs[c("x","y")])) / 1000
 n <- nrow(obs)
 pairs <- do.call(rbind, lapply(0:(n-1), function(i) cbind(row = i, col = 0:i)))
 obsObsPacked <- tibble::tibble(
-  id1 = obs$obsID[pairs[, "row"] + 1],
-  id2 = obs$obsID[pairs[, "col"] + 1],
-  space = space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)]
+  #id1 = obs$obsID[pairs[, "row"] + 1],
+  #id2 = obs$obsID[pairs[, "col"] + 1],
+  #space = space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)]
+  space = round(space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)], 1)
 )
 readr::write_tsv(obsObsPacked, "data/spatiotemporal/obsObsDistFile.tsv")
 
@@ -35,9 +37,10 @@ space_mat <- fields::rdist(as.matrix(grid[c("x","y")])) / 1000
 n <- nrow(grid)
 pairs <- do.call(rbind, lapply(0:(n-1), function(i) cbind(row = i, col = 0:i)))
 gridGridPacked <- tibble::tibble(
-  id1 = grid$spatID[pairs[, "row"] + 1],
-  id2 = grid$spatID[pairs[, "col"] + 1],
-  space = space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)]
+  #id1 = grid$spatID[pairs[, "row"] + 1],
+  #id2 = grid$spatID[pairs[, "col"] + 1],
+  #space = space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)]
+  space = round(space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)], 1)
 )
 readr::write_tsv(gridGridPacked, "data/spatiotemporal/gridGridDistFile.tsv")
 
