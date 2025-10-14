@@ -3,19 +3,13 @@
 
 module LocEst.Distance where
 
-import           LocEst.Exceptions
 import           LocEst.Types
 import           LocEst.TypesFlat
 
 import qualified Data.Vector       as V
-import qualified Data.Vector.Mutable   as VM
 import qualified Data.Vector.Storable           as VS
 import qualified Data.Vector.Storable.Mutable           as VSM
-import           Control.Monad                 (replicateM, zipWithM_)
-import Control.Applicative ((<|>))
 import Data.Foldable (forM_)
-import qualified Control.Monad as OP
-import Data.Traversable (forM)
 
 calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> [IndepVarName] -> IO AUDistMatrixPerIndepVar
 calcObsGridDistances spatScale obs grid varsToCompute = do
@@ -77,8 +71,6 @@ computeArbitraryAUDistMatrix ix obs grid = do
          in VSM.write mv (gy*nrObs + ox) (abs (vs1 VS.! ix - vs2 VS.! ix))
   frozen <- VS.unsafeFreeze mv
   pure (AUDistMatrix nrObs nrGrid frozen)
-
-posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
 
 auMatrixToFlat :: AUDistMatrixPerIndepVar -> IndepVarsDistFlat
 auMatrixToFlat audmPerIndepVar =

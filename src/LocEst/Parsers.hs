@@ -90,14 +90,14 @@ readSUDistMultiFast vec path = do
         stride      = V.length namesV
         indepIndices = V.findIndices (\nm -> nm /= "id1" && nm /= "id2") allNames
     -- allocate packed half-matrix vectors for each indep var
-    matsMV <- V.forM (V.enumFromN 0 stride) $ const (VSM.new nHalf)
+    matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nHalf)
     -- data rows (assumed in packed upper triangle order)
     let dataLines = tail ls
     --     !lenRows  = length dataLines
     -- when (lenRows /= nHalf) $
     --     error $ "row count mismatch: expected " ++ show nHalf ++ " got " ++ show lenRows
     -- process each data row
-    let loop !rowIx [] = pure ()
+    let loop _ [] = pure ()
         loop !rowIx (bs:rest) = do
             let cols = Bchs.split '\t' bs
             -- write each indep var value to packed vector at rowIx
@@ -135,10 +135,10 @@ readAUDistMultiFast obs grid path = do
         stride      = V.length namesV
         indepIndices = V.findIndices (\nm -> nm /= "obsID" && nm /= "gridID") allNames
     -- allocate one mutable vector per dimension
-    matsMV <- V.forM (V.enumFromN 0 stride) $ const (VSM.new total)
+    matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new total)
     -- process each data row
     let dataLines = tail ls
-    let loop !rowIx [] = pure ()
+    let loop _ [] = pure ()
         loop !rowIx (bs:rest) = do
             let cols = Bchs.split '\t' bs
             -- write each indep var value to packed vector at rowIx
@@ -290,7 +290,7 @@ readSpatDist (ReadSpatDistDeserialise path) = do
     res <- S.readFileDeserialise path
     hPutStrLn stderr "Done"
     return res
-readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path) = do
+readSpatDist (ReadSpatDistParse _ obs maybeSpatGrid path) = do
     hPutStrLn stderr "Reading spatial distances"
     hPutStrLn stderr $ "Parsing " ++ path
     let nObs = V.length obs

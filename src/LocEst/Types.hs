@@ -11,7 +11,7 @@ import           LocEst.MathUtils
 import LocEst.TypesUtils
 
 import qualified Codec.Serialise       as S
-import           Control.Applicative   (empty, (<|>))
+import           Control.Applicative   ((<|>))
 import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
@@ -122,9 +122,9 @@ data CrossSearchResult = CrossSearchResult {
 
 instance NFData CrossSearchResult
 instance Csv.DefaultOrdered CrossSearchResult where
-    headerOrder (CrossSearchResult [depVar] searchResult) =
+    headerOrder (CrossSearchResult [_] _) =
         Csv.header ["depVar"] -- <> removeDepVarFromHeader depVar (Csv.headerOrder searchResult)
-    headerOrder (CrossSearchResult _ searchResult) =
+    headerOrder (CrossSearchResult _ _) =
         Csv.header ["TODO"] --Csv.headerOrder searchResult
 instance Csv.ToRecord CrossSearchResult where
     toRecord (CrossSearchResult [depVar] searchResult) =
@@ -492,6 +492,9 @@ instance Identifiable Observation where
     getID (Observation _ identifier _ _) = identifier
     getIndex (Observation index _ _ _) = index
     setIndex x i = x {_obsIndex = i}
+
+posFromObs :: Observation -> IndepVarsPos
+posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
 
 -- | A data type for positions in independent and dependent var space
 data HyperPos = HyperPos {

@@ -12,7 +12,7 @@ import qualified Data.ByteString.Char8 as Bchs
 import           GHC.Generics          (Generic)
 import           Control.DeepSeq
 import qualified Data.Csv              as Csv
-import           Control.Applicative   (empty, (<|>))
+import           Control.Applicative   (empty)
 import qualified Data.HashMap.Strict   as HM
 import           Data.Maybe            (catMaybes)
 import qualified Codec.Serialise       as S

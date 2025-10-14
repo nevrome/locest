@@ -9,16 +9,15 @@ module LocEst.TypesFlat where
 import LocEst.Types
 import           LocEst.Exceptions     (throwL)
 
-import qualified Data.Vector as V
 import qualified Data.Vector.Storable   as VS
 import           GHC.Generics          (Generic)
 import qualified Codec.Serialise       as S
 import           Control.DeepSeq
 
 data IndepVarsDistFlat = IndepVarsDistFlat {
-     tags    :: VS.Vector Bool -- False means IndepSpatTempDist, True means IndepArbitraryDimDist
-   , payload :: VS.Vector Double -- distances stored contiguously per row.
-   , stride  :: Int -- number of doubles per row (max of 2 or arbitrary dim length)
+     _tags    :: VS.Vector Bool -- False means IndepSpatTempDist, True means IndepArbitraryDimDist
+   , _payload :: VS.Vector Double -- distances stored contiguously per row.
+   , _stride  :: Int -- number of doubles per row (max of 2 or arbitrary dim length)
    } deriving (Generic)
 
 instance NFData IndepVarsDistFlat
