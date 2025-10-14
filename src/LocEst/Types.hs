@@ -617,6 +617,18 @@ instance Csv.ToRecord IndepVarsPos where
     toRecord (IndepSpatTempPos x)     = Csv.toRecord x
     toRecord (IndepArbitraryDimPos x) = Csv.toRecord x
 
+spatPosFromIndepVarsPos :: IndepVarsPos -> SpatPos
+spatPosFromIndepVarsPos (IndepSpatTempPos (SpatTempPos s _)) = s
+spatPosFromIndepVarsPos _ = throwL "Expected spatio-temporal position"
+
+tempPosFromIndepVarsPos :: IndepVarsPos -> TempPos
+tempPosFromIndepVarsPos (IndepSpatTempPos (SpatTempPos _ t)) = t
+tempPosFromIndepVarsPos _ = throwL "Expected spatio-temporal position"
+
+anyPosFromIndepVarsPos :: IndepVarsPos -> VS.Vector Double
+anyPosFromIndepVarsPos (IndepArbitraryDimPos (ValuesPerIndepVar _ v)) = v
+anyPosFromIndepVarsPos _ = throwL "Expected arbitrary dimension position"
+
 -- | A data type for distances in space and time
 data SpatTempDist = SpatTempDist {
       _spatDist :: Double

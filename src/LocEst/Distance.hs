@@ -25,49 +25,58 @@ calcObsGridOneDim spatScale obs grid varName = do
   case grid V.! 0 of
     IndepSpatTempPos _ ->
       case varName of
-        "space" -> fmap (varName,) (computeSpaceAUDistMatrix spatScale obs grid)
-        "time"  -> fmap (varName,) (computeTimeAUDistMatrix obs grid)
+        "space" -> do
+          let obsPos  = V.map (spatPosFromIndepVarsPos . posFromObs) obs
+              gridPos = V.map spatPosFromIndepVarsPos grid
+          fmap (varName,) (computeSpaceAUDistMatrix spatScale obsPos gridPos)
+        "time"  -> do
+          let obsPos  = V.map (tempPosFromIndepVarsPos . posFromObs) obs
+              gridPos = V.map tempPosFromIndepVarsPos grid
+          fmap (varName,) (computeTimeAUDistMatrix obsPos gridPos)
         _       -> error ("Unknown ST variable: " ++ varName)
     IndepArbitraryDimPos (ValuesPerIndepVar names _) ->
       case V.elemIndex varName names of
-        Just ix -> fmap (varName,) (computeArbitraryAUDistMatrix ix obs grid)
+        Just ix -> do
+          let obsPos  = V.map (anyPosFromIndepVarsPos . posFromObs) obs
+              gridPos = V.map anyPosFromIndepVarsPos grid
+          fmap (varName,) (computeArbitraryAUDistMatrix ix obsPos gridPos)
         Nothing -> error ("Unknown arbitrary variable: " ++ varName)
 
-computeSpaceAUDistMatrix :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IO AUDistMatrix
+computeSpaceAUDistMatrix :: Double -> V.Vector SpatPos -> V.Vector SpatPos -> IO AUDistMatrix
 computeSpaceAUDistMatrix spatScale obs grid = do
   let nrObs  = V.length obs
       nrGrid = V.length grid
   mv <- VSM.new (nrGrid * nrObs)
   forM_ [0 .. nrGrid-1] $ \gy ->
-    let IndepSpatTempPos (SpatTempPos s2 _) = grid V.! gy
+    let s2 = grid V.! gy
     in forM_ [0 .. nrObs-1] $ \ox ->
-         let IndepSpatTempPos (SpatTempPos s1 _) = posFromObs (obs V.! ox)
+         let s1 = obs V.! ox
          in VSM.write mv (gy*nrObs + ox) (spatialDistSpatPos s1 s2 * spatScale)
   frozen <- VS.unsafeFreeze mv
   pure (AUDistMatrix nrObs nrGrid frozen)
 
-computeTimeAUDistMatrix :: V.Vector Observation -> V.Vector IndepVarsPos -> IO AUDistMatrix
+computeTimeAUDistMatrix :: V.Vector TempPos -> V.Vector TempPos -> IO AUDistMatrix
 computeTimeAUDistMatrix obs grid = do
   let nrObs  = V.length obs
       nrGrid = V.length grid
   mv <- VSM.new (nrGrid * nrObs)
   forM_ [0 .. nrGrid-1] $ \gy ->
-    let IndepSpatTempPos (SpatTempPos _ t2) = grid V.! gy
+    let t2 = grid V.! gy
     in forM_ [0 .. nrObs-1] $ \ox ->
-         let IndepSpatTempPos (SpatTempPos _ t1) = posFromObs (obs V.! ox)
+         let t1 = obs V.! ox
          in VSM.write mv (gy*nrObs + ox) (temporalDistTempPos t1 t2)
   frozen <- VS.unsafeFreeze mv
   pure (AUDistMatrix nrObs nrGrid frozen)
 
-computeArbitraryAUDistMatrix :: Int -> V.Vector Observation -> V.Vector IndepVarsPos -> IO AUDistMatrix
+computeArbitraryAUDistMatrix :: Int -> V.Vector (VS.Vector Double) -> V.Vector (VS.Vector Double) -> IO AUDistMatrix
 computeArbitraryAUDistMatrix ix obs grid = do
   let nrObs  = V.length obs
       nrGrid = V.length grid
   mv <- VSM.new (nrGrid * nrObs)
   forM_ [0 .. nrGrid-1] $ \gy ->
-    let IndepArbitraryDimPos (ValuesPerIndepVar _ vs2) = grid V.! gy
+    let vs2 = grid V.! gy
     in forM_ [0 .. nrObs-1] $ \ox ->
-         let IndepArbitraryDimPos (ValuesPerIndepVar _ vs1) = posFromObs (obs V.! ox)
+         let vs1 = obs V.! ox
          in VSM.write mv (gy*nrObs + ox) (abs (vs1 VS.! ix - vs2 VS.! ix))
   frozen <- VS.unsafeFreeze mv
   pure (AUDistMatrix nrObs nrGrid frozen)
@@ -113,52 +122,58 @@ calcSUDistOneDim spatScale getPos vec varName =
   case getPos (V.head vec) of
     IndepSpatTempPos _ ->
       case varName of
-        "space" -> fmap (varName,) (computeSpaceSUDistMatrix spatScale getPos vec)
-        "time"  -> fmap (varName,) (computeTimeSUDistMatrix getPos vec)
+        "space" -> do
+          let pos  = V.map (spatPosFromIndepVarsPos . getPos) vec
+          fmap (varName,) (computeSpaceSUDistMatrix spatScale pos)
+        "time"  -> do
+          let pos  = V.map (tempPosFromIndepVarsPos . getPos) vec
+          fmap (varName,) (computeTimeSUDistMatrix pos)
         _       -> error ("Unknown ST variable: " ++ varName)
     IndepArbitraryDimPos (ValuesPerIndepVar names _) ->
       case V.elemIndex varName names of
-        Just ix -> fmap (varName,) (computeArbitrarySUDistMatrix ix getPos vec)
+        Just ix -> do
+          let pos  = V.map (anyPosFromIndepVarsPos . getPos) vec
+          fmap (varName,) (computeArbitrarySUDistMatrix ix pos)
         Nothing -> error ("Unknown AR variable: " ++ varName)
 
-computeSpaceSUDistMatrix :: Double -> (a -> IndepVarsPos) -> V.Vector a -> IO SUDistMatrix
-computeSpaceSUDistMatrix spatScale getPos vec = do
+computeSpaceSUDistMatrix :: Double -> V.Vector SpatPos -> IO SUDistMatrix
+computeSpaceSUDistMatrix spatScale vec = do
   let n     = V.length vec
       nHalf = n*(n+1) `div` 2
   mv <- VSM.new nHalf
   let idxHalf i j = i*(i+1) `div` 2 + j
   forM_ [0..n-1] $ \i ->
-    let IndepSpatTempPos (SpatTempPos s1 _) = getPos (vec V.! i)
+    let s1 = vec V.! i
     in forM_ [0..i] $ \j ->
-         let IndepSpatTempPos (SpatTempPos s2 _) = getPos (vec V.! j)
+         let s2 = vec V.! j
          in VSM.write mv (idxHalf i j) (spatialDistSpatPos s1 s2 * spatScale)
   frozen <- VS.unsafeFreeze mv
   pure (SUDistMatrix frozen)
 
-computeTimeSUDistMatrix :: (a -> IndepVarsPos) -> V.Vector a -> IO SUDistMatrix
-computeTimeSUDistMatrix getPos vec = do
+computeTimeSUDistMatrix :: V.Vector TempPos -> IO SUDistMatrix
+computeTimeSUDistMatrix vec = do
   let n     = V.length vec
       nHalf = n*(n+1) `div` 2
   mv <- VSM.new nHalf
   let idxHalf i j = i*(i+1) `div` 2 + j
   forM_ [0..n-1] $ \i ->
-    let IndepSpatTempPos (SpatTempPos _ t1) = getPos (vec V.! i)
+    let t1 = vec V.! i
     in forM_ [0..i] $ \j ->
-         let IndepSpatTempPos (SpatTempPos _ t2) = getPos (vec V.! j)
+         let t2 = vec V.! j
          in VSM.write mv (idxHalf i j) (temporalDistTempPos t1 t2)
   frozen <- VS.unsafeFreeze mv
   pure (SUDistMatrix frozen)
 
-computeArbitrarySUDistMatrix :: Int -> (a -> IndepVarsPos) -> V.Vector a -> IO SUDistMatrix
-computeArbitrarySUDistMatrix ix getPos vec = do
+computeArbitrarySUDistMatrix :: Int -> V.Vector (VS.Vector Double) -> IO SUDistMatrix
+computeArbitrarySUDistMatrix ix vec = do
   let n     = V.length vec
       nHalf = n*(n+1) `div` 2
   mv <- VSM.new nHalf
   let idxHalf i j = i*(i+1) `div` 2 + j
   forM_ [0..n-1] $ \i ->
-    let IndepArbitraryDimPos (ValuesPerIndepVar _ vs1) = getPos (vec V.! i)
+    let vs1 = vec V.! i
     in forM_ [0..i] $ \j ->
-         let IndepArbitraryDimPos (ValuesPerIndepVar _ vs2) = getPos (vec V.! j)
+         let vs2 = vec V.! j
          in VSM.write mv (idxHalf i j) (abs (vs1 VS.! ix - vs2 VS.! ix))
   frozen <- VS.unsafeFreeze mv
   pure (SUDistMatrix frozen)
