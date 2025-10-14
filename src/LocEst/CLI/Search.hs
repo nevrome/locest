@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module LocEst.CLI.Search where
@@ -8,36 +7,21 @@ import LocEst.Types
 import LocEst.TypesFlat
 import           LocEst.Parsers
 import           LocEst.CoreAlgorithms
-import LocEst.Exceptions (throwL)
-import LocEst.MathUtils
 import           LocEst.Distance
 import           LocEst.CLI.Utils
 
 import qualified Data.Vector       as V
-import qualified Data.Vector.Mutable   as VM
-import qualified Data.Vector.Unboxed           as VU
-import qualified Data.Vector.Unboxed.Mutable           as VUM
 import           System.IO                     (hPutStrLn, stderr)
 
-import           Statistics.Distribution           (logDensity, quantile)
-import           Statistics.Distribution.StudentT  (StudentT)
-import           Statistics.Distribution.Transform (LinearTransform)
-import qualified Numeric.LinearAlgebra             as M
-import qualified Data.Vector.Storable              as VS
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
-import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
 import qualified Data.Conduit.List             as ConL
-import qualified Data.Csv as Csv
-import GHC.Generics (Generic)
-import qualified Data.ByteString.Char8 as Bchs
 import Conduit (liftIO)
 import Data.Maybe (mapMaybe, isJust)
 import Control.Concurrent.Async (async, wait)
 import qualified Data.Map.Strict as Map
 import Data.Foldable (foldl')
-import GHC.IO (unsafePerformIO)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -93,7 +77,7 @@ core :: Algorithm -> [IndepVarName]
 core algorithm indepVars
      maybeObsGridDists maybeObsObsDists maybeGridGridDists
      spatDistUnitScaling
-     depVars kernelsPerDepVar perm@(Permutation tempSamplingIteration obs grid searchDepVarPos) = do
+     depVars kernelsPerDepVar (Permutation tempSamplingIteration obs grid searchDepVarPos) = do
     perDepVar <- case algorithm of
         GPR -> do
             -- gpr
@@ -209,10 +193,6 @@ makeKey row =
             _ -> error "impossible state"
     in (searchPos, t)
 
-isSpatioTemporal v = case v V.!? 0 of
-    Just (IndepSpatTempPos _) -> True
-    _                         -> False
-
 -- permutation mechanism
 data Permutation = Permutation {
       _permTempSamplingIteration :: Int
@@ -237,7 +217,7 @@ nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
 
 applyTempSamp :: Maybe TempSampleMatrix -> Int -> Observation -> Observation
-applyTempSamp (Just m) i obs@(Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos age))) i4) i5) =
+applyTempSamp (Just m) i obs@(Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 _)) i4) i5) =
     let obsIndex = getIndex obs
         newage = lookUpTempSample m i obsIndex
     in Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos newage))) i4) i5
@@ -247,7 +227,11 @@ splitDataByTempGrid :: Maybe [AbsRelTempPos] -> V.Vector IndepVarsPos -> Maybe (
                     -> [(V.Vector IndepVarsPos, Maybe (V.Vector DepVarsPredPos))]
 splitDataByTempGrid Nothing indepPredGrid depSearchGrid = [(indepPredGrid, depSearchGrid)]
 splitDataByTempGrid (Just absRelTempPos) indepPredGrid depSearchGrid =
-    let spatPos = V.mapMaybe (\(IndepSpatTempPos (SpatTempPos s _)) -> Just s) indepPredGrid
+    let spatPos = V.mapMaybe (
+            \pos -> case pos of
+                  IndepSpatTempPos (SpatTempPos s _) -> Just s
+                  _                                  -> Nothing
+            ) indepPredGrid
     in concat $ mapMaybe (\t -> build t spatPos depSearchGrid) absRelTempPos
   where
     build :: AbsRelTempPos -> V.Vector SpatPos -> Maybe (V.Vector DepVarsPredPos)
@@ -255,7 +239,7 @@ splitDataByTempGrid (Just absRelTempPos) indepPredGrid depSearchGrid =
     build (AbsTempPos yearBCAD) spatPos depGrid =
       let indepVarsPos = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos yearBCAD))) spatPos
       in Just [(indepVarsPos, depGrid)]
-    build (RelTempPos yearDist) spatPos depGrid@(Just searchGrid) =
+    build (RelTempPos yearDist) spatPos (Just searchGrid) =
       let refAge = V.toList $ V.mapMaybe getObsAge searchGrid
           indepVarsPos = for refAge $
               \r -> V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos $ r + yearDist))) spatPos

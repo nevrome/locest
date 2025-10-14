@@ -223,7 +223,7 @@ calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScali
             distVecNonMut <- VS.unsafeFreeze distVec
             return $ SUDistMatrixPerIndepVar [("acrossIndep", SUDistMatrix distVecNonMut)]
         -- arbitrary dimension system
-        (IndepArbitraryDimPos pos@(ValuesPerIndepVar ns vs),False) -> do
+        (IndepArbitraryDimPos pos@(ValuesPerIndepVar ns _),False) -> do
             arbitraryVecs <- replicateM (length ns) (VSM.new nrPairs)
             mapM_ (distArbitrary arbitraryVecs) obsPairs
             arbitraryVecsNonMut <- mapM VS.unsafeFreeze arbitraryVecs

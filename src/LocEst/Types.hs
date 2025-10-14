@@ -629,6 +629,11 @@ anyPosFromIndepVarsPos :: IndepVarsPos -> VS.Vector Double
 anyPosFromIndepVarsPos (IndepArbitraryDimPos (ValuesPerIndepVar _ v)) = v
 anyPosFromIndepVarsPos _ = throwL "Expected arbitrary dimension position"
 
+isSpatioTemporal :: V.Vector IndepVarsPos -> Bool
+isSpatioTemporal v = case v V.!? 0 of
+    Just (IndepSpatTempPos _) -> True
+    _                         -> False
+
 -- | A data type for distances in space and time
 data SpatTempDist = SpatTempDist {
       _spatDist :: Double
