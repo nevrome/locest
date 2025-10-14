@@ -17,9 +17,9 @@ import           Data.Function                 (on)
 import           Data.List                     (foldl', singleton, sort)
 import qualified Data.Vector                   as V
 import qualified Data.Vector.Algorithms.Intro  as VA
-import qualified Data.Vector.Storable           as VS
+import qualified Data.Vector.Storable          as VS
+import qualified Data.Vector.Storable.Mutable  as VSM
 import qualified Data.Vector.Unboxed           as VU
-import qualified Data.Vector.Storable.Mutable   as VSM
 import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 

@@ -8,9 +8,10 @@ module LocEst.MathUtils (
     ) where
 
 import           Data.List                         (foldl')
+import           Statistics.Distribution.Normal    (NormalDistribution,
+                                                    normalDistr)
 import           Statistics.Distribution.StudentT  (StudentT,
                                                     studentTUnstandardized)
-import Statistics.Distribution.Normal (NormalDistribution, normalDistr)
 import           Statistics.Distribution.Transform (LinearTransform)
 
 inf :: Fractional a => a
@@ -41,4 +42,4 @@ normal mu std
     | isNaN std = Left "sigma is NaN"
     | std <= 0  = Left "sigma must be > 0"
     | otherwise = Right $ normalDistr mu std
-    
+

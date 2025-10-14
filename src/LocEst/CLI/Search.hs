@@ -1,27 +1,27 @@
-{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module LocEst.CLI.Search where
 
-import LocEst.Types
-import LocEst.TypesFlat
-import           LocEst.Parsers
+import           LocEst.CLI.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.Distance
-import           LocEst.CLI.Utils
+import           LocEst.Parsers
+import           LocEst.Types
+import           LocEst.TypesFlat
 
-import qualified Data.Vector       as V
-import           System.IO                     (hPutStrLn, stderr)
+import qualified Data.Vector              as V
+import           System.IO                (hPutStrLn, stderr)
 
-import           Data.Conduit                  ((.|))
-import qualified Data.Conduit                  as Con
-import qualified Data.Conduit.Combinators      as ConC
-import qualified Data.Conduit.List             as ConL
-import Conduit (liftIO)
-import Data.Maybe (mapMaybe, isJust)
-import Control.Concurrent.Async (async, wait)
-import qualified Data.Map.Strict as Map
-import Data.Foldable (foldl')
+import           Conduit                  (liftIO)
+import           Control.Concurrent.Async (async, wait)
+import           Data.Conduit             ((.|))
+import qualified Data.Conduit             as Con
+import qualified Data.Conduit.Combinators as ConC
+import qualified Data.Conduit.List        as ConL
+import           Data.Foldable            (foldl')
+import qualified Data.Map.Strict          as Map
+import           Data.Maybe               (isJust, mapMaybe)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -187,7 +187,7 @@ makeKey :: SearchResultRow -> (DepVarsPredPos, Int)
 makeKey row =
     let searchPos = case _ssrSearchPos row of
             Just x -> x
-            _ -> error "impossible state"
+            _      -> error "impossible state"
         t = case _ssrIndepVarsPos row of
             IndepSpatTempPos (SpatTempPos _ (TempPos x)) -> x
             _ -> error "impossible state"

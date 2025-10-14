@@ -2,17 +2,16 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE StrictData             #-}
-{-# LANGUAGE BangPatterns           #-}
 
 module LocEst.TypesFlat where
 
-import LocEst.Types
-import           LocEst.Exceptions     (throwL)
+import           LocEst.Exceptions    (throwL)
+import           LocEst.Types
 
-import qualified Data.Vector.Storable   as VS
-import           GHC.Generics          (Generic)
-import qualified Codec.Serialise       as S
+import qualified Codec.Serialise      as S
 import           Control.DeepSeq
+import qualified Data.Vector.Storable as VS
+import           GHC.Generics         (Generic)
 
 data IndepVarsDistFlat = IndepVarsDistFlat {
      _tags    :: VS.Vector Bool -- False means IndepSpatTempDist, True means IndepArbitraryDimDist

@@ -8,7 +8,7 @@ module LocEst.Types (module LocEst.Types, module LocEst.TypesUtils) where
 
 import           LocEst.Exceptions     (throwL)
 import           LocEst.MathUtils
-import LocEst.TypesUtils
+import           LocEst.TypesUtils
 
 import qualified Codec.Serialise       as S
 import           Control.Applicative   ((<|>))
@@ -50,12 +50,12 @@ filterVarsInIndepVarsPos indepVarsWanted (IndepArbitraryDimPos x) =
 
 -- | A data type for interpolation output for one dependent variable
 data SearchResultLong = SSL {
-      _sslDepVarName       :: DepVarName -- name of the dependent variable
-    , _sslLowerBound       :: Double     -- lower boundary of the 95% interval
-    , _sslMedian           :: Double     -- median (weighted average)
-    , _sslUpperBound       :: Double     -- upper boundary of the 95% interval
-    , _sslSearchPos        :: Maybe (V.Vector DepVarsPredPos) -- search values
-    , _sslLogLikelihood    :: Maybe (V.Vector Double) -- log-likelihood for search value
+      _sslDepVarName    :: DepVarName -- name of the dependent variable
+    , _sslLowerBound    :: Double     -- lower boundary of the 95% interval
+    , _sslMedian        :: Double     -- median (weighted average)
+    , _sslUpperBound    :: Double     -- upper boundary of the 95% interval
+    , _sslSearchPos     :: Maybe (V.Vector DepVarsPredPos) -- search values
+    , _sslLogLikelihood :: Maybe (V.Vector Double) -- log-likelihood for search value
 } deriving (Eq, Show, Generic)
 
 -- | A data type for nterpolation output, aggregated per row (so per grid position and per search candidate)
@@ -202,22 +202,22 @@ instance Csv.FromNamedRecord SpatDistObsGrid where
         SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
 
 data SingleObsGridDist = SingleObsGridDist {
-      _smdObsID   :: String,
-      _smdGridID  :: String,
-      _smdValues  :: ValuesPerIndepVar
+      _smdObsID  :: String,
+      _smdGridID :: String,
+      _smdValues :: ValuesPerIndepVar
 } deriving (Show, Generic)
 
 instance NFData SingleObsGridDist
 instance Csv.FromNamedRecord SingleObsGridDist where
     parseNamedRecord m =
-        SingleObsGridDist 
+        SingleObsGridDist
           <$> filterLookup m "obsID"
           <*> filterLookup m "gridID"
-          <*> Csv.parseNamedRecord m 
+          <*> Csv.parseNamedRecord m
 
 data SingleSymDistsRow = SingleSymDistsRow
-  { _sdrId1   :: String
-  , _sdrId2   :: String
+  { _sdrId1    :: String
+  , _sdrId2    :: String
   , _sdrValues :: ValuesPerIndepVar
   }
 
@@ -398,7 +398,7 @@ instance Csv.ToField Algorithm where
 makeAlgorithm :: MonadFail m => String -> m Algorithm
 makeAlgorithm "GPR" = pure GPR
 makeAlgorithm "KAS" = pure KAS
-makeAlgorithm x        = fail $ "Algorithm " ++ show x ++ " not recognized"
+makeAlgorithm x     = fail $ "Algorithm " ++ show x ++ " not recognized"
 
 -- | A data type for kernel shapes
 data KernelShape =

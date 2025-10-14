@@ -1,7 +1,7 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE Strict           #-}
-{-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE OverloadedStrings        #-}
+{-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Strict            #-}
 
 module LocEst.Parsers where
 
@@ -10,27 +10,29 @@ import           LocEst.Exceptions
 import           LocEst.Types
 import           LocEst.TypesFlat
 
-import qualified Codec.Serialise           as S
-import           Conduit                   (MonadIO, MonadResource, liftIO)
-import           Control.Monad             (when, forM_)
+import qualified Codec.Serialise                as S
+import           Conduit                        (MonadIO, MonadResource, liftIO)
+import           Control.Monad                  (forM_, when)
 import           Control.Monad.Error.Class
-import qualified Data.ByteString.Builder   as BB
-import qualified Data.ByteString.Char8     as Bchs
-import           Data.Char                 (ord)
-import           Data.Conduit              (ConduitT, Void, (.|))
-import qualified Data.Conduit              as Con
-import qualified Data.Conduit.Combinators  as ConC
-import qualified Data.Csv                  as Csv
-import qualified Data.Csv.Builder          as CsvB
-import qualified Data.Csv.Conduit          as ConCsv
-import           Data.IORef                (modifyIORef, newIORef, readIORef, writeIORef)
-import qualified Data.Vector               as V
-import           System.FilePath           (takeExtension)
-import           System.IO                 (Handle, IOMode (..), hClose,
-                                            hPutStrLn, openFile, stderr, stdout)
-import qualified Data.Vector.Storable.Mutable as VSM
-import qualified Data.Vector.Storable as VS
+import qualified Data.ByteString.Builder        as BB
+import qualified Data.ByteString.Char8          as Bchs
 import qualified Data.ByteString.Lex.Fractional as LexFrac
+import           Data.Char                      (ord)
+import           Data.Conduit                   (ConduitT, Void, (.|))
+import qualified Data.Conduit                   as Con
+import qualified Data.Conduit.Combinators       as ConC
+import qualified Data.Csv                       as Csv
+import qualified Data.Csv.Builder               as CsvB
+import qualified Data.Csv.Conduit               as ConCsv
+import           Data.IORef                     (modifyIORef, newIORef,
+                                                 readIORef, writeIORef)
+import qualified Data.Vector                    as V
+import qualified Data.Vector.Storable           as VS
+import qualified Data.Vector.Storable.Mutable   as VSM
+import           System.FilePath                (takeExtension)
+import           System.IO                      (Handle, IOMode (..), hClose,
+                                                 hPutStrLn, openFile, stderr,
+                                                 stdout)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions

@@ -7,15 +7,15 @@ module LocEst.TypesUtils where
 
 import           LocEst.MathUtils
 
-import qualified Data.Vector           as V
-import qualified Data.ByteString.Char8 as Bchs
-import           GHC.Generics          (Generic)
-import           Control.DeepSeq
-import qualified Data.Csv              as Csv
+import qualified Codec.Serialise       as S
 import           Control.Applicative   (empty)
+import           Control.DeepSeq
+import qualified Data.ByteString.Char8 as Bchs
+import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           Data.Maybe            (catMaybes)
-import qualified Codec.Serialise       as S
+import qualified Data.Vector           as V
+import           GHC.Generics          (Generic)
 
 -- typeclasses
 
@@ -39,7 +39,7 @@ allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
 
--- cassava helpers 
+-- cassava helpers
 
 -- | A data type that wraps around bools to modify the way they are rendered in the .tsv output
 -- This is specifically done to make it easily readable in R

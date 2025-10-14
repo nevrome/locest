@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns             #-}
+{-# LANGUAGE BangPatterns #-}
 
 module LocEst.CoreAlgorithms where
 
@@ -7,20 +7,21 @@ import           LocEst.MathUtils
 import           LocEst.Types
 import           LocEst.TypesFlat
 
+import           Control.Monad                     (forM_)
 import qualified Data.Vector                       as V
 import qualified Data.Vector.Storable              as VS
+import qualified Data.Vector.Storable.Mutable      as VSM
 import qualified Numeric.LinearAlgebra             as M
-import           Statistics.Distribution           (logDensity, quantile, ContDistr)
+import           Statistics.Distribution           (ContDistr, logDensity,
+                                                    quantile)
+import           Statistics.Distribution.Normal    (NormalDistribution)
 import           Statistics.Distribution.StudentT  (StudentT)
 import           Statistics.Distribution.Transform (LinearTransform)
-import Statistics.Distribution.Normal (NormalDistribution)
-import qualified Data.Vector.Storable.Mutable as VSM
-import Control.Monad (forM_)
 
 
 gpr :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> IndepVarsDistFlat -> IndepVarsDistFlat
          -> Maybe (V.Vector DepVarsPredPos)
-         -> DepVarName -> KernelOneDepVar 
+         -> DepVarName -> KernelOneDepVar
          -> V.Vector SearchResultLong
 gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
@@ -29,7 +30,7 @@ gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar ker
         weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
     -- in error $ show $ VS.take 100 $ VS.reverse $ M.flatten $ weightsGridGrid
         nugget = case _kodvNugget kernel of
-            Just x -> x
+            Just x  -> x
             Nothing -> throwL "nugget parameter missing in kernel definition"
         resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values nugget
     in V.map (search depVar maybeSearchValues) resDistribution
@@ -40,7 +41,7 @@ expandHalfToMatrix n halfVec =
           mvec <- VSM.new (n*n)
           let idx col row = col*n + row  -- column-major index
               idxHalf i j = i * (i+1) `div` 2 + j
-          forM_ [0..n-1] $ \i -> 
+          forM_ [0..n-1] $ \i ->
             forM_ [0..i] $ \j -> do
               let v = halfVec VS.! idxHalf i j
               -- write (i,j) and (j,i)
@@ -50,7 +51,7 @@ expandHalfToMatrix n halfVec =
     in M.reshape n mv
 
 kas :: V.Vector Observation -> IndepVarsDistFlat -> Maybe (V.Vector DepVarsPredPos)
-         -> DepVarName -> KernelOneDepVar 
+         -> DepVarName -> KernelOneDepVar
          -> V.Vector SearchResultLong
 kas obs distsObsGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs

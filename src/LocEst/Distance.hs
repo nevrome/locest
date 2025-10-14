@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TupleSections #-}
 
 module LocEst.Distance where
@@ -6,15 +5,15 @@ module LocEst.Distance where
 import           LocEst.Types
 import           LocEst.TypesFlat
 
-import qualified Data.Vector       as V
-import qualified Data.Vector.Storable           as VS
-import qualified Data.Vector.Storable.Mutable           as VSM
-import Data.Foldable (forM_)
+import           Data.Foldable                (forM_)
+import qualified Data.Vector                  as V
+import qualified Data.Vector.Storable         as VS
+import qualified Data.Vector.Storable.Mutable as VSM
 
 calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> [IndepVarName] -> IO AUDistMatrixPerIndepVar
 calcObsGridDistances spatScale obs grid varsToCompute = do
     let indepVarNames = case grid V.! 0 of
-          IndepSpatTempPos _ -> ["space", "time"]
+          IndepSpatTempPos _                            -> ["space", "time"]
           IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.toList ns
     let selected = filter (`elem` varsToCompute) indepVarNames
     mats <- mapM (calcObsGridOneDim spatScale obs grid) selected
