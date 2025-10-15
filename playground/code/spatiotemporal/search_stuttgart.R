@@ -20,7 +20,7 @@ obsGridDists <- fields::rdist(
   #dplyr::transmute(obsID, gridID, space = value/1000)
   dplyr::transmute(space = round(value/1000, 1))
 readr::write_tsv(obsGridDists, "data/spatiotemporal/obsGridDistFile.tsv")
-
+system('time locest serialise audist -i data/spatiotemporal/obs.tsv -g data/spatiotemporal/grid.tsv --distFile data/spatiotemporal/obsGridDistFile.tsv -o data/spatiotemporal/obsGridDistFile.cbor')
 
 space_mat <- fields::rdist(as.matrix(obs[c("x","y")])) / 1000
 n <- nrow(obs)
@@ -32,6 +32,7 @@ obsObsPacked <- tibble::tibble(
   space = round(space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)], 1)
 )
 readr::write_tsv(obsObsPacked, "data/spatiotemporal/obsObsDistFile.tsv")
+system('time locest serialise sudist -i data/spatiotemporal/obs.tsv --distFile data/spatiotemporal/obsObsDistFile.tsv -o data/spatiotemporal/obsObsDistFile.cbor')
 
 space_mat <- fields::rdist(as.matrix(grid[c("x","y")])) / 1000
 n <- nrow(grid)
@@ -43,6 +44,7 @@ gridGridPacked <- tibble::tibble(
   space = round(space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)], 1)
 )
 readr::write_tsv(gridGridPacked, "data/spatiotemporal/gridGridDistFile.tsv")
+system('time locest serialise sudist -g data/spatiotemporal/grid.tsv --distFile data/spatiotemporal/gridGridDistFile.tsv -o data/spatiotemporal/gridGridDistFile.cbor')
 
 # stack install --profile
 # stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -hc -l
@@ -87,6 +89,7 @@ cross %>%
 # profiteur locest.prof
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy
 # hp2ps -c locest.hp
+
 system('time locest search --configFile code/spatiotemporal/basic.conf  +RTS -N -RTS')
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")

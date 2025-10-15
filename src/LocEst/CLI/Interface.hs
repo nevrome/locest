@@ -101,6 +101,17 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             <*> optParseInObsTempSamplesFile
                             <*> optParseInSpatDistNoOrderCheck
                             )) (OP.progDesc "Serialise --tempSampFile."))
+                     <> OP.command "sudist" (OP.info (OP.helper <*> (
+                            SerialiseSUDistMatrixPerIndepVar
+                            <$> (VecFileObs <$> optParseInObservationFile OP.<|> VecFileGrid <$> optParseInSpatGridFile)
+                            <*> optParseDistFile
+                            )) (OP.progDesc "Serialise su dist.")) -- TODO: make less hacky
+                     <> OP.command "audist" (OP.info (OP.helper <*> (
+                            SerialiseAUDistMatrixPerIndepVar
+                            <$> optParseInObservationFile
+                            <*> optParseInSpatGridFile
+                            <*> optParseDistFile
+                            )) (OP.progDesc "Serialise au dist.")) -- TODO: make less hacky       
                      ) <*> optParseOutFileCbor
 
 searchOptParser :: OP.Parser SearchOptions
@@ -522,6 +533,12 @@ optParseInObsTempSamplesFile = OP.strOption (
     <> OH.hardline <>     "└─────┴────────┘"
     ))
     )
+
+optParseDistFile :: OP.Parser FilePath
+optParseDistFile = OP.strOption (
+    OP.long "distFile" <>
+    OP.metavar "FILE" <>
+    OP.help "TODO")
 
 -- optParseSearchGridSettings :: OP.Parser SearchGridSettings
 -- optParseSearchGridSettings =

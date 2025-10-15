@@ -3,6 +3,8 @@ module LocEst.CLI.Serialise where
 import qualified Codec.Serialise as S
 import           LocEst.Parsers
 import           System.IO       (hPutStrLn, stderr)
+import qualified Data.Vector as V
+import Control.Exception (IOException, try)
 
 data SerialiseOptions = SerialiseOptions {
       _serialiseSet     :: SerialiseSet
@@ -29,14 +31,17 @@ data SerialiseSet =
       , _sotsInObsTempSamplesFile :: FilePath
       , _sotsNoOrderCheck         :: Bool
       }
-    -- | SerialiseSUDistMatrixPerIndepVar {
-    --     ssudRefVecLength :: Int
-    --   , ssudInDistFile :: FilePath
-    -- }
-    -- | SerialiseAUDistMatrixPerIndepVar {
-    --     ssudRefVecLength :: Int
-    --   , ssudInDistFile :: FilePath
-    -- }
+    | SerialiseSUDistMatrixPerIndepVar {
+        ssudRefVecFile :: VecFile
+      , ssudInDistFile :: FilePath
+    }
+    | SerialiseAUDistMatrixPerIndepVar {
+        saudRefObsFile :: FilePath
+      , saudRefGridFile :: FilePath
+      , saudInDistFile :: FilePath
+    }
+
+data VecFile = VecFileObs FilePath | VecFileGrid FilePath
 
 runSerialise :: SerialiseOptions -> IO ()
 runSerialise (SerialiseOptions (SerialiseObsFile inObsFile) outFile) = do
@@ -61,6 +66,17 @@ runSerialise (SerialiseOptions (SerialiseObsTempSamplesFile inObsFile inObsTempS
     observations <- readObservations inObsFile
     inTempSamps  <- readTempSamp (ReadTempSampParse noOrderCheck observations inObsTempSamplesFile)
     write outFile inTempSamps
+runSerialise (SerialiseOptions (SerialiseSUDistMatrixPerIndepVar vecFile distFile) outFile) = do
+    nVec <- case vecFile of
+        VecFileObs path -> V.length <$> readObservations path
+        VecFileGrid path -> V.length <$> readIndepVarsPos path
+    res <- readSUDistMulti nVec distFile
+    write outFile res
+runSerialise (SerialiseOptions (SerialiseAUDistMatrixPerIndepVar obsFile gridFile distFile) outFile) = do
+    nObs <- V.length <$> readObservations obsFile
+    nGrid <- V.length <$> readIndepVarsPos gridFile
+    res <- readAUDistMulti nObs nGrid distFile
+    write outFile res
 
 write :: S.Serialise a => FilePath -> a -> IO ()
 write path x = do
