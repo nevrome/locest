@@ -10,22 +10,16 @@ data SerialiseOptions = SerialiseOptions {
 }
 
 data SerialiseSet =
-      SerialiseObsFile {
-        _sofInObservationFile     :: FilePath
-      }
-    | SerialiseSpatGridFile {
-        _ssgfInSpatGridFile       :: FilePath
-      }
-    | SerialiseAnyGridFile {
-        _sagfInAnyGridFile        :: FilePath
-      }
+      SerialiseObsFile      { _sofInObservationFile :: FilePath }
+    | SerialiseSpatGridFile { _ssgfInSpatGridFile   :: FilePath }
+    | SerialiseAnyGridFile  { _sagfInAnyGridFile    :: FilePath }
     | SerialiseObsObsSpatDistFile {
         _sooInSpatDistFile    :: FilePath
       , _sooInObservationFile :: FilePath
       , _sooNoOrderCheck      :: Bool
       }
     | SerialiseSpatDistFile  {
-         _spfsInSpatDistFile   :: FilePath
+        _spfsInSpatDistFile    :: FilePath
       , _spfsInObservationFile :: FilePath
       , _spfsInSpatGridFile    :: FilePath
       , _spfsNoOrderCheck      :: Bool
@@ -35,6 +29,14 @@ data SerialiseSet =
       , _sotsInObsTempSamplesFile :: FilePath
       , _sotsNoOrderCheck         :: Bool
       }
+    -- | SerialiseSUDistMatrixPerIndepVar {
+    --     ssudRefVecLength :: Int
+    --   , ssudInDistFile :: FilePath
+    -- }
+    -- | SerialiseAUDistMatrixPerIndepVar {
+    --     ssudRefVecLength :: Int
+    --   , ssudInDistFile :: FilePath
+    -- }
 
 runSerialise :: SerialiseOptions -> IO ()
 runSerialise (SerialiseOptions (SerialiseObsFile inObsFile) outFile) = do

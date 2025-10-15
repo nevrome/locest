@@ -25,7 +25,7 @@ import qualified Data.Csv                       as Csv
 import qualified Data.Csv.Builder               as CsvB
 import qualified Data.Csv.Conduit               as ConCsv
 import           Data.IORef                     (modifyIORef, newIORef,
-                                                 readIORef, writeIORef)
+                                                 readIORef)
 import qualified Data.Vector                    as V
 import qualified Data.Vector.Storable           as VS
 import qualified Data.Vector.Storable.Mutable   as VSM
@@ -48,161 +48,104 @@ encodingOptions = Csv.defaultEncodeOptions {
 
 -- matrix parsers
 
-readSUDistMulti :: V.Vector a -> FilePath -> IO SUDistMatrixPerIndepVar
-readSUDistMulti vec path = do
-    hPutStrLn stderr "Reading symmetric multidimensional distances"
-    hPutStrLn stderr $ "Parsing " ++ path
-    let n     = V.length vec
-        nHalf = n*(n+1) `div` 2
-    -- peek first row to discover dimension names and stride
-    namesV <- discoverNames path
-    let stride = V.length namesV
-    -- allocate one mutable vector per variable
-    matsMV <- forM [0..stride-1] $ const (VSM.new nHalf)
-    idxRef <- newIORef 0
-    Con.runConduitRes $
-         sourceCSV path
-      .| ConC.mapM unwrapCSVParsingErrors
-      .| ConC.mapM_ (\row -> do
-            let ValuesPerIndepVar _ valsVS = _sdrValues row
-            idx <- liftIO $ readIORef idxRef
-            forM_ [0..stride-1] $ \dimIx ->
-                VSM.write (matsMV !! dimIx) idx (valsVS VS.! dimIx)
-            liftIO $ writeIORef idxRef (idx + 1)
-        )
-    frozen <- forM (zip (V.toList namesV) matsMV) $ \(name, mv) -> do
-                 v <- VS.unsafeFreeze mv
-                 pure (name, SUDistMatrix v)
-    hPutStrLn stderr "Done"
-    pure (SUDistMatrixPerIndepVar frozen)
+readSUDistMulti :: Int -> FilePath -> IO SUDistMatrixPerIndepVar
+readSUDistMulti n path 
+    | takeExtension path == ".cbor" = do
+        hPutStrLn stderr "Reading symmetric multidimensional distances"
+        hPutStrLn stderr $ "Deserialising " ++ path
+        res <- S.readFileDeserialise path
+        hPutStrLn stderr "Done"
+        return res
+    | otherwise = do
+        hPutStrLn stderr "Reading symmetric multidimensional distances"
+        let nHalf = n*(n+1) `div` 2 -- length of packed upper triangle
+        -- read entire file into memory
+        !raw <- Bchs.readFile path
+        let ls = Bchs.lines raw
+        when (null ls) $ throwL "empty file"
+        -- parse header: id1, id2, then indep vars
+        let headerBS    = head ls
+            allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerBS))
+            namesV      = V.filter (\nm -> nm /= "id1" && nm /= "id2") allNames
+            stride      = V.length namesV
+            indepIndices = V.findIndices (\nm -> nm /= "id1" && nm /= "id2") allNames
+        -- allocate packed half-matrix vectors for each indep var
+        matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nHalf)
+        -- data rows (assumed in packed upper triangle order)
+        let dataLines = tail ls
+            !lenRows = length dataLines
+        when (lenRows /= nHalf) $
+            throwL $ "row count mismatch: expected " ++ show nHalf ++ " got " ++ show lenRows
+        -- process each data row
+        let loop _ [] = pure ()
+            loop !rowIx (bs:rest) = do
+                let cols = Bchs.split '\t' bs
+                -- write each indep var value to packed vector at rowIx
+                forM_ [0..stride-1] $ \dimIx -> do
+                    let colIx = indepIndices V.! dimIx
+                        bsVal = cols !! colIx
+                        !val  = case LexFrac.readDecimal bsVal of
+                                  Just (d, _) -> d
+                                  Nothing     -> throwL $ "invalid double " ++ Bchs.unpack (cols !! colIx) ++ " at row" ++ show rowIx
+                    VSM.unsafeWrite (matsMV V.! dimIx) rowIx val
+                when (rowIx `mod` 1000000 == 0) $ hPutStrLn stderr $ show rowIx
+                loop (rowIx+1) rest
+        loop 0 dataLines
+        -- freeze
+        frozen <- V.forM (V.zip namesV matsMV) $ \(name, mv) -> do
+                     v <- VS.unsafeFreeze mv
+                     pure (name, SUDistMatrix v)
+        hPutStrLn stderr "Done"
+        pure $ SUDistMatrixPerIndepVar (V.toList frozen)
 
-readSUDistMultiFast :: V.Vector a -> FilePath -> IO SUDistMatrixPerIndepVar
-readSUDistMultiFast vec path = do
-    hPutStrLn stderr "Reading symmetric multidimensional distances (FAST)"
-    let n     = V.length vec
-        nHalf = n*(n+1) `div` 2  -- length of packed upper triangle
-    -- read entire file into memory
-    !raw <- Bchs.readFile path
-    let ls = Bchs.lines raw
-    when (null ls) $ error "Empty TSV file"
-    -- parse header: id1, id2, then indep vars
-    let headerBS    = head ls
-        allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerBS))
-        namesV      = V.filter (\nm -> nm /= "id1" && nm /= "id2") allNames
-        stride      = V.length namesV
-        indepIndices = V.findIndices (\nm -> nm /= "id1" && nm /= "id2") allNames
-    -- allocate packed half-matrix vectors for each indep var
-    matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nHalf)
-    -- data rows (assumed in packed upper triangle order)
-    let dataLines = tail ls
-    --     !lenRows  = length dataLines
-    -- when (lenRows /= nHalf) $
-    --     error $ "row count mismatch: expected " ++ show nHalf ++ " got " ++ show lenRows
-    -- process each data row
-    let loop _ [] = pure ()
-        loop !rowIx (bs:rest) = do
-            let cols = Bchs.split '\t' bs
-            -- write each indep var value to packed vector at rowIx
-            forM_ [0..stride-1] $ \dimIx -> do
-                let colIx = indepIndices V.! dimIx
-                    bsVal = cols !! colIx
-                    !val  = case LexFrac.readDecimal bsVal of
-                              Just (d, _) -> d
-                              Nothing     -> error $ "Invalid double " ++ Bchs.unpack (cols !! colIx) ++ " at row" ++ show rowIx
-                VSM.unsafeWrite (matsMV V.! dimIx) rowIx val
-            when (rowIx `mod` 1000000 == 0) $ hPutStrLn stderr $ show rowIx
-            loop (rowIx+1) rest
-    loop 0 dataLines
-    -- freeze
-    frozen <- V.forM (V.zip namesV matsMV) $ \(name, mv) -> do
-                 v <- VS.unsafeFreeze mv
-                 pure (name, SUDistMatrix v)
-    hPutStrLn stderr "Done"
-    pure $ SUDistMatrixPerIndepVar (V.toList frozen)
-
-readAUDistMultiFast :: V.Vector Observation -> V.Vector IndepVarsPos -> FilePath -> IO AUDistMatrixPerIndepVar
-readAUDistMultiFast obs grid path = do
-    hPutStrLn stderr "Reading asymmetric multidimensional distances (FAST)"
-    let nObs  = V.length obs
-        nGrid = V.length grid
-        total = nObs * nGrid
-    -- read entire file into memory
-    !raw <- Bchs.readFile path
-    let ls = Bchs.lines raw
-    when (null ls) $ error "Empty TSV file"
-    -- parse header (tab-separated dimension names)
-    let headerBS    = head ls
-        allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerBS))
-        namesV      = V.filter (\nm -> nm /= "obsID" && nm /= "gridID") allNames
-        stride      = V.length namesV
-        indepIndices = V.findIndices (\nm -> nm /= "obsID" && nm /= "gridID") allNames
-    -- allocate one mutable vector per dimension
-    matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new total)
-    -- process each data row
-    let dataLines = tail ls
-    let loop _ [] = pure ()
-        loop !rowIx (bs:rest) = do
-            let cols = Bchs.split '\t' bs
-            -- write each indep var value to packed vector at rowIx
-            forM_ [0..stride-1] $ \dimIx -> do
-                let colIx = indepIndices V.! dimIx
-                    !val  =  case LexFrac.readDecimal (cols !! colIx) of
-                         Just (d, _) -> d
-                         Nothing     -> error $ "Invalid double " ++ Bchs.unpack (cols !! colIx) ++ " at row" ++ show rowIx
-                VSM.unsafeWrite (matsMV V.! dimIx) rowIx val
-            when (rowIx `mod` 1000000 == 0) $ hPutStrLn stderr $ show rowIx
-            loop (rowIx+1) rest
-    loop 0 dataLines
-    -- freeze
-    frozen <- V.forM (V.zip namesV matsMV) $ \(name, mv) -> do
-                 v <- VS.unsafeFreeze mv
-                 pure (name, AUDistMatrix nObs nGrid v)
-    hPutStrLn stderr "Done"
-    pure $ AUDistMatrixPerIndepVar (V.toList frozen)
-
-readAUDistMulti :: V.Vector Observation -> V.Vector IndepVarsPos -> FilePath -> IO AUDistMatrixPerIndepVar
-readAUDistMulti obs grid path = do
-    hPutStrLn stderr "Reading asymmetric multidimensional distances"
-    hPutStrLn stderr $ "Parsing " ++ path
-    let nObs  = V.length obs
-        nGrid = V.length grid
-        total = nObs * nGrid
-    -- peek the first row to discover dimension names and stride
-    namesV <- discoverNames path
-    let stride = V.length namesV
-    -- allocate one mutable vector per dimension
-    matsMV <- forM [0..stride-1] $ const (VSM.new total)
-    idxRef <- newIORef 0 -- keep track of overall row index for writes
-    -- stream parse and write
-    Con.runConduitRes $
-         sourceCSV path
-      .| ConC.mapM unwrapCSVParsingErrors
-      .| ConC.mapM_ (\row -> do
-            let ValuesPerIndepVar _ valsVS = _smdValues row
-            idx <- liftIO $ readIORef idxRef
-            forM_ [0..stride-1] $ \dimIx ->
-                VSM.write (matsMV !! dimIx) idx (valsVS VS.! dimIx)
-            liftIO $ writeIORef idxRef (idx + 1)
-        )
-    -- freeze
-    frozen <- forM (zip (V.toList namesV) matsMV) $ \(name, mv) -> do
-                 v <- VS.unsafeFreeze mv
-                 pure (name, AUDistMatrix nObs nGrid v)
-    hPutStrLn stderr "Done"
-    pure $ AUDistMatrixPerIndepVar frozen
-
--- discover dimension names by parsing only the header from the CSV
-discoverNames :: FilePath -> IO (V.Vector IndepVarName)
-discoverNames fp = do
-    hdr <- readCSVHeader fp
-    let indepCols = filter (\k -> Bchs.isPrefixOf "indep" k || k == "space" || k == "time") hdr
-    pure (V.fromList (map Bchs.unpack indepCols))
-readCSVHeader :: FilePath -> IO [Bchs.ByteString]
-readCSVHeader fp = do
-    h <- openFile fp ReadMode
-    firstLine <- Bchs.hGetLine h
-    hClose h
-    pure (Bchs.split '\t' firstLine)
+readAUDistMulti :: Int -> Int -> FilePath -> IO AUDistMatrixPerIndepVar
+readAUDistMulti nObs nGrid path
+    | takeExtension path == ".cbor" = do
+        hPutStrLn stderr "Reading asymmetric multidimensional distances"
+        hPutStrLn stderr $ "Deserialising " ++ path
+        res <- S.readFileDeserialise path
+        hPutStrLn stderr "Done"
+        return res
+    | otherwise = do
+        hPutStrLn stderr "Reading asymmetric multidimensional distances"
+        let nTotal = nObs * nGrid
+        -- read entire file into memory
+        !raw <- Bchs.readFile path
+        let ls = Bchs.lines raw
+        when (null ls) $ error "Empty TSV file"
+        -- parse header (tab-separated dimension names)
+        let headerBS    = head ls
+            allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerBS))
+            namesV      = V.filter (\nm -> nm /= "obsID" && nm /= "gridID") allNames
+            stride      = V.length namesV
+            indepIndices = V.findIndices (\nm -> nm /= "obsID" && nm /= "gridID") allNames
+        -- allocate one mutable vector per dimension
+        matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nTotal)
+        -- data rows
+        let dataLines = tail ls
+            !nRows = length dataLines
+        when (nRows /= nTotal) $
+            throwL $ "row count mismatch: expected " ++ show nTotal ++ " got " ++ show nRows
+        -- process each data row
+        let loop _ [] = pure ()
+            loop !rowIx (bs:rest) = do
+                let cols = Bchs.split '\t' bs
+                -- write each indep var value to packed vector at rowIx
+                forM_ [0..stride-1] $ \dimIx -> do
+                    let colIx = indepIndices V.! dimIx
+                        !val  =  case LexFrac.readDecimal (cols !! colIx) of
+                             Just (d, _) -> d
+                             Nothing     -> error $ "Invalid double " ++ Bchs.unpack (cols !! colIx) ++ " at row" ++ show rowIx
+                    VSM.unsafeWrite (matsMV V.! dimIx) rowIx val
+                when (rowIx `mod` 1000000 == 0) $ hPutStrLn stderr $ show rowIx
+                loop (rowIx+1) rest
+        loop 0 dataLines
+        -- freeze
+        frozen <- V.forM (V.zip namesV matsMV) $ \(name, mv) -> do
+                     v <- VS.unsafeFreeze mv
+                     pure (name, AUDistMatrix nObs nGrid v)
+        hPutStrLn stderr "Done"
+        pure $ AUDistMatrixPerIndepVar (V.toList frozen)
 
 -- complex parsers
 

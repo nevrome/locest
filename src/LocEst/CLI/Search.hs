@@ -49,14 +49,16 @@ runSearch (SearchOptions
         kernels   = getValues kernelDefinition
     -- read observations
     !obs <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
+    let nObs = V.length obs
     -- read indepVar prediction grid positions
     !indepPredGrid <- V.map (filterVarsInIndepVarsPos indepVars) <$> readIndepVarsPos inIndepVarsPredGridFile
+    let nGrid = V.length indepPredGrid
     -- read depVar search grid
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
     -- read distances
-    !obsGridDistances <- traverse (readAUDistMultiFast obs indepPredGrid) maybeObsGridDistFile
-    !obsObsDistances <- traverse (readSUDistMultiFast obs) maybeObsObsDistFile
-    !gridGridDistances <- traverse (readSUDistMultiFast indepPredGrid) maybeGridGridDistFile
+    !obsGridDistances <- traverse (readAUDistMulti nObs nGrid) maybeObsGridDistFile
+    !obsObsDistances <- traverse (readSUDistMulti nObs) maybeObsObsDistFile
+    !gridGridDistances <- traverse (readSUDistMulti nGrid) maybeGridGridDistFile
     -- permutations
     hPutStrLn stderr "Preparing permutations"
     let permutations = createPermutations obs Nothing indepPredGrid depSearchGrid maybeTempGrid

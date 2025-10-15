@@ -27,12 +27,14 @@ newtype SUDistMatrix = SUDistMatrix (VS.Vector Double)
    deriving (Generic, Show, Eq)
 
 instance NFData SUDistMatrix
+instance S.Serialise SUDistMatrix
 
 -- | A data type for named lists of matrices
 newtype SUDistMatrixPerIndepVar = SUDistMatrixPerIndepVar [(IndepVarName, SUDistMatrix)]
     deriving (Generic, Show, Eq)
 
 instance NFData SUDistMatrixPerIndepVar
+instance S.Serialise SUDistMatrixPerIndepVar
 instance PseudoMap SUDistMatrixPerIndepVar SUDistMatrix where
     toList (SUDistMatrixPerIndepVar l) = l
     getKeys (SUDistMatrixPerIndepVar l) = map fst l
@@ -65,6 +67,7 @@ newtype AUDistMatrixPerIndepVar = AUDistMatrixPerIndepVar [(IndepVarName, AUDist
     deriving (Generic, Show, Eq)
 
 instance NFData AUDistMatrixPerIndepVar
+instance S.Serialise AUDistMatrixPerIndepVar
 instance PseudoMap AUDistMatrixPerIndepVar AUDistMatrix where
     toList (AUDistMatrixPerIndepVar l) = l
     getKeys (AUDistMatrixPerIndepVar l) = map fst l
