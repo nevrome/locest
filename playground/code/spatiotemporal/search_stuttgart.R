@@ -90,7 +90,7 @@ cross %>%
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy
 # hp2ps -c locest.hp
 
-system('time locest search --configFile code/spatiotemporal/basic.conf  +RTS -N -RTS')
+system('time OMP_NUM_THREADS=4 locest search --configFile code/spatiotemporal/basic.conf  +RTS -N4 -RTS')
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
