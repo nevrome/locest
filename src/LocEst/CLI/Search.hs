@@ -91,7 +91,7 @@ core algorithm indepVars
                     forM indepVars (\name -> case lookup name ms of
                        Just m  -> pure (name, m)
                        Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
-            distsObsObs <- case maybeObsObsDists of -- this could be refactored to be shorter
+            distsObsObs <- case maybeObsObsDists of
                 Nothing -> do
                      aObsObs   <- async $ suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
                      wait aObsObs
@@ -99,7 +99,7 @@ core algorithm indepVars
                     forM indepVars (\name -> case lookup name ms of
                        Just m  -> pure (name, m)
                        Nothing -> calcSUDistOneDim spatDistUnitScaling (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
-            distsGridGrid <- case maybeGridGridDists of -- this could be refactored to be shorter
+            distsGridGrid <- case maybeGridGridDists of
                 Nothing -> do
                      aGridGrid <- async $ suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
                      wait aGridGrid
@@ -108,16 +108,11 @@ core algorithm indepVars
                        Just m  -> pure (name, m)
                        Nothing -> calcSUDistOneDim spatDistUnitScaling id grid name)
             --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsObsGrid
-            --putStrLn $ show $ VS.length $ payload distsObsGrid
-            --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsObsObs
-            --putStrLn $ show $ VS.length $ payload distsObsObs
-            --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsGridGrid
-            --putStrLn $ show $ VS.length $ payload distsGridGrid
             --error "test"
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
         KAS -> do
             -- kas
-            !distsObsGrid <- case maybeObsGridDists of -- this could be refactored to be shorter
+            !distsObsGrid <- case maybeObsGridDists of
                 Nothing -> do
                      aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
                      wait aObsGrid
