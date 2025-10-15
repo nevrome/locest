@@ -73,9 +73,10 @@ readSUDistMulti n path
         matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nHalf)
         -- data rows (assumed in packed upper triangle order)
         let dataLines = tail ls
-            !lenRows = length dataLines
-        when (lenRows /= nHalf) $
-            throwL $ "row count mismatch: expected " ++ show nHalf ++ " got " ++ show lenRows
+        -- would be a neat test, but requires reading list into memory:
+        --     !lenRows = length dataLines
+        -- when (lenRows /= nHalf) $
+        --     throwL $ "row count mismatch: expected " ++ show nHalf ++ " got " ++ show lenRows
         -- process each data row
         let loop _ [] = pure ()
             loop !rowIx (bs:rest) = do
@@ -123,9 +124,10 @@ readAUDistMulti nObs nGrid path
         matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nTotal)
         -- data rows
         let dataLines = tail ls
-            !nRows = length dataLines
-        when (nRows /= nTotal) $
-            throwL $ "row count mismatch: expected " ++ show nTotal ++ " got " ++ show nRows
+        -- would be a neat test, but requires reading list into memory:
+        --     !nRows = length dataLines
+        -- when (nRows /= nTotal) $
+        --     throwL $ "row count mismatch: expected " ++ show nTotal ++ " got " ++ show nRows
         -- process each data row
         let loop _ [] = pure ()
             loop !rowIx (bs:rest) = do
