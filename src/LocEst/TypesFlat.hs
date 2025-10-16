@@ -5,8 +5,8 @@
 
 module LocEst.TypesFlat where
 
-import           LocEst.Utils    (throwL)
 import           LocEst.Types
+import           LocEst.Utils         (throwL)
 
 import qualified Codec.Serialise      as S
 import           Control.DeepSeq

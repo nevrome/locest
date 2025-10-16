@@ -2,14 +2,14 @@
 
 module LocEst.Utils where
 
+import           Conduit           (MonadIO, liftIO)
 import           Control.DeepSeq   (NFData)
 import           Control.Exception (Exception, throw, throwIO)
-import           GHC.Generics      (Generic)
-import           Conduit           (MonadIO, liftIO)
 import           Data.Conduit      (ConduitT)
 import qualified Data.Conduit.List as ConC
 import           Data.IORef        (modifyIORef, newIORef, readIORef)
 import           GHC.Conc          (getNumCapabilities)
+import           GHC.Generics      (Generic)
 import           System.IO         (hPutStrLn, stderr)
 
 -- | Different exceptions for locest

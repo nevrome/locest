@@ -1,10 +1,10 @@
 module LocEst.CLI.Serialise where
 
-import qualified Codec.Serialise as S
+import qualified Codec.Serialise   as S
+import           Control.Exception (IOException, try)
+import qualified Data.Vector       as V
 import           LocEst.Parsers
-import           System.IO       (hPutStrLn, stderr)
-import qualified Data.Vector as V
-import Control.Exception (IOException, try)
+import           System.IO         (hPutStrLn, stderr)
 
 data SerialiseOptions = SerialiseOptions {
       _serialiseSet     :: SerialiseSet
@@ -36,9 +36,9 @@ data SerialiseSet =
       , ssudInDistFile :: FilePath
     }
     | SerialiseAUDistMatrixPerIndepVar {
-        saudRefObsFile :: FilePath
+        saudRefObsFile  :: FilePath
       , saudRefGridFile :: FilePath
-      , saudInDistFile :: FilePath
+      , saudInDistFile  :: FilePath
     }
 
 data VecFile = VecFileObs FilePath | VecFileGrid FilePath
@@ -68,7 +68,7 @@ runSerialise (SerialiseOptions (SerialiseObsTempSamplesFile inObsFile inObsTempS
     write outFile inTempSamps
 runSerialise (SerialiseOptions (SerialiseSUDistMatrixPerIndepVar vecFile distFile) outFile) = do
     nVec <- case vecFile of
-        VecFileObs path -> V.length <$> readObservations path
+        VecFileObs path  -> V.length <$> readObservations path
         VecFileGrid path -> V.length <$> readIndepVarsPos path
     res <- readSUDistMulti nVec distFile
     write outFile res

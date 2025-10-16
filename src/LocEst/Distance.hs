@@ -5,7 +5,7 @@ module LocEst.Distance where
 import           LocEst.Types
 import           LocEst.TypesFlat
 
-import           Data.Foldable                (forM_, Foldable (foldl'))
+import           Data.Foldable                (Foldable (foldl'), forM_)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Storable         as VS
 import qualified Data.Vector.Storable.Mutable as VSM

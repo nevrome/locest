@@ -5,10 +5,9 @@
 
 module LocEst.Parsers where
 
-import           LocEst.Utils
-import           LocEst.Utils
 import           LocEst.Types
 import           LocEst.TypesFlat
+import           LocEst.Utils
 
 import qualified Codec.Serialise                as S
 import           Conduit                        (MonadIO, MonadResource, liftIO)
@@ -49,7 +48,7 @@ encodingOptions = Csv.defaultEncodeOptions {
 -- matrix parsers
 
 readSUDistMulti :: Int -> FilePath -> IO SUDistMatrixPerIndepVar
-readSUDistMulti n path 
+readSUDistMulti n path
     | takeExtension path == ".cbor" = do
         hPutStrLn stderr "Reading symmetric multidimensional distances"
         hPutStrLn stderr $ "Deserialising " ++ path

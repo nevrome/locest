@@ -3,12 +3,12 @@
 
 module LocEst.CLI.Search where
 
-import           LocEst.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.TypesFlat
+import           LocEst.Utils
 
 import qualified Data.Vector              as V
 import           System.IO                (hPutStrLn, stderr)

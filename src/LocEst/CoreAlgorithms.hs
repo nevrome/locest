@@ -2,9 +2,9 @@
 
 module LocEst.CoreAlgorithms where
 
-import           LocEst.Utils
 import           LocEst.Types
 import           LocEst.TypesFlat
+import           LocEst.Utils
 
 import           Control.Monad                     (forM_)
 import qualified Data.Vector                       as V
@@ -13,8 +13,10 @@ import qualified Data.Vector.Storable.Mutable      as VSM
 import qualified Numeric.LinearAlgebra             as M
 import           Statistics.Distribution           (ContDistr, logDensity,
                                                     quantile)
-import           Statistics.Distribution.Normal    (NormalDistribution, normalDistr)
-import           Statistics.Distribution.StudentT  (StudentT, studentTUnstandardized)
+import           Statistics.Distribution.Normal    (NormalDistribution,
+                                                    normalDistr)
+import           Statistics.Distribution.StudentT  (StudentT,
+                                                    studentTUnstandardized)
 import           Statistics.Distribution.Transform (LinearTransform)
 
 

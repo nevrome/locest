@@ -6,8 +6,8 @@
 -- rexport of LocEst.TypesUtils
 module LocEst.Types (module LocEst.Types, module LocEst.TypesUtils) where
 
-import           LocEst.Utils     (throwL)
 import           LocEst.TypesUtils
+import           LocEst.Utils          (throwL)
 
 import qualified Codec.Serialise       as S
 import           Control.Applicative   ((<|>))

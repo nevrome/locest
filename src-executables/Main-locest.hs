@@ -4,9 +4,9 @@ import           LocEst.CLI.Cross         (CrossOptions (..), runCross)
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise     (SerialiseOptions (..), runSerialise)
-import           LocEst.Utils         (setNumberOfThreads)
 import           LocEst.CLI.Vario         (VarioOptions (..), runVario)
 import           LocEst.Utils
+import           LocEst.Utils             (setNumberOfThreads)
 
 import           Control.Exception        (catch)
 import           Data.List                (isInfixOf)

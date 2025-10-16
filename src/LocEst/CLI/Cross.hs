@@ -2,10 +2,10 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
+import           LocEst.Utils
 
 import           Conduit                       (MonadIO (liftIO))
 import           Data.Conduit                  ((.|))
