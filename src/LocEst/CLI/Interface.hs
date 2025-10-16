@@ -9,8 +9,8 @@ import           LocEst.CLI.Cross
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
-import           LocEst.Types
 import           LocEst.Utils
+import           LocEst.Types
 
 import           Data.Char                (isSpace, toLower)
 import           Data.List                (groupBy, isPrefixOf, singleton, sort)
@@ -111,7 +111,7 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             <$> optParseInObservationFile
                             <*> optParseInSpatGridFile
                             <*> optParseDistFile
-                            )) (OP.progDesc "Serialise au dist.")) -- TODO: make less hacky
+                            )) (OP.progDesc "Serialise au dist.")) -- TODO: make less hacky       
                      ) <*> optParseOutFileCbor
 
 searchOptParser :: OP.Parser SearchOptions
@@ -129,7 +129,7 @@ searchOptParser = SearchOptions
 varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
                         <$> optParseInObservationFile
-                        <*> OP.optional optParseSpatDistSetting
+                        -- <*> OP.optional optParseSpatDistSetting
                         <*> optParseAcrossSettings
                         <*> optParseSpaceTimeScaling
                         <*> optParseIndepVarsThresholds
@@ -143,11 +143,6 @@ crossOptParser = CrossOptions
                         <*> optParseCrossSettings
                         <*> optParseOutFile
                         <*> optParseCrossOutMode
-
-optParseSpatDistSetting :: OP.Parser SpatDistSettings
-optParseSpatDistSetting = SpatDistSettings
-                        <$> optParseInSpatDistMapFile
-                        <*> optParseInSpatDistNoOrderCheck
 
 
 optParseInObsGridDistFile :: OP.Parser FilePath

@@ -2,11 +2,11 @@
 
 module LocEst.CLI.Vario where
 
+import           LocEst.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.TypesFlat
-import           LocEst.Utils
 
 import           Conduit                       ((.|))
 import qualified Data.Conduit                  as Con
@@ -22,17 +22,12 @@ import           System.IO                     (hPutStrLn, stderr)
 
 data VarioOptions = VarioOptions {
       _voInObservationFile   :: FilePath
-    , _voSpatDistSetting     :: Maybe SpatDistSettings
+    -- , _voObsObsDistFile      :: Maybe FilePath -- TODO: reading dists from file
     , _voAcrossSettings      :: AcrossSettings
     , _voSpaceTimeScaling    :: (Double,Double)
     , _voIndepVarsThresholds :: IndepVarsThresholds
     , _voOutFile             :: Maybe FilePath
     , _voBinMode             :: BinModeSettings
-}
-
-data SpatDistSettings = SpatDistSettings {
-      _sdfInSpatDistFile :: FilePath
-    , _sdfNoOrderCheck   :: Bool
 }
 
 data AcrossSettings =
@@ -56,7 +51,7 @@ data BinModeSettings =
 
 runVario :: VarioOptions -> Int -> Double -> IO ()
 runVario
-    (VarioOptions inObsFile maybeSpatDist acrossSetting (spaceScaling,timeScaling) indepVarsThresholds outFile binModeSettings)
+    (VarioOptions inObsFile acrossSetting (spaceScaling,timeScaling) indepVarsThresholds outFile binModeSettings)
     numThreads spatDistUnitScaling = do
     -- read observations
     !obs <- readObservations inObsFile
@@ -76,7 +71,7 @@ runVario
         -- calculate pairwise distances
         hPutStrLn stderr "Calculating pairwise distances for independent variables"
         let indepVars = case posFromObs $ V.head obs of
-                IndepSpatTempPos _     -> ["space", "time"]
+                IndepSpatTempPos _ -> ["space", "time"]
                 IndepArbitraryDimPos x -> getKeys x
         -- only computes half of the pairwise distances
         !distsPerIndepVar <- if acrossIndepVars
