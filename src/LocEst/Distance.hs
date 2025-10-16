@@ -99,8 +99,8 @@ auMatrixToFlat audmPerIndepVar =
     in IndepVarsDistFlat tagsVec payloadVec stride
 
 -- TODO: do scaling more elegantly: Could consider any variable, not just space and time
-mergeDists :: (Double, Double) -> SUDistMatrixPerIndepVar -> IO SUDistMatrixPerIndepVar
-mergeDists (spaceScale, timeScale) (SUDistMatrixPerIndepVar ms) = do
+mergeDistsIndepVar :: (Double, Double) -> SUDistMatrixPerIndepVar -> IO SUDistMatrixPerIndepVar
+mergeDistsIndepVar (spaceScale, timeScale) (SUDistMatrixPerIndepVar ms) = do
     case ms of
       [] -> error "mergeDists: no matrices to merge"
       _  -> do
@@ -118,6 +118,21 @@ mergeDists (spaceScale, timeScale) (SUDistMatrixPerIndepVar ms) = do
           VSM.write mv i (sqrt ssq)
         distsMerged <- VS.unsafeFreeze mv
         pure $ SUDistMatrixPerIndepVar [("acrossIndep", SUDistMatrix distsMerged)]
+
+mergeDistsDepVar :: SUDistMatrixPerIndepVar -> IO SUDistMatrixPerIndepVar
+mergeDistsDepVar (SUDistMatrixPerIndepVar ms) = do
+    case ms of
+      [] -> error "mergeDists: no matrices to merge"
+      _  -> do
+        -- all half matrices should have the same length
+        let nHalf = VS.length (let (SUDistMatrix v) = snd (head ms) in v)
+        mv <- VSM.new nHalf
+        forM_ [0..nHalf-1] $ \i -> do
+          -- sum-of-squares accumulator
+          let ssq = foldl' (\acc (_, SUDistMatrix v) -> acc + (v VS.! i) ^ 2) 0.0 ms
+          VSM.write mv i (sqrt ssq)
+        distsMerged <- VS.unsafeFreeze mv
+        pure $ SUDistMatrixPerIndepVar [("acrossDep", SUDistMatrix distsMerged)]
 
 calcObsObsDistDepVar :: V.Vector Observation -> [DepVarName] -> IO SUDistMatrixPerIndepVar
 calcObsObsDistDepVar obs varsToCompute = do

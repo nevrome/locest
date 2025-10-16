@@ -85,7 +85,7 @@ runVario
         !distsPerIndepVar <- if acrossIndepVars
                              then do
                                  allDists <- calcObsObsDistances spatDistUnitScaling obs indepVars
-                                 mergeDists (spaceScaling,timeScaling) allDists
+                                 mergeDistsIndepVar (spaceScaling,timeScaling) allDists
                              else calcObsObsDistances spatDistUnitScaling obs indepVars
         hPutStrLn stderr "Calculating pairwise distances for dependent variables"
         -- only computes half of the pairwise distances
@@ -94,7 +94,7 @@ runVario
                              if acrossDepVars
                              then do
                                  allDists <- calcObsObsDistDepVar obs depVars
-                                 mergeDists (spaceScaling,timeScaling) allDists -- scaling is not necessary here
+                                 mergeDistsDepVar allDists
                              else calcObsObsDistDepVar obs depVars
         -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
         hPutStrLn stderr "Calculating empirical variograms"
