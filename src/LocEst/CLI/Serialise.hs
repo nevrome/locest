@@ -1,10 +1,9 @@
 module LocEst.CLI.Serialise where
 
-import qualified Codec.Serialise   as S
-import           Control.Exception (IOException, try)
-import qualified Data.Vector       as V
+import qualified Codec.Serialise as S
+import qualified Data.Vector     as V
 import           LocEst.Parsers
-import           System.IO         (hPutStrLn, stderr)
+import           System.IO       (hPutStrLn, stderr)
 
 data SerialiseOptions = SerialiseOptions {
       _serialiseSet     :: SerialiseSet

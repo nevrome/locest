@@ -113,7 +113,7 @@ mergeDistsIndepVar (spaceScale, timeScale) (SUDistMatrixPerIndepVar ms) = do
                                let scale | name == "space" = spaceScale
                                          | name == "time"  = timeScale
                                          | otherwise       = 1.0
-                               in acc + (v VS.! i / scale) ^ 2
+                               in acc + (v VS.! i / scale) ** 2
                            ) 0.0 ms
           VSM.write mv i (sqrt ssq)
         distsMerged <- VS.unsafeFreeze mv
@@ -129,7 +129,7 @@ mergeDistsDepVar (SUDistMatrixPerIndepVar ms) = do
         mv <- VSM.new nHalf
         forM_ [0..nHalf-1] $ \i -> do
           -- sum-of-squares accumulator
-          let ssq = foldl' (\acc (_, SUDistMatrix v) -> acc + (v VS.! i) ^ 2) 0.0 ms
+          let ssq = foldl' (\acc (_, SUDistMatrix v) -> acc + (v VS.! i) ** 2) 0.0 ms
           VSM.write mv i (sqrt ssq)
         distsMerged <- VS.unsafeFreeze mv
         pure $ SUDistMatrixPerIndepVar [("acrossDep", SUDistMatrix distsMerged)]

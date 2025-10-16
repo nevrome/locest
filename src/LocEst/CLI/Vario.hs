@@ -9,7 +9,6 @@ import           LocEst.TypesFlat
 import           LocEst.Utils
 
 import           Conduit                       ((.|))
-import           Control.Monad                 (replicateM, zipWithM_)
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Algorithms.Async as ConAA
 import qualified Data.Conduit.Combinators      as ConC
@@ -18,9 +17,7 @@ import           Data.List                     (foldl', singleton, sort)
 import qualified Data.Vector                   as V
 import qualified Data.Vector.Algorithms.Intro  as VA
 import qualified Data.Vector.Storable          as VS
-import qualified Data.Vector.Storable.Mutable  as VSM
 import qualified Data.Vector.Unboxed           as VU
-import           System.FilePath               (takeExtension)
 import           System.IO                     (hPutStrLn, stderr)
 
 data VarioOptions = VarioOptions {
