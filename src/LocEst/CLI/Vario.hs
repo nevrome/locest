@@ -2,7 +2,7 @@
 
 module LocEst.CLI.Vario where
 
-import           LocEst.CLI.Utils
+import           LocEst.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types

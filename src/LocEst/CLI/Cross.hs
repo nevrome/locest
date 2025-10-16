@@ -2,9 +2,8 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Utils
+import           LocEst.Utils
 import           LocEst.CoreAlgorithms
-import           LocEst.MathUtils              (avg, foldSum)
 import           LocEst.Parsers
 import           LocEst.Types
 

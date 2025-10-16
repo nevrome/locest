@@ -5,7 +5,7 @@
 
 module LocEst.TypesFlat where
 
-import           LocEst.Exceptions    (throwL)
+import           LocEst.Utils    (throwL)
 import           LocEst.Types
 
 import qualified Codec.Serialise      as S

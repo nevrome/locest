@@ -3,7 +3,7 @@
 
 module LocEst.CLI.Search where
 
-import           LocEst.CLI.Utils
+import           LocEst.Utils
 import           LocEst.CoreAlgorithms
 import           LocEst.Distance
 import           LocEst.Parsers

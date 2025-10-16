@@ -5,7 +5,7 @@
 
 module LocEst.TypesUtils where
 
-import           LocEst.MathUtils
+import           LocEst.Utils
 
 import qualified Codec.Serialise       as S
 import           Control.Applicative   (empty)

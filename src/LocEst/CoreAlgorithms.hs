@@ -2,8 +2,7 @@
 
 module LocEst.CoreAlgorithms where
 
-import           LocEst.Exceptions
-import           LocEst.MathUtils
+import           LocEst.Utils
 import           LocEst.Types
 import           LocEst.TypesFlat
 
@@ -14,8 +13,8 @@ import qualified Data.Vector.Storable.Mutable      as VSM
 import qualified Numeric.LinearAlgebra             as M
 import           Statistics.Distribution           (ContDistr, logDensity,
                                                     quantile)
-import           Statistics.Distribution.Normal    (NormalDistribution)
-import           Statistics.Distribution.StudentT  (StudentT)
+import           Statistics.Distribution.Normal    (NormalDistribution, normalDistr)
+import           Statistics.Distribution.StudentT  (StudentT, studentTUnstandardized)
 import           Statistics.Distribution.Transform (LinearTransform)
 
 
@@ -25,9 +24,9 @@ gpr :: V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarsDistFlat -> Ind
          -> V.Vector SearchResultLong
 gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
-        weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
-        weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
-        weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
+        !weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
+        !weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
+        !weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
     -- in error $ show $ VS.take 100 $ VS.reverse $ M.flatten $ weightsGridGrid
         nugget = case _kodvNugget kernel of
             Just x  -> x
@@ -189,3 +188,18 @@ computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
                                    in go (j+1) (acc + x*x)
                            in go 0 0.0
                 in weightFun ds2
+
+-- mapping Mathematica's StudentTDistribution interface to the interface in the
+-- Haskell statistics package
+generalizedStudentT :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
+generalizedStudentT mu scale dof
+    | isNaN scale = Left "sigma is NaN"
+    | scale <= 0  = Left "sigma must be > 0"
+    | dof   <= 0  = Left "degree of freedoms must be > 0"
+    | otherwise   = Right $ studentTUnstandardized dof mu scale
+
+normal :: Double -> Double -> Either String NormalDistribution
+normal mu std
+    | isNaN std = Left "sigma is NaN"
+    | std <= 0  = Left "sigma must be > 0"
+    | otherwise = Right $ normalDistr mu std

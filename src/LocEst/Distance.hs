@@ -248,28 +248,13 @@ suMatrixToFlatHalf sudmPerIndepVar =
 
 -- distance helper functions
 
-{-# INLINE allDistancesVS #-}
-allDistancesVS :: VS.Vector Double -> VS.Vector Double -> VS.Vector Double
-allDistancesVS = VS.zipWith (\x y -> abs (x - y))
-
-allDistances :: [Double] -> [Double] -> [Double]
-allDistances = zipWith (\x y -> abs (x - y))
-
-euclideanDistance :: [Double] -> [Double] -> Double
-euclideanDistance list1 list2 =
-  let squaredDifferences = zipWith (\x y -> (x - y) ** 2) list1 list2
-  in sqrt $ sum squaredDifferences
-
 {-# INLINE temporalDistTempPos #-}
 temporalDistTempPos :: TempPos -> TempPos -> Double
 temporalDistTempPos (TempPos t1) (TempPos t2) = temporalDistYearBCAD t1 t2
 
+{-# INLINE temporalDistYearBCAD #-}
 temporalDistYearBCAD :: YearBCAD -> YearBCAD -> Double
 temporalDistYearBCAD t1 t2 = fromIntegral $ abs (t1 - t2)
-
-spatialDistSpatTempPos :: SpatTempPos -> SpatTempPos -> Double
-spatialDistSpatTempPos (SpatTempPos spatP1 _) (SpatTempPos spatP2 _) =
-    spatialDistSpatPos spatP1 spatP2
 
 {-# INLINE spatialDistSpatPos #-}
 spatialDistSpatPos :: SpatPos -> SpatPos -> Double
@@ -277,11 +262,13 @@ spatialDistSpatPos (SpatPosCartesian p1) (SpatPosCartesian p2) = spatialDistCart
 spatialDistSpatPos (SpatPosLongLat p1) (SpatPosLongLat p2) = spatialDistLongLatPos p1 p2
 spatialDistSpatPos _ _ = error "Can not be calculated"
 
+{-# INLINE spatialDistCartesianPos #-}
 spatialDistCartesianPos :: CartesianPos -> CartesianPos -> Double
 spatialDistCartesianPos (CartesianPos _ _ x1 y1) (CartesianPos _ _ x2 y2) =
     sqrt (((x1 - x2) ** 2) + ((y1 - y2) ** 2))
 
 -- Haversine distance in metres
+{-# INLINE spatialDistLongLatPos #-}
 spatialDistLongLatPos :: LongLatPos -> LongLatPos -> Double
 spatialDistLongLatPos (LongLatPos _ _ (Longitude lon1) (Latitude lat1))
                       (LongLatPos _ _ (Longitude lon2) (Latitude lat2)) =

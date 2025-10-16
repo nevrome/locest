@@ -5,8 +5,8 @@
 
 module LocEst.Parsers where
 
-import           LocEst.CLI.Utils
-import           LocEst.Exceptions
+import           LocEst.Utils
+import           LocEst.Utils
 import           LocEst.Types
 import           LocEst.TypesFlat
 

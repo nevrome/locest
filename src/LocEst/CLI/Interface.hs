@@ -9,7 +9,7 @@ import           LocEst.CLI.Cross
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
-import           LocEst.Exceptions
+import           LocEst.Utils
 import           LocEst.Types
 
 import           Data.Char                (isSpace, toLower)
