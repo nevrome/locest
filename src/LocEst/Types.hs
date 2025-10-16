@@ -423,24 +423,6 @@ makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
 
 type SquaredWeightedDist = Double
 
--- | A data type for a observation with a distance and weight in relation to a point of interest
-data ObsWithWeights = ObsWithWeights {
-      _owdObservation      :: Observation
-    , _owdSpatTempDist     :: IndepVarsDist
-    , _owdPerDepVarWeights :: DepVarsWeights
-} deriving (Eq, Generic)
-
-instance NFData ObsWithWeights
-instance Csv.DefaultOrdered ObsWithWeights where
-    headerOrder (ObsWithWeights obs dists depVarWeights) =
-        V.map ("in_obs_" <>) (Csv.headerOrder obs <> Csv.headerOrder dists <> V.map ("weight_" <>) (Csv.headerOrder depVarWeights))
-instance Csv.ToRecord ObsWithWeights where
-    toRecord (ObsWithWeights obs dists depVarWeights) =
-        Csv.toRecord obs <> Csv.toRecord dists <> Csv.toRecord depVarWeights
-instance Ord ObsWithWeights where
-    compare (ObsWithWeights _ _ (ValuesPerDepVar x1)) (ObsWithWeights _ _ (ValuesPerDepVar x2)) =
-        compare (foldSum (map snd x1)) (foldSum (map snd x2))
-
 -- | A data type for a per-dimension distances in independent variable space
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimDists
     deriving (Eq, Generic)
@@ -496,6 +478,9 @@ instance Identifiable Observation where
 posFromObs :: Observation -> IndepVarsPos
 posFromObs (Observation _ _ (HyperPos ivpos _) _) = ivpos
 
+depVarPosFromObs :: Observation -> DepVarsPos
+depVarPosFromObs (Observation _ _ (HyperPos _ dvpos) _) = dvpos
+
 -- | A data type for positions in independent and dependent var space
 data HyperPos = HyperPos {
       _hyposIndepVarsPos :: IndepVarsPos
@@ -525,11 +510,15 @@ type DepVarsWeights = ValuesPerDepVar
 type DepVarsRands = ValuesPerDepVar
 type DepVarSamples = ValuesPerDepVar
 type DepVarVariances = ValuesPerDepVar
-newtype ValuesPerDepVar = ValuesPerDepVar [(DepVarName, Double)]
+data ValuesPerDepVar = ValuesPerDepVar (V.Vector DepVarName) (VS.Vector Double)
     deriving (Eq, Show, Generic, Ord)
 
 makeValuesPerDepVar :: [(DepVarName, Double)] -> ValuesPerDepVar
-makeValuesPerDepVar xs = ValuesPerDepVar $ sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
+makeValuesPerDepVar xs =
+    let sorted = sortBy (\(k1,_) (k2,_) -> compare k1 k2) xs
+        namesV = V.fromList (map fst sorted)
+        valsVS = VS.fromList (map snd sorted)
+    in ValuesPerDepVar namesV valsVS
 
 instance S.Serialise ValuesPerDepVar
 instance NFData ValuesPerDepVar
@@ -539,21 +528,23 @@ instance Csv.FromNamedRecord ValuesPerDepVar where
             extractedVarsStringDouble = HM.mapKeys Bchs.unpack $ HM.map (read . Bchs.unpack) extractedVarsBS
         pure $ makeValuesPerDepVar $ HM.toList extractedVarsStringDouble
 instance Csv.DefaultOrdered ValuesPerDepVar where
-    headerOrder (ValuesPerDepVar l) =
-        V.map Bchs.pack $ V.fromList $ map fst l
+    headerOrder (ValuesPerDepVar ns _) = V.map Bchs.pack ns
 instance Csv.ToRecord ValuesPerDepVar where
-    toRecord (ValuesPerDepVar l) =
-        V.map (Bchs.pack . show) $ V.map OutDouble $ V.fromList $ map snd l
+    toRecord (ValuesPerDepVar _ vs) = V.map (Bchs.pack . show) $ VS.convert vs
 instance PseudoMap ValuesPerDepVar Double where
-    toList (ValuesPerDepVar l) = l
-    getKeys (ValuesPerDepVar l) = map fst l
-    getValues (ValuesPerDepVar l) = map snd l
-    lookupUnsafe (ValuesPerDepVar l) k =
-        case lookup k l of
-            Just x  -> x
-            Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
+    toList (ValuesPerDepVar ns vs) = V.toList $ V.zip ns (VS.convert vs)
+    getKeys (ValuesPerDepVar ns _) = V.toList ns
+    getValues (ValuesPerDepVar _ vs) = VS.toList vs
+    lookupUnsafe (ValuesPerDepVar ns vs) k =
+        case V.findIndex (== k) ns of
+          Just ix -> vs VS.! ix
+          Nothing -> throwL ("Missing key: " ++ k)
     allSameVars xs = allEqual $ map getKeys xs
-    filterByKey k (ValuesPerDepVar l) = ValuesPerDepVar (filterByKeyList k l)
+    filterByKey ks (ValuesPerDepVar ns vs) =
+        let keepIx = V.findIndices (`elem` ks) ns
+        in ValuesPerDepVar
+             (V.backpermute ns keepIx)
+             (VS.backpermute vs (VS.fromList (V.toList keepIx)))
 
 -- | A data type for independent vars with some value
 type IndepVarsThresholds = ValuesPerIndepVar
@@ -561,8 +552,6 @@ type ArbitraryDimThresholds = ValuesPerIndepVar
 type ArbitraryDimPos = ValuesPerIndepVar
 type ArbitraryDimDists = ValuesPerIndepVar
 type ArbitraryDimLengths = ValuesPerIndepVar
---newtype ValuesPerIndepVar = ValuesPerIndepVar [(IndepVarName, Double)]
---    deriving (Eq, Show, Ord, Generic)
 data ValuesPerIndepVar = ValuesPerIndepVar (V.Vector IndepVarName) (VS.Vector Double)
     deriving (Eq, Show, Ord, Generic)
 
@@ -599,6 +588,9 @@ instance PseudoMap ValuesPerIndepVar Double where
         in ValuesPerIndepVar
              (V.backpermute ns keepIx)
              (VS.backpermute vs (VS.fromList (V.toList keepIx)))
+
+anyPosFromDepVarsPos :: DepVarsPos -> VS.Vector Double
+anyPosFromDepVarsPos (ValuesPerDepVar _ v) = v
 
 -- A data type for positions independent variable space, so here either a spatiotemporal
 -- or an arbitrary space

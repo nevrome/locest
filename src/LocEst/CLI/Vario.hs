@@ -62,14 +62,7 @@ runVario
     (VarioOptions inObsFile maybeSpatDist acrossSetting (spaceScaling,timeScaling) indepVarsThresholds outFile binModeSettings)
     numThreads spatDistUnitScaling = do
     -- read observations
-    observations <- readObservations inObsFile
-    -- read spat dist file
-    inSpatDists <- case maybeSpatDist of
-        Nothing                                  -> pure Nothing
-        Just (SpatDistSettings path noOrderCheck) ->
-            case takeExtension path of
-                ".cbor" -> Just <$> readSpatDist (ReadSpatDistDeserialise path)
-                _       -> Just <$> readSpatDist (ReadSpatDistParse noOrderCheck observations Nothing path)
+    !obs <- readObservations inObsFile
     -- configure across-settings
     hPutStrLn stderr $ "Distance merging mode: " ++ show acrossSetting
     let acrossModes = case acrossSetting of
@@ -85,9 +78,24 @@ runVario
             ++ (if acrossDepVars   then "[x]" else "[ ]") ++ " Dependent"
         -- calculate pairwise distances
         hPutStrLn stderr "Calculating pairwise distances for independent variables"
-        !distsPerIndepVar <- calcIndepVarPairwiseDistances acrossIndepVars spatDistUnitScaling (spaceScaling,timeScaling) inSpatDists observations
+        let indepVars = case posFromObs $ V.head obs of
+                IndepSpatTempPos _ -> ["space", "time"]
+                IndepArbitraryDimPos x -> getKeys x
+        -- only computes half of the pairwise distances
+        !distsPerIndepVar <- if acrossIndepVars
+                             then do
+                                 allDists <- calcObsObsDistances spatDistUnitScaling obs indepVars
+                                 mergeDists (spaceScaling,timeScaling) allDists
+                             else calcObsObsDistances spatDistUnitScaling obs indepVars
         hPutStrLn stderr "Calculating pairwise distances for dependent variables"
-        !distsPerDepVar   <- calcDepVarPairwiseDistances acrossDepVars observations
+        -- only computes half of the pairwise distances
+        let depVars = getKeys $ depVarPosFromObs $ V.head obs
+        SUDistMatrixPerIndepVar !distsPerDepVar <-
+                             if acrossDepVars
+                             then do
+                                 allDists <- calcObsObsDistDepVar obs depVars
+                                 mergeDists (spaceScaling,timeScaling) allDists -- scaling is not necessary here
+                             else calcObsObsDistDepVar obs depVars
         -- iterate over all permutations of indepVars and depVars to calculate empirical variograms
         hPutStrLn stderr "Calculating empirical variograms"
         fmap concat $
@@ -191,129 +199,3 @@ getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
 getIndicesForBin sortedVec i1 i2 =
     --let !_ = unsafePerformIO $ putStrLn (show i1 ++ " " ++ show (i2 - i1))
     VU.map fst $ VU.slice i1 (i2 - i1) sortedVec
-
-makeObsPairs :: V.Vector Observation -> [(Int, (Observation, Observation))]
-makeObsPairs obs =
-    let obsIndexMax = V.length obs - 1
-        obsPairs = [(obs V.! x, obs V.! y) | x <- [0..obsIndexMax], y <- [0..obsIndexMax], x > y]
-    in zip [0..] obsPairs
-
--- distance calculation functions
-calcIndepVarPairwiseDistances :: Bool -> Double -> (Double,Double) -> Maybe SpatDistMatrix -> V.Vector Observation -> IO SUDistMatrixPerIndepVar
-calcIndepVarPairwiseDistances merge spatDistUnitScaling (spaceScaling, timeScaling) maybeSpatDistMatrix obs = do
-    let obsPairs = makeObsPairs obs
-        nrPairs = length obsPairs
-        (Observation _ _ (HyperPos indepPos _) _) = V.head obs
-    case (indepPos,merge) of
-        -- spatiotemporal system
-        (IndepSpatTempPos _,False) -> do
-            -- create mutable vectors to write distances directly
-            spaceVec <- VSM.new nrPairs
-            timeVec  <- VSM.new nrPairs
-            -- calculate and write distances to mutable memory
-            mapM_ (distSpaceTime spaceVec timeVec) obsPairs
-            -- make result vectors immutable for easier handling
-            spaceVecNonMut <- VS.unsafeFreeze spaceVec
-            timeVecNonMut  <- VS.unsafeFreeze timeVec
-            return $ SUDistMatrixPerIndepVar [("space", SUDistMatrix spaceVecNonMut), ("time", SUDistMatrix timeVecNonMut)]
-        (IndepSpatTempPos _,True) -> do
-            hPutStrLn stderr $ "Using space-time scaling: space = " ++ show spaceScaling ++ ", time = " ++ show timeScaling
-            distVec <- VSM.new nrPairs
-            mapM_ (distSpaceTimeMerged distVec) obsPairs
-            distVecNonMut <- VS.unsafeFreeze distVec
-            return $ SUDistMatrixPerIndepVar [("acrossIndep", SUDistMatrix distVecNonMut)]
-        -- arbitrary dimension system
-        (IndepArbitraryDimPos pos@(ValuesPerIndepVar ns _),False) -> do
-            arbitraryVecs <- replicateM (length ns) (VSM.new nrPairs)
-            mapM_ (distArbitrary arbitraryVecs) obsPairs
-            arbitraryVecsNonMut <- mapM VS.unsafeFreeze arbitraryVecs
-            return $ SUDistMatrixPerIndepVar $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) arbitraryVecsNonMut
-        -- arbitrary dimensions merged
-        (IndepArbitraryDimPos (ValuesPerIndepVar _ _),True) -> do
-            distVec <- VSM.new nrPairs
-            mapM_ (distArbitraryMerged distVec) obsPairs
-            distVecNonMut <- VS.unsafeFreeze distVec
-            return $ SUDistMatrixPerIndepVar [("acrossIndep", SUDistMatrix distVecNonMut)]
-    where
-        distSpaceTime :: VSM.IOVector Double -> VSM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
-        distSpaceTime
-            spaceVec timeVec
-            (i,
-            (Observation i1 _ (HyperPos (IndepSpatTempPos (SpatTempPos s1 t1)) _) _,
-             Observation i2 _ (HyperPos (IndepSpatTempPos (SpatTempPos s2 t2)) _) _)
-            ) = do
-            let timeDist  = temporalDistTempPos t1 t2
-                spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatPos s1 s2
-                    Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
-                spaceDistScaled = spaceDist * spatDistUnitScaling
-            -- write distances to mutable vector
-            VSM.write spaceVec i spaceDistScaled
-            VSM.write timeVec  i timeDist
-        distSpaceTime _ _ _ = error "impossible state in spatial independent variable distance calculation"
-        distSpaceTimeMerged :: VSM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
-        distSpaceTimeMerged
-            distVec
-            (i,
-            (Observation i1 _ (HyperPos (IndepSpatTempPos (SpatTempPos s1 t1)) _) _,
-             Observation i2 _ (HyperPos (IndepSpatTempPos (SpatTempPos s2 t2)) _) _)
-            ) = do
-            let timeDist  = temporalDistTempPos t1 t2
-                spaceDist = case maybeSpatDistMatrix of
-                    Nothing             -> spatialDistSpatPos s1 s2
-                    Just spatDistMatrix -> lookUpDistanceAU spatDistMatrix i1 i2
-                spaceDistScaled = spaceDist * spatDistUnitScaling
-                mergedDist = sqrt (((spaceDistScaled * spaceScaling) ** 2) + ((timeDist * timeScaling) ** 2))
-            VSM.write distVec i mergedDist
-        distSpaceTimeMerged _ _ = error "impossible state in spatial independent variable distance calculation"
-        distArbitrary :: [VSM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
-        distArbitrary
-            arbitraryVecs
-            (i,
-            (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _) _,
-             Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _) _)
-            ) = do
-            -- this assumes that p1 and p2 have the same order of indep variables
-            let arbitraryDists = allDistances (getValues p1) (getValues p2)
-            zipWithM_ (`VSM.write` i) arbitraryVecs arbitraryDists
-        distArbitrary _ _ = error "impossible state in arbitrary independent variable distance calculation"
-        distArbitraryMerged :: VSM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
-        distArbitraryMerged
-            distVec
-            (i,
-            (Observation _ _ (HyperPos (IndepArbitraryDimPos p1) _) _,
-             Observation _ _ (HyperPos (IndepArbitraryDimPos p2) _) _)
-            ) = do
-            -- this assumes that p1 and p2 have the same order of indep variables
-            let arbitraryDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
-            VSM.write distVec i arbitraryDistEuclidean
-        distArbitraryMerged _ _ = error "impossible state in merged arbitrary independent variable distance calculation"
-
-calcDepVarPairwiseDistances :: Bool -> V.Vector Observation -> IO [(DepVarName, SUDistMatrix)]
-calcDepVarPairwiseDistances merge obs = do
-    let obsPairs = makeObsPairs obs
-        nrPairs = length obsPairs
-        (Observation _ _ (HyperPos _ pos@(ValuesPerDepVar l)) _) = V.head obs
-    -- writing distances to mutable vectors
-    if merge
-    then do
-        distVec <- VSM.new nrPairs
-        mapM_ (distDepMerged distVec) obsPairs
-        distVecNonMut <- VS.unsafeFreeze distVec
-        return [("acrossDep", SUDistMatrix distVecNonMut)]
-    else do
-        depVecs <- replicateM (length l) (VSM.new nrPairs)
-        mapM_ (distDep depVecs) obsPairs
-        depVecsNonMut <- mapM VS.unsafeFreeze depVecs
-        return $ zipWith (\name vec -> (name, SUDistMatrix vec)) (getKeys pos) depVecsNonMut
-    where
-        distDep :: [VSM.IOVector Double] -> (Int, (Observation, Observation)) -> IO ()
-        distDep depVecs (i, (Observation _ _ (HyperPos _ p1) _, Observation _ _ (HyperPos _ p2) _)) = do
-            -- this assumes that p1 and p2 have the same order of dep variables
-            let depDists = allDistances (getValues p1) (getValues p2)
-            zipWithM_ (`VSM.write` i) depVecs depDists
-        distDepMerged :: VSM.IOVector Double -> (Int, (Observation, Observation)) -> IO ()
-        distDepMerged distVec (i, (Observation _ _ (HyperPos _ p1) _, Observation _ _ (HyperPos _ p2) _)) = do
-            -- this assumes that p1 and p2 have the same order of dep variables
-            let depDistEuclidean = euclideanDistance (getValues p1) (getValues p2)
-            VSM.write distVec i depDistEuclidean

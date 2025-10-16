@@ -5,7 +5,7 @@ module LocEst.Distance where
 import           LocEst.Types
 import           LocEst.TypesFlat
 
-import           Data.Foldable                (forM_)
+import           Data.Foldable                (forM_, Foldable (foldl'))
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Storable         as VS
 import qualified Data.Vector.Storable.Mutable as VSM
@@ -97,6 +97,43 @@ auMatrixToFlat audmPerIndepVar =
             let (idx, dimIx) = k `divMod` stride
             in _audmMatrix (mats !! dimIx) VS.! idx
     in IndepVarsDistFlat tagsVec payloadVec stride
+
+-- TODO: do scaling more elegantly: Could consider any variable, not just space and time
+mergeDists :: (Double, Double) -> SUDistMatrixPerIndepVar -> IO SUDistMatrixPerIndepVar
+mergeDists (spaceScale, timeScale) (SUDistMatrixPerIndepVar ms) = do
+    case ms of
+      [] -> error "mergeDists: no matrices to merge"
+      _  -> do
+        -- all half matrices should have the same length
+        let nHalf = VS.length (let (SUDistMatrix v) = snd (head ms) in v)
+        mv <- VSM.new nHalf
+        forM_ [0..nHalf-1] $ \i -> do
+          -- sum-of-squares accumulator
+          let ssq = foldl' (\acc (name, SUDistMatrix v) ->
+                               let scale | name == "space" = spaceScale
+                                         | name == "time"  = timeScale
+                                         | otherwise       = 1.0
+                               in acc + (v VS.! i / scale) ^ 2
+                           ) 0.0 ms
+          VSM.write mv i (sqrt ssq)
+        distsMerged <- VS.unsafeFreeze mv
+        pure $ SUDistMatrixPerIndepVar [("acrossIndep", SUDistMatrix distsMerged)]
+
+calcObsObsDistDepVar :: V.Vector Observation -> [DepVarName] -> IO SUDistMatrixPerIndepVar
+calcObsObsDistDepVar obs varsToCompute = do
+    let depVarNames = getKeys $ depVarPosFromObs (V.head obs)
+        selected = filter (`elem` varsToCompute) depVarNames
+    mats <- mapM (calcSUDistOneDimDepVar (\(Observation _ _ (HyperPos _ pos) _) -> pos) obs) selected
+    pure (SUDistMatrixPerIndepVar mats)
+
+calcSUDistOneDimDepVar :: (a -> DepVarsPos) -> V.Vector a -> DepVarName -> IO (DepVarName, SUDistMatrix)
+calcSUDistOneDimDepVar getPos vec varName =
+  let names = V.fromList $ getKeys $ getPos (V.head vec)
+  in case V.elemIndex varName names of
+      Just ix -> do
+        let pos  = V.map (anyPosFromDepVarsPos . getPos) vec
+        fmap (varName,) (computeArbitrarySUDistMatrix ix pos)
+      Nothing -> error ("Unknown dependent variable: " ++ varName)
 
 calcObsObsDistances :: Double -> V.Vector Observation -> [IndepVarName] -> IO SUDistMatrixPerIndepVar
 calcObsObsDistances scale obs varsToCompute = do
