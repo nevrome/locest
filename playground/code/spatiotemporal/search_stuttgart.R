@@ -95,7 +95,7 @@ system('time OMP_NUM_THREADS=4 locest search --configFile code/spatiotemporal/ba
 
 # better memory profiling with GNU time
 # export TIME="time result\ncmd: %C\nreal %es\nuser %Us \nsys  %Ss \nmemory: %MKB \ncpu: %P"
-# OMP_NUM_THREADS=4 /usr/bin/time -v locest search --configFile code/spatiotemporal/basic.conf  +RTS -N4 -RTS
+# OMP_NUM_THREADS=4 /usr/bin/time locest search --configFile code/spatiotemporal/basic.conf  +RTS -N4 -RTS
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
