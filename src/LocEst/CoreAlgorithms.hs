@@ -101,33 +101,52 @@ gprCore d dx dxx y g =
         tau2hat  = (y `M.dot` M.flatten alphaCol) / fromIntegral nObs
         -- posterior mean: dx * alpha
         mup      = M.flatten $ dx M.<> alphaCol
+        -- sigmaP diagonal only:
+        dxxDiag   = M.takeDiag dxx
+        betaT     = M.tr beta
+        dxRows    = M.toRows dx
+        betaTRows = M.toRows betaT
+        diagTerm  = VS.fromList $ zipWith M.dot dxRows betaTRows
+        sigmaDiag = VS.zipWith (\dxxi diTerm -> tau2hat * (dxxi + g - diTerm))
+                               (VS.convert dxxDiag)
+                               diagTerm
         -- full posterior covariance
-        dxxFull  = dxx + M.scale g (M.ident nGrid)
-        sigmaP   = M.scale tau2hat (dxxFull - dx M.<> beta)
+        -- dxxFull  = dxx + M.scale g (M.ident nGrid)
+        -- sigmaP   = M.scale tau2hat (dxxFull - dx M.<> beta)
         -- interpolation variance
         -- dxxNoNoise = dxx + M.scale eps (M.ident nGrid)
         -- sigmaInt   = M.scale tau2hat (dxxNoNoise - dx M.<> beta)
-    in marginals mup sigmaP
+    in marginalsFromDiag mup sigmaDiag
+    --in marginals mup sigmaP
     --in (mup, sigmaP, sigmaInt)
 
--- make positive-definite with the sledgehammer
-nearestPD :: Double -> M.Matrix Double -> M.Matrix Double
-nearestPD eps mIn =
-    let m       = M.sym mIn
-        (evals, evecs) = M.eigSH m
-        evalsPD = M.cmap (\x -> if x > eps then x else eps) evals
-        mPD     = evecs <> M.diag evalsPD <> M.tr evecs
-    in mPD
-
-marginals :: M.Vector Double -> M.Matrix Double -> V.Vector (Either String NormalDistribution)
-marginals meanVec covMat =
-    let diagCov = M.takeDiag covMat
-        n = M.size meanVec
+marginalsFromDiag :: M.Vector Double -> VS.Vector Double -> V.Vector (Either String NormalDistribution)
+marginalsFromDiag meanVec varVec =
+    let n = M.size meanVec
     in V.generate n $ \i ->
-        let mu    = M.atIndex meanVec i
-            var   = M.atIndex diagCov i
-            std   = sqrt var
+        let mu  = M.atIndex meanVec i
+            var = varVec VS.! i
+            std = sqrt var
         in normal mu std
+
+-- make positive-definite with the sledgehammer
+-- nearestPD :: Double -> M.Matrix Double -> M.Matrix Double
+-- nearestPD eps mIn =
+--     let m       = M.sym mIn
+--         (evals, evecs) = M.eigSH m
+--         evalsPD = M.cmap (\x -> if x > eps then x else eps) evals
+--         mPD     = evecs <> M.diag evalsPD <> M.tr evecs
+--     in mPD
+
+-- marginals :: M.Vector Double -> M.Matrix Double -> V.Vector (Either String NormalDistribution)
+-- marginals meanVec covMat =
+--     let diagCov = M.takeDiag covMat
+--         n = M.size meanVec
+--     in V.generate n $ \i ->
+--         let mu    = M.atIndex meanVec i
+--             var   = M.atIndex diagCov i
+--             std   = sqrt var
+--         in normal mu std
 
 kasCore ::
        M.Matrix M.R

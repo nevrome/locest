@@ -87,10 +87,15 @@ cross %>%
 # normal search test
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -p
 # profiteur locest.prof
-# stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy
+# memory profiling:
+# OMP_NUM_THREADS=4 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -N4 -RTS
 # hp2ps -c locest.hp
 
 system('time OMP_NUM_THREADS=4 locest search --configFile code/spatiotemporal/basic.conf  +RTS -N4 -RTS')
+
+# better memory profiling with GNU time
+# export TIME="time result\ncmd: %C\nreal %es\nuser %Us \nsys  %Ss \nmemory: %MKB \ncpu: %P"
+# OMP_NUM_THREADS=4 /usr/bin/time -v locest search --configFile code/spatiotemporal/basic.conf  +RTS -N4 -RTS
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
