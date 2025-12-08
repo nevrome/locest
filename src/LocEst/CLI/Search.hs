@@ -22,6 +22,7 @@ import qualified Data.Conduit.List        as ConL
 import           Data.Foldable            (foldl')
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe               (isJust, mapMaybe)
+import Data.List (intercalate)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -42,22 +43,27 @@ runSearch (SearchOptions
     maybeObsGridDistFile maybeObsObsDistFile maybeGridGridDistFile
     outFile
     ) spatDistUnitScaling = do
+    -- algorithm settings
     let algorithm = _kdefAlgorithm kernelDefinition
-    -- list of variables
-    let depVars   = getKeys kernelDefinition
+        depVars   = getKeys kernelDefinition
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
         kernels   = getValues kernelDefinition
+    hPutStrLn stderr $ "Algorithm: " ++ show algorithm
+    hPutStrLn stderr $ "Dependent variables: " ++ intercalate ", " depVars
+    hPutStrLn stderr $ "Independent variables: " ++ intercalate ", " indepVars
     -- read observations
     !obs <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
     let nObs = V.length obs
+    hPutStrLn stderr $ "Number of observations: " ++ show nObs
     -- read indepVar prediction grid positions
     !indepPredGrid <- V.map (filterVarsInIndepVarsPos indepVars) <$> readIndepVarsPos inIndepVarsPredGridFile
     let nGrid = V.length indepPredGrid
+    hPutStrLn stderr $ "Number of grid positions: " ++ show nGrid
     -- read depVar search grid
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
     -- read distances
-    !obsGridDistances <- traverse (readAUDistMulti nObs nGrid) maybeObsGridDistFile
-    !obsObsDistances <- traverse (readSUDistMulti nObs) maybeObsObsDistFile
+    !obsGridDistances  <- traverse (readAUDistMulti nObs nGrid) maybeObsGridDistFile
+    !obsObsDistances   <- traverse (readSUDistMulti nObs) maybeObsObsDistFile
     !gridGridDistances <- traverse (readSUDistMulti nGrid) maybeGridGridDistFile
     -- permutations
     hPutStrLn stderr "Preparing permutations"
@@ -199,14 +205,15 @@ data Permutation = Permutation {
 } deriving (Show)
 
 createPermutations :: V.Vector Observation -> Maybe TempSampleMatrix
-                    -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Maybe [AbsRelTempPos]
-                    -> [Permutation]
+                   -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos) -> Maybe [AbsRelTempPos]
+                   -> [Permutation]
 createPermutations obs maybeTempSampleMatrix indepPredGrid depSearchGrid maybeTempGrid = do
     -- apply temp resampling to obs
     tempSamp <- [0..(nrTempSamples maybeTempSampleMatrix - 1)]
     let modObs = V.map (applyTempSamp maybeTempSampleMatrix tempSamp) obs
     -- grid construction including time
     (indepPredPos, depSearchPos) <- splitDataByTempGrid maybeTempGrid indepPredGrid depSearchGrid
+    -- assemble permutations
     return $ Permutation tempSamp modObs indepPredPos depSearchPos
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
@@ -238,7 +245,6 @@ splitDataByTempGrid (Just absRelTempPos) indepPredGrid depSearchGrid =
       in Just [(indepVarsPos, depGrid)]
     build (RelTempPos yearDist) spatPos (Just searchGrid) =
       let refAge = V.toList $ V.mapMaybe getObsAge searchGrid
-          indepVarsPos = for refAge $
-              \r -> V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos $ r + yearDist))) spatPos
+          indepVarsPos = for refAge $ \r -> V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos $ r + yearDist))) spatPos
       in Just $ zip indepVarsPos (map Just $ V.group searchGrid)
     build _ _ _ = Nothing
