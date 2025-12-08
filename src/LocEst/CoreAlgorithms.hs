@@ -38,18 +38,17 @@ gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar ker
 
 expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
 expandHalfToMatrix n halfVec =
-    let mv = VS.create $ do
-          mvec <- VSM.new (n*n)
-          let idx col row = col*n + row  -- column-major index
-              idxHalf i j = i * (i+1) `div` 2 + j
-          forM_ [0..n-1] $ \i ->
-            forM_ [0..i] $ \j -> do
-              let v = halfVec VS.! idxHalf i j
-              -- write (i,j) and (j,i)
-              VSM.unsafeWrite mvec (idx j i) v
-              VSM.unsafeWrite mvec (idx i j) v
-          pure mvec
-    in M.reshape n mv
+    M.reshape n $ VS.create $ do
+      mvec <- VSM.new (n*n)
+      let idx col row = col*n + row  -- column-major index
+          idxHalf i j = i * (i+1) `div` 2 + j
+      forM_ [0..n-1] $ \i ->
+        forM_ [0..i] $ \j -> do
+          let v = halfVec VS.! idxHalf i j
+          -- write (i,j) and (j,i)
+          VSM.unsafeWrite mvec (idx j i) v
+          VSM.unsafeWrite mvec (idx i j) v
+      pure mvec
 
 kas :: V.Vector Observation -> IndepVarsDistFlat -> Maybe (V.Vector DepVarsPredPos)
          -> DepVarName -> KernelOneDepVar
@@ -83,7 +82,6 @@ gprCore ::
 gprCore d dx dxx y g =
     -- number of observations and grid points
     let nObs  = M.rows d
-        nGrid = M.rows dxx
         -- training kernel + nugget
        --k     = nearestPD 0.00001 $ d + M.scale g (M.ident nObs)
         k     = d + M.scale g (M.ident nObs)
@@ -111,6 +109,7 @@ gprCore d dx dxx y g =
                                (VS.convert dxxDiag)
                                diagTerm
         -- full posterior covariance
+        -- nGrid = M.rows dxx
         -- dxxFull  = dxx + M.scale g (M.ident nGrid)
         -- sigmaP   = M.scale tau2hat (dxxFull - dx M.<> beta)
         -- interpolation variance
@@ -128,6 +127,12 @@ marginalsFromDiag meanVec varVec =
             var = varVec VS.! i
             std = sqrt var
         in normal mu std
+
+normal :: Double -> Double -> Either String NormalDistribution
+normal mu std
+    | isNaN std = Left "sigma is NaN"
+    | std <= 0  = Left "sigma must be > 0"
+    | otherwise = Right $ normalDistr mu std
 
 -- make positive-definite with the sledgehammer
 -- nearestPD :: Double -> M.Matrix Double -> M.Matrix Double
@@ -218,9 +223,3 @@ generalizedStudentT mu scale dof
     | scale <= 0  = Left "sigma must be > 0"
     | dof   <= 0  = Left "degree of freedoms must be > 0"
     | otherwise   = Right $ studentTUnstandardized dof mu scale
-
-normal :: Double -> Double -> Either String NormalDistribution
-normal mu std
-    | isNaN std = Left "sigma is NaN"
-    | std <= 0  = Left "sigma must be > 0"
-    | otherwise = Right $ normalDistr mu std
