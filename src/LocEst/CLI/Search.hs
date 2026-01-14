@@ -14,7 +14,6 @@ import qualified Data.Vector              as V
 import           System.IO                (hPutStrLn, stderr)
 
 import           Conduit                  (liftIO)
-import           Control.Concurrent.Async (async, wait)
 import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
@@ -91,24 +90,21 @@ core algorithm indepVars
             -- gpr
             distsObsGrid <- case maybeObsGridDists of -- this could be refactored to be shorter
                 Nothing -> do
-                     aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
-                     wait aObsGrid
+                     auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
                 Just (AUDistMatrixPerIndepVar ms) -> auMatrixToFlat . AUDistMatrixPerIndepVar <$>
                     forM indepVars (\name -> case lookup name ms of
                        Just m  -> pure (name, m)
                        Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
             distsObsObs <- case maybeObsObsDists of
                 Nothing -> do
-                     aObsObs   <- async $ suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
-                     wait aObsObs
+                     suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
                 Just (SUDistMatrixPerIndepVar ms) -> suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
                     forM indepVars (\name -> case lookup name ms of
                        Just m  -> pure (name, m)
                        Nothing -> calcSUDistOneDim spatDistUnitScaling (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
             distsGridGrid <- case maybeGridGridDists of
                 Nothing -> do
-                     aGridGrid <- async $ suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
-                     wait aGridGrid
+                     suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
                 Just (SUDistMatrixPerIndepVar ms) -> suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
                     forM indepVars (\name -> case lookup name ms of
                        Just m  -> pure (name, m)
@@ -120,8 +116,7 @@ core algorithm indepVars
             -- kas
             !distsObsGrid <- case maybeObsGridDists of
                 Nothing -> do
-                     aObsGrid  <- async $ auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
-                     wait aObsGrid
+                     auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
                 Just (AUDistMatrixPerIndepVar ms) -> auMatrixToFlat . AUDistMatrixPerIndepVar <$>
                     forM indepVars (\name -> case lookup name ms of
                        Just m  -> pure (name, m)
