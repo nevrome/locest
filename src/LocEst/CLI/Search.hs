@@ -90,37 +90,41 @@ core algorithm indepVars
             -- gpr
             distsObsGrid <- case maybeObsGridDists of -- this could be refactored to be shorter
                 Nothing -> do
-                     auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
-                Just (AUDistMatrixPerIndepVar ms) -> auMatrixToFlat . AUDistMatrixPerIndepVar <$>
-                    forM indepVars (\name -> case lookup name ms of
-                       Just m  -> pure (name, m)
-                       Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
+                    auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
+                Just (AUDistMatrixPerIndepVar ms) ->
+                    auMatrixToFlat . AUDistMatrixPerIndepVar <$>
+                        forM indepVars (\name -> case lookup name ms of
+                           Just m  -> pure (name, m)
+                           Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
             distsObsObs <- case maybeObsObsDists of
                 Nothing -> do
                      suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
-                Just (SUDistMatrixPerIndepVar ms) -> suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
-                    forM indepVars (\name -> case lookup name ms of
-                       Just m  -> pure (name, m)
-                       Nothing -> calcSUDistOneDim spatDistUnitScaling (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
+                Just (SUDistMatrixPerIndepVar ms) ->
+                    suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
+                        forM indepVars (\name -> case lookup name ms of
+                           Just m  -> pure (name, m)
+                           Nothing -> calcSUDistOneDim spatDistUnitScaling (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
             distsGridGrid <- case maybeGridGridDists of
                 Nothing -> do
                      suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
-                Just (SUDistMatrixPerIndepVar ms) -> suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
-                    forM indepVars (\name -> case lookup name ms of
-                       Just m  -> pure (name, m)
-                       Nothing -> calcSUDistOneDim spatDistUnitScaling id grid name)
+                Just (SUDistMatrixPerIndepVar ms) ->
+                    suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
+                        forM indepVars (\name -> case lookup name ms of
+                           Just m  -> pure (name, m)
+                           Nothing -> calcSUDistOneDim spatDistUnitScaling id grid name)
             --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsObsGrid
             --error "test"
             return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
         KAS -> do
             -- kas
-            !distsObsGrid <- case maybeObsGridDists of
+            distsObsGrid <- case maybeObsGridDists of
                 Nothing -> do
                      auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
-                Just (AUDistMatrixPerIndepVar ms) -> auMatrixToFlat . AUDistMatrixPerIndepVar <$>
-                    forM indepVars (\name -> case lookup name ms of
-                       Just m  -> pure (name, m)
-                       Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
+                Just (AUDistMatrixPerIndepVar ms) ->
+                    auMatrixToFlat . AUDistMatrixPerIndepVar <$>
+                        forM indepVars (\name -> case lookup name ms of
+                           Just m  -> pure (name, m)
+                           Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
             return $ zipWith (kas obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
     -- turn SSL to SSR
     let rawRows = concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]
