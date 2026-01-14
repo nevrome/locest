@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns      #-}
 
 module LocEst.CLI.Cross where
 
@@ -19,6 +20,45 @@ import qualified Data.Vector                   as V
 import           Immutable.Shuffle             (shuffle)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
+
+data CrossOptions2 = CrossOptions2
+    { _crossInObservationFile2  :: FilePath
+    , _crossTestAlgorithms      :: [KernelDefinition]
+    , _crossvalTestFraction2    :: Double
+    , _crossvalIterations2      :: Int
+    , _crossvalMaybeSeed2       :: Maybe Int
+    , _crossInObsObsDistFile    :: Maybe FilePath
+    , _crossOutFile2            :: Maybe FilePath
+    }
+
+runCross2 :: CrossOptions2 -> Double -> IO ()
+runCross2 (
+    CrossOptions2
+    inObsFile
+    testAlgorithms
+    testFraction iterations maybeSeed
+    maybeObsObsDistFile
+    outFile
+    ) spatDistUnitScaling = do
+    -- algorithm settings
+    let kernelDefinition = head testAlgorithms
+        algorithm = _kdefAlgorithm kernelDefinition
+        depVars   = getKeys kernelDefinition
+        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
+    hPutStrLn stderr $ "Algorithm: " ++ show algorithm
+    hPutStrLn stderr $ "Dependent variables: " ++ intercalate ", " depVars
+    hPutStrLn stderr $ "Independent variables: " ++ intercalate ", " indepVars
+    -- read observations
+    !obs <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
+    let nObs = V.length obs
+    hPutStrLn stderr $ "Number of observations: " ++ show nObs
+    -- read distances
+    !obsObsDistances <- traverse (readSUDistMulti nObs) maybeObsObsDistFile
+    -- splitting training and test data
+    let numTestObs = round $ testFraction * fromIntegral nObs
+    hPutStrLn stderr $ "Number of test observations with fraction" ++ show testFraction ++ ": " ++ show nObs
+   
+
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile  :: FilePath
