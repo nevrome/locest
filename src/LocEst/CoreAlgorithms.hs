@@ -34,7 +34,7 @@ gpr obs grid distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar ker
             Just x  -> x
             Nothing -> throwL "nugget parameter missing in kernel definition"
         resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values nugget
-    in V.map (search depVar maybeSearchValues) resDistribution
+    in V.map (seek depVar maybeSearchValues) resDistribution
 
 expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
 expandHalfToMatrix n halfVec =
@@ -57,17 +57,17 @@ kas obs distsObsGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         weights = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         resDistribution = kasCore weights values
-    in V.map (search depVar maybeSearchValues) resDistribution
+    in V.map (seek depVar maybeSearchValues) resDistribution
 
-search :: ContDistr b => DepVarName -> Maybe (V.Vector DepVarsPredPos) -> Either String b -> SearchResultLong
-search depVar maybeSearchValues (Right distribution) =
+seek :: ContDistr b => DepVarName -> Maybe (V.Vector DepVarsPredPos) -> Either String b -> SearchResultLong
+seek depVar maybeSearchValues (Right distribution) =
             let lower  = quantile distribution 0.025
                 median = quantile distribution 0.5
                 upper  = quantile distribution 0.975
                 searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
                 logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
             in SSL depVar lower median upper maybeSearchValues logL
-search depVar maybeSearchValues (Left _) = case maybeSearchValues of
+seek depVar maybeSearchValues (Left _) = case maybeSearchValues of
            Just x  -> SSL depVar (-inf) nan inf maybeSearchValues (Just (V.replicate (V.length x) (-inf)))
            Nothing -> SSL depVar (-inf) nan inf maybeSearchValues Nothing
 

@@ -71,17 +71,17 @@ runSearch (SearchOptions
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . core algorithm indepVars obsGridDistances obsObsDistances gridGridDistances spatDistUnitScaling depVars kernels)
+        .| ConL.concatMapM (liftIO . search algorithm indepVars obsGridDistances obsObsDistances gridGridDistances spatDistUnitScaling depVars kernels)
         .| progress 1000 Nothing
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
-core :: Algorithm -> [IndepVarName]
+search :: Algorithm -> [IndepVarName]
      -> Maybe AUDistMatrixPerIndepVar -> Maybe SUDistMatrixPerIndepVar -> Maybe SUDistMatrixPerIndepVar
      -> Double
      -> [DepVarName] -> [KernelOneDepVar] -> Permutation
      -> IO [SearchResultRow]
-core algorithm indepVars
+search algorithm indepVars
      maybeObsGridDists maybeObsObsDists maybeGridGridDists
      spatDistUnitScaling
      depVars kernelsPerDepVar (Permutation tempSamplingIteration obs grid searchDepVarPos) = do

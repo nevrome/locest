@@ -113,24 +113,6 @@ toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
 toFieldMaybeDouble Nothing  = Bchs.empty
 toFieldMaybeDouble (Just x) = Csv.toField (OutDouble x)
 
--- | A data type for search results with a depVar label
-data CrossSearchResult = CrossSearchResult {
-      _csrDepVars      :: [DepVarName]
-    , _csrSearchResult :: String -- TODO: SearchResult
-} deriving (Show, Generic)
-
-instance NFData CrossSearchResult
-instance Csv.DefaultOrdered CrossSearchResult where
-    headerOrder (CrossSearchResult [_] _) =
-        Csv.header ["depVar"] -- <> removeDepVarFromHeader depVar (Csv.headerOrder searchResult)
-    headerOrder (CrossSearchResult _ _) =
-        Csv.header ["TODO"] --Csv.headerOrder searchResult
-instance Csv.ToRecord CrossSearchResult where
-    toRecord (CrossSearchResult [depVar] searchResult) =
-        Csv.toRecord [Csv.toField depVar] <> Csv.toRecord searchResult
-    toRecord (CrossSearchResult _ searchResult) =
-        Csv.toRecord searchResult
-
 -- | A data type for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
       _crossoutDepVars          :: [DepVarName]
