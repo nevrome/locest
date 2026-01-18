@@ -3,25 +3,25 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CoreAlgorithms
+-- import           LocEst.CoreAlgorithms
 import           LocEst.Parsers
 import           LocEst.Types
-import           LocEst.Utils
+-- import           LocEst.Utils
 
-import           Conduit                       (MonadIO (liftIO))
-import           Data.Conduit                  ((.|))
-import qualified Data.Conduit                  as Con
-import qualified Data.Conduit.Algorithms.Async as ConAA
-import qualified Data.Conduit.Combinators      as ConC
-import qualified Data.Conduit.List             as ConL
-import           Data.List                     (intercalate, singleton)
-import           Data.Maybe                    (mapMaybe)
+-- import           Conduit                       (MonadIO (liftIO))
+-- import           Data.Conduit                  ((.|))
+-- import qualified Data.Conduit                  as Con
+-- import qualified Data.Conduit.Algorithms.Async as ConAA
+-- import qualified Data.Conduit.Combinators      as ConC
+-- import qualified Data.Conduit.List             as ConL
+import           Data.List                     (intercalate)
+-- import           Data.Maybe                    (mapMaybe)
 import qualified Data.Vector                   as V
 import           Immutable.Shuffle             (shuffle)
 import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
 
-data CrossOptions2 = CrossOptions2
+data CrossOptions = CrossOptions
     { _crossInObservationFile2  :: FilePath
     , _crossTestAlgorithms      :: [KernelDefinition]
     , _crossvalTestFraction2    :: Double
@@ -31,15 +31,16 @@ data CrossOptions2 = CrossOptions2
     , _crossOutFile2            :: Maybe FilePath
     }
 
-runCross2 :: CrossOptions2 -> Double -> IO ()
-runCross2 (
-    CrossOptions2
+runCross :: CrossOptions -> Double -> IO ()
+runCross (
+    CrossOptions
     inObsFile
     testAlgorithms
     testFraction iterations maybeSeed
     maybeObsObsDistFile
     outFile
-    ) spatDistUnitScaling = do
+    ) spatDistUnitScaling
+    = do
     -- algorithm settings
     let kernelDefinition = head testAlgorithms
         algorithm = _kdefAlgorithm kernelDefinition
@@ -60,45 +61,45 @@ runCross2 (
    
 
 
-data CrossOptions = CrossOptions
-    { _crossInObservationFile  :: FilePath
-    , _crossSupplementSettings :: SupplementSettings
-    , _crossSettings           :: CrossSettings
-    , _crossOutFile            :: Maybe FilePath
-    , _crossOutMode            :: CrossOutModeSettings
-    }
+-- data CrossOptions = CrossOptions
+--     { _crossInObservationFile  :: FilePath
+--     , _crossSupplementSettings :: SupplementSettings
+--     , _crossSettings           :: CrossSettings
+--     , _crossOutFile            :: Maybe FilePath
+--     , _crossOutMode            :: CrossOutModeSettings
+--     }
 
-data SupplementSettings = SupplementSettings {
-      _stcsInSpatDistFile       :: Maybe FilePath
-    , _stcsInObsTempSamplesFile :: Maybe FilePath
-    , _stcsNoOrderCheck         :: Bool
-}
+-- data SupplementSettings = SupplementSettings {
+--       _stcsInSpatDistFile       :: Maybe FilePath
+--     , _stcsInObsTempSamplesFile :: Maybe FilePath
+--     , _stcsNoOrderCheck         :: Bool
+-- }
 
-data CrossSettings = CrossSettings {
-      _crossvalInKernDef        :: [[KernelOneDepVar]]
-    , _crossvalCoAnalyseDepVars :: Bool
-    , _crossvalInSubsetMode     :: CrossSubsetMode
-    }
+-- data CrossSettings = CrossSettings {
+--       _crossvalInKernDef        :: [[KernelOneDepVar]]
+--     , _crossvalCoAnalyseDepVars :: Bool
+--     , _crossvalInSubsetMode     :: CrossSubsetMode
+--     }
 
-data CrossSubsetMode =
-      CrossFull
-    | CrossFraction {
-      _crossvalTestFraction :: Double
-    , _crossvalIterations   :: Int
-    , _crossvalMaybeSeed    :: Maybe Int
-    }
+-- data CrossSubsetMode =
+--       CrossFull
+--     | CrossFraction {
+--       _crossvalTestFraction :: Double
+--     , _crossvalIterations   :: Int
+--     , _crossvalMaybeSeed    :: Maybe Int
+--     }
 
-data CrossOutModeSettings =
-      SummedLikelihoodPerKernelSetting
-    | IndividualSearchObsResults
-    deriving (Show)
+-- data CrossOutModeSettings =
+--       SummedLikelihoodPerKernelSetting
+--     | IndividualSearchObsResults
+--     deriving (Show)
 
-runCross :: CrossOptions -> Int -> Double -> IO ()
-runCross (
-    CrossOptions inObsFile
-    crossSuppSettings
-    (CrossSettings kernsPerDepVar coAnalyseDepVars subsetMode) outFile outMode
-    ) numThreads spatDistUnitScaling = undefined
+-- runCross :: CrossOptions -> Int -> Double -> IO ()
+-- runCross (
+--     CrossOptions inObsFile
+--     crossSuppSettings
+--     (CrossSettings kernsPerDepVar coAnalyseDepVars subsetMode) outFile outMode
+--     ) numThreads spatDistUnitScaling = undefined
     -- prepare kernel definitions
     -- hPutStrLn stderr "Preparing kernel permutations"
     -- let (kernDefsSets, depVarsSets) =

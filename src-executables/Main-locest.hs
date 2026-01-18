@@ -103,7 +103,7 @@ runCmd o numThreads spatDistUnitScaling = case o of
     CmdSerialise opts -> runSerialise opts
     CmdSearch opts    -> runSearch opts spatDistUnitScaling
     CmdVario opts     -> runVario opts numThreads spatDistUnitScaling
-    CmdCross opts     -> runCross opts numThreads spatDistUnitScaling
+    CmdCross opts     -> runCross opts spatDistUnitScaling
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (

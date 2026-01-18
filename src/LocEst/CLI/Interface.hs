@@ -136,13 +136,23 @@ varioOptParser = VarioOptions
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
 
+-- crossOptParser :: OP.Parser CrossOptions
+-- crossOptParser = CrossOptions
+--                         <$> optParseInObservationFile
+--                         <*> optParseSupplementSettings
+--                         <*> optParseCrossSettings
+--                         <*> optParseOutFile
+--                         <*> optParseCrossOutMode
+
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions
                         <$> optParseInObservationFile
-                        <*> optParseSupplementSettings
-                        <*> optParseCrossSettings
+                        <*> optParseKernDefStringPermutations
+                        <*> optParseTestTrainingFraction
+                        <*> optParseCrossvalIterations
+                        <*> optParseCrossvalConfSeed
+                        <*> OP.optional optParseInObsObsDistFile
                         <*> optParseOutFile
-                        <*> optParseCrossOutMode
 
 
 optParseInObsGridDistFile :: OP.Parser FilePath
@@ -242,71 +252,71 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
-optParseCrossSettings :: OP.Parser CrossSettings
-optParseCrossSettings =
-    CrossSettings
-    <$> optParseKernDefStringPermutations
-    <*> optParseCoAnalyseDepVars
-    <*> optParseCrossSubsetMode
+-- optParseCrossSettings :: OP.Parser CrossSettings
+-- optParseCrossSettings =
+--     CrossSettings
+--     <$> optParseKernDefStringPermutations
+--     <*> optParseCoAnalyseDepVars
+--     <*> optParseCrossSubsetMode
 
-optParseCrossSubsetMode :: OP.Parser CrossSubsetMode
-optParseCrossSubsetMode = optParseCrossFull OP.<|> optParseCrossFraction
+-- optParseCrossSubsetMode :: OP.Parser CrossSubsetMode
+-- optParseCrossSubsetMode = optParseCrossFull OP.<|> optParseCrossFraction
 
-optParseCrossFull :: OP.Parser CrossSubsetMode
-optParseCrossFull = OP.flag' CrossFull (
-       OP.long "full"
-    <> OP.helpDoc ( Just (
-                      s2d "Use all input observations both as test and training data. \
-                          \This is faster than running through multiple test-training split iterations, \
-                          \but potentially also less reliable."
-    )))
+-- optParseCrossFull :: OP.Parser CrossSubsetMode
+-- optParseCrossFull = OP.flag' CrossFull (
+--        OP.long "full"
+--     <> OP.helpDoc ( Just (
+--                       s2d "Use all input observations both as test and training data. \
+--                           \This is faster than running through multiple test-training split iterations, \
+--                           \but potentially also less reliable."
+--     )))
 
-optParseCrossFraction :: OP.Parser CrossSubsetMode
-optParseCrossFraction = CrossFraction
-                    <$> optParseTestTrainingFraction
-                    <*> optParseCrossvalIterations
-                    <*> optParseCrossvalConfSeed
+-- optParseCrossFraction :: OP.Parser CrossSubsetMode
+-- optParseCrossFraction = CrossFraction
+--                     <$> optParseTestTrainingFraction
+--                     <*> optParseCrossvalIterations
+--                     <*> optParseCrossvalConfSeed
 
-optParseCrossOutMode :: OP.Parser CrossOutModeSettings
-optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
-    OP.long "outMode" <>
-    OP.metavar "Summed|Obs" <>
-    OP.value SummedLikelihoodPerKernelSetting
-    <> OP.helpDoc ( Just (
-                      s2d "The type of output that should be written to the --outFile. \
-                          \Summed (default): The individual crossvalidation iterations are \
-                          \summarised to a short table with only the tested kernel parameter \
-                          \settings and the summed crossvalidation output."
-    <> OH.hardline <>     "┌──────┬─────┬──────────────┐"
-    <> OH.hardline <>     "│kernel│depV1│shape         │ Kernel shape and"
-    <> OH.hardline <>     "│      │depV2│              │ for each dependent"
-    <> OH.hardline <>     "│      │...  ├───────┬──────┤ variable;"
-    <> OH.hardline <>     "│      │     │space  │length│ length scale"
-    <> OH.hardline <>     "│      │     │time OR│      │ parameters for"
-    <> OH.hardline <>     "│      │     │indepV1│      │ each dependent and"
-    <> OH.hardline <>     "│      │     │indepV2│      │ independent one."
-    <> OH.hardline <>     "│      │     │...    │      │ from --kerndef"
-    <> OH.hardline <>     "└──────┴─────┴───────┴──────┘"
-    <> OH.hardline <>     "Crossvalidation results"
-    <> OH.hardline <>     "┌───────────────────────────────┐"
-    <> OH.hardline <>     "│sum_dep_dist_euclidean         │ Distance to and"
-    <> OH.hardline <>     "│mean_squared_dep_dist_euclidean│ likelihood of test"
-    <> OH.hardline <>     "│sum_log_likelihood             │"
-    <> OH.hardline <>     "└───────────────────────────────┘"
-    <> OH.hardline <> s2d "Obs: The output is as --outMode Full for the search subcommand, but the \
-                          \search observations (--searchObsFile) are set as the test fraction \
-                          \of the crossvalidation data split. Each iteration is returned separately."
-    ))
-    )
-    where
-        readOutMode :: String -> Either String CrossOutModeSettings
-        readOutMode s =
-            case P.runParser parseOutMode () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-        parseOutMode = P.try parseSummed P.<|> parseObs
-        parseSummed = P.string "Summed" >> return SummedLikelihoodPerKernelSetting
-        parseObs    = P.string "Obs"    >> return IndividualSearchObsResults
+-- optParseCrossOutMode :: OP.Parser CrossOutModeSettings
+-- optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
+--     OP.long "outMode" <>
+--     OP.metavar "Summed|Obs" <>
+--     OP.value SummedLikelihoodPerKernelSetting
+--     <> OP.helpDoc ( Just (
+--                       s2d "The type of output that should be written to the --outFile. \
+--                           \Summed (default): The individual crossvalidation iterations are \
+--                           \summarised to a short table with only the tested kernel parameter \
+--                           \settings and the summed crossvalidation output."
+--     <> OH.hardline <>     "┌──────┬─────┬──────────────┐"
+--     <> OH.hardline <>     "│kernel│depV1│shape         │ Kernel shape and"
+--     <> OH.hardline <>     "│      │depV2│              │ for each dependent"
+--     <> OH.hardline <>     "│      │...  ├───────┬──────┤ variable;"
+--     <> OH.hardline <>     "│      │     │space  │length│ length scale"
+--     <> OH.hardline <>     "│      │     │time OR│      │ parameters for"
+--     <> OH.hardline <>     "│      │     │indepV1│      │ each dependent and"
+--     <> OH.hardline <>     "│      │     │indepV2│      │ independent one."
+--     <> OH.hardline <>     "│      │     │...    │      │ from --kerndef"
+--     <> OH.hardline <>     "└──────┴─────┴───────┴──────┘"
+--     <> OH.hardline <>     "Crossvalidation results"
+--     <> OH.hardline <>     "┌───────────────────────────────┐"
+--     <> OH.hardline <>     "│sum_dep_dist_euclidean         │ Distance to and"
+--     <> OH.hardline <>     "│mean_squared_dep_dist_euclidean│ likelihood of test"
+--     <> OH.hardline <>     "│sum_log_likelihood             │"
+--     <> OH.hardline <>     "└───────────────────────────────┘"
+--     <> OH.hardline <> s2d "Obs: The output is as --outMode Full for the search subcommand, but the \
+--                           \search observations (--searchObsFile) are set as the test fraction \
+--                           \of the crossvalidation data split. Each iteration is returned separately."
+--     ))
+--     )
+--     where
+--         readOutMode :: String -> Either String CrossOutModeSettings
+--         readOutMode s =
+--             case P.runParser parseOutMode () "" s of
+--                 Left err -> Left $ showParsecErr err
+--                 Right x  -> Right x
+--         parseOutMode = P.try parseSummed P.<|> parseObs
+--         parseSummed = P.string "Summed" >> return SummedLikelihoodPerKernelSetting
+--         parseObs    = P.string "Obs"    >> return IndividualSearchObsResults
 
 optParseCoreOutMode :: OP.Parser CoreOutMode
 optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
@@ -558,12 +568,12 @@ optParseSearchPositions =
 --         <*> optParseSupplementSettings
 --     )
 
-optParseSupplementSettings :: OP.Parser SupplementSettings
-optParseSupplementSettings =
-    SupplementSettings
-        <$> OP.optional optParseInSpatDistMapFile
-        <*> OP.optional optParseInObsTempSamplesFile
-        <*> optParseInSpatDistNoOrderCheck
+-- optParseSupplementSettings :: OP.Parser SupplementSettings
+-- optParseSupplementSettings =
+--     SupplementSettings
+--         <$> OP.optional optParseInSpatDistMapFile
+--         <*> OP.optional optParseInObsTempSamplesFile
+--         <*> optParseInSpatDistNoOrderCheck
 
 readFilterThresholds :: String -> Either String (Either (Double, Double) ArbitraryDimThresholds)
 readFilterThresholds s =
@@ -831,26 +841,32 @@ optParseCoAnalyseDepVars = OP.switch (
     ))
     )
 
-optParseKernDefStringPermutations :: OP.Parser [[KernelOneDepVar]]
+optParseKernDefStringPermutations :: OP.Parser [KernelDefinition]
 optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString) (
-       OP.long    "kerndef"
-    <> OP.short   'k'
+       OP.long    "algodef"
+    <> OP.short   'a'
     <> OP.metavar "DSL"
     <> OP.helpDoc ( Just (
-                      s2d "Kernel parameter settings that should be tested with the crossvalidation."
-    <> OH.hardline <>     "┌──────────────────┐"
-    <> OH.hardline <>     "│c(                │ named list of dependent variables"
-    <> OH.hardline <>     "│  depV1 = k(      │ - first dependent variable"
-    <> OH.hardline <>     "│    shape = SqEx, │   - either SqEx = Squared exponential"
-    <> OH.hardline <>     "│                  │         or Linear = Linear kernel"
-    <> OH.hardline <>     "│    lengths = c(  │   - named list with length scale"
-    <> OH.hardline <>     "│      space = ... │     for each independent variable *"
-    <> OH.hardline <>     "│      time = ...  │     (can also be \"indep...\")"
-    <> OH.hardline <>     "│    )             │"
-    <> OH.hardline <>     "│  ),              │"
-    <> OH.hardline <>     "│  depV2 = k(...)  │ - second dependent variable"
-    <> OH.hardline <>     "│)                 │"
-    <> OH.hardline <>     "└──────────────────┘"
+                      s2d "Algorithm parameter settings for the interpolation."
+    <> OH.hardline <>     "┌────────────────────┐"
+    <> OH.hardline <>     "│def(                │"
+    <> OH.hardline <>     "│  algorithm = GPR,  │ interpolation algorithm"
+    <> OH.hardline <>     "│                    │ - either GPR or KAS"
+    <> OH.hardline <>     "│  depVars = c(      │ named list of dependent variables"
+    <> OH.hardline <>     "│    depV1 = k(      │ - first dependent variable"
+    <> OH.hardline <>     "│      shape = SqEx, │   - either SqEx = Squared exponential"
+    <> OH.hardline <>     "│                    │         or Linear = Linear kernel"
+    <> OH.hardline <>     "│      lengths = c(  │   - named list with length scale"
+    <> OH.hardline <>     "│        space = ... │     for each independent variable *"
+    <> OH.hardline <>     "│        time = ...  │     (can also be \"indep...\")"
+    <> OH.hardline <>     "│      ),            │"
+    <> OH.hardline <>     "│      nugget = ...  │   - (optional) nugget parameter"
+    <> OH.hardline <>     "│                    │     only relevant for GPR"
+    <> OH.hardline <>     "│    ),              │"
+    <> OH.hardline <>     "│    depV2 = k(...)  │ - second dependent variable"
+    <> OH.hardline <>     "│  )                 │"
+    <> OH.hardline <>     "│)                   │"
+    <> OH.hardline <>     "└────────────────────┘"
     <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified, but \
                           \all variables must also exist in --obsFile and --spatGridFile/--anyGridFile."
     <> OH.hardline <> s2d "* Unlike for the search subcommand, here multiple values can be given for the \
@@ -861,20 +877,39 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
     ))
     )
     where
-        readKernDefString :: String -> Either String [[KernelOneDepVar]]
+        readKernDefString :: String -> Either String [KernelDefinition]
         readKernDefString s =
             case P.runParser parseAKernDefString () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
-        parseAKernDefString :: P.Parser [[KernelOneDepVar]]
+        parseAKernDefString :: P.Parser [KernelDefinition]
         parseAKernDefString = do
-                    perDepVar <- parseNamedVector parseDepVarName parseShapeLengths
-                    return $ map (\(name,(s,ls)) -> map (\l -> KernelOneDepVar name s l Nothing) ls) perDepVar
+            kerndefs <- parseRecordType "def" $ do
+                algo <- parseArgument "algorithm" parseAlgorithm
+                kernelSets <- parseArgument "depVars" (parseNamedVector parseDepVarName parseShapeLengths)
+                return (algo, kernelSets)
+            let (algo, depVars) = kerndefs
+                -- for each dependent variable, expand all length permutations
+                expandedPerDepVar :: [[KernelOneDepVar]]
+                expandedPerDepVar =
+                    [ [ KernelOneDepVar name shape lengths nugget
+                      | lengths <- lengthsList
+                      ]
+                    | (name, (shape, lengthsList, nugget)) <- depVars
+                    ]
+                -- cartesian product over dependent variables
+                allCombinations :: [[KernelOneDepVar]]
+                allCombinations = sequence expandedPerDepVar
+            return $ map (makeKernelDefinition algo) allCombinations
         parseShapeLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
                 ls <- parseArgument "lengths" parseKernelLengths
-                return (s,ls)
+                n <- parseArgumentOptional "nugget" parseNugget
+                return (s,ls,n)
+        parseAlgorithm = do
+            algo <- parseAnyString
+            makeAlgorithm algo
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
@@ -884,6 +919,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
             let flattened = map (\(name,vs) -> map (name,) vs) res
                 permutations = sequenceA flattened
             return $ map (KernelLengths . makeValuesPerIndepVar) permutations
+        parseNugget = parsePositiveFloatNumber
         parseSequence = parseDoubleSequence
         parseList = parseVector parseDouble
         parseSingle = singleton <$> parseDouble
