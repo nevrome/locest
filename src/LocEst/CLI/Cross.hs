@@ -86,18 +86,17 @@ cross algorithm indepVars seed numTestObs iteration obs kerndef = do
         kernels   = getValues kerndef
         -- prediction grid = test observation locations
         predGrid  = V.map posFromObs testObs
+        trueVals = V.map (filterByKey depVars . depVarPosFromObs) testObs
     -- run search (no dep search grid, no temp grid)
     rows <- search algorithm indepVars Nothing Nothing Nothing 1.0 depVars kernels
-                   (Permutation iteration trainingObs predGrid Nothing Nothing)
+                   (Permutation iteration trainingObs predGrid (Just trueVals) Nothing)
     -- align rows with true values
-    let trueVals = V.map (filterByKey depVars . depVarPosFromObs) testObs
-        perObs = zip rows (V.toList trueVals)
+    let perObs = zip rows (V.toList trueVals)
         (sumDist, sumSqDist, sumLL, n) = foldl' step (0,0,0,0 :: Int) perObs
-    -- computer summary statistics
         step (!sd,!ssd,!sll,!k) (row, trueDV) =
             let predDV = makeValuesPerDepVar $ zip (_ssrDepVarName row) (_ssrMedian row)
                 d      = depEuclidean predDV trueDV
-                ll     = fromMaybe 0 (_ssrAggLogLikelihood row)
+                ll     = fromMaybe 0 (_ssrGridAggLogLik row)
             in (sd  + d, ssd + d*d, sll + ll, k + 1)
         meanSq
           | n == 0    = 0
