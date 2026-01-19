@@ -53,59 +53,66 @@ data SearchResultLong = SSL {
     , _sslLowerBound    :: Double     -- lower boundary of the 95% interval
     , _sslMedian        :: Double     -- median (weighted average)
     , _sslUpperBound    :: Double     -- upper boundary of the 95% interval
+    , _sslGridLogLikelihood :: Maybe Double -- log-likelihood for true value
     , _sslSearchPos     :: Maybe (V.Vector DepVarsPredPos) -- search values
     , _sslLogLikelihood :: Maybe (V.Vector Double) -- log-likelihood for search value
 } deriving (Eq, Show, Generic)
 
 -- | A data type for nterpolation output, aggregated per row (so per grid position and per search candidate)
 data SearchResultRow = SSR {
-      _ssrTempSampIter     :: Int
-    , _ssrIndepVarsPos     :: IndepVarsPos
-    , _ssrDepVarName       :: [DepVarName]
-    , _ssrLowerBound       :: [Double]
-    , _ssrMedian           :: [Double]
-    , _ssrUpperBound       :: [Double]
-    , _ssrSearchPos        :: Maybe DepVarsPredPos
-    , _ssrLogLikelihood    :: [Maybe Double]
-    , _ssrAggLogLikelihood :: Maybe Double
-    , _ssrProbability      :: Maybe Double
+      _ssrTempSampIter      :: Int
+    , _ssrIndepVarsPos      :: IndepVarsPos
+    , _ssrDepVarName        :: [DepVarName]
+    , _ssrLowerBound        :: [Double]
+    , _ssrMedian            :: [Double]
+    , _ssrUpperBound        :: [Double]
+    , _ssrGridLogLikelihood :: [Maybe Double]
+    , _ssrGridAggLogLik     :: Maybe Double
+    , _ssrSearchPos         :: Maybe DepVarsPredPos
+    , _ssrLogLikelihood     :: [Maybe Double]
+    , _ssrAggLogLikelihood  :: Maybe Double
+    , _ssrProbability       :: Maybe Double
 } deriving (Eq, Show, Generic)
 
 instance Csv.DefaultOrdered SearchResultRow where
-  headerOrder (SSR _ grid names _ _ _ mSearch _lls _agglls _) =
+  headerOrder (SSR _ grid names _ _ _ _gridLLs _gridAgg mSearch _lls _agglls _) =
     let perDepCols :: DepVarName -> [Bchs.ByteString]
         perDepCols dv =
           map Bchs.pack
-              [ "interpol_low_"     ++ dv
-              , "interpol_median_"  ++ dv
-              , "interpol_up_"      ++ dv
-              , "log_likelihood_"   ++ dv
-              ]
-        aggCols = V.fromList (concatMap perDepCols names)
+            [ "interpol_low_"          ++ dv
+            , "interpol_median_"       ++ dv
+            , "interpol_up_"           ++ dv
+            , "grid_log_likelihood_"   ++ dv
+            , "log_likelihood_"        ++ dv
+            ]
+        perDepHdr = V.fromList (concatMap perDepCols names)
         searchHdr = maybe V.empty Csv.headerOrder mSearch
     in    Csv.header ["temp_sampling_iteration"]
        <> Csv.headerOrder grid
        <> searchHdr
-       <> aggCols
+       <> perDepHdr
+       <> Csv.header ["grid_agg_log_likelihood"]
        <> Csv.header ["agg_log_likelihood"]
        <> Csv.header ["probability"]
 
 instance Csv.ToRecord SearchResultRow where
-  toRecord (SSR tsi grid names lowB medV upB mSearch lls agglls probs) =
+  toRecord (SSR tsi grid names lowB medV upB gridLLs gridAgg mSearch lls agglls probs) =
     let n = length names
         seg i =
           Csv.record
             [ Csv.toField (OutDouble (lowB !! i))
             , Csv.toField (medV  !! i)
             , Csv.toField (OutDouble (upB  !! i))
-            , toFieldMaybeDouble (lls  !! i)
+            , toFieldMaybeDouble (gridLLs !! i)
+            , toFieldMaybeDouble (lls     !! i)
             ]
-        aggRec = V.concat [ seg i | i <- [0 .. n-1] ]
+        perDepRec = V.concat [ seg i | i <- [0 .. n-1] ]
         searchRec = maybe V.empty Csv.toRecord mSearch
     in    Csv.record [Csv.toField tsi]
        <> Csv.toRecord grid
        <> searchRec
-       <> aggRec
+       <> perDepRec
+       <> Csv.record [toFieldMaybeDouble gridAgg]
        <> Csv.record [toFieldMaybeDouble agglls]
        <> Csv.record [toFieldMaybeDouble probs]
 

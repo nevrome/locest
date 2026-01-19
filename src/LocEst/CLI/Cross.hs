@@ -88,7 +88,7 @@ cross algorithm indepVars seed numTestObs iteration obs kerndef = do
         predGrid  = V.map posFromObs testObs
     -- run search (no dep search grid, no temp grid)
     rows <- search algorithm indepVars Nothing Nothing Nothing 1.0 depVars kernels
-                   (Permutation iteration trainingObs predGrid Nothing)
+                   (Permutation iteration trainingObs predGrid Nothing Nothing)
     -- align rows with true values
     let trueVals = V.map (filterByKey depVars . depVarPosFromObs) testObs
         perObs = zip rows (V.toList trueVals)

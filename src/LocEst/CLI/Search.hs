@@ -84,7 +84,8 @@ search :: Algorithm -> [IndepVarName]
 search algorithm indepVars
      maybeObsGridDists maybeObsObsDists maybeGridGridDists
      spatDistUnitScaling
-     depVars kernelsPerDepVar (Permutation tempSamplingIteration obs grid searchDepVarPos) = do
+     depVars kernelsPerDepVar
+     (Permutation tempSamplingIteration obs grid maybeGridTrueDep searchDepVarPos) = do
     perDepVar <- case algorithm of
         GPR -> do
             -- gpr
@@ -114,7 +115,7 @@ search algorithm indepVars
                            Nothing -> calcSUDistOneDim spatDistUnitScaling id grid name)
             --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsObsGrid
             --error "test"
-            return $ zipWith (gpr obs grid distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
+            return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
         KAS -> do
             -- kas
             distsObsGrid <- case maybeObsGridDists of
@@ -125,7 +126,7 @@ search algorithm indepVars
                         forM indepVars (\name -> case lookup name ms of
                            Just m  -> pure (name, m)
                            Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
-            return $ zipWith (kas obs distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
+            return $ zipWith (kas obs maybeGridTrueDep distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
     -- turn SSL to SSR
     let rawRows = concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]
     if isJust searchDepVarPos && isSpatioTemporal grid
@@ -136,18 +137,21 @@ search algorithm indepVars
         rowsForGridIdx perDepVar i =
             let resAtI = map (V.! i) perDepVar
                 mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
-                mkRow mSearchOne llsOne = SSR
-                    { _ssrTempSampIter     = tempSamplingIteration
-                    , _ssrIndepVarsPos     = grid V.! i
-                    , _ssrDepVarName       = map _sslDepVarName resAtI
-                    , _ssrLowerBound       = map _sslLowerBound resAtI
-                    , _ssrMedian           = map _sslMedian     resAtI
-                    , _ssrUpperBound       = map _sslUpperBound resAtI
-                    , _ssrSearchPos        = mSearchOne
-                    , _ssrLogLikelihood    = llsOne
-                    , _ssrAggLogLikelihood = sumIfAllJust llsOne
-                    , _ssrProbability      = Nothing
-                    }
+                mkRow mSearchOne llsOne =
+                    let truthLLs = map _sslGridLogLikelihood resAtI
+                    in SSR { _ssrTempSampIter     = tempSamplingIteration
+                        , _ssrIndepVarsPos     = grid V.! i
+                        , _ssrDepVarName       = map _sslDepVarName resAtI
+                        , _ssrLowerBound       = map _sslLowerBound resAtI
+                        , _ssrMedian           = map _sslMedian     resAtI
+                        , _ssrUpperBound       = map _sslUpperBound resAtI
+                        , _ssrGridLogLikelihood = truthLLs
+                        , _ssrGridAggLogLik     = sumIfAllJust truthLLs
+                        , _ssrSearchPos        = mSearchOne
+                        , _ssrLogLikelihood    = llsOne
+                        , _ssrAggLogLikelihood = sumIfAllJust llsOne
+                        , _ssrProbability      = Nothing
+                        }
                 -- extract per-depVar likelihoods at index j (safely)
                 llsAt :: Int -> [Maybe Double]
                 llsAt j = [ mv >>= (V.!? j) | mv <- map _sslLogLikelihood resAtI ]
@@ -200,6 +204,7 @@ data Permutation = Permutation {
       _permTempSamplingIteration :: Int
     , _permObs                   :: V.Vector Observation
     , _permIndepPredGrid         :: V.Vector IndepVarsPos
+    , _permGridTrueDep           :: Maybe (V.Vector DepVarsPos)
     , _permDepSearchGrid         :: Maybe (V.Vector DepVarsPredPos)
 } deriving (Show)
 
@@ -213,7 +218,7 @@ createPermutations obs maybeTempSampleMatrix indepPredGrid depSearchGrid maybeTe
     -- grid construction including time
     (indepPredPos, depSearchPos) <- splitDataByTempGrid maybeTempGrid indepPredGrid depSearchGrid
     -- assemble permutations
-    return $ Permutation tempSamp modObs indepPredPos depSearchPos
+    return $ Permutation tempSamp modObs indepPredPos Nothing depSearchPos
 
 nrTempSamples :: Maybe TempSampleMatrix -> Int
 nrTempSamples Nothing                         = 1
