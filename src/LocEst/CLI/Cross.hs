@@ -3,7 +3,7 @@
 
 module LocEst.CLI.Cross where
 
--- import           LocEst.CoreAlgorithms
+import LocEst.TypesFlat
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.Utils
@@ -20,7 +20,6 @@ import           System.IO                     (hPutStrLn, stderr)
 import           System.Random                 as R
 import LocEst.CLI.Search (search, Permutation (..))
 import Data.Maybe (fromMaybe)
-import LocEst.TypesFlat
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile2  :: FilePath
@@ -92,8 +91,8 @@ cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed numTestO
         kernels   = getValues kerndef
         -- randomly slice training and test
         (testIdx, trainIdx) = splitIdx seedIter numTestObs (V.length obs)
-        testObs     = V.backpermute obs testIdx
-        trainingObs = V.backpermute obs trainIdx
+        testObs     = V.backpermute obs (V.convert testIdx)
+        trainingObs = V.backpermute obs (V.convert trainIdx)
         -- prediction grid = test observation locations
         predGrid  = V.map posFromObs testObs
         trueVals = V.map (filterByKey depVars . depVarPosFromObs) testObs
@@ -137,66 +136,9 @@ depEuclidean :: DepVarsPos -> DepVarsPos -> Double
 depEuclidean (ValuesPerDepVar _ v1) (ValuesPerDepVar _ v2) =
     sqrt . VS.sum $ VS.zipWith (\x y -> (x - y)^(2 :: Int)) v1 v2
 
-splitIdx :: Int -> Int -> Int -> (V.Vector Int, V.Vector Int)
+splitIdx :: Int -> Int -> Int -> (VS.Vector Int, VS.Vector Int)
 splitIdx seed nTest n =
   let rng = R.mkStdGen seed
       idxs = V.fromList [0..n-1]
       (shuffled,_) = shuffle idxs rng
-  in V.splitAt nTest shuffled
-
-{-# INLINE idxHalf #-}
-idxHalf :: Int -> Int -> Int
-idxHalf i j
-  | i >= j    = i*(i+1) `div` 2 + j
-  | otherwise = j*(j+1) `div` 2 + i
-
-sliceSUDistMatrix
-    :: V.Vector Int
-    -> SUDistMatrix
-    -> SUDistMatrix
-sliceSUDistMatrix idxs (SUDistMatrix full) =
-  let n = V.length idxs
-      nHalf = n*(n+1) `div` 2
-      v = VS.generate nHalf $ \k ->
-            let (i,j) = unHalf k
-                oi = idxs V.! i
-                oj = idxs V.! j
-            in full VS.! idxHalf oi oj
-  in SUDistMatrix v
-  where
-    unHalf k =
-      let i = floor ((sqrt (8*fromIntegral k + 1) - 1) / 2)
-          j = k - i*(i+1) `div` 2
-      in (i,j)
-
-sliceAUDistMatrix
-  :: V.Vector Int   -- test indices (rows)
-  -> V.Vector Int   -- train indices (cols)
-  -> SUDistMatrix   -- full obs–obs
-  -> AUDistMatrix
-sliceAUDistMatrix testIdx trainIdx (SUDistMatrix full) =
-  let nGrid = V.length testIdx
-      nObs  = V.length trainIdx
-      v = VS.generate (nGrid * nObs) $ \k ->
-            let (g,o) = k `divMod` nObs
-                oi = trainIdx V.! o
-                gi = testIdx  V.! g
-            in full VS.! idxHalf oi gi
-  in AUDistMatrix nObs nGrid v
-
-sliceSUDistPerIndep
-  :: V.Vector Int
-  -> SUDistMatrixPerIndepVar
-  -> SUDistMatrixPerIndepVar
-sliceSUDistPerIndep idxs (SUDistMatrixPerIndepVar ms) =
-  SUDistMatrixPerIndepVar
-    [ (name, sliceSUDistMatrix idxs m) | (name,m) <- ms ]
-
-sliceAUDistPerIndep
-  :: V.Vector Int
-  -> V.Vector Int
-  -> SUDistMatrixPerIndepVar
-  -> AUDistMatrixPerIndepVar
-sliceAUDistPerIndep testIdx trainIdx (SUDistMatrixPerIndepVar ms) =
-  AUDistMatrixPerIndepVar
-    [ (name, sliceAUDistMatrix testIdx trainIdx m) | (name,m) <- ms ]
+  in VS.splitAt nTest (VS.convert shuffled)

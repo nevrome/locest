@@ -13,6 +13,56 @@ import           Control.DeepSeq
 import qualified Data.Vector.Storable as VS
 import           GHC.Generics         (Generic)
 
+-- operations on the flat storage types
+
+sliceSUDistMatrix
+    :: VS.Vector Int
+    -> SUDistMatrix
+    -> SUDistMatrix
+sliceSUDistMatrix idxs (SUDistMatrix full) =
+  let n = VS.length idxs
+      nHalf = n*(n+1) `div` 2
+      v = VS.generate nHalf $ \k ->
+            let (i,j) = unHalf k
+                oi = idxs VS.! i
+                oj = idxs VS.! j
+            in full VS.! idxHalf oi oj
+  in SUDistMatrix v
+  where
+    unHalf k =
+      let i = floor ((sqrt (8*fromIntegral k + 1) - 1) / 2)
+          j = k - i*(i+1) `div` 2
+      in (i,j)
+
+sliceAUDistMatrix
+  :: VS.Vector Int  -- test indices (rows)
+  -> VS.Vector Int  -- train indices (cols)
+  -> SUDistMatrix   -- full obs–obs
+  -> AUDistMatrix
+sliceAUDistMatrix testIdx trainIdx (SUDistMatrix full) =
+  let nGrid = VS.length testIdx
+      nObs  = VS.length trainIdx
+      v = VS.generate (nGrid * nObs) $ \k ->
+            let (g,o) = k `divMod` nObs
+                oi = trainIdx VS.! o
+                gi = testIdx  VS.! g
+            in full VS.! idxHalf oi gi
+  in AUDistMatrix nObs nGrid v
+
+{-# INLINE idxHalf #-}
+idxHalf :: Int -> Int -> Int
+idxHalf i j
+  | i >= j    = i*(i+1) `div` 2 + j
+  | otherwise = j*(j+1) `div` 2 + i
+
+sliceSUDistPerIndep :: VS.Vector Int -> SUDistMatrixPerIndepVar -> SUDistMatrixPerIndepVar
+sliceSUDistPerIndep idxs (SUDistMatrixPerIndepVar ms) =
+  SUDistMatrixPerIndepVar [ (name, sliceSUDistMatrix idxs m) | (name,m) <- ms ]
+
+sliceAUDistPerIndep :: VS.Vector Int -> VS.Vector Int -> SUDistMatrixPerIndepVar -> AUDistMatrixPerIndepVar
+sliceAUDistPerIndep testIdx trainIdx (SUDistMatrixPerIndepVar ms) =
+  AUDistMatrixPerIndepVar [ (name, sliceAUDistMatrix testIdx trainIdx m) | (name,m) <- ms ]
+
 data IndepVarsDistFlat = IndepVarsDistFlat {
      _tags    :: VS.Vector Bool -- False means IndepSpatTempDist, True means IndepArbitraryDimDist
    , _payload :: VS.Vector Double -- distances stored contiguously per row.
