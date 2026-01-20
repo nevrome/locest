@@ -136,14 +136,6 @@ varioOptParser = VarioOptions
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
 
--- crossOptParser :: OP.Parser CrossOptions
--- crossOptParser = CrossOptions
---                         <$> optParseInObservationFile
---                         <*> optParseSupplementSettings
---                         <*> optParseCrossSettings
---                         <*> optParseOutFile
---                         <*> optParseCrossOutMode
-
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions
                         <$> optParseInObservationFile
@@ -888,19 +880,29 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
                 algo <- parseArgument "algorithm" parseAlgorithm
                 kernelSets <- parseArgument "depVars" (parseNamedVector parseDepVarName parseShapeLengths)
                 return (algo, kernelSets)
+            -- all depVar permutations            
+            -- let (algo, depVars) = kerndefs
+            --     expandedPerDepVar :: [[KernelOneDepVar]]
+            --     expandedPerDepVar =
+            --         [ [ KernelOneDepVar name shape lengths nugget
+            --           | lengths <- lengthsList
+            --           ]
+            --         | (name, (shape, lengthsList, nugget)) <- depVars
+            --         ]
+            --     allCombinations :: [[KernelOneDepVar]]
+            --     allCombinations = sequence expandedPerDepVar
+            -- return $ map (makeKernelDefinition algo) allCombinations
+            -- one KernelDefinition per depvar, sweeping only its permutations
             let (algo, depVars) = kerndefs
-                -- for each dependent variable, expand all length permutations
-                expandedPerDepVar :: [[KernelOneDepVar]]
-                expandedPerDepVar =
-                    [ [ KernelOneDepVar name shape lengths nugget
+                allVariants :: [[KernelOneDepVar]]
+                allVariants =
+                  concat
+                    [ [ [KernelOneDepVar name shape lengths nugget]
                       | lengths <- lengthsList
                       ]
                     | (name, (shape, lengthsList, nugget)) <- depVars
                     ]
-                -- cartesian product over dependent variables
-                allCombinations :: [[KernelOneDepVar]]
-                allCombinations = sequence expandedPerDepVar
-            return $ map (makeKernelDefinition algo) allCombinations
+            return $ map (makeKernelDefinition algo) allVariants
         parseShapeLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes

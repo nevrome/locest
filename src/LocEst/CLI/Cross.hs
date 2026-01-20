@@ -12,7 +12,7 @@ import           Conduit                       (MonadIO (liftIO))
 import           Data.Conduit                  ((.|))
 import qualified Data.Conduit                  as Con
 import qualified Data.Conduit.Combinators      as ConC
-import           Data.List                     (intercalate, foldl')
+import           Data.List                     (intercalate, foldl', nub)
 import qualified Data.Vector                   as V
 import qualified Data.Vector.Storable                   as VS
 import           Immutable.Shuffle             (shuffle)
@@ -44,7 +44,7 @@ runCross (
     -- algorithm settings
     let kernelDefinition = head testAlgorithms
         algorithm = _kdefAlgorithm kernelDefinition
-        depVars   = getKeys kernelDefinition
+        depVars   = nub $ concatMap getKeys testAlgorithms
         indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
     hPutStrLn stderr $ "Algorithm: " ++ show algorithm
     hPutStrLn stderr $ "Dependent variables: " ++ intercalate ", " depVars
@@ -57,7 +57,7 @@ runCross (
     !obsObsDistances <- traverse (readSUDistMulti nObs) maybeObsObsDistFile
     -- reporting split size
     let numTestObs = round $ testFraction * fromIntegral nObs
-    hPutStrLn stderr $ "Number of test observations with fraction" ++ show testFraction ++ ": " ++ show nObs
+    hPutStrLn stderr $ "Number of test observations with fraction " ++ show testFraction ++ ": " ++ show numTestObs
     -- set base seed
     baseSeed <- case maybeSeed of
         Just x -> pure x
@@ -65,7 +65,8 @@ runCross (
     -- run crossvalidation iterations
     Con.runConduitRes $
            ConC.yieldMany [1..iterations]
-        .| ConC.mapM_ (\iter ->
+        .| ConC.mapM_ (\iter -> do
+               liftIO $ hPutStrLn stderr ("Iteration " ++ show iter)
                Con.runConduit $
                       ConC.yieldMany testAlgorithms
                    .| ConC.concatMapM (liftIO . cross spatDistUnitScaling algorithm indepVars obsObsDistances baseSeed numTestObs iter obs)
@@ -86,6 +87,7 @@ cross
   -> KernelDefinition
   -> IO [CrossvalOutput]
 cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed numTestObs iteration obs kerndef = do
+    hPutStrLn stderr ("Setup: " ++ show kerndef)
     let seedIter = seed + iteration
         depVars   = getKeys kerndef
         kernels   = getValues kerndef
