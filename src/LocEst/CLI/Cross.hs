@@ -62,17 +62,18 @@ runCross (
     baseSeed <- case maybeSeed of
         Just x -> pure x
         Nothing -> R.randomRIO (0, maxBound :: Int)
-    -- run crossvalidation iterations
+    -- determine steps
+    let work = [ (iter, kerndef) | iter <- [1..iterations], kerndef <- testAlgorithms ]
+    hPutStrLn stderr $ "Number of iterations " ++ show iterations
+    hPutStrLn stderr $ "Number of test kernel permutations " ++ show (length testAlgorithms)
     Con.runConduitRes $
-           ConC.yieldMany [1..iterations]
-        .| ConC.mapM_ (\iter -> do
-               liftIO $ hPutStrLn stderr ("Iteration " ++ show iter)
-               Con.runConduit $
-                      ConC.yieldMany testAlgorithms
-                   .| ConC.concatMapM (liftIO . cross spatDistUnitScaling algorithm indepVars obsObsDistances baseSeed numTestObs iter obs)
-                   .| progress 1000 Nothing
-                   .| sinkNamedCSV outFile
+           ConC.yieldMany work
+        .| progress 1 (Just (length work))
+        .| ConC.concatMapM (\(iter, kerndef) ->
+               liftIO $ cross spatDistUnitScaling algorithm indepVars obsObsDistances
+                              baseSeed numTestObs iter obs kerndef
            )
+        .| sinkNamedCSV outFile
     putStrLn "Done"
 
 cross
@@ -86,9 +87,8 @@ cross
   -> V.Vector Observation
   -> KernelDefinition
   -> IO [CrossvalOutput]
-cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed numTestObs iteration obs kerndef = do
-    hPutStrLn stderr ("Setup: " ++ show kerndef)
-    let seedIter = seed + iteration
+cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed numTestObs iter obs kerndef = do
+    let seedIter = seed + iter
         depVars   = getKeys kerndef
         kernels   = getValues kerndef
         -- randomly slice training and test
@@ -104,7 +104,7 @@ cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed numTestO
         !maybeObsGridDists = sliceAUDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
     -- run search (no dep search grid, no temp grid)
     rows <- search algorithm indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists spatDistUnitScaling depVars kernels
-                   (Permutation iteration trainingObs predGrid (Just trueVals) Nothing)
+                   (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
     -- align rows with true values
     let perObs = zip rows (V.toList trueVals)
         (sumDist, sumSqDist, sumLL, n) = foldl' step (0,0,0,0 :: Int) perObs
@@ -119,7 +119,8 @@ cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed numTestO
     -- prepare output
     return
       [ CrossvalOutput
-          { _crossoutDepVars          = depVars
+          { _crossoutIteration        = iter
+          , _crossoutDepVars          = depVars
           , _crossoutKernelDefinition = kerndef
           , _crossoutDistSum          = sumDist
           , _crossoutDistMeanSquared  = meanSq

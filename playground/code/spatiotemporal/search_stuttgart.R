@@ -75,11 +75,21 @@ system('time locest cross --configFile code/spatiotemporal/cross.conf +RTS -N3 -
 cross <- readr::read_tsv("data/spatiotemporal/cross.tsv")
 
 cross %>%
+  dplyr::group_by(depVar, kernel_space_length, kernel_time_length) %>%
+  dplyr::summarise(
+    dplyr::across(
+      tidyselect::all_of(c(
+        "sum_dep_dist_euclidean",
+        "mean_squared_dep_dist_euclidean",
+        "sum_log_likelihood")),
+      mean
+    )
+  ) %>%
   ggplot() +
-  #geom_raster(aes(x = kernel_space_length, y = kernel_time_length, fill = sum_log_likelihood)) +
-  geom_raster(aes(x = kernel_space_length, y = kernel_time_length, fill = sum_dep_dist_euclidean)) +
+  geom_raster(aes(x = kernel_space_length, y = kernel_time_length, fill = sum_log_likelihood)) +
+  #geom_raster(aes(x = kernel_space_length, y = kernel_time_length, fill = mean_squared_dep_dist_euclidean)) +
   facet_grid(rows = dplyr::vars(depVar)) +
-  scale_fill_viridis_c(direction = -1)
+  scale_fill_viridis_c()#direction = -1)
 
 # system('time locest serialise --obsFile data/spatiotemporal/obs.tsv --outFile data/spatiotemporal/obs.cbor')
 
