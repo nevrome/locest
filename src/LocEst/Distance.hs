@@ -245,6 +245,11 @@ suMatrixToFlatHalf sudmPerIndepVar =
 
 -- distance helper functions
 
+{-# INLINE depEuclidean #-}
+depEuclidean :: DepVarsPos -> DepVarsPos -> Double
+depEuclidean (ValuesPerDepVar _ v1) (ValuesPerDepVar _ v2) =
+    sqrt . VS.sum $ VS.zipWith (\x y -> (x - y)^(2 :: Int)) v1 v2
+
 {-# INLINE temporalDistTempPos #-}
 temporalDistTempPos :: TempPos -> TempPos -> Double
 temporalDistTempPos (TempPos t1) (TempPos t2) = temporalDistYearBCAD t1 t2

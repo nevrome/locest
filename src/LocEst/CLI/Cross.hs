@@ -3,6 +3,7 @@
 
 module LocEst.CLI.Cross where
 
+import           LocEst.Distance          (depEuclidean)
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.TypesFlat
@@ -22,13 +23,13 @@ import           System.IO                (hPutStrLn, stderr)
 import           System.Random            as R
 
 data CrossOptions = CrossOptions
-    { _crossInObservationFile2 :: FilePath
-    , _crossTestAlgorithms     :: [KernelDefinition]
-    , _crossvalTestFraction2   :: Double
-    , _crossvalIterations2     :: Int
-    , _crossvalMaybeSeed2      :: Maybe Int
-    , _crossInObsObsDistFile   :: Maybe FilePath
-    , _crossOutFile2           :: Maybe FilePath
+    { _crossInObservationFile :: FilePath
+    , _crossTestAlgorithms    :: [KernelDefinition]
+    , _crossTestFraction      :: Double
+    , _crossIterations        :: Int
+    , _crossMaybeSeed         :: Maybe Int
+    , _crossInObsObsDistFile  :: Maybe FilePath
+    , _crossOutFile           :: Maybe FilePath
     }
 
 runCross :: CrossOptions -> Double -> IO ()
@@ -42,10 +43,10 @@ runCross (
     ) spatDistUnitScaling
     = do
     -- algorithm settings
-    let kernelDefinition = head testAlgorithms
-        algorithm = _kdefAlgorithm kernelDefinition
-        depVars   = nub $ concatMap getKeys testAlgorithms
-        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
+    let firstKernel = head testAlgorithms
+        algorithm = _kdefAlgorithm firstKernel
+        depVars   = nub $ concatMap getKeys testAlgorithms -- here we have to check every kernel
+        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar firstKernel
     hPutStrLn stderr $ "Algorithm: " ++ show algorithm
     hPutStrLn stderr $ "Dependent variables: " ++ intercalate ", " depVars
     hPutStrLn stderr $ "Independent variables: " ++ intercalate ", " indepVars
@@ -56,88 +57,79 @@ runCross (
     -- read distances
     !obsObsDistances <- traverse (readSUDistMulti nObs) maybeObsObsDistFile
     -- reporting split size
+    hPutStrLn stderr $ "Requested split fraction: " ++ show testFraction
     let numTestObs = round $ testFraction * fromIntegral nObs
-    hPutStrLn stderr $ "Number of test observations with fraction " ++ show testFraction ++ ": " ++ show numTestObs
+    hPutStrLn stderr $ "Number of test observations: " ++ show numTestObs
     -- set base seed
     baseSeed <- case maybeSeed of
         Just x  -> pure x
         Nothing -> R.randomRIO (0, maxBound :: Int)
+    hPutStrLn stderr $ "Seed for random splitting: " ++ show baseSeed
     -- determine steps
     let work = [ (iter, kerndef) | iter <- [1..iterations], kerndef <- testAlgorithms ]
-    hPutStrLn stderr $ "Number of iterations " ++ show iterations
-    hPutStrLn stderr $ "Number of test kernel permutations " ++ show (length testAlgorithms)
+    hPutStrLn stderr $ "Number of requested iterations: " ++ show iterations
+    hPutStrLn stderr $ "Number of test kernel permutations: " ++ show (length testAlgorithms)
+    -- run crossvalidation
     Con.runConduitRes $
            ConC.yieldMany work
-        .| progress 1 (Just (length work))
-        .| ConC.concatMapM (\(iter, kerndef) ->
-               liftIO $ cross spatDistUnitScaling algorithm indepVars obsObsDistances
+        .| progress 1 (Just (length work)) -- here progress by steps
+        .| ConC.mapM (\(iter, kerndef) ->
+               liftIO $ cross algorithm indepVars obsObsDistances spatDistUnitScaling
                               baseSeed numTestObs iter obs kerndef
            )
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
 cross
-  :: Double
-  -> Algorithm
+  :: Algorithm
   -> [IndepVarName]
   -> Maybe SUDistMatrixPerIndepVar
+  -> Double
   -> Int -- base seed
   -> Int -- numTestObs
   -> Int -- iteration
   -> V.Vector Observation
   -> KernelDefinition
-  -> IO [CrossvalOutput]
-cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed numTestObs iter obs kerndef = do
+  -> IO CrossvalOutput
+cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed numTestObs iter obs kerndef = do
     let seedIter = seed + iter
-        depVars   = getKeys kerndef
-        kernels   = getValues kerndef
+        depVars  = getKeys kerndef
+        kernels  = getValues kerndef
         -- randomly slice training and test
         (testIdx, trainIdx) = splitIdx seedIter numTestObs (V.length obs)
         testObs     = V.backpermute obs (V.convert testIdx)
         trainingObs = V.backpermute obs (V.convert trainIdx)
         -- prediction grid = test observation locations
-        predGrid  = V.map posFromObs testObs
+        predGrid = V.map posFromObs testObs
         trueVals = V.map (filterByKey depVars . depVarPosFromObs) testObs
         -- slice distance matrices, if present
         !maybeObsObsDists = sliceSUDistPerIndep trainIdx <$> maybeFullObsObsDists
         !maybeGridGridDists = sliceSUDistPerIndep testIdx <$> maybeFullObsObsDists
         !maybeObsGridDists = sliceAUDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
-    -- run search (no dep search grid, no temp grid)
-    rows <- search algorithm indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists spatDistUnitScaling depVars kernels
+    -- run search (no dep search grid, no temp grid, but true values for grid pos)
+    rows <- search algorithm indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists
+                   spatDistUnitScaling depVars kernels
                    (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
-    -- align rows with true values
+    -- compute summary statistics
     let perObs = zip rows (V.toList trueVals)
         (sumDist, sumSqDist, sumLL, n) = foldl' step (0,0,0,0 :: Int) perObs
         step (!sd,!ssd,!sll,!k) (row, trueDV) =
             let predDV = makeValuesPerDepVar $ zip (_ssrDepVarName row) (_ssrMedian row)
                 d      = depEuclidean predDV trueDV
-                ll     = fromMaybe 0 (_ssrGridAggLogLik row)
-            in (sd  + d, ssd + d*d, sll + ll, k + 1)
+                ll     = fromMaybe (-inf) (_ssrGridAggLogLik row)
+            in (sd + d, ssd + d*d, sll + ll, k + 1)
         meanSq
           | n == 0    = 0
           | otherwise = sumSqDist / fromIntegral n
     -- prepare output
-    return
-      [ CrossvalOutput
-          { _crossoutIteration        = iter
-          , _crossoutDepVars          = depVars
-          , _crossoutKernelDefinition = kerndef
-          , _crossoutDistSum          = sumDist
-          , _crossoutDistMeanSquared  = meanSq
-          , _crossoutProbSum          = sumLL
-          }
-      ]
-
-splitTestTraining :: Int -> Int -> V.Vector a -> (V.Vector a, V.Vector a)
-splitTestTraining seedOneIteration numTestObs observations =
-    let rng = R.mkStdGen seedOneIteration
-        (observationsShuffled,_) = shuffle observations rng
-        (test, training) = V.splitAt numTestObs observationsShuffled
-    in (test, training)
-
-depEuclidean :: DepVarsPos -> DepVarsPos -> Double
-depEuclidean (ValuesPerDepVar _ v1) (ValuesPerDepVar _ v2) =
-    sqrt . VS.sum $ VS.zipWith (\x y -> (x - y)^(2 :: Int)) v1 v2
+    return CrossvalOutput
+      { _crossoutIteration        = iter
+      , _crossoutDepVars          = depVars
+      , _crossoutKernelDefinition = kerndef
+      , _crossoutDistSum          = sumDist
+      , _crossoutDistMeanSquared  = meanSq
+      , _crossoutProbSum          = sumLL
+      }
 
 splitIdx :: Int -> Int -> Int -> (VS.Vector Int, VS.Vector Int)
 splitIdx seed nTest n =

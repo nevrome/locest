@@ -85,9 +85,9 @@ cross %>%
       mean
     )
   ) %>%
+  dplyr::filter(depVar == "depC1") %>%
   ggplot() +
   geom_raster(aes(x = kernel_space_length, y = kernel_time_length, fill = sum_log_likelihood)) +
-  #geom_raster(aes(x = kernel_space_length, y = kernel_time_length, fill = mean_squared_dep_dist_euclidean)) +
   facet_grid(rows = dplyr::vars(depVar)) +
   scale_fill_viridis_c()#direction = -1)
 
