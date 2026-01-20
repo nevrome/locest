@@ -36,7 +36,7 @@ runCross (
     CrossOptions
     inObsFile
     testAlgorithms
-    testFraction iterations _ --maybeSeed
+    testFraction iterations maybeSeed
     _ -- maybeObsObsDistFile
     outFile
     ) _ --spatDistUnitScaling
@@ -58,13 +58,17 @@ runCross (
     -- reporting split size
     let numTestObs = round $ testFraction * fromIntegral nObs
     hPutStrLn stderr $ "Number of test observations with fraction" ++ show testFraction ++ ": " ++ show nObs
-    -- 
+    -- set base seed
+    baseSeed <- case maybeSeed of
+        Just x -> pure x
+        Nothing -> R.randomRIO (0, maxBound :: Int)
+    -- run crossvalidation iterations
     Con.runConduitRes $
            ConC.yieldMany [1..iterations]
         .| ConC.mapM_ (\iter ->
                Con.runConduit $
                       ConC.yieldMany testAlgorithms
-                   .| ConC.concatMapM (liftIO . cross algorithm indepVars 123 numTestObs iter obs)
+                   .| ConC.concatMapM (liftIO . cross algorithm indepVars baseSeed numTestObs iter obs)
                    .| progress 1000 Nothing
                    .| sinkNamedCSV outFile
            )
