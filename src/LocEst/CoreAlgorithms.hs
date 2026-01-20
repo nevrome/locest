@@ -50,7 +50,6 @@ expandHalfToMatrix n halfVec =
     M.reshape n $ VS.create $ do
       mvec <- VSM.new (n*n)
       let idx col row = col*n + row  -- column-major index
-          idxHalf i j = i * (i+1) `div` 2 + j
       forM_ [0..n-1] $ \i ->
         forM_ [0..i] $ \j -> do
           let v = halfVec VS.! idxHalf i j

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns           #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings      #-}
@@ -29,10 +30,12 @@ sliceSUDistMatrix idxs (SUDistMatrix full) =
             in full VS.! idxHalf oi oj
   in SUDistMatrix v
   where
-    unHalf k =
-      let i = floor ((sqrt (8*fromIntegral k + 1) - 1) / 2)
-          j = k - i*(i+1) `div` 2
-      in (i,j)
+    unHalf :: Int -> (Int, Int)
+    unHalf k = go 0 k
+      where
+        go !i !r
+          | r <= i    = (i, r)
+          | otherwise = go (i+1) (r - (i+1))
 
 sliceAUDistMatrix
   :: VS.Vector Int  -- test indices (rows)

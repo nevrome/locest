@@ -49,13 +49,13 @@ filterVarsInIndepVarsPos indepVarsWanted (IndepArbitraryDimPos x) =
 
 -- | A data type for interpolation output for one dependent variable
 data SearchResultLong = SSL {
-      _sslDepVarName    :: DepVarName -- name of the dependent variable
-    , _sslLowerBound    :: Double     -- lower boundary of the 95% interval
-    , _sslMedian        :: Double     -- median (weighted average)
-    , _sslUpperBound    :: Double     -- upper boundary of the 95% interval
+      _sslDepVarName        :: DepVarName -- name of the dependent variable
+    , _sslLowerBound        :: Double     -- lower boundary of the 95% interval
+    , _sslMedian            :: Double     -- median (weighted average)
+    , _sslUpperBound        :: Double     -- upper boundary of the 95% interval
     , _sslGridLogLikelihood :: Maybe Double -- log-likelihood for true value
-    , _sslSearchPos     :: Maybe (V.Vector DepVarsPredPos) -- search values
-    , _sslLogLikelihood :: Maybe (V.Vector Double) -- log-likelihood for search value
+    , _sslSearchPos         :: Maybe (V.Vector DepVarsPredPos) -- search values
+    , _sslLogLikelihood     :: Maybe (V.Vector Double) -- log-likelihood for search value
 } deriving (Eq, Show, Generic)
 
 -- | A data type for nterpolation output, aggregated per row (so per grid position and per search candidate)
@@ -132,9 +132,9 @@ data CrossvalOutput = CrossvalOutput {
 
 instance NFData CrossvalOutput
 instance Csv.DefaultOrdered CrossvalOutput where
-    headerOrder (CrossvalOutput iter [depVar] algo _ _ _) =
+    headerOrder (CrossvalOutput _ [depVar] algo _ _ _) =
         Csv.header ["iteration", "depVar"] <> removeDepVarFromHeader depVar (Csv.headerOrder algo) <> crossSummaryHeader
-    headerOrder (CrossvalOutput iter _ algo _ _ _) =
+    headerOrder (CrossvalOutput _ _ algo _ _ _) =
         Csv.header ["iteration"] <> Csv.headerOrder algo <> crossSummaryHeader
 instance Csv.ToRecord CrossvalOutput where
     toRecord (CrossvalOutput iter [depVar] algo sumDist meanSquaredDist sumProb) =

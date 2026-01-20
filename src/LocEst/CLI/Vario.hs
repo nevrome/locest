@@ -2,11 +2,11 @@
 
 module LocEst.CLI.Vario where
 
-import           LocEst.Utils
 import           LocEst.Distance
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.TypesFlat
+import           LocEst.Utils
 
 import           Conduit                       ((.|))
 import qualified Data.Conduit                  as Con
@@ -71,7 +71,7 @@ runVario
         -- calculate pairwise distances
         hPutStrLn stderr "Calculating pairwise distances for independent variables"
         let indepVars = case posFromObs $ V.head obs of
-                IndepSpatTempPos _ -> ["space", "time"]
+                IndepSpatTempPos _     -> ["space", "time"]
                 IndepArbitraryDimPos x -> getKeys x
         -- only computes half of the pairwise distances
         !distsPerIndepVar <- if acrossIndepVars

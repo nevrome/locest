@@ -1,34 +1,34 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE BangPatterns      #-}
 
 module LocEst.CLI.Cross where
 
-import LocEst.TypesFlat
 import           LocEst.Parsers
 import           LocEst.Types
+import           LocEst.TypesFlat
 import           LocEst.Utils
 
-import           Conduit                       (MonadIO (liftIO))
-import           Data.Conduit                  ((.|))
-import qualified Data.Conduit                  as Con
-import qualified Data.Conduit.Combinators      as ConC
-import           Data.List                     (intercalate, foldl', nub)
-import qualified Data.Vector                   as V
-import qualified Data.Vector.Storable                   as VS
-import           Immutable.Shuffle             (shuffle)
-import           System.IO                     (hPutStrLn, stderr)
-import           System.Random                 as R
-import LocEst.CLI.Search (search, Permutation (..))
-import Data.Maybe (fromMaybe)
+import           Conduit                  (MonadIO (liftIO))
+import           Data.Conduit             ((.|))
+import qualified Data.Conduit             as Con
+import qualified Data.Conduit.Combinators as ConC
+import           Data.List                (foldl', intercalate, nub)
+import           Data.Maybe               (fromMaybe)
+import qualified Data.Vector              as V
+import qualified Data.Vector.Storable     as VS
+import           Immutable.Shuffle        (shuffle)
+import           LocEst.CLI.Search        (Permutation (..), search)
+import           System.IO                (hPutStrLn, stderr)
+import           System.Random            as R
 
 data CrossOptions = CrossOptions
-    { _crossInObservationFile2  :: FilePath
-    , _crossTestAlgorithms      :: [KernelDefinition]
-    , _crossvalTestFraction2    :: Double
-    , _crossvalIterations2      :: Int
-    , _crossvalMaybeSeed2       :: Maybe Int
-    , _crossInObsObsDistFile    :: Maybe FilePath
-    , _crossOutFile2            :: Maybe FilePath
+    { _crossInObservationFile2 :: FilePath
+    , _crossTestAlgorithms     :: [KernelDefinition]
+    , _crossvalTestFraction2   :: Double
+    , _crossvalIterations2     :: Int
+    , _crossvalMaybeSeed2      :: Maybe Int
+    , _crossInObsObsDistFile   :: Maybe FilePath
+    , _crossOutFile2           :: Maybe FilePath
     }
 
 runCross :: CrossOptions -> Double -> IO ()
@@ -60,7 +60,7 @@ runCross (
     hPutStrLn stderr $ "Number of test observations with fraction " ++ show testFraction ++ ": " ++ show numTestObs
     -- set base seed
     baseSeed <- case maybeSeed of
-        Just x -> pure x
+        Just x  -> pure x
         Nothing -> R.randomRIO (0, maxBound :: Int)
     -- determine steps
     let work = [ (iter, kerndef) | iter <- [1..iterations], kerndef <- testAlgorithms ]

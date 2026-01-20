@@ -192,7 +192,6 @@ computeSpaceSUDistMatrix spatScale vec = do
   let n     = V.length vec
       nHalf = n*(n+1) `div` 2
   mv <- VSM.new nHalf
-  let idxHalf i j = i*(i+1) `div` 2 + j
   forM_ [0..n-1] $ \i ->
     let s1 = vec V.! i
     in forM_ [0..i] $ \j ->
@@ -206,7 +205,6 @@ computeTimeSUDistMatrix vec = do
   let n     = V.length vec
       nHalf = n*(n+1) `div` 2
   mv <- VSM.new nHalf
-  let idxHalf i j = i*(i+1) `div` 2 + j
   forM_ [0..n-1] $ \i ->
     let t1 = vec V.! i
     in forM_ [0..i] $ \j ->
@@ -220,7 +218,6 @@ computeArbitrarySUDistMatrix ix vec = do
   let n     = V.length vec
       nHalf = n*(n+1) `div` 2
   mv <- VSM.new nHalf
-  let idxHalf i j = i*(i+1) `div` 2 + j
   forM_ [0..n-1] $ \i ->
     let vs1 = vec V.! i
     in forM_ [0..i] $ \j ->

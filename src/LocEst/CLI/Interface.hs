@@ -9,8 +9,8 @@ import           LocEst.CLI.Cross
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
-import           LocEst.Utils
 import           LocEst.Types
+import           LocEst.Utils
 
 import           Data.Char                (isSpace, toLower)
 import           Data.List                (groupBy, isPrefixOf, singleton, sort)
@@ -111,7 +111,7 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             <$> optParseInObservationFile
                             <*> optParseInSpatGridFile
                             <*> optParseDistFile
-                            )) (OP.progDesc "Serialise au dist.")) -- TODO: make less hacky       
+                            )) (OP.progDesc "Serialise au dist.")) -- TODO: make less hacky
                      ) <*> optParseOutFileCbor
 
 searchOptParser :: OP.Parser SearchOptions
@@ -880,7 +880,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
                 algo <- parseArgument "algorithm" parseAlgorithm
                 kernelSets <- parseArgument "depVars" (parseNamedVector parseDepVarName parseShapeLengths)
                 return (algo, kernelSets)
-            -- all depVar permutations            
+            -- all depVar permutations
             -- let (algo, depVars) = kerndefs
             --     expandedPerDepVar :: [[KernelOneDepVar]]
             --     expandedPerDepVar =

@@ -19,9 +19,9 @@ import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import qualified Data.Conduit.List        as ConL
 import           Data.Foldable            (foldl')
+import           Data.List                (intercalate)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe               (isJust, mapMaybe)
-import Data.List (intercalate)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
