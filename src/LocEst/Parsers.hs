@@ -148,76 +148,6 @@ readAUDistMulti nObs nGrid path
         hPutStrLn stderr "Done"
         pure $ AUDistMatrixPerIndepVar (V.toList frozen)
 
--- complex parsers
-
-readMaybeObsTempSamples :: Bool -> V.Vector Observation -> Maybe FilePath -> IO (Maybe TempSampleMatrix)
-readMaybeObsTempSamples _ _ Nothing = pure Nothing
-readMaybeObsTempSamples noOrderCheck obs (Just path)
-    | takeExtension path == ".cbor" = Just <$> readTempSamp (ReadTempSampDeserialise path)
-    | otherwise                     = Just <$> readTempSamp (ReadTempSampParse noOrderCheck obs path)
-
-data ReadTempSampSpec =
-      ReadTempSampDeserialise FilePath
-    | ReadTempSampParse Bool (V.Vector Observation) FilePath
-
-readTempSamp :: ReadTempSampSpec -> IO TempSampleMatrix
-readTempSamp (ReadTempSampDeserialise path) = do
-    hPutStrLn stderr "Reading age samples"
-    hPutStrLn stderr $ "Deserialising " ++ path
-    hPutStrLn stderr "Warning: There is no input validation for serialised input"
-    res <- S.readFileDeserialise path
-    hPutStrLn stderr "Done"
-    return res
-readTempSamp (ReadTempSampParse noOrderCheck obs path) = do
-    hPutStrLn stderr "Reading age samples"
-    hPutStrLn stderr $ "Parsing " ++ path
-    let nObs = V.length obs
-    -- determine number of samples to expect
-    hPutStrLn stderr "Counting the number of age samples"
-    nSamples <- Con.runConduitRes $
-        sourceCSV path .|
-        ConC.mapM unwrapCSVParsingErrors .|
-        ConC.takeWhile (\(TempSample obsID _) -> obsID == _obsID (V.head obs)) .|
-        ConC.length
-    if nSamples > 0
-    then hPutStrLn stderr $ "Expected age samples per observation: " ++ show nSamples
-    else throwLIO $
-            "Order of entries in --tempSampFile not equal to -i. " ++
-            "Expected first value: " ++ _obsID (V.head obs)
-    -- start the actual parsing
-    sampleVec <- Con.runConduitRes $
-        sourceCSV path .|
-        ConC.mapM unwrapCSVParsingErrors .|
-        (
-            if noOrderCheck
-            then ConC.map (\(TempSample _ age) -> age)
-            else checkOrder nSamples
-        ) .|
-        ConC.sinkVectorN (nObs * nSamples)
-    hPutStrLn stderr "Done"
-    return $ TempSampleMatrix nSamples nObs sampleVec
-    where
-    checkOrder :: (MonadIO m) => Int -> ConduitT TempSample YearBCAD m ()
-    checkOrder nSamples = do
-        loop (concatMap (replicate nSamples . getID) obs)
-        where
-            loop (expected:rest) = do
-                val <- Con.await
-                case val of
-                    Just oneTempSamp -> do
-                        let (TempSample obsID age) = oneTempSamp
-                        if obsID == expected
-                        then do
-                            Con.yield age
-                            loop rest
-                        else do
-                            -- throw an exception if the order is not as expected
-                            liftIO $ throwLIO $
-                                "Order of entries in --tempSampFile not equal to -i. " ++
-                                "Expected: " ++ expected ++ " but got: " ++ obsID
-                    Nothing -> return ()
-            loop [] = return ()
-
 readAUDist :: V.Vector Observation -> V.Vector IndepVarsDist -> FilePath -> IO AUDistMatrix
 readAUDist obs grid path = do
     hPutStrLn stderr $ "Reading distances in " ++ path
@@ -231,6 +161,63 @@ readAUDist obs grid path = do
     hPutStrLn stderr "Done"
     return $ AUDistMatrix nGrid nObs distVec
 
+readTempSamp :: V.Vector Observation -> FilePath -> IO TempSampleMatrix
+readTempSamp obs path
+    | takeExtension path == ".cbor" = do
+        hPutStrLn stderr "Reading age samples"
+        hPutStrLn stderr $ "Deserialising " ++ path
+        hPutStrLn stderr "Warning: There is no input validation for serialised input"
+        res <- S.readFileDeserialise path
+        hPutStrLn stderr "Done"
+        return res
+    | otherwise = do
+        hPutStrLn stderr "Reading age samples"
+        hPutStrLn stderr $ "Parsing " ++ path
+        let nObs = V.length obs
+        -- determine number of samples to expect
+        hPutStrLn stderr "Counting the number of age samples"
+        nSamples <- Con.runConduitRes $
+            sourceCSV path .|
+            ConC.mapM unwrapCSVParsingErrors .|
+            ConC.takeWhile (\(TempSample obsID _) -> obsID == _obsID (V.head obs)) .|
+            ConC.length
+        if nSamples > 0
+        then hPutStrLn stderr $ "Expected age samples per observation: " ++ show nSamples
+        else throwLIO $
+                "Order of entries in --tempSampFile not equal to -i. " ++
+                "Expected first value: " ++ _obsID (V.head obs)
+        -- start the actual parsing
+        sampleVec <- Con.runConduitRes $
+               sourceCSV path
+            .| ConC.mapM unwrapCSVParsingErrors
+            .| checkOrder nSamples
+            .| ConC.sinkVectorN (nObs * nSamples)
+        hPutStrLn stderr "Done"
+        return $ TempSampleMatrix nSamples nObs sampleVec
+            where
+            checkOrder :: (MonadIO m) => Int -> ConduitT TempSample YearBCAD m ()
+            checkOrder nSamples = do
+                loop (concatMap (replicate nSamples . getID) obs)
+                where
+                    loop (expected:rest) = do
+                        val <- Con.await
+                        case val of
+                            Just oneTempSamp -> do
+                                let (TempSample obsID age) = oneTempSamp
+                                if obsID == expected
+                                then do
+                                    Con.yield age
+                                    loop rest
+                                else do
+                                    -- throw an exception if the order is not as expected
+                                    liftIO $ throwLIO $
+                                        "Order of entries in --tempSampFile not equal to -i. " ++
+                                        "Expected: " ++ expected ++ " but got: " ++ obsID
+                            Nothing -> return ()
+                    loop [] = return ()
+
+-- simpler parsers
+
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO (V.Vector DepVarsPredPos)
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
     let depVarsPosReordered = V.map (filterByKey depVars) $ V.fromList depVarsPos
@@ -239,8 +226,6 @@ readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
     !obs <- readObservations path -- search observations
     let obsFiltered = filterVarsInObs depVars indepVars obs
     return $ V.map DepVarsPredPosSearchObs obsFiltered
-
--- simpler parsers without additional file requirements
 
 readObservations :: FilePath -> IO (V.Vector Observation)
 readObservations path = do

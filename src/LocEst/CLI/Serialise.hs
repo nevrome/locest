@@ -17,7 +17,6 @@ data SerialiseSet =
     | SerialiseObsTempSamplesFile  {
         _sotsInObservationFile    :: FilePath
       , _sotsInObsTempSamplesFile :: FilePath
-      , _sotsNoOrderCheck         :: Bool
       }
     | SerialiseSUDistMatrixPerIndepVar {
         ssudRefVecFile :: VecFile
@@ -41,9 +40,9 @@ runSerialise (SerialiseOptions (SerialiseSpatGridFile inSpatGridFile) outFile) =
 runSerialise (SerialiseOptions (SerialiseAnyGridFile inAnyGridFile) outFile) = do
     inAnyGrid    <- readArbitraryDimPos inAnyGridFile
     write outFile inAnyGrid
-runSerialise (SerialiseOptions (SerialiseObsTempSamplesFile inObsFile inObsTempSamplesFile noOrderCheck) outFile) = do
+runSerialise (SerialiseOptions (SerialiseObsTempSamplesFile inObsFile inObsTempSamplesFile) outFile) = do
     observations <- readObservations inObsFile
-    inTempSamps  <- readTempSamp (ReadTempSampParse noOrderCheck observations inObsTempSamplesFile)
+    inTempSamps  <- readTempSamp observations inObsTempSamplesFile
     write outFile inTempSamps
 runSerialise (SerialiseOptions (SerialiseSUDistMatrixPerIndepVar vecFile distFile) outFile) = do
     nVec <- case vecFile of

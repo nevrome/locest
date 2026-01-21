@@ -86,7 +86,6 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             SerialiseObsTempSamplesFile
                             <$> optParseInObservationFile
                             <*> optParseInObsTempSamplesFile
-                            <*> optParseInSpatDistNoOrderCheck
                             )) (OP.progDesc "Serialise --tempSampFile."))
                      <> OP.command "sudist" (OP.info (OP.helper <*> (
                             SerialiseSUDistMatrixPerIndepVar
