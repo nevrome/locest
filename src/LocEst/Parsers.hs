@@ -218,37 +218,6 @@ readTempSamp (ReadTempSampParse noOrderCheck obs path) = do
                     Nothing -> return ()
             loop [] = return ()
 
-readMaybeSpatDist :: Bool -> V.Vector Observation -> Maybe (V.Vector SpatPos) -> Maybe FilePath -> IO (Maybe SpatDistMatrix)
-readMaybeSpatDist _ _ _ Nothing = pure Nothing
-readMaybeSpatDist noOrderCheck obs maybeSpatGrid (Just path)
-    | takeExtension path == ".cbor" = Just <$> readSpatDist (ReadSpatDistDeserialise path)
-    | otherwise                     = Just <$> readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path)
-
-data ReadSpatDistSpec =
-      ReadSpatDistDeserialise FilePath
-    | ReadSpatDistParse Bool (V.Vector Observation) (Maybe (V.Vector SpatPos)) FilePath
-
-readSpatDist :: ReadSpatDistSpec -> IO SpatDistMatrix
-readSpatDist (ReadSpatDistDeserialise path) = do
-    hPutStrLn stderr "Reading spatial distances"
-    hPutStrLn stderr $ "Deserialising " ++ path
-    hPutStrLn stderr "Warning: There is no input validation for serialised input"
-    res <- S.readFileDeserialise path
-    hPutStrLn stderr "Done"
-    return res
-readSpatDist (ReadSpatDistParse _ obs maybeSpatGrid path) = do
-    hPutStrLn stderr "Reading spatial distances"
-    hPutStrLn stderr $ "Parsing " ++ path
-    let nObs = V.length obs
-        nGridPoints = maybe nObs V.length maybeSpatGrid
-    distVec <- Con.runConduitRes $
-        sourceCSV path .|
-        ConC.mapM unwrapCSVParsingErrors .|
-        ConC.map (\(SpatDistObsGrid _ _ dist) -> dist) .|
-        ConC.sinkVectorN (nObs * nGridPoints)
-    hPutStrLn stderr "Done"
-    return $ AUDistMatrix nGridPoints nObs distVec
-
 readAUDist :: V.Vector Observation -> V.Vector IndepVarsDist -> FilePath -> IO AUDistMatrix
 readAUDist obs grid path = do
     hPutStrLn stderr $ "Reading distances in " ++ path

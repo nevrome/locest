@@ -82,19 +82,6 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             SerialiseSpatGridFile
                             <$> optParseInArbitraryDimFile
                             )) (OP.progDesc "Serialise --anyGridFile."))
-                     <> OP.command "obsdist" (OP.info (OP.helper <*> (
-                            SerialiseObsObsSpatDistFile
-                            <$> optParseInSpatDistMapFile
-                            <*> optParseInObservationFile
-                            <*> optParseInSpatDistNoOrderCheck
-                            )) (OP.progDesc "Serialise --spatDistFile for the observation-observation distance case in cross."))
-                     <> OP.command "spatdist" (OP.info (OP.helper <*> (
-                            SerialiseSpatDistFile
-                            <$> optParseInSpatDistMapFile
-                            <*> optParseInObservationFile
-                            <*> optParseInSpatGridFile
-                            <*> optParseInSpatDistNoOrderCheck
-                            )) (OP.progDesc "Serialise --spatDistFile for the observation-spatial grid case in search."))
                      <> OP.command "tempsamp" (OP.info (OP.helper <*> (
                             SerialiseObsTempSamplesFile
                             <$> optParseInObservationFile
