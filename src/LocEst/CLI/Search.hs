@@ -24,6 +24,7 @@ import           System.IO                (hPutStrLn, stderr)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
+    , _searchInTempSampFile      :: Maybe FilePath
     , _searchInIndepPredGridFile :: FilePath
     , _searchInTempGrid          :: Maybe [AbsRelTempPos]
     , _searchInDepSearchGrid     :: Maybe DepVarsPredGridSettings
@@ -36,7 +37,7 @@ data SearchOptions = SearchOptions
 
 runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
-    inObsFile inIndepVarsPredGridFile maybeTempGrid
+    inObsFile maybeTempSampFile inIndepVarsPredGridFile maybeTempGrid
     inMaybeDepSearchGrid kernelDefinition
     maybeObsGridDistFile maybeObsObsDistFile maybeGridGridDistFile
     outFile
@@ -53,6 +54,8 @@ runSearch (SearchOptions
     !obs <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
     let nObs = V.length obs
     hPutStrLn stderr $ "Number of observations: " ++ show nObs
+    -- read temporal resampling iterations
+    !tempSamp <- traverse (readTempSamp obs) maybeTempSampFile
     -- read indepVar prediction grid positions
     !indepPredGrid <- V.map (filterVarsInIndepVarsPos indepVars) <$> readIndepVarsPos inIndepVarsPredGridFile
     let nGrid = V.length indepPredGrid
@@ -65,7 +68,7 @@ runSearch (SearchOptions
     !gridGridDistances <- traverse (readSUDistMulti nGrid) maybeGridGridDistFile
     -- permutations
     hPutStrLn stderr "Preparing permutations"
-    let permutations = createPermutations obs Nothing indepPredGrid depSearchGrid maybeTempGrid
+    let permutations = createPermutations obs tempSamp indepPredGrid depSearchGrid maybeTempGrid
         -- the number of permutations depends on
         -- the temporal grid,
         -- the temporal resampling,
@@ -84,10 +87,15 @@ runSearch (SearchOptions
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
-search :: Algorithm -> [IndepVarName]
-     -> Maybe AUDistMatrixPerIndepVar -> Maybe SUDistMatrixPerIndepVar -> Maybe SUDistMatrixPerIndepVar
+search :: Algorithm
+     -> [IndepVarName]
+     -> Maybe AUDistMatrixPerIndepVar
+     -> Maybe SUDistMatrixPerIndepVar
+     -> Maybe SUDistMatrixPerIndepVar
      -> Double
-     -> [DepVarName] -> [KernelOneDepVar] -> Permutation
+     -> [DepVarName]
+     -> [KernelOneDepVar]
+     -> Permutation
      -> IO [SearchResultRow]
 search algorithm indepVars
      maybeObsGridDists maybeObsObsDists maybeGridGridDists
@@ -233,7 +241,8 @@ nrTempSamples Nothing                         = 1
 nrTempSamples (Just (TempSampleMatrix n _ _)) = n
 
 applyTempSamp :: Maybe TempSampleMatrix -> Int -> Observation -> Observation
-applyTempSamp (Just m) i obs@(Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 _)) i4) i5) =
+applyTempSamp (Just m) i
+    obs@(Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 _)) i4) i5) =
     let obsIndex = getIndex obs
         newage = lookUpTempSample m i obsIndex
     in Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos newage))) i4) i5

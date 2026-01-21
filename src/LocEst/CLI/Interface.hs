@@ -103,6 +103,7 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions
                         <$> optParseInObservationFile
+                        <*> OP.optional optParseInObsTempSamplesFile
                         <*> optParseInSpatGridFile
                         <*> OP.optional optParseTempGridString
                         <*> OP.optional optParseSearchPositions
