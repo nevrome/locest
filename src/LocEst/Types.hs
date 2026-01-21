@@ -179,46 +179,6 @@ instance Csv.ToRecord EmpiricalVariogramSingleBin where
 data Normalisation = NormBySpace | NoNorm
     deriving (Show)
 
--- | A data type for an individual distance between one observation and one prediction grid point.
--- Exists for reading from CSV into a distance matrix
-data SpatDistObsGrid = SpatDistObsGrid {
-      _spatDistObsGridObsID    :: String
-    , _spatDistObsGridGridID   :: String
-    , _spatDistObsGridDistance :: Double
-} deriving (Show, Generic)
-
-instance NFData SpatDistObsGrid
-instance Csv.FromNamedRecord SpatDistObsGrid where
-    parseNamedRecord m =
-        SpatDistObsGrid <$> filterLookup m "obsID" <*> filterLookup m "spatID" <*> filterLookup m "dist"
-
-data SingleObsGridDist = SingleObsGridDist {
-      _smdObsID  :: String,
-      _smdGridID :: String,
-      _smdValues :: ValuesPerIndepVar
-} deriving (Show, Generic)
-
-instance NFData SingleObsGridDist
-instance Csv.FromNamedRecord SingleObsGridDist where
-    parseNamedRecord m =
-        SingleObsGridDist
-          <$> filterLookup m "obsID"
-          <*> filterLookup m "gridID"
-          <*> Csv.parseNamedRecord m
-
-data SingleSymDistsRow = SingleSymDistsRow
-  { _sdrId1    :: String
-  , _sdrId2    :: String
-  , _sdrValues :: ValuesPerIndepVar
-  }
-
-instance Csv.FromNamedRecord SingleSymDistsRow where
-  parseNamedRecord m =
-    SingleSymDistsRow
-        <$> filterLookup m "id1"
-        <*> filterLookup m "id2"
-        <*> Csv.parseNamedRecord m
-
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutObsWeight Int
@@ -270,8 +230,6 @@ data KernelDefinition = KernelDefinition {
       , _kdefPerDepVar :: [KernelOneDepVar]
     }
     deriving (Show, Eq, Ord, Generic)
-
-
 
 makeKernelDefinition :: Algorithm -> [KernelOneDepVar] -> KernelDefinition
 makeKernelDefinition _ [] = throwL "No kernel settings provided"
@@ -497,10 +455,6 @@ instance Csv.ToRecord HyperPos where
 
 -- | A data type for dependent vars with some value
 type DepVarsPos = ValuesPerDepVar
-type DepVarsWeights = ValuesPerDepVar
-type DepVarsRands = ValuesPerDepVar
-type DepVarSamples = ValuesPerDepVar
-type DepVarVariances = ValuesPerDepVar
 data ValuesPerDepVar = ValuesPerDepVar (V.Vector DepVarName) (VS.Vector Double)
     deriving (Eq, Show, Generic, Ord)
 

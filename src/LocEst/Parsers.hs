@@ -148,19 +148,6 @@ readAUDistMulti nObs nGrid path
         hPutStrLn stderr "Done"
         pure $ AUDistMatrixPerIndepVar (V.toList frozen)
 
-readAUDist :: V.Vector Observation -> V.Vector IndepVarsDist -> FilePath -> IO AUDistMatrix
-readAUDist obs grid path = do
-    hPutStrLn stderr $ "Reading distances in " ++ path
-    let nObs = V.length obs
-        nGrid = V.length grid
-    distVec <- Con.runConduitRes $
-        sourceCSV path .|
-        ConC.mapM unwrapCSVParsingErrors .|
-        ConC.map (\(SpatDistObsGrid _ _ dist) -> dist) .|
-        ConC.sinkVectorN (nObs * nGrid)
-    hPutStrLn stderr "Done"
-    return $ AUDistMatrix nGrid nObs distVec
-
 readTempSamp :: V.Vector Observation -> FilePath -> IO TempSampleMatrix
 readTempSamp obs path
     | takeExtension path == ".cbor" = do
