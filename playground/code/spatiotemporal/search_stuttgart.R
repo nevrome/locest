@@ -121,6 +121,7 @@ hu5 %>% dplyr::group_by(search_obsID, yearBCAD) %>%
 # }
 
 hu5 %>%
+  dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(yearBCAD), cols = dplyr::vars(search_obsID)) +
   geom_raster(aes(x, y, fill = probability)) +

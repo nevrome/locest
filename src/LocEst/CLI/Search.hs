@@ -55,7 +55,7 @@ runSearch (SearchOptions
     let nObs = V.length obs
     hPutStrLn stderr $ "Number of observations: " ++ show nObs
     -- read temporal resampling iterations
-    !tempSamp <- traverse (readTempSamp obs) maybeTempSampFile
+    !maybeTempSamp <- traverse (readTempSamp obs) maybeTempSampFile
     -- read indepVar prediction grid positions
     !indepPredGrid <- V.map (filterVarsInIndepVarsPos indepVars) <$> readIndepVarsPos inIndepVarsPredGridFile
     let nGrid = V.length indepPredGrid
@@ -68,16 +68,12 @@ runSearch (SearchOptions
     !gridGridDistances <- traverse (readSUDistMulti nGrid) maybeGridGridDistFile
     -- permutations
     hPutStrLn stderr "Preparing permutations"
-    let permutations = createPermutations obs tempSamp indepPredGrid depSearchGrid maybeTempGrid
-        -- the number of permutations depends on
-        -- the temporal grid,
-        -- the temporal resampling,
-        -- the search grid
-        nrOutputRows = case maybeTempGrid of
-            Nothing -> length indepPredGrid
-            Just tempGrid -> case depSearchGrid of
-                Nothing -> length indepPredGrid * length tempGrid
-                Just searchGrid -> length indepPredGrid * length tempGrid * length searchGrid
+    let permutations = createPermutations obs maybeTempSamp indepPredGrid depSearchGrid maybeTempGrid
+        nrOutputRows =
+            length indepPredGrid
+          * factor maybeTempGrid length
+          * factor maybeTempSamp _tSMNrSamples
+          * factor depSearchGrid length
     -- run interpolation and search
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
@@ -86,6 +82,9 @@ runSearch (SearchOptions
         .| progress 1000 (Just nrOutputRows)
         .| sinkNamedCSV outFile
     putStrLn "Done"
+
+factor :: Maybe a -> (a -> Int) -> Int
+factor element extractor = maybe 1 extractor element
 
 search :: Algorithm
      -> [IndepVarName]
