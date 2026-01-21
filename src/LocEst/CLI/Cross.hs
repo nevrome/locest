@@ -66,13 +66,14 @@ runCross (
         Nothing -> R.randomRIO (0, maxBound :: Int)
     hPutStrLn stderr $ "Seed for random splitting: " ++ show baseSeed
     -- determine steps
-    let work = [ (iter, kerndef) | iter <- [1..iterations], kerndef <- testAlgorithms ]
+    hPutStrLn stderr "Preparing permutations"
+    let permutations = [ (iter, kerndef) | iter <- [1..iterations], kerndef <- testAlgorithms ]
     hPutStrLn stderr $ "Number of requested iterations: " ++ show iterations
     hPutStrLn stderr $ "Number of test kernel permutations: " ++ show (length testAlgorithms)
     -- run crossvalidation
     Con.runConduitRes $
-           ConC.yieldMany work
-        .| progress 1 (Just (length work)) -- here progress by steps
+           ConC.yieldMany permutations
+        .| progress 1 (Just (length permutations))
         .| ConC.mapM (\(iter, kerndef) ->
                liftIO $ cross algorithm indepVars obsObsDistances spatDistUnitScaling
                               baseSeed numTestObs iter obs kerndef

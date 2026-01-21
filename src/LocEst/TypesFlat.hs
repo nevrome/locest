@@ -16,6 +16,14 @@ import           GHC.Generics         (Generic)
 
 -- operations on the flat storage types
 
+sliceSUDistPerIndep :: VS.Vector Int -> SUDistMatrixPerIndepVar -> SUDistMatrixPerIndepVar
+sliceSUDistPerIndep idxs (SUDistMatrixPerIndepVar ms) =
+  SUDistMatrixPerIndepVar [ (name, sliceSUDistMatrix idxs m) | (name,m) <- ms ]
+
+sliceAUDistPerIndep :: VS.Vector Int -> VS.Vector Int -> SUDistMatrixPerIndepVar -> AUDistMatrixPerIndepVar
+sliceAUDistPerIndep testIdx trainIdx (SUDistMatrixPerIndepVar ms) =
+  AUDistMatrixPerIndepVar [ (name, sliceAUDistMatrix testIdx trainIdx m) | (name,m) <- ms ]
+
 sliceSUDistMatrix
     :: VS.Vector Int
     -> SUDistMatrix
@@ -58,14 +66,9 @@ idxHalf i j
   | i >= j    = i*(i+1) `div` 2 + j
   | otherwise = j*(j+1) `div` 2 + i
 
-sliceSUDistPerIndep :: VS.Vector Int -> SUDistMatrixPerIndepVar -> SUDistMatrixPerIndepVar
-sliceSUDistPerIndep idxs (SUDistMatrixPerIndepVar ms) =
-  SUDistMatrixPerIndepVar [ (name, sliceSUDistMatrix idxs m) | (name,m) <- ms ]
+-- flat storage data types
 
-sliceAUDistPerIndep :: VS.Vector Int -> VS.Vector Int -> SUDistMatrixPerIndepVar -> AUDistMatrixPerIndepVar
-sliceAUDistPerIndep testIdx trainIdx (SUDistMatrixPerIndepVar ms) =
-  AUDistMatrixPerIndepVar [ (name, sliceAUDistMatrix testIdx trainIdx m) | (name,m) <- ms ]
-
+-- | A data type for distances between indep positions
 data IndepVarsDistFlat = IndepVarsDistFlat {
      _tags    :: VS.Vector Bool -- False means IndepSpatTempDist, True means IndepArbitraryDimDist
    , _payload :: VS.Vector Double -- distances stored contiguously per row.

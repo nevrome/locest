@@ -10,9 +10,6 @@ import           LocEst.Types
 import           LocEst.TypesFlat
 import           LocEst.Utils
 
-import qualified Data.Vector              as V
-import           System.IO                (hPutStrLn, stderr)
-
 import           Conduit                  (liftIO)
 import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
@@ -22,6 +19,8 @@ import           Data.Foldable            (foldl')
 import           Data.List                (intercalate)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe               (isJust, mapMaybe)
+import qualified Data.Vector              as V
+import           System.IO                (hPutStrLn, stderr)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -67,12 +66,21 @@ runSearch (SearchOptions
     -- permutations
     hPutStrLn stderr "Preparing permutations"
     let permutations = createPermutations obs Nothing indepPredGrid depSearchGrid maybeTempGrid
+        -- the number of permutations depends on
+        -- the temporal grid,
+        -- the temporal resampling,
+        -- the search grid
+        nrOutputRows = case maybeTempGrid of
+            Nothing -> length indepPredGrid
+            Just tempGrid -> case depSearchGrid of
+                Nothing -> length indepPredGrid * length tempGrid
+                Just searchGrid -> length indepPredGrid * length tempGrid * length searchGrid
     -- run interpolation and search
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
         .| ConL.concatMapM (liftIO . search algorithm indepVars obsGridDistances obsObsDistances gridGridDistances spatDistUnitScaling depVars kernels)
-        .| progress 1000 Nothing
+        .| progress 1000 (Just nrOutputRows)
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
