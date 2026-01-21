@@ -143,7 +143,7 @@ search algorithm indepVars
                            Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
             return $ zipWith (kas obs maybeGridTrueDep distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
     -- turn SSL to SSR
-    let rawRows = concatMap (rowsForGridIdx perDepVar) [0 .. (V.length grid)-1]
+    let rawRows = concatMap (rowsForGridIdx perDepVar) [0..V.length grid-1]
     if isJust searchDepVarPos && isSpatioTemporal grid
     then return $ normaliseByTimeSlice rawRows
     else return rawRows
