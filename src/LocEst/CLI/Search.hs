@@ -87,15 +87,15 @@ factor :: Maybe a -> (a -> Int) -> Int
 factor element extractor = maybe 1 extractor element
 
 search :: Algorithm
-     -> [IndepVarName]
-     -> Maybe AUDistMatrixPerIndepVar
-     -> Maybe SUDistMatrixPerIndepVar
-     -> Maybe SUDistMatrixPerIndepVar
-     -> Double
-     -> [DepVarName]
-     -> [KernelOneDepVar]
-     -> Permutation
-     -> IO [SearchResultRow]
+       -> [IndepVarName]
+       -> Maybe AUDistMatrixPerIndepVar
+       -> Maybe SUDistMatrixPerIndepVar
+       -> Maybe SUDistMatrixPerIndepVar
+       -> Double
+       -> [DepVarName]
+       -> [KernelOneDepVar]
+       -> Permutation
+       -> IO [SearchResultRow]
 search algorithm indepVars
      maybeObsGridDists maybeObsObsDists maybeGridGridDists
      spatDistUnitScaling
@@ -247,7 +247,9 @@ applyTempSamp (Just m) i
     in Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos newage))) i4) i5
 applyTempSamp _ _ obs = obs
 
-splitDataByTempGrid :: Maybe [AbsRelTempPos] -> V.Vector IndepVarsPos -> Maybe (V.Vector DepVarsPredPos)
+splitDataByTempGrid :: Maybe [AbsRelTempPos]
+                    -> V.Vector IndepVarsPos
+                    -> Maybe (V.Vector DepVarsPredPos)
                     -> [(V.Vector IndepVarsPos, Maybe (V.Vector DepVarsPredPos))]
 splitDataByTempGrid Nothing indepPredGrid depSearchGrid = [(indepPredGrid, depSearchGrid)]
 splitDataByTempGrid (Just absRelTempPos) indepPredGrid depSearchGrid =
@@ -258,7 +260,9 @@ splitDataByTempGrid (Just absRelTempPos) indepPredGrid depSearchGrid =
             ) indepPredGrid
     in concat $ mapMaybe (\t -> build t spatPos depSearchGrid) absRelTempPos
   where
-    build :: AbsRelTempPos -> V.Vector SpatPos -> Maybe (V.Vector DepVarsPredPos)
+    build :: AbsRelTempPos
+          -> V.Vector SpatPos
+          -> Maybe (V.Vector DepVarsPredPos)
           -> Maybe [(V.Vector IndepVarsPos, Maybe (V.Vector DepVarsPredPos))]
     build (AbsTempPos yearBCAD) spatPos depGrid =
       let indepVarsPos = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos yearBCAD))) spatPos
