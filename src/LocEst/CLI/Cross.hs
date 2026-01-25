@@ -10,6 +10,7 @@ import           LocEst.TypesFlat
 import           LocEst.Utils
 
 import           Conduit                  (MonadIO (liftIO))
+import qualified Control.Monad            as OP
 import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
@@ -60,6 +61,9 @@ runCross (
     hPutStrLn stderr $ "Requested split fraction: " ++ show testFraction
     let numTestObs = round $ testFraction * fromIntegral nObs
     hPutStrLn stderr $ "Number of test observations: " ++ show numTestObs
+    OP.when (numTestObs == nObs) $ do
+        hPutStrLn stderr "The number of test observations equals the number of observations. \
+                         \In this special case the training set is also set to include all observations."
     -- set base seed
     baseSeed <- case maybeSeed of
         Just x  -> pure x
@@ -92,12 +96,16 @@ cross
   -> V.Vector Observation
   -> KernelDefinition
   -> IO CrossvalOutput
-cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed numTestObs iter obs kerndef = do
+cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs iter obs kerndef = do
     let seedIter = seed + iter
         depVars  = getKeys kerndef
         kernels  = getValues kerndef
-        -- randomly slice training and test
-        (testIdx, trainIdx) = splitIdx seedIter numTestObs (V.length obs)
+        nObs     = V.length obs
+        (testIdx, trainIdx) = if nTestObs == nObs
+                              -- special case: full autoprediction
+                              then (VS.fromList [0..nObs-1], VS.fromList [0..nObs-1])
+                              -- randomly slice to get training and test sets
+                              else splitIdx seedIter nTestObs nObs
         testObs     = V.backpermute obs (V.convert testIdx)
         trainingObs = V.backpermute obs (V.convert trainIdx)
         -- prediction grid = test observation locations

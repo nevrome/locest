@@ -248,18 +248,6 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
--- optParseCrossSubsetMode :: OP.Parser CrossSubsetMode
--- optParseCrossSubsetMode = optParseCrossFull OP.<|> optParseCrossFraction
-
--- optParseCrossFull :: OP.Parser CrossSubsetMode
--- optParseCrossFull = OP.flag' CrossFull (
---        OP.long "full"
---     <> OP.helpDoc ( Just (
---                       s2d "Use all input observations both as test and training data. \
---                           \This is faster than running through multiple test-training split iterations, \
---                           \but potentially also less reliable."
---     )))
-
 -- optParseCrossOutMode :: OP.Parser CrossOutModeSettings
 -- optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
 --     OP.long "outMode" <>
@@ -393,9 +381,13 @@ optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
     <> OP.metavar "DOUBLE"
     <> OP.value 0.2
     <> OP.helpDoc ( Just (
-                      s2d "Fraction of the observations that should be used as test data for the crossvalidation. \
-                          \1 - testFraction will be used as training data. The fraction must be between 0 and 1. \
-                          \Default: 0.2"
+                          s2d "Fraction of the observations that should be used as test data for the \
+                              \crossvalidation. 1 - testFraction will be used as training data. \
+                              \The fraction must be between 0 and 1. Default: 0.2"
+        <> OH.hardline <>     "When the fraction is so large that the number of test observations \
+                              \equals the total number of observations, then all observations are used \
+                              \for the training set. In this case the seed has no effect and all \
+                              \iterations yield the same result."
     ))
     )
     where
