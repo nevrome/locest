@@ -42,7 +42,6 @@ library
       , serialise
       , statistics
       , hmatrix
-      , async
       , containers
       , bytestring-lexing
     default-language:
@@ -52,6 +51,8 @@ library
       -- -fwrite-ide-info
       -- -hiedir=.hie
       -- "-ddump-simpl" show GHC core
+      -- check for unsused dependencies
+      -Wunused-packages
 
 executable locest
     main-is:
@@ -62,7 +63,6 @@ executable locest
         base
       , locest
       , optparse-applicative >= 0.16 && < 0.19
-      , filepath
       , silently
     other-modules:
       Paths_locest
@@ -81,6 +81,8 @@ executable locest
       -- causes all constructor fields which are marked strict (i.e. !) to be unpacked if possible
       -- a bit of a sledgehammer: it might sometimes make things worse
       -- -funbox-strict-fields
+      -- check for unsused dependencies
+      -Wunused-packages
 
 test-suite spec
     hs-source-dirs:
@@ -102,3 +104,6 @@ test-suite spec
       , vector
       , statistics
       , hmatrix
+    ghc-options:
+      -- check for unsused dependencies
+      -Wunused-packages
