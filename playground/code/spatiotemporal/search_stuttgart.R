@@ -70,7 +70,7 @@ vario %>%
 # stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
 # profiteur locest.prof
 
-system('time OMP_NUM_THREADS=4 locest cross --configFile code/spatiotemporal/cross.conf +RTS -N3 -RTS')
+system('time OMP_NUM_THREADS=4 locest cross --configFile code/spatiotemporal/cross.conf')
 
 cross <- readr::read_tsv("data/spatiotemporal/cross.tsv")
 
@@ -85,7 +85,7 @@ cross %>%
       mean
     )
   ) %>%
-  dplyr::filter(depVar == "depC1") %>%
+  dplyr::filter(depVar == "depC2") %>%
   ggplot() +
   geom_raster(aes(x = kernel_space_length, y = kernel_time_length, fill = sum_log_likelihood)) +
   facet_grid(rows = dplyr::vars(depVar)) +
@@ -100,7 +100,7 @@ cross %>%
 # OMP_NUM_THREADS=4 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -N4 -RTS
 # hp2ps -c locest.hp
 
-system('time OMP_NUM_THREADS=4 locest search --configFile code/spatiotemporal/basic.conf  +RTS -N4 -RTS')
+system('time OMP_NUM_THREADS=4 locest search --configFile code/spatiotemporal/basic.conf')
 
 # better memory profiling with GNU time
 # export TIME="time result\ncmd: %C\nreal %es\nuser %Us \nsys  %Ss \nmemory: %MKB \ncpu: %P"
