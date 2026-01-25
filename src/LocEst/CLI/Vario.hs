@@ -82,7 +82,7 @@ runVario
         hPutStrLn stderr "Calculating pairwise distances for dependent variables"
         -- only computes half of the pairwise distances
         let depVars = getKeys $ depVarPosFromObs $ V.head obs
-        SUDistMatrixPerIndepVar !distsPerDepVar <-
+        SelfDistMatrixPerIndepVar !distsPerDepVar <-
                              if acrossDepVars
                              then do
                                  allDists <- calcObsObsDistDepVar obs depVars
@@ -92,7 +92,7 @@ runVario
         hPutStrLn stderr "Calculating empirical variograms"
         fmap concat $
             -- loop over indepVars
-            forM (toList distsPerIndepVar) $ \(indepVarName, SUDistMatrix indepDists) -> do
+            forM (toList distsPerIndepVar) $ \(indepVarName, SelfDistMatrix indepDists) -> do
                 hPutStrLn stderr ("Working on " ++ indepVarName)
                 -- indexing (must be done before any filtering)
                 let indepDistsIndexed = VU.indexed $ VS.convert indepDists
@@ -119,7 +119,7 @@ runVario
                                 in binIndepVarForNugget sortedIndepDists (makeValuesPerIndepVar [("acrossIndep", mergedThreshold)]) indepVarName
                             else binIndepVarForNugget sortedIndepDists thresholds indepVarName
                 -- loop over depVars
-                forM distsPerDepVar $ \(depVarName, SUDistMatrix depDists) -> do
+                forM distsPerDepVar $ \(depVarName, SelfDistMatrix depDists) -> do
                     -- loop over bins
                     variancesPerBin <- Con.runConduitRes $
                             ConC.yieldMany startStopPerBin
@@ -131,9 +131,9 @@ runVario
     writeVariograms (concat empiricalVariograms) outFile
     hPutStrLn stderr "Done"
 
-isBelowIndepVarsThreshold :: SUDistMatrixPerIndepVar -> (IndepVarName, Double) -> VS.Vector Bool
+isBelowIndepVarsThreshold :: SelfDistMatrixPerIndepVar -> (IndepVarName, Double) -> VS.Vector Bool
 isBelowIndepVarsThreshold distsPerIndepVar (indepVarName, threshold) =
-    let (SUDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVarName
+    let (SelfDistMatrix dists) = lookupUnsafe distsPerIndepVar indepVarName
     in VS.map (<=threshold) dists
 
 -- write variograms to the file system

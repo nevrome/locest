@@ -56,7 +56,7 @@ runCross (
     let nObs = V.length obs
     hPutStrLn stderr $ "Number of observations: " ++ show nObs
     -- read distances
-    !obsObsDistances <- traverse (readSUDistMulti nObs) maybeObsObsDistFile
+    !obsObsDistances <- traverse (readSelfDistMulti nObs) maybeObsObsDistFile
     -- reporting split size
     hPutStrLn stderr $ "Requested split fraction: " ++ show testFraction
     let numTestObs = round $ testFraction * fromIntegral nObs
@@ -88,7 +88,7 @@ runCross (
 cross
   :: Algorithm
   -> [IndepVarName]
-  -> Maybe SUDistMatrixPerIndepVar
+  -> Maybe SelfDistMatrixPerIndepVar
   -> Double
   -> Int -- base seed
   -> Int -- numTestObs
@@ -112,9 +112,9 @@ cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs
         predGrid = V.map posFromObs testObs
         trueVals = V.map (filterByKey depVars . depVarPosFromObs) testObs
         -- slice distance matrices, if present
-        !maybeObsObsDists = sliceSUDistPerIndep trainIdx <$> maybeFullObsObsDists
-        !maybeGridGridDists = sliceSUDistPerIndep testIdx <$> maybeFullObsObsDists
-        !maybeObsGridDists = sliceAUDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
+        !maybeObsObsDists = sliceSelfDistPerIndep trainIdx <$> maybeFullObsObsDists
+        !maybeGridGridDists = sliceSelfDistPerIndep testIdx <$> maybeFullObsObsDists
+        !maybeObsGridDists = sliceCrossDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
     -- run search (no dep search grid, no temp grid, but true values for grid pos)
     rows <- search algorithm indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists
                    spatDistUnitScaling depVars kernels

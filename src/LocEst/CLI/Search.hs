@@ -64,9 +64,9 @@ runSearch (SearchOptions
     -- read depVar search grid
     !depSearchGrid <- traverse (readDepVarsPredGrid depVars indepVars) inMaybeDepSearchGrid
     -- read distances
-    !obsGridDistances  <- traverse (readAUDistMulti nObs nGrid) maybeObsGridDistFile
-    !obsObsDistances   <- traverse (readSUDistMulti nObs) maybeObsObsDistFile
-    !gridGridDistances <- traverse (readSUDistMulti nGrid) maybeGridGridDistFile
+    !obsGridDistances  <- traverse (readCrossDistMulti nObs nGrid) maybeObsGridDistFile
+    !obsObsDistances   <- traverse (readSelfDistMulti nObs) maybeObsObsDistFile
+    !gridGridDistances <- traverse (readSelfDistMulti nGrid) maybeGridGridDistFile
     -- permutations
     hPutStrLn stderr "Preparing permutations"
     let permutations = createPermutations obs maybeTempSamp indepPredGrid depSearchGrid maybeTempGrid
@@ -89,9 +89,9 @@ factor element extractor = maybe 1 extractor element
 
 search :: Algorithm
        -> [IndepVarName]
-       -> Maybe AUDistMatrixPerIndepVar
-       -> Maybe SUDistMatrixPerIndepVar
-       -> Maybe SUDistMatrixPerIndepVar
+       -> Maybe CrossDistMatrixPerIndepVar
+       -> Maybe SelfDistMatrixPerIndepVar
+       -> Maybe SelfDistMatrixPerIndepVar
        -> Double
        -> [DepVarName]
        -> [KernelOneDepVar]
@@ -107,28 +107,28 @@ search algorithm indepVars
             -- gpr
             distsObsGrid <- case maybeObsGridDists of -- this could be refactored to be shorter
                 Nothing -> do
-                    auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
-                Just (AUDistMatrixPerIndepVar ms) ->
-                    auMatrixToFlat . AUDistMatrixPerIndepVar <$>
+                    crossDistMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
+                Just (CrossDistMatrixPerIndepVar ms) ->
+                    crossDistMatrixToFlat . CrossDistMatrixPerIndepVar <$>
                         forM indepVars (\name -> case lookup name ms of
                            Just m  -> pure (name, m)
                            Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
             distsObsObs <- case maybeObsObsDists of
                 Nothing -> do
-                     suMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
-                Just (SUDistMatrixPerIndepVar ms) ->
-                    suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
+                     selfDistMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
+                Just (SelfDistMatrixPerIndepVar ms) ->
+                    selfDistMatrixToFlatHalf . SelfDistMatrixPerIndepVar <$>
                         forM indepVars (\name -> case lookup name ms of
                            Just m  -> pure (name, m)
-                           Nothing -> calcSUDistOneDim spatDistUnitScaling (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
+                           Nothing -> calcSelfDistOneDim spatDistUnitScaling (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
             distsGridGrid <- case maybeGridGridDists of
                 Nothing -> do
-                     suMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
-                Just (SUDistMatrixPerIndepVar ms) ->
-                    suMatrixToFlatHalf . SUDistMatrixPerIndepVar <$>
+                     selfDistMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
+                Just (SelfDistMatrixPerIndepVar ms) ->
+                    selfDistMatrixToFlatHalf . SelfDistMatrixPerIndepVar <$>
                         forM indepVars (\name -> case lookup name ms of
                            Just m  -> pure (name, m)
-                           Nothing -> calcSUDistOneDim spatDistUnitScaling id grid name)
+                           Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
             --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsObsGrid
             --error "test"
             return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
@@ -136,9 +136,9 @@ search algorithm indepVars
             -- kas
             distsObsGrid <- case maybeObsGridDists of
                 Nothing -> do
-                     auMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
-                Just (AUDistMatrixPerIndepVar ms) ->
-                    auMatrixToFlat . AUDistMatrixPerIndepVar <$>
+                     crossDistMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
+                Just (CrossDistMatrixPerIndepVar ms) ->
+                    crossDistMatrixToFlat . CrossDistMatrixPerIndepVar <$>
                         forM indepVars (\name -> case lookup name ms of
                            Just m  -> pure (name, m)
                            Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)

@@ -47,8 +47,8 @@ encodingOptions = Csv.defaultEncodeOptions {
 
 -- matrix parsers
 
-readSUDistMulti :: Int -> FilePath -> IO SUDistMatrixPerIndepVar
-readSUDistMulti n path
+readSelfDistMulti :: Int -> FilePath -> IO SelfDistMatrixPerIndepVar
+readSelfDistMulti n path
     | takeExtension path == ".cbor" = do
         hPutStrLn stderr "Reading symmetric multidimensional distances"
         hPutStrLn stderr $ "Deserialising " ++ path
@@ -94,12 +94,12 @@ readSUDistMulti n path
         -- freeze
         frozen <- V.forM (V.zip namesV matsMV) $ \(name, mv) -> do
                      v <- VS.unsafeFreeze mv
-                     pure (name, SUDistMatrix v)
+                     pure (name, SelfDistMatrix v)
         hPutStrLn stderr "Done"
-        pure $ SUDistMatrixPerIndepVar (V.toList frozen)
+        pure $ SelfDistMatrixPerIndepVar (V.toList frozen)
 
-readAUDistMulti :: Int -> Int -> FilePath -> IO AUDistMatrixPerIndepVar
-readAUDistMulti nObs nGrid path
+readCrossDistMulti :: Int -> Int -> FilePath -> IO CrossDistMatrixPerIndepVar
+readCrossDistMulti nObs nGrid path
     | takeExtension path == ".cbor" = do
         hPutStrLn stderr "Reading asymmetric multidimensional distances"
         hPutStrLn stderr $ "Deserialising " ++ path
@@ -144,9 +144,9 @@ readAUDistMulti nObs nGrid path
         -- freeze
         frozen <- V.forM (V.zip namesV matsMV) $ \(name, mv) -> do
                      v <- VS.unsafeFreeze mv
-                     pure (name, AUDistMatrix nObs nGrid v)
+                     pure (name, CrossDistMatrix nObs nGrid v)
         hPutStrLn stderr "Done"
-        pure $ AUDistMatrixPerIndepVar (V.toList frozen)
+        pure $ CrossDistMatrixPerIndepVar (V.toList frozen)
 
 readTempSamp :: V.Vector Observation -> FilePath -> IO TempSampleMatrix
 readTempSamp obs path

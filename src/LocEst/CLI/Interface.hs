@@ -83,17 +83,17 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             <$> optParseInObservationFile
                             <*> optParseInObsTempSamplesFile
                             )) (OP.progDesc "Serialise --tempSampFile."))
-                     <> OP.command "sudist" (OP.info (OP.helper <*> (
-                            SerialiseSUDistMatrixPerIndepVar
+                     <> OP.command "selfdist" (OP.info (OP.helper <*> (
+                            SerialiseSelfDistMatrixPerIndepVar
                             <$> (VecFileObs <$> optParseInObservationFile OP.<|> VecFileGrid <$> optParseInIndepVarGridFile)
                             <*> optParseDistFile
-                            )) (OP.progDesc "Serialise su dist.")) -- TODO: make less hacky
-                     <> OP.command "audist" (OP.info (OP.helper <*> (
-                            SerialiseAUDistMatrixPerIndepVar
+                            )) (OP.progDesc "Serialise self distance matrix.")) -- TODO: make less hacky
+                     <> OP.command "crossdist" (OP.info (OP.helper <*> (
+                            SerialiseCrossDistMatrixPerIndepVar
                             <$> optParseInObservationFile
                             <*> optParseInIndepVarGridFile
                             <*> optParseDistFile
-                            )) (OP.progDesc "Serialise au dist.")) -- TODO: make less hacky
+                            )) (OP.progDesc "Serialise cross distance matrix.")) -- TODO: make less hacky
                      ) <*> optParseOutFileCbor
 
 searchOptParser :: OP.Parser SearchOptions

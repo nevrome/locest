@@ -16,19 +16,19 @@ import           GHC.Generics         (Generic)
 
 -- operations on the flat storage types
 
-sliceSUDistPerIndep :: VS.Vector Int -> SUDistMatrixPerIndepVar -> SUDistMatrixPerIndepVar
-sliceSUDistPerIndep idxs (SUDistMatrixPerIndepVar ms) =
-  SUDistMatrixPerIndepVar [ (name, sliceSUDistMatrix idxs m) | (name,m) <- ms ]
+sliceSelfDistPerIndep :: VS.Vector Int -> SelfDistMatrixPerIndepVar -> SelfDistMatrixPerIndepVar
+sliceSelfDistPerIndep idxs (SelfDistMatrixPerIndepVar ms) =
+  SelfDistMatrixPerIndepVar [ (name, sliceSelfDistMatrix idxs m) | (name,m) <- ms ]
 
-sliceAUDistPerIndep :: VS.Vector Int -> VS.Vector Int -> SUDistMatrixPerIndepVar -> AUDistMatrixPerIndepVar
-sliceAUDistPerIndep testIdx trainIdx (SUDistMatrixPerIndepVar ms) =
-  AUDistMatrixPerIndepVar [ (name, sliceAUDistMatrix testIdx trainIdx m) | (name,m) <- ms ]
+sliceCrossDistPerIndep :: VS.Vector Int -> VS.Vector Int -> SelfDistMatrixPerIndepVar -> CrossDistMatrixPerIndepVar
+sliceCrossDistPerIndep testIdx trainIdx (SelfDistMatrixPerIndepVar ms) =
+  CrossDistMatrixPerIndepVar [ (name, sliceCrossDistMatrix testIdx trainIdx m) | (name,m) <- ms ]
 
-sliceSUDistMatrix
+sliceSelfDistMatrix
     :: VS.Vector Int
-    -> SUDistMatrix
-    -> SUDistMatrix
-sliceSUDistMatrix idxs (SUDistMatrix full) =
+    -> SelfDistMatrix
+    -> SelfDistMatrix
+sliceSelfDistMatrix idxs (SelfDistMatrix full) =
   let n = VS.length idxs
       nHalf = n*(n+1) `div` 2
       v = VS.generate nHalf $ \k ->
@@ -36,7 +36,7 @@ sliceSUDistMatrix idxs (SUDistMatrix full) =
                 oi = idxs VS.! i
                 oj = idxs VS.! j
             in full VS.! idxHalf oi oj
-  in SUDistMatrix v
+  in SelfDistMatrix v
   where
     unHalf :: Int -> (Int, Int)
     unHalf k = go 0 k
@@ -45,12 +45,12 @@ sliceSUDistMatrix idxs (SUDistMatrix full) =
           | r <= i    = (i, r)
           | otherwise = go (i+1) (r - (i+1))
 
-sliceAUDistMatrix
+sliceCrossDistMatrix
   :: VS.Vector Int  -- test indices (rows)
   -> VS.Vector Int  -- train indices (cols)
-  -> SUDistMatrix   -- full obs–obs
-  -> AUDistMatrix
-sliceAUDistMatrix testIdx trainIdx (SUDistMatrix full) =
+  -> SelfDistMatrix   -- full obs–obs
+  -> CrossDistMatrix
+sliceCrossDistMatrix testIdx trainIdx (SelfDistMatrix full) =
   let nGrid = VS.length testIdx
       nObs  = VS.length trainIdx
       v = VS.generate (nGrid * nObs) $ \k ->
@@ -58,7 +58,7 @@ sliceAUDistMatrix testIdx trainIdx (SUDistMatrix full) =
                 oi = trainIdx VS.! o
                 gi = testIdx  VS.! g
             in full VS.! idxHalf oi gi
-  in AUDistMatrix nObs nGrid v
+  in CrossDistMatrix nObs nGrid v
 
 {-# INLINE idxHalf #-}
 idxHalf :: Int -> Int -> Int
@@ -77,65 +77,63 @@ data IndepVarsDistFlat = IndepVarsDistFlat {
 
 instance NFData IndepVarsDistFlat
 
--- | A data type for a symmetric, unidirectional distance matrix
+-- | A data type for a symmetric pairwise distance matrix within one set;
 -- this matrix has (n*n)/2 - n entries and a triangular shape
-newtype SUDistMatrix = SUDistMatrix (VS.Vector Double)
+newtype SelfDistMatrix = SelfDistMatrix (VS.Vector Double)
    deriving (Generic, Show, Eq)
 
-instance NFData SUDistMatrix
-instance S.Serialise SUDistMatrix
+instance NFData SelfDistMatrix
+instance S.Serialise SelfDistMatrix
 
 -- | A data type for named lists of matrices
-newtype SUDistMatrixPerIndepVar = SUDistMatrixPerIndepVar [(IndepVarName, SUDistMatrix)]
+newtype SelfDistMatrixPerIndepVar = SelfDistMatrixPerIndepVar [(IndepVarName, SelfDistMatrix)]
     deriving (Generic, Show, Eq)
 
-instance NFData SUDistMatrixPerIndepVar
-instance S.Serialise SUDistMatrixPerIndepVar
-instance PseudoMap SUDistMatrixPerIndepVar SUDistMatrix where
-    toList (SUDistMatrixPerIndepVar l) = l
-    getKeys (SUDistMatrixPerIndepVar l) = map fst l
-    getValues (SUDistMatrixPerIndepVar l) = map snd l
-    lookupUnsafe (SUDistMatrixPerIndepVar l) k =
+instance NFData SelfDistMatrixPerIndepVar
+instance S.Serialise SelfDistMatrixPerIndepVar
+instance PseudoMap SelfDistMatrixPerIndepVar SelfDistMatrix where
+    toList (SelfDistMatrixPerIndepVar l) = l
+    getKeys (SelfDistMatrixPerIndepVar l) = map fst l
+    getValues (SelfDistMatrixPerIndepVar l) = map snd l
+    lookupUnsafe (SelfDistMatrixPerIndepVar l) k =
         case lookup k l of
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    filterByKey k (SUDistMatrixPerIndepVar l) = SUDistMatrixPerIndepVar (filterByKeyList k l)
+    filterByKey k (SelfDistMatrixPerIndepVar l) = SelfDistMatrixPerIndepVar (filterByKeyList k l)
 
--- | A data type for an asymmetric, unidirectional distance matrix
+-- | A data type for a symmetric pairwise distance matrix between two sets;
 -- this matrix has m*n different entries and a rectangular shape
-data AUDistMatrix = AUDistMatrix {
-      _audmNrCols :: Int -- column number
-    , _audmNrRows :: Int -- row number
-    , _audmMatrix :: VS.Vector Double
+data CrossDistMatrix = CrossDistMatrix {
+      _cdmNrCols :: Int -- column number
+    , _cdmNrRows :: Int -- row number
+    , _cdmMatrix :: VS.Vector Double
 } deriving (Generic, Show, Eq)
 
-instance NFData AUDistMatrix
-instance S.Serialise AUDistMatrix
+instance NFData CrossDistMatrix
+instance S.Serialise CrossDistMatrix
 
-lookUpDistanceAU :: AUDistMatrix -> Int -> Int -> Double
-lookUpDistanceAU (AUDistMatrix ncol _ vec) col row = vec VS.! (col + ncol * row)
+lookUpDistanceCross :: CrossDistMatrix -> Int -> Int -> Double
+lookUpDistanceCross (CrossDistMatrix ncol _ vec) col row = vec VS.! (col + ncol * row)
 
-type SpatDistMatrix = AUDistMatrix
+type SpatDistMatrix = CrossDistMatrix
 
 -- | A data type for named lists of matrices
-newtype AUDistMatrixPerIndepVar = AUDistMatrixPerIndepVar [(IndepVarName, AUDistMatrix)]
+newtype CrossDistMatrixPerIndepVar = CrossDistMatrixPerIndepVar [(IndepVarName, CrossDistMatrix)]
     deriving (Generic, Show, Eq)
 
-instance NFData AUDistMatrixPerIndepVar
-instance S.Serialise AUDistMatrixPerIndepVar
-instance PseudoMap AUDistMatrixPerIndepVar AUDistMatrix where
-    toList (AUDistMatrixPerIndepVar l) = l
-    getKeys (AUDistMatrixPerIndepVar l) = map fst l
-    getValues (AUDistMatrixPerIndepVar l) = map snd l
-    lookupUnsafe (AUDistMatrixPerIndepVar l) k =
+instance NFData CrossDistMatrixPerIndepVar
+instance S.Serialise CrossDistMatrixPerIndepVar
+instance PseudoMap CrossDistMatrixPerIndepVar CrossDistMatrix where
+    toList (CrossDistMatrixPerIndepVar l) = l
+    getKeys (CrossDistMatrixPerIndepVar l) = map fst l
+    getValues (CrossDistMatrixPerIndepVar l) = map snd l
+    lookupUnsafe (CrossDistMatrixPerIndepVar l) k =
         case lookup k l of
             Just x  -> x
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
-    filterByKey k (AUDistMatrixPerIndepVar l) = AUDistMatrixPerIndepVar (filterByKeyList k l)
-
-
+    filterByKey k (CrossDistMatrixPerIndepVar l) = CrossDistMatrixPerIndepVar (filterByKeyList k l)
 
 -- | A data type for a matrix with age samples for observations
 data TempSampleMatrix = TempSampleMatrix {

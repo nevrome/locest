@@ -17,11 +17,11 @@ data SerialiseSet =
         _sotsInObservationFile    :: FilePath
       , _sotsInObsTempSamplesFile :: FilePath
       }
-    | SerialiseSUDistMatrixPerIndepVar {
+    | SerialiseSelfDistMatrixPerIndepVar {
         ssudRefVecFile :: VecFile
       , ssudInDistFile :: FilePath
     }
-    | SerialiseAUDistMatrixPerIndepVar {
+    | SerialiseCrossDistMatrixPerIndepVar {
         saudRefObsFile  :: FilePath
       , saudRefGridFile :: FilePath
       , saudInDistFile  :: FilePath
@@ -40,16 +40,16 @@ runSerialise (SerialiseOptions (SerialiseObsTempSamplesFile inObsFile inObsTempS
     observations <- readObservations inObsFile
     inTempSamps  <- readTempSamp observations inObsTempSamplesFile
     write outFile inTempSamps
-runSerialise (SerialiseOptions (SerialiseSUDistMatrixPerIndepVar vecFile distFile) outFile) = do
+runSerialise (SerialiseOptions (SerialiseSelfDistMatrixPerIndepVar vecFile distFile) outFile) = do
     nVec <- case vecFile of
         VecFileObs path  -> V.length <$> readObservations path
         VecFileGrid path -> V.length <$> readIndepVarsPos path
-    res <- readSUDistMulti nVec distFile
+    res <- readSelfDistMulti nVec distFile
     write outFile res
-runSerialise (SerialiseOptions (SerialiseAUDistMatrixPerIndepVar obsFile gridFile distFile) outFile) = do
+runSerialise (SerialiseOptions (SerialiseCrossDistMatrixPerIndepVar obsFile gridFile distFile) outFile) = do
     nObs <- V.length <$> readObservations obsFile
     nGrid <- V.length <$> readIndepVarsPos gridFile
-    res <- readAUDistMulti nObs nGrid distFile
+    res <- readCrossDistMulti nObs nGrid distFile
     write outFile res
 
 write :: S.Serialise a => FilePath -> a -> IO ()
