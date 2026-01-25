@@ -74,14 +74,10 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             SerialiseObsFile
                             <$> optParseInObservationFile
                             )) (OP.progDesc "Serialise --obsFile."))
-                     <> OP.command "spatgrid" (OP.info (OP.helper <*> (
-                            SerialiseSpatGridFile
+                     <> OP.command "grid" (OP.info (OP.helper <*> (
+                            SerialiseGridFile
                             <$> optParseInIndepVarGridFile
-                            )) (OP.progDesc "Serialise --spatGridFile."))
-                     <> OP.command "anygrid" (OP.info (OP.helper <*> (
-                            SerialiseSpatGridFile
-                            <$> optParseInArbitraryDimFile
-                            )) (OP.progDesc "Serialise --anyGridFile."))
+                            )) (OP.progDesc "Serialise --gridFile."))
                      <> OP.command "tempsamp" (OP.info (OP.helper <*> (
                             SerialiseObsTempSamplesFile
                             <$> optParseInObservationFile
@@ -151,6 +147,27 @@ optParseInGridGridDistFile = OP.strOption (
        OP.long    "gridGridDistFile"
     <> OP.metavar "FILE"
     <> OP.help "..." )
+
+-- optParseInSpatDistMapFile :: OP.Parser FilePath
+-- optParseInSpatDistMapFile = OP.strOption (
+--        OP.long    "spatDistFile"
+--     <> OP.metavar "FILE"
+--     <> OP.helpDoc ( Just (
+--                       s2d "Path to a .tsv/.cbor file with spatial distances between pairs of observations and spatial \
+--                           \prediction grid points. If this is given, then the spatial distances will \
+--                           \not be calculated from the respective coordinates, but looked up in this \
+--                           \table. The pairs must be ordered first like and by --obsFile and then like \
+--                           \and by --spatGridFile."
+--     <> OH.hardline <>     "┌─────┬──────┬────┐"
+--     <> OH.hardline <>     "│obsID│spatID│dist│ > [obsID]:"
+--     <> OH.hardline <>     "├─────┼──────┼────┤   Observations identifier"
+--     <> OH.hardline <>     "│   a │    x │    │ > [spatID]:"
+--     <> OH.hardline <>     "│   a │    y │    │   Spatial coordinate identifier"
+--     <> OH.hardline <>     "│   b │    x │    │ > [dist]:"
+--     <> OH.hardline <>     "│   b │    y │    │   Spatial distance"
+--     <> OH.hardline <>     "└─────┴──────┴────┘"
+--     ))
+--     )
 
 optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
 optParseIndepVarsThresholds = OP.option (OP.eitherReader readIndepVarsThresholds) (
@@ -231,13 +248,6 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
--- optParseCrossSettings :: OP.Parser CrossSettings
--- optParseCrossSettings =
---     CrossSettings
---     <$> optParseKernDefStringPermutations
---     <*> optParseCoAnalyseDepVars
---     <*> optParseCrossSubsetMode
-
 -- optParseCrossSubsetMode :: OP.Parser CrossSubsetMode
 -- optParseCrossSubsetMode = optParseCrossFull OP.<|> optParseCrossFraction
 
@@ -249,12 +259,6 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
 --                           \This is faster than running through multiple test-training split iterations, \
 --                           \but potentially also less reliable."
 --     )))
-
--- optParseCrossFraction :: OP.Parser CrossSubsetMode
--- optParseCrossFraction = CrossFraction
---                     <$> optParseTestTrainingFraction
---                     <*> optParseCrossvalIterations
---                     <*> optParseCrossvalConfSeed
 
 -- optParseCrossOutMode :: OP.Parser CrossOutModeSettings
 -- optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
@@ -549,68 +553,25 @@ readFilterThresholds s =
         tuplify [("time",temporalThreshold), ("space",spatialThreshold)] = (spatialThreshold,temporalThreshold)
         tuplify _                                                        = throwL "this can not happen"
 
-optParseInSpatDistMapFile :: OP.Parser FilePath
-optParseInSpatDistMapFile = OP.strOption (
-       OP.long    "spatDistFile"
-    <> OP.metavar "FILE"
-    <> OP.helpDoc ( Just (
-                      s2d "Path to a .tsv/.cbor file with spatial distances between pairs of observations and spatial \
-                          \prediction grid points. If this is given, then the spatial distances will \
-                          \not be calculated from the respective coordinates, but looked up in this \
-                          \table. The pairs must be ordered first like and by --obsFile and then like \
-                          \and by --spatGridFile."
-    <> OH.hardline <>     "┌─────┬──────┬────┐"
-    <> OH.hardline <>     "│obsID│spatID│dist│ > [obsID]:"
-    <> OH.hardline <>     "├─────┼──────┼────┤   Observations identifier"
-    <> OH.hardline <>     "│   a │    x │    │ > [spatID]:"
-    <> OH.hardline <>     "│   a │    y │    │   Spatial coordinate identifier"
-    <> OH.hardline <>     "│   b │    x │    │ > [dist]:"
-    <> OH.hardline <>     "│   b │    y │    │   Spatial distance"
-    <> OH.hardline <>     "└─────┴──────┴────┘"
-    ))
-    )
-
-optParseInSpatDistNoOrderCheck :: OP.Parser Bool
-optParseInSpatDistNoOrderCheck = OP.switch (
-    OP.long "noOrderCheck"
-    <> OP.helpDoc ( Just (
-                    s2d "The input files --spatDistFile and --tempSampFile undergo an order validation \
-                        \when read from .tsv (not from .cbor!). This validation is computationally \
-                        \expensive for large files and can be turned off with this flag to speed up the reading. \
-                        \This should only be set if the order is certainly correct, e.g. if it was \
-                        \validated previously."
-    ))
-    )
-
-optParseInArbitraryDimFile :: OP.Parser FilePath
-optParseInArbitraryDimFile = OP.strOption (
-       OP.long    "anyGridFile"
-    <> OP.metavar "FILE"
-    <> OP.helpDoc ( Just (
-                      s2d "Path to a .tsv/.cbor file with arbitrary dimension coordinates where interpolation \
-                          \should be performed."
-    <> OH.hardline <>     "┌───────┬───────┬────────┐"
-    <> OH.hardline <>     "│indepV1│indepV2│indep...│ > [indepV1, ...]:"
-    <> OH.hardline <>     "├───────┼───────┼────────┤   Independent variable"
-    <> OH.hardline <>     "│       │       │        │   position"
-    <> OH.hardline <>     "└───────┴───────┴────────┘"
-    ))
-    )
-
 optParseInIndepVarGridFile :: OP.Parser FilePath
 optParseInIndepVarGridFile = OP.strOption (
-       OP.long    "indepVarGridFile"
+       OP.long    "gridFile"
     <> OP.short   'g'
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
                       s2d "Path to a .tsv/.cbor file with independent variable positions \
                           \(e.g. spatial coordinates) where interpolation and search should be performed."
-    <> OH.hardline <>     "┌──────┬───┬───┐"
-    <> OH.hardline <>     "│spatID│ x │ y │ > [spatID]:"
-    <> OH.hardline <>     "├──────┼───┼───┤   Position identifier"
-    <> OH.hardline <>     "│      │   │   │ > [x, y] or [longitude, latitude]"
-    <> OH.hardline <>     "│      │   │   │   Spatial coordinates"
-    <> OH.hardline <>     "└──────┴───┴───┘"
+    <> OH.hardline <>     "┌───┬───┐"
+    <> OH.hardline <>     "│ x │ y │ > [x, y] or [longitude, latitude]"
+    <> OH.hardline <>     "├───┼───┤   Spatial coordinates"
+    <> OH.hardline <>     "│   │   │"
+    <> OH.hardline <>     "└───┴───┘"
+    <> OH.hardline <>     "OR"
+    <> OH.hardline <>     "┌───────┬───────┬────────┐"
+    <> OH.hardline <>     "│indepV1│indepV2│indep...│ > [indepV1, ...]:"
+    <> OH.hardline <>     "├───────┼───────┼────────┤   Independent variable"
+    <> OH.hardline <>     "│       │       │        │   positions"
+    <> OH.hardline <>     "└───────┴───────┴────────┘"
     ))
     )
 

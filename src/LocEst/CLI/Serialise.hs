@@ -11,9 +11,8 @@ data SerialiseOptions = SerialiseOptions {
 }
 
 data SerialiseSet =
-      SerialiseObsFile      { _sofInObservationFile :: FilePath }
-    | SerialiseSpatGridFile { _ssgfInSpatGridFile   :: FilePath }
-    | SerialiseAnyGridFile  { _sagfInAnyGridFile    :: FilePath }
+      SerialiseObsFile  { _sofInObservationFile :: FilePath }
+    | SerialiseGridFile { _ssgfInGridFile   :: FilePath }
     | SerialiseObsTempSamplesFile  {
         _sotsInObservationFile    :: FilePath
       , _sotsInObsTempSamplesFile :: FilePath
@@ -34,12 +33,9 @@ runSerialise :: SerialiseOptions -> IO ()
 runSerialise (SerialiseOptions (SerialiseObsFile inObsFile) outFile) = do
     observations <- readObservations inObsFile
     write outFile observations
-runSerialise (SerialiseOptions (SerialiseSpatGridFile inSpatGridFile) outFile) = do
-    inSpatGrid   <- readSpatPos inSpatGridFile
-    write outFile inSpatGrid
-runSerialise (SerialiseOptions (SerialiseAnyGridFile inAnyGridFile) outFile) = do
-    inAnyGrid    <- readArbitraryDimPos inAnyGridFile
-    write outFile inAnyGrid
+runSerialise (SerialiseOptions (SerialiseGridFile inGridFile) outFile) = do
+    inGrid   <- readIndepVarsPos inGridFile
+    write outFile inGrid
 runSerialise (SerialiseOptions (SerialiseObsTempSamplesFile inObsFile inObsTempSamplesFile) outFile) = do
     observations <- readObservations inObsFile
     inTempSamps  <- readTempSamp observations inObsTempSamplesFile
