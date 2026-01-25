@@ -556,15 +556,15 @@ instance Csv.ToRecord IndepVarsPos where
 
 spatPosFromIndepVarsPos :: IndepVarsPos -> SpatPos
 spatPosFromIndepVarsPos (IndepSpatTempPos (SpatTempPos s _)) = s
-spatPosFromIndepVarsPos _ = throwL "Expected spatio-temporal position"
+spatPosFromIndepVarsPos pos = throwL $ "Expected spatio-temporal position, but got " ++ show pos
 
 tempPosFromIndepVarsPos :: IndepVarsPos -> TempPos
 tempPosFromIndepVarsPos (IndepSpatTempPos (SpatTempPos _ t)) = t
-tempPosFromIndepVarsPos _ = throwL "Expected spatio-temporal position"
+tempPosFromIndepVarsPos pos = throwL $ "Expected spatio-temporal position, but got " ++ show pos
 
 anyPosFromIndepVarsPos :: IndepVarsPos -> VS.Vector Double
 anyPosFromIndepVarsPos (IndepArbitraryDimPos (ValuesPerIndepVar _ v)) = v
-anyPosFromIndepVarsPos _ = throwL "Expected arbitrary dimension position"
+anyPosFromIndepVarsPos pos = throwL $ "Expected arbitrary dimension position, but got " ++ show pos
 
 isSpatioTemporal :: V.Vector IndepVarsPos -> Bool
 isSpatioTemporal v = case v V.!? 0 of

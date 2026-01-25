@@ -24,7 +24,7 @@ goldenSpec =
         runTestScripts tests = do
             forM_ tests $ \testConf -> do
                 it ("should be executed correctly: " ++ testConf) $ do
-                    let cp = (shell $ "locest search --configFile " ++ testConf ++ ".conf +RTS -N1 -RTS") {
+                    let cp = (shell $ "locest search --configFile " ++ testConf ++ ".conf") {
                           cwd = Just "tests/golden/",
                           std_out = CreatePipe,
                           std_err = CreatePipe
