@@ -31,7 +31,6 @@ library
       , filepath >= 1.4 && < 1.5
       , unordered-containers
       , conduit
-      , conduit-algorithms
       , deepseq
       , vector
       , vector-algorithms

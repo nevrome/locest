@@ -8,17 +8,17 @@ import           LocEst.Types
 import           LocEst.TypesFlat
 import           LocEst.Utils
 
-import           Conduit                       ((.|))
-import qualified Data.Conduit                  as Con
-import qualified Data.Conduit.Algorithms.Async as ConAA
-import qualified Data.Conduit.Combinators      as ConC
-import           Data.Function                 (on)
-import           Data.List                     (foldl', singleton, sort)
-import qualified Data.Vector                   as V
-import qualified Data.Vector.Algorithms.Intro  as VA
-import qualified Data.Vector.Storable          as VS
-import qualified Data.Vector.Unboxed           as VU
-import           System.IO                     (hPutStrLn, stderr)
+import           Conduit                      ((.|))
+import qualified Data.Conduit                 as Con
+import qualified Data.Conduit.Combinators     as ConC
+import qualified Data.Conduit.List            as ConL
+import           Data.Function                (on)
+import           Data.List                    (foldl', singleton, sort)
+import qualified Data.Vector                  as V
+import qualified Data.Vector.Algorithms.Intro as VA
+import qualified Data.Vector.Storable         as VS
+import qualified Data.Vector.Unboxed          as VU
+import           System.IO                    (hPutStrLn, stderr)
 
 data VarioOptions = VarioOptions {
       _voInObservationFile   :: FilePath
@@ -49,10 +49,10 @@ data BinModeSettings =
     | BinForNugget ArbitraryDimPos
     deriving (Show)
 
-runVario :: VarioOptions -> Int -> Double -> IO ()
+runVario :: VarioOptions -> Double -> IO ()
 runVario
     (VarioOptions inObsFile acrossSetting (spaceScaling,timeScaling) indepVarsThresholds outFile binModeSettings)
-    numThreads spatDistUnitScaling = do
+    spatDistUnitScaling = do
     -- read observations
     !obs <- readObservations inObsFile
     -- configure across-settings
@@ -123,7 +123,7 @@ runVario
                     -- loop over bins
                     variancesPerBin <- Con.runConduitRes $
                             ConC.yieldMany startStopPerBin
-                            .| ConAA.asyncMapC numThreads (perBin sortedIndepDists $ VU.convert depDists)
+                            .| ConL.map (perBin sortedIndepDists $ VU.convert depDists)
                             .| ConC.sinkList
                     hPutStrLn stderr ("-> " ++ depVarName)
                     return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
