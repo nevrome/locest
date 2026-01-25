@@ -112,7 +112,7 @@ searchOptParser = SearchOptions
 varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
                         <$> optParseInObservationFile
-                        -- <*> OP.optional optParseSpatDistSetting
+                        <*> OP.optional optParseInObsObsDistFile
                         <*> optParseAcrossSettings
                         <*> optParseSpaceTimeScaling
                         <*> optParseIndepVarsThresholds

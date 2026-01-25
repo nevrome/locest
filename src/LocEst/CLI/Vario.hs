@@ -22,7 +22,7 @@ import           System.IO                    (hPutStrLn, stderr)
 
 data VarioOptions = VarioOptions {
       _voInObservationFile   :: FilePath
-    -- , _voObsObsDistFile      :: Maybe FilePath -- TODO: reading dists from file
+    , _voInObsObsDistFile    :: Maybe FilePath
     , _voAcrossSettings      :: AcrossSettings
     , _voSpaceTimeScaling    :: (Double,Double)
     , _voIndepVarsThresholds :: IndepVarsThresholds
@@ -51,10 +51,13 @@ data BinModeSettings =
 
 runVario :: VarioOptions -> Double -> IO ()
 runVario
-    (VarioOptions inObsFile acrossSetting (spaceScaling,timeScaling) indepVarsThresholds outFile binModeSettings)
+    (VarioOptions inObsFile maybeObsObsDistFile acrossSetting (spaceScaling,timeScaling) indepVarsThresholds outFile binModeSettings)
     spatDistUnitScaling = do
     -- read observations
     !obs <- readObservations inObsFile
+    let nObs = V.length obs
+    -- read distances
+    !obsObsDistances <- traverse (readSelfDistMulti nObs) maybeObsObsDistFile
     -- configure across-settings
     hPutStrLn stderr $ "Distance merging mode: " ++ show acrossSetting
     let acrossModes = case acrossSetting of
@@ -68,19 +71,23 @@ runVario
         hPutStrLn stderr $ "Merging variables: "
             ++ (if acrossIndepVars then "[x]" else "[ ]") ++ " Independent, "
             ++ (if acrossDepVars   then "[x]" else "[ ]") ++ " Dependent"
-        -- calculate pairwise distances
-        hPutStrLn stderr "Calculating pairwise distances for independent variables"
+        -- pairwise distances
+        hPutStrLn stderr "Reading or calculating pairwise distances for independent variables"
         let indepVars = case posFromObs $ V.head obs of
                 IndepSpatTempPos _     -> ["space", "time"]
                 IndepArbitraryDimPos x -> getKeys x
-        -- only computes half of the pairwise distances
+        !rawIndepDists <- case obsObsDistances of
+            Nothing -> calcObsObsDistances spatDistUnitScaling obs indepVars
+            Just (SelfDistMatrixPerIndepVar ms) -> do
+                SelfDistMatrixPerIndepVar <$>
+                    forM indepVars (\name -> case lookup name ms of
+                        Just m  -> pure (name, m)
+                        Nothing -> calcSelfDistOneDim spatDistUnitScaling
+                                   (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
         !distsPerIndepVar <- if acrossIndepVars
-                             then do
-                                 allDists <- calcObsObsDistances spatDistUnitScaling obs indepVars
-                                 mergeDistsIndepVar (spaceScaling,timeScaling) allDists
-                             else calcObsObsDistances spatDistUnitScaling obs indepVars
+                             then mergeDistsIndepVar (spaceScaling, timeScaling) rawIndepDists
+                             else pure rawIndepDists
         hPutStrLn stderr "Calculating pairwise distances for dependent variables"
-        -- only computes half of the pairwise distances
         let depVars = getKeys $ depVarPosFromObs $ V.head obs
         SelfDistMatrixPerIndepVar !distsPerDepVar <-
                              if acrossDepVars

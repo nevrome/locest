@@ -53,6 +53,7 @@ system('time locest serialise sudist -g data/spatiotemporal/grid.tsv --distFile 
 # profiteur locest.prof
 
 system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario.tsv --across AllCombinations')
+# system('time locest vario --obsFile data/spatiotemporal/obs.tsv --obsObsDistFile data/spatiotemporal/obsObsDistFile.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario.tsv --across AllCombinations')
 
 vario <- readr::read_tsv("data/spatiotemporal/vario.tsv")
 
