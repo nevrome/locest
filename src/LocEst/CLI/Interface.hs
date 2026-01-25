@@ -76,7 +76,7 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             )) (OP.progDesc "Serialise --obsFile."))
                      <> OP.command "spatgrid" (OP.info (OP.helper <*> (
                             SerialiseSpatGridFile
-                            <$> optParseInSpatGridFile
+                            <$> optParseInIndepVarGridFile
                             )) (OP.progDesc "Serialise --spatGridFile."))
                      <> OP.command "anygrid" (OP.info (OP.helper <*> (
                             SerialiseSpatGridFile
@@ -89,13 +89,13 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             )) (OP.progDesc "Serialise --tempSampFile."))
                      <> OP.command "sudist" (OP.info (OP.helper <*> (
                             SerialiseSUDistMatrixPerIndepVar
-                            <$> (VecFileObs <$> optParseInObservationFile OP.<|> VecFileGrid <$> optParseInSpatGridFile)
+                            <$> (VecFileObs <$> optParseInObservationFile OP.<|> VecFileGrid <$> optParseInIndepVarGridFile)
                             <*> optParseDistFile
                             )) (OP.progDesc "Serialise su dist.")) -- TODO: make less hacky
                      <> OP.command "audist" (OP.info (OP.helper <*> (
                             SerialiseAUDistMatrixPerIndepVar
                             <$> optParseInObservationFile
-                            <*> optParseInSpatGridFile
+                            <*> optParseInIndepVarGridFile
                             <*> optParseDistFile
                             )) (OP.progDesc "Serialise au dist.")) -- TODO: make less hacky
                      ) <*> optParseOutFileCbor
@@ -104,7 +104,7 @@ searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions
                         <$> optParseInObservationFile
                         <*> OP.optional optParseInObsTempSamplesFile
-                        <*> optParseInSpatGridFile
+                        <*> optParseInIndepVarGridFile
                         <*> OP.optional optParseTempGridString
                         <*> OP.optional optParseSearchPositions
                         <*> optParseKernDefString
@@ -524,35 +524,10 @@ optParseDistFile = OP.strOption (
     OP.metavar "FILE" <>
     OP.help "TODO")
 
--- optParseSearchGridSettings :: OP.Parser SearchGridSettings
--- optParseSearchGridSettings =
---     SearchGridSettings
---         <$> optParseIndepVarsPredGridSettings
---         <*> OP.optional optParseSearchPositions
-
 optParseSearchPositions :: OP.Parser DepVarsPredGridSettings
 optParseSearchPositions =
            DirectDepVarsGridSettings <$> optParseSearchDepVarsPos
     OP.<|> SearchObsDepVarsGridSettings <$> optParseInSearchObservationFile
-
--- optParseIndepVarsPredGridSettings :: OP.Parser IndepVarsPredGridSettings
--- optParseIndepVarsPredGridSettings =
---     (SpaceTimeGridSettings
---         <$> optParseInSpatGridFile
---         <*> optParseTempGridString
---         <*> optParseSupplementSettings
---     ) OP.<|>
---     (ArbitraryDimGridSettings
---         <$> optParseInArbitraryDimFile
---         <*> optParseSupplementSettings
---     )
-
--- optParseSupplementSettings :: OP.Parser SupplementSettings
--- optParseSupplementSettings =
---     SupplementSettings
---         <$> OP.optional optParseInSpatDistMapFile
---         <*> OP.optional optParseInObsTempSamplesFile
---         <*> optParseInSpatDistNoOrderCheck
 
 readFilterThresholds :: String -> Either String (Either (Double, Double) ArbitraryDimThresholds)
 readFilterThresholds s =
@@ -622,17 +597,17 @@ optParseInArbitraryDimFile = OP.strOption (
     ))
     )
 
-optParseInSpatGridFile :: OP.Parser FilePath
-optParseInSpatGridFile = OP.strOption (
-       OP.long    "spatGridFile"
+optParseInIndepVarGridFile :: OP.Parser FilePath
+optParseInIndepVarGridFile = OP.strOption (
+       OP.long    "indepVarGridFile"
     <> OP.short   'g'
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
-                      s2d "Path to a .tsv/.cbor file with spatial coordinates where interpolation \
-                          \and search should be performed."
+                      s2d "Path to a .tsv/.cbor file with independent variable positions \
+                          \(e.g. spatial coordinates) where interpolation and search should be performed."
     <> OH.hardline <>     "┌──────┬───┬───┐"
     <> OH.hardline <>     "│spatID│ x │ y │ > [spatID]:"
-    <> OH.hardline <>     "├──────┼───┼───┤   Spatial coordinate identifier"
+    <> OH.hardline <>     "├──────┼───┼───┤   Position identifier"
     <> OH.hardline <>     "│      │   │   │ > [x, y] or [longitude, latitude]"
     <> OH.hardline <>     "│      │   │   │   Spatial coordinates"
     <> OH.hardline <>     "└──────┴───┴───┘"
