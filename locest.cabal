@@ -48,12 +48,11 @@ library
       , bytestring-lexing
     default-language:
       Haskell2010
-    -- for stan (https://github.com/kowainik/stan | run with stan --no-default)
     ghc-options:
-    --  -fwrite-ide-info
-    --  -hiedir=.hie
       -O2
-    --  "-ddump-simpl" show GHC core
+      -- -fwrite-ide-info
+      -- -hiedir=.hie
+      -- "-ddump-simpl" show GHC core
 
 executable locest
     main-is:
@@ -72,14 +71,17 @@ executable locest
       Haskell2010
     ghc-options:
       -O2
-      -threaded
-      -feager-blackholing
       -rtsopts
-      "-with-rtsopts=-N"
+      -- for multi-threading
+      -- -threaded
+      -- "-with-rtsopts=-N"
       -- https://downloads.haskell.org/~ghc/9.6.6/docs/users_guide/using-optimisation.html
+      -- Usually GHC black-holes a thunk only when it switches threads.
+      -- This flag makes it do so as soon as the thunk is entered.
+      -- -feager-blackholing
       -- causes all constructor fields which are marked strict (i.e. !) to be unpacked if possible
       -- a bit of a sledgehammer: it might sometimes make things worse
-      -funbox-strict-fields
+      -- -funbox-strict-fields
 
 test-suite spec
     hs-source-dirs:
