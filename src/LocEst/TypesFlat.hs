@@ -148,3 +148,7 @@ instance S.Serialise TempSampleMatrix
 
 lookUpTempSample :: TempSampleMatrix -> Int -> Int -> YearBCAD
 lookUpTempSample (TempSampleMatrix ncol _ vec) col row = vec VS.! (col + ncol * row)
+
+nrTempSamples :: Maybe TempSampleMatrix -> Int
+nrTempSamples Nothing                         = 1
+nrTempSamples (Just (TempSampleMatrix n _ _)) = n
