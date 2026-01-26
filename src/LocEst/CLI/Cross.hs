@@ -33,6 +33,11 @@ data CrossOptions = CrossOptions
     , _crossOutFile           :: Maybe FilePath
     }
 
+data CrossOutModeSettings =
+      SummedLikelihoodPerKernelSetting
+    | IndividualSearchObsResults
+    deriving (Show)
+
 runCross :: CrossOptions -> Double -> IO ()
 runCross (
     CrossOptions
@@ -96,10 +101,10 @@ cross
   -> V.Vector Observation
   -> KernelDefinition
   -> IO CrossvalOutput
-cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs iter obs kerndef = do
+cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs iter obs kernDef = do
     let seedIter = seed + iter
-        depVars  = getKeys kerndef
-        kernels  = getValues kerndef
+        depVars  = getKeys kernDef
+        kernels  = getValues kernDef
         nObs     = V.length obs
         (testIdx, trainIdx) = if nTestObs == nObs
                               -- special case: full autoprediction
@@ -116,7 +121,7 @@ cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs
         !maybeGridGridDists = sliceSelfDistPerIndep testIdx <$> maybeFullObsObsDists
         !maybeObsGridDists = sliceCrossDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
     -- run search (no dep search grid, no temp grid, but true values for grid pos)
-    rows <- search algorithm indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists
+    rows <- search algorithm kernDef indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists
                    spatDistUnitScaling depVars kernels
                    (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
     -- compute summary statistics
@@ -134,7 +139,7 @@ cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs
     return CrossvalOutput
       { _crossoutIteration        = iter
       , _crossoutDepVars          = depVars
-      , _crossoutKernelDefinition = kerndef
+      , _crossoutKernelDefinition = kernDef
       , _crossoutDistSum          = sumDist
       , _crossoutDistMeanSquared  = meanSq
       , _crossoutProbSum          = sumLL

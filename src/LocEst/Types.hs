@@ -19,6 +19,7 @@ import           Data.List             (find, sortBy)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Storable  as VS
 import           GHC.Generics          (Generic)
+import Data.Maybe (isNothing)
 
 -- filtering and sorting variables
 
@@ -62,6 +63,7 @@ data SearchResultLong = SSL {
 -- | A data type for nterpolation output, aggregated per row (so per grid position and per search candidate)
 data SearchResultRow = SSR {
       _ssrTempSampIter      :: Int
+    , _ssrKernDef           :: KernelDefinition
     , _ssrGridIndepVarsPos  :: IndepVarsPos
     , _ssrDepVarName        :: [DepVarName]
     , _ssrLowerBound        :: [Double]
@@ -76,44 +78,45 @@ data SearchResultRow = SSR {
 } deriving (Eq, Show, Generic)
 
 instance Csv.DefaultOrdered SearchResultRow where
-  headerOrder (SSR _ gridIndep names _ _ _ _ _ mSearch _ _ _) =
+  headerOrder (SSR _ kernDef gridIndep names _ _ _ gridLLs gridAgg mSearch lls aggLLs probs) =
     let perDepCols :: DepVarName -> [Bchs.ByteString]
         perDepCols dv =
-          map Bchs.pack
-            [ "interpol_lower_quant_"  ++ dv
-            , "interpol_median_"       ++ dv
-            , "interpol_upper_quant_"  ++ dv
-            , "grid_"                  ++ dv
-            , "grid_log_likelihood_"   ++ dv
-            , "search_log_likelihood_" ++ dv
-            ]
+          map Bchs.pack (
+                [ "interpol_lower_quant_"  ++ dv
+                , "interpol_median_"       ++ dv
+                , "interpol_upper_quant_"  ++ dv
+                ]
+                ++ ["grid_log_likelihood_" ++ dv | not (all isNothing gridLLs)]
+                ++ ["search_log_likelihood_" ++ dv | not (all isNothing lls)]
+            )
     in    Csv.header ["temp_sampling_iteration"]
+       <> Csv.headerOrder kernDef
        <> V.map ("grid_" <>) (Csv.headerOrder gridIndep)
        <> maybe V.empty Csv.headerOrder mSearch
        <> V.fromList (concatMap perDepCols names)
-       <> Csv.header ["grid_agg_log_likelihood"]
-       <> Csv.header ["search_agg_log_likelihood"]
-       <> Csv.header ["search_probability"]
+       <> maybe V.empty (const $ Csv.header ["grid_agg_log_likelihood"]) gridAgg
+       <> maybe V.empty (const $ Csv.header ["search_agg_log_likelihood"]) aggLLs
+       <> maybe V.empty (const $ Csv.header ["search_probability"]) probs
 instance Csv.ToRecord SearchResultRow where
-  toRecord (SSR tsi gridIndep names lowB medV upB gridLLs gridAgg mSearch lls agglls probs) =
+  toRecord (SSR tsi kernDef gridIndep names lowB medV upB gridLLs gridAgg mSearch lls aggLLs probs) =
     let n = length names
         seg i =
-          Csv.record
-            [ Csv.toField (OutDouble (lowB !! i))
-            , Csv.toField (medV  !! i)
-            , Csv.toField (OutDouble (upB  !! i))
-            , toFieldMaybeDouble (gridLLs !! i)
-            , toFieldMaybeDouble (lls     !! i)
-            ]
-        perDepRec = V.concat [ seg i | i <- [0 .. n-1] ]
-        searchRec = maybe V.empty Csv.toRecord mSearch
+          Csv.record (
+                [ Csv.toField (OutDouble (lowB !! i))
+                , Csv.toField (medV  !! i)
+                , Csv.toField (OutDouble (upB  !! i))
+                ]
+                ++ [ toFieldMaybeDouble (gridLLs !! i) | not (all isNothing gridLLs)]
+                ++ [ toFieldMaybeDouble (lls !! i) | not (all isNothing lls)]
+            )
     in    Csv.record [Csv.toField tsi]
+       <> Csv.toRecord kernDef
        <> Csv.toRecord gridIndep
-       <> searchRec
-       <> perDepRec
-       <> Csv.record [toFieldMaybeDouble gridAgg]
-       <> Csv.record [toFieldMaybeDouble agglls]
-       <> Csv.record [toFieldMaybeDouble probs]
+       <> maybe V.empty Csv.toRecord mSearch
+       <> V.concat [ seg i | i <- [0 .. n-1] ]
+       <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble gridAgg]) gridAgg
+       <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble aggLLs]) aggLLs
+       <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble probs]) probs
 
 toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
 toFieldMaybeDouble Nothing  = Bchs.empty
@@ -173,21 +176,6 @@ instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
     toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv) =
         Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax, Csv.toField dv]
-
--- | A data type for normalisation of search output
-data Normalisation = NormBySpace | NoNorm
-    deriving (Show)
-
--- | A data type for requesting specific output of the core algorithm
-data CoreOutMode =
-      CoreOutObsWeight Int
-    | CoreOutInterpolAndSearch
-    deriving (Show)
-
-data CrossOutModeSettings =
-      SummedLikelihoodPerKernelSetting
-    | IndividualSearchObsResults
-    deriving (Show)
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]

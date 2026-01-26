@@ -36,18 +36,23 @@ data SearchOptions = SearchOptions
     , _searchOutFile             :: Maybe FilePath
     }
 
+data CoreOutMode =
+      CoreOutObsWeight Int
+    | CoreOutInterpolAndSearch
+    deriving (Show)
+
 runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
     inObsFile maybeTempSampFile inIndepVarsPredGridFile maybeTempGrid
-    inMaybeDepSearchGrid kernelDefinition
+    inMaybeDepSearchGrid kernDef
     maybeObsGridDistFile maybeObsObsDistFile maybeGridGridDistFile
     outFile
     ) spatDistUnitScaling = do
     -- algorithm settings
-    let algorithm = _kdefAlgorithm kernelDefinition
-        depVars   = getKeys kernelDefinition
-        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernelDefinition
-        kernels   = getValues kernelDefinition
+    let algorithm = _kdefAlgorithm kernDef
+        depVars   = getKeys kernDef
+        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernDef
+        kernels   = getValues kernDef
     hPutStrLn stderr $ "Algorithm: " ++ show algorithm
     hPutStrLn stderr $ "Dependent variables: " ++ intercalate ", " depVars
     hPutStrLn stderr $ "Independent variables: " ++ intercalate ", " indepVars
@@ -79,7 +84,7 @@ runSearch (SearchOptions
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . search algorithm indepVars obsGridDistances obsObsDistances gridGridDistances spatDistUnitScaling depVars kernels)
+        .| ConL.concatMapM (liftIO . search algorithm kernDef indepVars obsGridDistances obsObsDistances gridGridDistances spatDistUnitScaling depVars kernels)
         .| progress 1000 (Just nrOutputRows)
         .| sinkNamedCSV outFile
     putStrLn "Done"
@@ -88,6 +93,7 @@ factor :: Maybe a -> (a -> Int) -> Int
 factor element extractor = maybe 1 extractor element
 
 search :: Algorithm
+       -> KernelDefinition
        -> [IndepVarName]
        -> Maybe CrossDistMatrixPerIndepVar
        -> Maybe SelfDistMatrixPerIndepVar
@@ -97,7 +103,7 @@ search :: Algorithm
        -> [KernelOneDepVar]
        -> Permutation
        -> IO [SearchResultRow]
-search algorithm indepVars
+search algorithm kernDef indepVars
      maybeObsGridDists maybeObsObsDists maybeGridGridDists
      spatDistUnitScaling
      depVars kernelsPerDepVar
@@ -155,7 +161,9 @@ search algorithm indepVars
                 mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
                 mkRow mSearchOne llsOne =
                     let truthLLs = map _sslGridLogLikelihood resAtI
-                    in SSR { _ssrTempSampIter  = tempSamplingIteration
+                    in SSR {
+                          _ssrTempSampIter     = tempSamplingIteration
+                        , _ssrKernDef          = kernDef
                         , _ssrGridIndepVarsPos = grid V.! i
                         , _ssrDepVarName       = map _sslDepVarName resAtI
                         , _ssrLowerBound       = map _sslLowerBound resAtI
