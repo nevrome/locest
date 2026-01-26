@@ -155,8 +155,8 @@ search algorithm indepVars
                 mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
                 mkRow mSearchOne llsOne =
                     let truthLLs = map _sslGridLogLikelihood resAtI
-                    in SSR { _ssrTempSampIter     = tempSamplingIteration
-                        , _ssrIndepVarsPos     = grid V.! i
+                    in SSR { _ssrTempSampIter  = tempSamplingIteration
+                        , _ssrGridIndepVarsPos = grid V.! i
                         , _ssrDepVarName       = map _sslDepVarName resAtI
                         , _ssrLowerBound       = map _sslLowerBound resAtI
                         , _ssrMedian           = map _sslMedian     resAtI
@@ -210,7 +210,7 @@ makeKey row =
     let searchPos = case _ssrSearchPos row of
             Just x -> x
             _      -> error "impossible state"
-        t = case _ssrIndepVarsPos row of
+        t = case _ssrGridIndepVarsPos row of
             IndepSpatTempPos (SpatTempPos _ (TempPos x)) -> x
             _ -> error "impossible state"
     in (searchPos, t)

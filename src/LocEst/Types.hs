@@ -53,6 +53,7 @@ data SearchResultLong = SSL {
     , _sslLowerBound        :: Double     -- lower boundary of the 95% interval
     , _sslMedian            :: Double     -- median (weighted average)
     , _sslUpperBound        :: Double     -- upper boundary of the 95% interval
+    , _sslGridDepPos        :: Maybe DepVarsPos
     , _sslGridLogLikelihood :: Maybe Double -- log-likelihood for true value
     , _sslSearchPos         :: Maybe (V.Vector DepVarsPredPos) -- search values
     , _sslLogLikelihood     :: Maybe (V.Vector Double) -- log-likelihood for search value
@@ -61,7 +62,7 @@ data SearchResultLong = SSL {
 -- | A data type for nterpolation output, aggregated per row (so per grid position and per search candidate)
 data SearchResultRow = SSR {
       _ssrTempSampIter      :: Int
-    , _ssrIndepVarsPos      :: IndepVarsPos
+    , _ssrGridIndepVarsPos  :: IndepVarsPos
     , _ssrDepVarName        :: [DepVarName]
     , _ssrLowerBound        :: [Double]
     , _ssrMedian            :: [Double]
@@ -75,28 +76,26 @@ data SearchResultRow = SSR {
 } deriving (Eq, Show, Generic)
 
 instance Csv.DefaultOrdered SearchResultRow where
-  headerOrder (SSR _ grid names _ _ _ _gridLLs _gridAgg mSearch _lls _agglls _) =
+  headerOrder (SSR _ gridIndep names _ _ _ _ _ mSearch _ _ _) =
     let perDepCols :: DepVarName -> [Bchs.ByteString]
         perDepCols dv =
           map Bchs.pack
-            [ "interpol_low_"          ++ dv
+            [ "interpol_lower_quant_"  ++ dv
             , "interpol_median_"       ++ dv
-            , "interpol_up_"           ++ dv
+            , "interpol_upper_quant_"  ++ dv
+            , "grid_"                  ++ dv
             , "grid_log_likelihood_"   ++ dv
-            , "log_likelihood_"        ++ dv
+            , "search_log_likelihood_" ++ dv
             ]
-        perDepHdr = V.fromList (concatMap perDepCols names)
-        searchHdr = maybe V.empty Csv.headerOrder mSearch
     in    Csv.header ["temp_sampling_iteration"]
-       <> Csv.headerOrder grid
-       <> searchHdr
-       <> perDepHdr
+       <> V.map ("grid_" <>) (Csv.headerOrder gridIndep)
+       <> maybe V.empty Csv.headerOrder mSearch
+       <> V.fromList (concatMap perDepCols names)
        <> Csv.header ["grid_agg_log_likelihood"]
-       <> Csv.header ["agg_log_likelihood"]
-       <> Csv.header ["probability"]
-
+       <> Csv.header ["search_agg_log_likelihood"]
+       <> Csv.header ["search_probability"]
 instance Csv.ToRecord SearchResultRow where
-  toRecord (SSR tsi grid names lowB medV upB gridLLs gridAgg mSearch lls agglls probs) =
+  toRecord (SSR tsi gridIndep names lowB medV upB gridLLs gridAgg mSearch lls agglls probs) =
     let n = length names
         seg i =
           Csv.record
@@ -109,7 +108,7 @@ instance Csv.ToRecord SearchResultRow where
         perDepRec = V.concat [ seg i | i <- [0 .. n-1] ]
         searchRec = maybe V.empty Csv.toRecord mSearch
     in    Csv.record [Csv.toField tsi]
-       <> Csv.toRecord grid
+       <> Csv.toRecord gridIndep
        <> searchRec
        <> perDepRec
        <> Csv.record [toFieldMaybeDouble gridAgg]
@@ -182,13 +181,13 @@ data Normalisation = NormBySpace | NoNorm
 -- | A data type for requesting specific output of the core algorithm
 data CoreOutMode =
       CoreOutObsWeight Int
-    | CoreOutInterpolSamples Int (Maybe Int) (Maybe SamplingRange)
     | CoreOutInterpolAndSearch
+    deriving (Show)
 
-data SamplingRange =
-      OneSigma
-    | TwoSigma
-    | FullDistribution
+data CrossOutModeSettings =
+      SummedLikelihoodPerKernelSetting
+    | IndividualSearchObsResults
+    deriving (Show)
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]

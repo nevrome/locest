@@ -280,94 +280,39 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
--- optParseCrossOutMode :: OP.Parser CrossOutModeSettings
--- optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
---     OP.long "outMode" <>
---     OP.metavar "Summed|Obs" <>
---     OP.value SummedLikelihoodPerKernelSetting
---     <> OP.helpDoc ( Just (
---                       s2d "The type of output that should be written to the --outFile. \
---                           \Summed (default): The individual crossvalidation iterations are \
---                           \summarised to a short table with only the tested kernel parameter \
---                           \settings and the summed crossvalidation output."
---     <> OH.hardline <>     "┌──────┬─────┬──────────────┐"
---     <> OH.hardline <>     "│kernel│depV1│shape         │ Kernel shape and"
---     <> OH.hardline <>     "│      │depV2│              │ for each dependent"
---     <> OH.hardline <>     "│      │...  ├───────┬──────┤ variable;"
---     <> OH.hardline <>     "│      │     │space  │length│ length scale"
---     <> OH.hardline <>     "│      │     │time OR│      │ parameters for"
---     <> OH.hardline <>     "│      │     │indepV1│      │ each dependent and"
---     <> OH.hardline <>     "│      │     │indepV2│      │ independent one."
---     <> OH.hardline <>     "│      │     │...    │      │ from --kerndef"
---     <> OH.hardline <>     "└──────┴─────┴───────┴──────┘"
---     <> OH.hardline <>     "Crossvalidation results"
---     <> OH.hardline <>     "┌───────────────────────────────┐"
---     <> OH.hardline <>     "│sum_dep_dist_euclidean         │ Distance to and"
---     <> OH.hardline <>     "│mean_squared_dep_dist_euclidean│ likelihood of test"
---     <> OH.hardline <>     "│sum_log_likelihood             │"
---     <> OH.hardline <>     "└───────────────────────────────┘"
---     <> OH.hardline <> s2d "Obs: The output is as --outMode Full for the search subcommand, but the \
---                           \search observations (--searchObsFile) are set as the test fraction \
---                           \of the crossvalidation data split. Each iteration is returned separately."
---     ))
---     )
---     where
---         readOutMode :: String -> Either String CrossOutModeSettings
---         readOutMode s =
---             case P.runParser parseOutMode () "" s of
---                 Left err -> Left $ showParsecErr err
---                 Right x  -> Right x
---         parseOutMode = P.try parseSummed P.<|> parseObs
---         parseSummed = P.string "Summed" >> return SummedLikelihoodPerKernelSetting
---         parseObs    = P.string "Obs"    >> return IndividualSearchObsResults
+optParseCrossOutMode :: OP.Parser CrossOutModeSettings
+optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
+    OP.long "outMode" <>
+    OP.metavar "Summed|Obs" <>
+    OP.value SummedLikelihoodPerKernelSetting
+    <> OP.helpDoc ( Just (
+                      s2d "The type of output that should be written to the --outFile."
+    <> OH.hardline <> s2d "Summed (default): The individual crossvalidation iterations are \
+                          \summarised to a short table with only the tested kernel parameter \
+                          \settings and the summed crossvalidation output."
+    <> OH.hardline <> s2d "Obs: The output is as --outMode Full for the search subcommand, but the \
+                          \search observations (--searchObsFile) are set as the test fraction \
+                          \of the crossvalidation data split. Each iteration is returned separately."
+    ))
+    )
+    where
+        readOutMode :: String -> Either String CrossOutModeSettings
+        readOutMode s =
+            case P.runParser parseOutMode () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+        parseOutMode = P.try parseSummed P.<|> parseObs
+        parseSummed = P.string "Summed" >> return SummedLikelihoodPerKernelSetting
+        parseObs    = P.string "Obs"    >> return IndividualSearchObsResults
 
 optParseCoreOutMode :: OP.Parser CoreOutMode
 optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
     OP.long "outMode" <>
-    OP.metavar "Normal|Obs(n)|Samples(n,seed)" <>
+    OP.metavar "Normal|Obs(n)" <>
     OP.value CoreOutInterpolAndSearch
     <> OP.helpDoc ( Just (
-                      s2d "The type of output that should be written to the --outFile. \
-                          \Normal (default): Return mean interpolation and search results."
-    <> OH.hardline <>     "┌────────────────┬──────────┐"
-    <> OH.hardline <>     "│spatID          │   indepV1│ Prediction position"
-    <> OH.hardline <>     "│x or longitude  OR  indepV2│"
-    <> OH.hardline <>     "│y or latitude   │   ...    │"
-    <> OH.hardline <>     "│yearBCAD        │          │"
-    <> OH.hardline <>     "├──────┬─────────┴──────────┤"
-    <> OH.hardline <>     "│search│depV1               │ Search position *"
-    <> OH.hardline <>     "│      │depV2               │ with --searchDepVarsPos"
-    <> OH.hardline <>     "│      │... OR              │"
-    <> OH.hardline <>     "│      │input from obs      │ with --searchObsFile"
-    <> OH.hardline <>     "├──────├─────┬──────────────┤"
-    <> OH.hardline <>     "│kernel│depV1│shape         │ Kernel shape and"
-    <> OH.hardline <>     "│      │depV2│              │ for each dependent"
-    <> OH.hardline <>     "│      │...  ├───────┬──────┤ variable;"
-    <> OH.hardline <>     "│      │     │space  │length│ length scale"
-    <> OH.hardline <>     "│      │     │time OR│      │ parameters for"
-    <> OH.hardline <>     "│      │     │indepV1│      │ each dependent and"
-    <> OH.hardline <>     "│      │     │indepV2│      │ independent one."
-    <> OH.hardline <>     "│      │     │...    │      │ from --kerndef"
-    <> OH.hardline <>     "├──────┴─────┴───────┴──────┤"
-    <> OH.hardline <>     "│temp_sampling_iteration    │ Age sample iteration"
-    <> OH.hardline <>     "├────────┬─────┬────────────┤"
-    <> OH.hardline <>     "│interpol│depV1│neff,       │ Interpolation output"
-    <> OH.hardline <>     "│        │depV2│avg, var    │"
-    <> OH.hardline <>     "│        │...  │var_prior,  │"
-    <> OH.hardline <>     "│        │     │low         │"
-    <> OH.hardline <>     "│        │     │median      │"
-    <> OH.hardline <>     "│        │     │up          │"
-    <> OH.hardline <>     "│        │     │logl *      │"
-    <> OH.hardline <>     "│        │     │prob *%     │"
-    <> OH.hardline <>     "├────────┴─────┴────────────┤"
-    <> OH.hardline <>     "│dep_dist_euclidean         │ Summary search"
-    <> OH.hardline <>     "│log_likelihood             │ results across"
-    <> OH.hardline <>     "│probability +              │ all variables *"
-    <> OH.hardline <>     "└───────────────────────────┘"
-    <> OH.hardline <>     " * only for the search case"
-    <> OH.hardline <>     " + only for spatio-temporal systems"
-    <> OH.hardline <> s2d "Samples(n,seed): Returns not the mean interpolation result but a random \
-                          \sample from the posterior predictive distribution."
+                      s2d "The type of output that should be written to the --outFile."
+    <> OH.hardline <> s2d "Normal (default): Return mean interpolation and search results."
     <> OH.hardline <> s2d "Obs(n): Returns no interpolation results but a list of the n input \
                           \observations with the highest weight for each prediction grid point \
                           \(summed across dependent variables)."
@@ -379,22 +324,12 @@ optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
             case P.runParser parseOutMode () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
-        parseOutMode = P.try parseNormal P.<|> parseObs P.<|> parseInterpolSample
+        parseOutMode = P.try parseNormal P.<|> parseObs
         parseNormal = P.string "Normal" >> return CoreOutInterpolAndSearch
         parseObs   = do
             parseRecordType "Obs" $ do
                 n <- parseArgument "n" parseInt
                 return $ CoreOutObsWeight n
-        parseInterpolSample = do
-            parseRecordType "Samples" $ do
-                n <- parseArgument "n" parseInt
-                s <- parseArgumentOptional "seed" parseInt
-                r <- parseArgumentOptional "range" parseSamplingRange
-                return $ CoreOutInterpolSamples n s r
-        parseSamplingRange = P.try parseOneSigma P.<|> P.try parseTwoSigma P.<|> parseFullDistribution
-        parseOneSigma = P.string "1sigma" >> return OneSigma
-        parseTwoSigma = P.string "2sigma" >> return TwoSigma
-        parseFullDistribution = P.string "Full" >> return FullDistribution
 
 optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
 optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (

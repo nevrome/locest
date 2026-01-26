@@ -90,13 +90,13 @@ seek depVar maybeSearchValues maybeTrueDep (Right distribution) =
                     pure (logDensity distribution trueVal)
                 searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
                 logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
-            in SSL depVar lower median upper logLTruth maybeSearchValues logL
-seek depVar maybeSearchValues mTrueDep (Left _) =
-    let logLTruth = mTrueDep *> Just (-inf)   -- if truth exists but dist failed, mark as -inf; else Nothing
+            in SSL depVar lower median upper maybeTrueDep logLTruth maybeSearchValues logL
+seek depVar maybeSearchValues maybeTrueDep (Left _) =
+    let logLTruth = maybeTrueDep *> Just (-inf)   -- if truth exists but dist failed, mark as -inf; else Nothing
         logLSearch = case maybeSearchValues of
                        Just x  -> Just (V.replicate (V.length x) (-inf))
                        Nothing -> Nothing
-    in SSL depVar (-inf) nan inf logLTruth maybeSearchValues logLSearch
+    in SSL depVar (-inf) nan inf maybeTrueDep logLTruth maybeSearchValues logLSearch
 
 gprCore ::
        M.Matrix Double -- obs–obs weights
