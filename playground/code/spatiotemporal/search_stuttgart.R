@@ -53,7 +53,6 @@ system('time locest serialise sudist -g data/spatiotemporal/grid.tsv --distFile 
 # profiteur locest.prof
 
 system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario.tsv --across AllCombinations')
-# system('time locest vario --obsFile data/spatiotemporal/obs.tsv --obsObsDistFile data/spatiotemporal/obsObsDistFile.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario.tsv --across AllCombinations')
 
 vario <- readr::read_tsv("data/spatiotemporal/vario.tsv")
 
@@ -98,34 +97,26 @@ cross %>%
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -p
 # profiteur locest.prof
 # memory profiling:
-# OMP_NUM_THREADS=4 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -N4 -RTS
+# OMP_NUM_THREADS=4 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -RTS
 # hp2ps -c locest.hp
 
-system('time OMP_NUM_THREADS=4 locest search --configFile code/spatiotemporal/basic.conf --topobs 5')
+system('time OMP_NUM_THREADS=4 locest search --configFile code/spatiotemporal/basic.conf')
 
 # better memory profiling with GNU time
 # export TIME="time result\ncmd: %C\nreal %es\nuser %Us \nsys  %Ss \nmemory: %MKB \ncpu: %P"
-# OMP_NUM_THREADS=4 /usr/bin/time locest search --configFile code/spatiotemporal/basic.conf  +RTS -N4 -RTS
+# OMP_NUM_THREADS=4 /usr/bin/time locest search --configFile code/spatiotemporal/basic.conf
 
 hu5 <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
 
 # normalization sanity check
-hu5 %>% dplyr::group_by(search_obsID, yearBCAD) %>%
-  dplyr::summarize(hu = sum(probability))
-
-# https://stackoverflow.com/questions/30510898/split-facet-plot-into-list-of-plots
-# splitFacet <- function(x){
-#   facet_vars <- names(x$facet$params$facets)        
-#   x$facet    <- ggplot2::ggplot()$facet             
-#   datasets   <- split(x$data, x$data[facet_vars])   
-#   lapply(datasets,function(new_data) {x$data <- new_data; x})
-# }
+hu5 %>% dplyr::group_by(search_obsID, grid_yearBCAD) %>%
+  dplyr::summarize(hu = sum(search_probability))
 
 hu5 %>%
   dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
-  facet_grid(rows = dplyr::vars(yearBCAD), cols = dplyr::vars(search_obsID)) +
-  geom_raster(aes(x, y, fill = probability)) +
+  facet_grid(rows = dplyr::vars(grid_yearBCAD), cols = dplyr::vars(search_obsID)) +
+  geom_raster(aes(grid_x, grid_y, fill = search_probability)) +
   # geom_point(
   #   data = obs %>%
   #     dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%
@@ -135,32 +126,3 @@ hu5 %>%
   # ) +
   scale_fill_viridis_c() +
   coord_fixed()
-
-# # one position test
-# system('time locest search -i test2Obs.tsv -g test2GridOnePoint.tsv -t "c(-5750, -5500,-5250, -5000, -4750)" -d "c(varC1=-0.0885337:0.0570383:0.01,varC2=-0.0669435:0.1100580:0.01)" -a "SepIDW(c(varC1 = LinearSum(0.00001, 0.00001), varC2 = LinearSum(0.00001, 0.00001)), DistanceWeightedMean)" -o test_res/test2Interpolate.tsv')
-# 
-# hu <- readr::read_tsv("test_res/test2Interpolate.tsv")
-# 
-# hu %>%
-#   ggplot() +
-#   facet_wrap(~yearBCAD) +
-#   geom_raster(aes(varC1, varC2, fill = probability)) +
-#   scale_fill_viridis_c() +
-#   coord_fixed()
-# 
-# 
-# # test with own distance matrix
-# 
-# system('time locest search -i distMatrixObs.tsv -g distMatrixGrid.tsv --spatDistFile distMatrixDists.tsv -t "c(0)" -d "c(varC1 = 0,varC2 = 0)" -a "KAS(c(varC1 = Normal(200, 200), varC2 = Normal(200, 200)))" -o test_res/distMatrixTestSearch.tsv')
-# 
-# hu <- readr::read_tsv("test_res/distMatrixTestSearch.tsv")
-# 
-# hu %>%
-#   ggplot() +
-#   geom_raster(aes(x, y, fill = probability)) +
-#   scale_fill_viridis_c() +
-#   coord_fixed()
-# 
-# # temporal resampling test
-
-

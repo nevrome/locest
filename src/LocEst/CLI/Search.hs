@@ -37,11 +37,6 @@ data SearchOptions = SearchOptions
     , _searchOutFile             :: Maybe FilePath
     }
 
-data CoreOutMode =
-      CoreOutObsWeight Int
-    | CoreOutInterpolAndSearch
-    deriving (Show)
-
 runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
     inObsFile maybeTempSampFile inIndepVarsPredGridFile maybeTempGrid

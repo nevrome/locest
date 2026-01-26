@@ -19,7 +19,6 @@ import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.String       as P
 
-
 -- helper functions for optparse applicative help text
 s2d :: String -> OH.Doc
 s2d str = OH.fillSep $ map OH.pretty $ words str
@@ -280,31 +279,6 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 maxPerIndepVar <- parseArgument "max" (parseNamedVector parseIndepVarName parseDouble)
                 return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
-
-optParseCrossOutMode :: OP.Parser CrossOutModeSettings
-optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
-    OP.long "outMode" <>
-    OP.metavar "Summed|Obs" <>
-    OP.value SummedLikelihoodPerKernelSetting
-    <> OP.helpDoc ( Just (
-                      s2d "The type of output that should be written to the --outFile."
-    <> OH.hardline <> s2d "Summed (default): The individual crossvalidation iterations are \
-                          \summarised to a short table with only the tested kernel parameter \
-                          \settings and the summed crossvalidation output."
-    <> OH.hardline <> s2d "Obs: The output is as --outMode Full for the search subcommand, but the \
-                          \search observations (--searchObsFile) are set as the test fraction \
-                          \of the crossvalidation data split. Each iteration is returned separately."
-    ))
-    )
-    where
-        readOutMode :: String -> Either String CrossOutModeSettings
-        readOutMode s =
-            case P.runParser parseOutMode () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-        parseOutMode = P.try parseSummed P.<|> parseObs
-        parseSummed = P.string "Summed" >> return SummedLikelihoodPerKernelSetting
-        parseObs    = P.string "Obs"    >> return IndividualSearchObsResults
 
 optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
 optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (
@@ -630,7 +604,7 @@ optParseOutFile = OP.option (Just <$> OP.str) (
     <> OP.value Nothing
     <> OP.helpDoc ( Just (
                       s2d "Path to an output .tsv file. If not provided, then the output will be written \
-                          \to stdout. See --outMode to set the desired type of output."
+                          \to stdout."
     ))
     )
 

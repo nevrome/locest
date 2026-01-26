@@ -33,11 +33,6 @@ data CrossOptions = CrossOptions
     , _crossOutFile           :: Maybe FilePath
     }
 
-data CrossOutModeSettings =
-      SummedLikelihoodPerKernelSetting
-    | IndividualSearchObsResults
-    deriving (Show)
-
 runCross :: CrossOptions -> Double -> IO ()
 runCross (
     CrossOptions
