@@ -48,11 +48,12 @@ library
       Haskell2010
     ghc-options:
       -O2
+      -- check thoroughly
+      -Wall
+      -- for static code analysis
       -- -fwrite-ide-info
       -- -hiedir=.hie
       -- "-ddump-simpl" show GHC core
-      -- check for unsused dependencies
-      -Wunused-packages
 
 executable locest
     main-is:
@@ -81,8 +82,11 @@ executable locest
       -- causes all constructor fields which are marked strict (i.e. !) to be unpacked if possible
       -- a bit of a sledgehammer: it might sometimes make things worse
       -- -funbox-strict-fields
-      -- check for unsused dependencies
-      -Wunused-packages
+      -- check thoroughly
+      -Wall
+      -- for static code analysis
+      -- -fwrite-ide-info
+      -- -hiedir=.hie
 
 test-suite spec
     hs-source-dirs:
@@ -100,5 +104,5 @@ test-suite spec
       , hspec
       , process
     ghc-options:
-      -- check for unsused dependencies
-      -Wunused-packages
+      -- check thoroughly
+      -Wall

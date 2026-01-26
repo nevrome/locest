@@ -8,7 +8,6 @@ import           Control.Exception (Exception, throw, throwIO)
 import           Data.Conduit      (ConduitT)
 import qualified Data.Conduit.List as ConC
 import           Data.IORef        (modifyIORef, newIORef, readIORef)
-import           GHC.Conc          (getNumCapabilities)
 import           GHC.Generics      (Generic)
 import           System.IO         (hPutStrLn, stderr)
 
@@ -32,12 +31,6 @@ inf = 1/0
 
 nan :: Fractional a => a
 nan = 0/0
-
-setNumberOfThreads :: IO Int
-setNumberOfThreads = do
-    detectedThreads <- getNumCapabilities
-    hPutStrLn stderr $ "Working with threads: " ++ show detectedThreads
-    return detectedThreads
 
 progress :: (MonadIO m) => Int -> Maybe Int -> ConduitT i i m ()
 progress reportNum goal = do

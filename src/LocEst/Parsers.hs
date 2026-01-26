@@ -227,13 +227,6 @@ readArbitraryDimPos path = do
     res <- readToVector path
     return res
 
-readSpatPos :: FilePath -> IO (V.Vector SpatPos)
-readSpatPos path = do
-    hPutStrLn stderr "Reading spatial grid positions"
-    res <- readToVector path
-    let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)
-    return resWithID
-
 readIndepVarsPos :: FilePath -> IO (V.Vector IndepVarsPos)
 readIndepVarsPos path = do
     hPutStrLn stderr "Reading grid positions"
@@ -253,13 +246,6 @@ readToVector path
         res <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.sinkVector
         hPutStrLn stderr "Done"
         return res
-
-readCSVToList :: (Csv.FromNamedRecord a) => FilePath -> IO [a]
-readCSVToList path = do
-    hPutStrLn stderr $ "Parsing " ++ path
-    parseRes <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.sinkList
-    hPutStrLn stderr "Done"
-    return parseRes
 
 unwrapCSVParsingErrors :: (Show b, Show c, MonadIO m) => Either (Either b c) a -> m a
 unwrapCSVParsingErrors parseRes =

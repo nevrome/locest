@@ -94,9 +94,6 @@ removeDepVarFromHeader depVar =
 -- | A datatype to collect additional, unpecified .csv/tsv file columns (a hashmap in cassava/Data.Csv)
 newtype CsvNamedRecord = CsvNamedRecord Csv.NamedRecord deriving (Show, Eq, Generic, Ord)
 
-getCsvNR :: CsvNamedRecord -> Csv.NamedRecord
-getCsvNR (CsvNamedRecord x) = x
-
 instance S.Serialise CsvNamedRecord
 instance NFData CsvNamedRecord
 instance Csv.DefaultOrdered CsvNamedRecord where

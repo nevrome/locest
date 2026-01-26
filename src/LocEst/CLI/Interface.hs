@@ -13,7 +13,7 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import           Data.Char                (isSpace, toLower)
-import           Data.List                (groupBy, isPrefixOf, singleton, sort)
+import           Data.List                (groupBy, singleton)
 import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
@@ -338,14 +338,6 @@ optParseTopNObs = OP.option OP.auto (
     ))
     )
 
-optParseAcrossIndepVars :: OP.Parser Bool
-optParseAcrossIndepVars = OP.switch (
-       OP.long "acrossIndepVars"
-    <> OP.helpDoc ( Just (
-                      s2d "Calculate the variogram for Euclidean distances across all independent variables."
-    ))
-    )
-
 optParseAcrossSettings :: OP.Parser AcrossSettings
 optParseAcrossSettings = OP.option (OP.eitherReader readAcrossSettings) (
     OP.long "across" <>
@@ -453,26 +445,6 @@ optParseSearchPositions :: OP.Parser DepVarsPredGridSettings
 optParseSearchPositions =
            DirectDepVarsGridSettings <$> optParseSearchDepVarsPos
     OP.<|> SearchObsDepVarsGridSettings <$> optParseInSearchObservationFile
-
-readFilterThresholds :: String -> Either String (Either (Double, Double) ArbitraryDimThresholds)
-readFilterThresholds s =
-    case P.runParser parseIndepVarsThresholds () "" s of
-        Left err -> Left $ showParsecErr err
-        Right x  -> x
-    where
-        parseIndepVarsThresholds = do
-            res <- parseNamedVector parseIndepVarName parsePositiveDouble
-            return (makeSpatTempOrAbritraryDim res)
-        makeSpatTempOrAbritraryDim :: [(String, Double)] -> Either String (Either (Double, Double) ArbitraryDimThresholds)
-        makeSpatTempOrAbritraryDim xs
-            | sort (map fst xs) == ["space", "time"] = Right $ Left $ tuplify xs
-            | all (isPrefixOf "indep" . fst) xs      = Right $ Right $ makeValuesPerIndepVar xs
-            | otherwise                              = Left "--indepMinFilter and --indepMaxFilter can fit \
-                                                              \either to a spatiotemporal or a arbitrary variable setup"
-        tuplify :: [(String,Double)] -> (Double,Double)
-        tuplify [("space",spatialThreshold), ("time",temporalThreshold)] = (spatialThreshold,temporalThreshold)
-        tuplify [("time",temporalThreshold), ("space",spatialThreshold)] = (spatialThreshold,temporalThreshold)
-        tuplify _                                                        = throwL "this can not happen"
 
 optParseInIndepVarGridFile :: OP.Parser FilePath
 optParseInIndepVarGridFile = OP.strOption (
@@ -666,16 +638,6 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
             makeKernelShape shape
         parseKernelLengths = KernelLengths . makeValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
         parseNugget = parsePositiveFloatNumber
-
-optParseCoAnalyseDepVars :: OP.Parser Bool
-optParseCoAnalyseDepVars = OP.switch (
-       OP.long "coAnalyseDepVars"
-    <> OP.helpDoc ( Just (
-                      s2d "Run the crossvalidation for all permutations of kernel parameters \
-                          \of all dependent variables. This is computationally very expensive. \
-                          \By default each dependent variable is analysed independently."
-    ))
-    )
 
 optParseKernDefStringPermutations :: OP.Parser [KernelDefinition]
 optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString) (
