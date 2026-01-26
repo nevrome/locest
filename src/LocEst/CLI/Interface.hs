@@ -134,40 +134,72 @@ optParseInObsGridDistFile :: OP.Parser FilePath
 optParseInObsGridDistFile = OP.strOption (
        OP.long    "obsGridDistFile"
     <> OP.metavar "FILE"
-    <> OP.help "..." )
+    <> OP.helpDoc ( Just (
+                      s2d "Path to a .tsv/.cbor file with distances between pairs of observations and \
+                          \prediction grid positions along arbitrary independent variables. \
+                          \With this the given distances will not be calculated from the respective \
+                          \coordinates, but looked up in this table. \
+                          \The pairs must be ordered first by gridID (as in --gridFile) and then within \
+                          \that by obsID (as in --obsFile). \
+                          \The ID columns can be omitted - they are not read or validated."
+    <> OH.hardline <>     "┌─────┬──────┬─────┬────┬───────┬───────┐"
+    <> OH.hardline <>     "│obsID│gridID│space│time│indepV1│indepV2│ > [obsID] (optional):"
+    <> OH.hardline <>     "├─────┼──────┼─────┼────┼───────┼───────┤   Observations identifier"
+    <> OH.hardline <>     "│   a │    x │     │    │       │       │ > [gridID] (optional):"
+    <> OH.hardline <>     "│   b │    x │     │    │       │       │   Grid position identifier"
+    <> OH.hardline <>     "│   a │    y │     │    │       │       │ > [space]/[time]/[indepV*]:"
+    <> OH.hardline <>     "│   b │    y │     │    │       │       │   Distances"
+    <> OH.hardline <>     "└─────┴──────┴─────┴────┴───────┴───────┘"
+    ))
+    )
 
 optParseInObsObsDistFile :: OP.Parser FilePath
 optParseInObsObsDistFile = OP.strOption (
        OP.long    "obsObsDistFile"
     <> OP.metavar "FILE"
-    <> OP.help "..." )
+    <> OP.helpDoc ( Just (
+                      s2d "Path to a .tsv/.cbor file with distances between pairs of observations \
+                          \along arbitrary independent variables. \
+                          \With this the given distances will not be calculated from the respective \
+                          \coordinates, but looked up in this table. \
+                          \The pairs must be ordered first by id1 (as in --obsFile) and then within \
+                          \that by id2 (also as in --obsFile). Every pair must only be given once, \
+                          \as the distances are symmetric. \
+                          \The ID columns can be omitted - they are not read or validated."
+    <> OH.hardline <>     "┌───┬───┬─────┬────┬───────┬───────┐"
+    <> OH.hardline <>     "│id1│id2│space│time│indepV1│indepV2│ > [id1] (optional):"
+    <> OH.hardline <>     "├───┼───┼─────┼────┼───────┼───────┤   Observations identifier"
+    <> OH.hardline <>     "│ a │ a │     │    │       │       │ > [id2] (optional):"
+    <> OH.hardline <>     "│ b │ a │     │    │       │       │   Observations identifier"
+    <> OH.hardline <>     "│ b │ b │     │    │       │       │ > [space]/[time]/[indepV*]:"
+    <> OH.hardline <>     "│ c │ a │     │    │       │       │   Distances"
+    <> OH.hardline <>     "└───┴───┴─────┴────┴───────┴───────┘"
+    ))
+    )
 
 optParseInGridGridDistFile :: OP.Parser FilePath
 optParseInGridGridDistFile = OP.strOption (
        OP.long    "gridGridDistFile"
     <> OP.metavar "FILE"
-    <> OP.help "..." )
-
--- optParseInSpatDistMapFile :: OP.Parser FilePath
--- optParseInSpatDistMapFile = OP.strOption (
---        OP.long    "spatDistFile"
---     <> OP.metavar "FILE"
---     <> OP.helpDoc ( Just (
---                       s2d "Path to a .tsv/.cbor file with spatial distances between pairs of observations and spatial \
---                           \prediction grid points. If this is given, then the spatial distances will \
---                           \not be calculated from the respective coordinates, but looked up in this \
---                           \table. The pairs must be ordered first like and by --obsFile and then like \
---                           \and by --spatGridFile."
---     <> OH.hardline <>     "┌─────┬──────┬────┐"
---     <> OH.hardline <>     "│obsID│spatID│dist│ > [obsID]:"
---     <> OH.hardline <>     "├─────┼──────┼────┤   Observations identifier"
---     <> OH.hardline <>     "│   a │    x │    │ > [spatID]:"
---     <> OH.hardline <>     "│   a │    y │    │   Spatial coordinate identifier"
---     <> OH.hardline <>     "│   b │    x │    │ > [dist]:"
---     <> OH.hardline <>     "│   b │    y │    │   Spatial distance"
---     <> OH.hardline <>     "└─────┴──────┴────┘"
---     ))
---     )
+    <> OP.helpDoc ( Just (
+                      s2d "Path to a .tsv/.cbor file with distances between pairs of prediction grid \
+                          \positions along arbitrary independent variables. \
+                          \With this the given distances will not be calculated from the respective \
+                          \coordinates, but looked up in this table. \
+                          \The pairs must be ordered first by id1 (as in --gridFile) and then within \
+                          \that by id2 (also as in --gridFile). Every pair must only be given once, \
+                          \as the distances are symmetric. \
+                          \The ID columns can be omitted - they are not read or validated."
+    <> OH.hardline <>     "┌───┬───┬─────┬────┬───────┬───────┐"
+    <> OH.hardline <>     "│id1│id2│space│time│indepV1│indepV2│ > [id1] (optional):"
+    <> OH.hardline <>     "├───┼───┼─────┼────┼───────┼───────┤   Grid position identifier"
+    <> OH.hardline <>     "│ a │ a │     │    │       │       │ > [id2] (optional):"
+    <> OH.hardline <>     "│ b │ a │     │    │       │       │   Grid position identifier"
+    <> OH.hardline <>     "│ b │ b │     │    │       │       │ > [space]/[time]/[indepV*]:"
+    <> OH.hardline <>     "│ c │ a │     │    │       │       │   Distances"
+    <> OH.hardline <>     "└───┴───┴─────┴────┴───────┴───────┘"
+    ))
+    )
 
 optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
 optParseIndepVarsThresholds = OP.option (OP.eitherReader readIndepVarsThresholds) (
