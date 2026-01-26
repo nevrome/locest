@@ -16,10 +16,10 @@ import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
 import           Data.List             (find, sortBy)
+import           Data.Maybe            (isNothing)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Storable  as VS
 import           GHC.Generics          (Generic)
-import Data.Maybe (isNothing)
 
 -- filtering and sorting variables
 
@@ -58,6 +58,7 @@ data SearchResultLong = SSL {
     , _sslGridLogLikelihood :: Maybe Double -- log-likelihood for true value
     , _sslSearchPos         :: Maybe (V.Vector DepVarsPredPos) -- search values
     , _sslLogLikelihood     :: Maybe (V.Vector Double) -- log-likelihood for search value
+    , _sslTopObsIDs         :: Maybe String
 } deriving (Eq, Show, Generic)
 
 -- | A data type for nterpolation output, aggregated per row (so per grid position and per search candidate)
@@ -65,6 +66,7 @@ data SearchResultRow = SSR {
       _ssrTempSampIter      :: Int
     , _ssrKernDef           :: KernelDefinition
     , _ssrGridIndepVarsPos  :: IndepVarsPos
+    , _ssrTopObsIDs         :: [Maybe String]
     , _ssrDepVarName        :: [DepVarName]
     , _ssrLowerBound        :: [Double]
     , _ssrMedian            :: [Double]
@@ -78,7 +80,7 @@ data SearchResultRow = SSR {
 } deriving (Eq, Show, Generic)
 
 instance Csv.DefaultOrdered SearchResultRow where
-  headerOrder (SSR _ kernDef gridIndep names _ _ _ gridLLs gridAgg mSearch lls aggLLs probs) =
+  headerOrder (SSR _ kernDef gridIndep topObs names _ _ _ gridLLs gridAgg mSearch lls aggLLs probs) =
     let perDepCols :: DepVarName -> [Bchs.ByteString]
         perDepCols dv =
           map Bchs.pack (
@@ -86,6 +88,7 @@ instance Csv.DefaultOrdered SearchResultRow where
                 , "interpol_median_"       ++ dv
                 , "interpol_upper_quant_"  ++ dv
                 ]
+                ++ ["grid_top_obs_" ++ dv | not (all isNothing topObs)]
                 ++ ["grid_log_likelihood_" ++ dv | not (all isNothing gridLLs)]
                 ++ ["search_log_likelihood_" ++ dv | not (all isNothing lls)]
             )
@@ -98,7 +101,7 @@ instance Csv.DefaultOrdered SearchResultRow where
        <> maybe V.empty (const $ Csv.header ["search_agg_log_likelihood"]) aggLLs
        <> maybe V.empty (const $ Csv.header ["search_probability"]) probs
 instance Csv.ToRecord SearchResultRow where
-  toRecord (SSR tsi kernDef gridIndep names lowB medV upB gridLLs gridAgg mSearch lls aggLLs probs) =
+  toRecord (SSR tsi kernDef gridIndep topObs names lowB medV upB gridLLs gridAgg mSearch lls aggLLs probs) =
     let n = length names
         seg i =
           Csv.record (
@@ -106,6 +109,7 @@ instance Csv.ToRecord SearchResultRow where
                 , Csv.toField (medV  !! i)
                 , Csv.toField (OutDouble (upB  !! i))
                 ]
+                ++ [ toFieldMaybeString (topObs !! i) | not (all isNothing topObs)]
                 ++ [ toFieldMaybeDouble (gridLLs !! i) | not (all isNothing gridLLs)]
                 ++ [ toFieldMaybeDouble (lls !! i) | not (all isNothing lls)]
             )
@@ -121,6 +125,10 @@ instance Csv.ToRecord SearchResultRow where
 toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
 toFieldMaybeDouble Nothing  = Bchs.empty
 toFieldMaybeDouble (Just x) = Csv.toField (OutDouble x)
+
+toFieldMaybeString :: Maybe String -> Bchs.ByteString
+toFieldMaybeString Nothing  = Bchs.empty
+toFieldMaybeString (Just x) = Csv.toField x
 
 -- | A data type for crossvalidation output
 data CrossvalOutput = CrossvalOutput {

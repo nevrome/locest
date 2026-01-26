@@ -165,6 +165,7 @@ search algorithm kernDef indepVars
                           _ssrTempSampIter     = tempSamplingIteration
                         , _ssrKernDef          = kernDef
                         , _ssrGridIndepVarsPos = grid V.! i
+                        , _ssrTopObsIDs        = map _sslTopObsIDs resAtI
                         , _ssrDepVarName       = map _sslDepVarName resAtI
                         , _ssrLowerBound       = map _sslLowerBound resAtI
                         , _ssrMedian           = map _sslMedian     resAtI

@@ -7,6 +7,8 @@ import           LocEst.TypesFlat
 import           LocEst.Utils
 
 import           Control.Monad                     (forM_)
+import           Data.List                         (intercalate, sortOn)
+import           Data.Ord                          (Down (..))
 import qualified Data.Vector                       as V
 import qualified Data.Vector.Storable              as VS
 import qualified Data.Vector.Storable.Mutable      as VSM
@@ -18,7 +20,6 @@ import           Statistics.Distribution.Normal    (NormalDistribution,
 import           Statistics.Distribution.StudentT  (StudentT,
                                                     studentTUnstandardized)
 import           Statistics.Distribution.Transform (LinearTransform)
-
 
 gpr :: V.Vector Observation
     -> V.Vector IndepVarsPos
@@ -41,8 +42,9 @@ gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid maybeSearch
             Nothing -> throwL "nugget parameter missing in kernel definition"
         resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values nugget
     in V.imap (\i ed ->
-        let mTrueDep = maybeGridTrueDep >>= (V.!? i)
-        in seek depVar maybeSearchValues mTrueDep ed
+        let topObs   = Just $ topNObsIDs 5 obs weightsObsGrid i
+            mTrueDep = maybeGridTrueDep >>= (V.!? i)
+        in seek depVar maybeSearchValues mTrueDep ed topObs
      ) resDistribution
 
 expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
@@ -67,20 +69,32 @@ kas :: V.Vector Observation
     -> V.Vector SearchResultLong
 kas obs maybeGridTrueDep distsObsGrid maybeSearchValues depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
-        weights = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
-        resDistribution = kasCore weights values
+        !weightsObsGrid = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
+        resDistribution = kasCore weightsObsGrid values
     in V.imap (\i ed ->
-        let mTrueDep = maybeGridTrueDep >>= (V.!? i)
-        in seek depVar maybeSearchValues mTrueDep ed
+        let topObs   = Just $ topNObsIDs 5 obs weightsObsGrid i
+            mTrueDep = maybeGridTrueDep >>= (V.!? i)
+        in seek depVar maybeSearchValues mTrueDep ed topObs
      ) resDistribution
+
+topNObsIDs
+  :: Int
+  -> V.Vector Observation
+  -> M.Matrix Double   -- grid * obs
+  -> Int               -- grid index
+  -> String
+topNObsIDs n obs weights gridIx =
+    let row = [ (obs V.! j, weights `M.atIndex` (gridIx, j)) | j <- [0 .. V.length obs - 1] ]
+    in intercalate ";" [ _obsID o | (o, _) <- take n (sortOn (Down . snd) row) ]
 
 seek :: ContDistr b =>
        DepVarName
     -> Maybe (V.Vector DepVarsPredPos)
     -> Maybe DepVarsPos
     -> Either String b
+    -> Maybe String
     -> SearchResultLong
-seek depVar maybeSearchValues maybeTrueDep (Right distribution) =
+seek depVar maybeSearchValues maybeTrueDep (Right distribution) topObs =
             let lower  = quantile distribution 0.025
                 median = quantile distribution 0.5
                 upper  = quantile distribution 0.975
@@ -90,13 +104,13 @@ seek depVar maybeSearchValues maybeTrueDep (Right distribution) =
                     pure (logDensity distribution trueVal)
                 searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
                 logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
-            in SSL depVar lower median upper maybeTrueDep logLTruth maybeSearchValues logL
-seek depVar maybeSearchValues maybeTrueDep (Left _) =
+            in SSL depVar lower median upper maybeTrueDep logLTruth maybeSearchValues logL topObs
+seek depVar maybeSearchValues maybeTrueDep (Left _) topObs =
     let logLTruth = maybeTrueDep *> Just (-inf)   -- if truth exists but dist failed, mark as -inf; else Nothing
         logLSearch = case maybeSearchValues of
                        Just x  -> Just (V.replicate (V.length x) (-inf))
                        Nothing -> Nothing
-    in SSL depVar (-inf) nan inf maybeTrueDep logLTruth maybeSearchValues logLSearch
+    in SSL depVar (-inf) nan inf maybeTrueDep logLTruth maybeSearchValues logLSearch topObs
 
 gprCore ::
        M.Matrix Double -- obs–obs weights
