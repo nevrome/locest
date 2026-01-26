@@ -107,6 +107,7 @@ searchOptParser = SearchOptions
                         <*> OP.optional optParseInObsGridDistFile
                         <*> OP.optional optParseInObsObsDistFile
                         <*> OP.optional optParseInGridGridDistFile
+                        <*> optParseTopNObs
                         <*> optParseOutFile
 
 varioOptParser :: OP.Parser VarioOptions
@@ -305,32 +306,6 @@ optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
         parseSummed = P.string "Summed" >> return SummedLikelihoodPerKernelSetting
         parseObs    = P.string "Obs"    >> return IndividualSearchObsResults
 
-optParseCoreOutMode :: OP.Parser CoreOutMode
-optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
-    OP.long "outMode" <>
-    OP.metavar "Normal|Obs(n)" <>
-    OP.value CoreOutInterpolAndSearch
-    <> OP.helpDoc ( Just (
-                      s2d "The type of output that should be written to the --outFile."
-    <> OH.hardline <> s2d "Normal (default): Return mean interpolation and search results."
-    <> OH.hardline <> s2d "Obs(n): Returns no interpolation results but a list of the n input \
-                          \observations with the highest weight for each prediction grid point \
-                          \(summed across dependent variables)."
-    ))
-    )
-    where
-        readOutMode :: String -> Either String CoreOutMode
-        readOutMode s =
-            case P.runParser parseOutMode () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-        parseOutMode = P.try parseNormal P.<|> parseObs
-        parseNormal = P.string "Normal" >> return CoreOutInterpolAndSearch
-        parseObs   = do
-            parseRecordType "Obs" $ do
-                n <- parseArgument "n" parseInt
-                return $ CoreOutObsWeight n
-
 optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
 optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (
        OP.long  "seed"
@@ -373,6 +348,19 @@ optParseCrossvalIterations = OP.option OP.auto (
                       s2d "Number of crossvalidation iterations. How often should the input observations \
                           \be reshuffled and split into test and training data for each kernel parameter \
                           \setting. Default: 100"
+    ))
+    )
+
+optParseTopNObs :: OP.Parser Int
+optParseTopNObs = OP.option OP.auto (
+       OP.long    "topobs"
+    <> OP.metavar "INT"
+    <> OP.value 0
+    <> OP.helpDoc ( Just (
+                      s2d "When this is >0, then a list of n observations with the highest weight \
+                          \is computed for each prediction grid point and dependent variable. \
+                          \It is documented in an output column [grid_top_obs_<dependent_variable>]. \
+                          \Default: 0"
     ))
     )
 

@@ -121,7 +121,7 @@ cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs
         !maybeGridGridDists = sliceSelfDistPerIndep testIdx <$> maybeFullObsObsDists
         !maybeObsGridDists = sliceCrossDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
     -- run search (no dep search grid, no temp grid, but true values for grid pos)
-    rows <- search algorithm kernDef indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists
+    rows <- search algorithm kernDef 0 indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists
                    spatDistUnitScaling depVars kernels
                    (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
     -- compute summary statistics

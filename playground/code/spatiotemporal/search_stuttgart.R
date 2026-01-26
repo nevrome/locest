@@ -101,7 +101,7 @@ cross %>%
 # OMP_NUM_THREADS=4 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -N4 -RTS
 # hp2ps -c locest.hp
 
-system('time OMP_NUM_THREADS=4 locest search --configFile code/spatiotemporal/basic.conf')
+system('time OMP_NUM_THREADS=4 locest search --configFile code/spatiotemporal/basic.conf --topobs 5')
 
 # better memory profiling with GNU time
 # export TIME="time result\ncmd: %C\nreal %es\nuser %Us \nsys  %Ss \nmemory: %MKB \ncpu: %P"

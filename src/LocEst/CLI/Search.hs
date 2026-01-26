@@ -33,6 +33,7 @@ data SearchOptions = SearchOptions
     , _searchInObsGridDistFile   :: Maybe FilePath
     , _searchInObsObsDistFile    :: Maybe FilePath
     , _searchInGridGridDistFile  :: Maybe FilePath
+    , _searchTopNObs             :: Int
     , _searchOutFile             :: Maybe FilePath
     }
 
@@ -46,7 +47,7 @@ runSearch (SearchOptions
     inObsFile maybeTempSampFile inIndepVarsPredGridFile maybeTempGrid
     inMaybeDepSearchGrid kernDef
     maybeObsGridDistFile maybeObsObsDistFile maybeGridGridDistFile
-    outFile
+    topNObs outFile
     ) spatDistUnitScaling = do
     -- algorithm settings
     let algorithm = _kdefAlgorithm kernDef
@@ -84,7 +85,7 @@ runSearch (SearchOptions
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . search algorithm kernDef indepVars obsGridDistances obsObsDistances gridGridDistances spatDistUnitScaling depVars kernels)
+        .| ConL.concatMapM (liftIO . search algorithm kernDef topNObs indepVars obsGridDistances obsObsDistances gridGridDistances spatDistUnitScaling depVars kernels)
         .| progress 1000 (Just nrOutputRows)
         .| sinkNamedCSV outFile
     putStrLn "Done"
@@ -94,6 +95,7 @@ factor element extractor = maybe 1 extractor element
 
 search :: Algorithm
        -> KernelDefinition
+       -> Int
        -> [IndepVarName]
        -> Maybe CrossDistMatrixPerIndepVar
        -> Maybe SelfDistMatrixPerIndepVar
@@ -103,7 +105,7 @@ search :: Algorithm
        -> [KernelOneDepVar]
        -> Permutation
        -> IO [SearchResultRow]
-search algorithm kernDef indepVars
+search algorithm kernDef topNObs indepVars
      maybeObsGridDists maybeObsObsDists maybeGridGridDists
      spatDistUnitScaling
      depVars kernelsPerDepVar
@@ -137,7 +139,7 @@ search algorithm kernDef indepVars
                            Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
             --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsObsGrid
             --error "test"
-            return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid searchDepVarPos) depVars kernelsPerDepVar
+            return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid searchDepVarPos topNObs) depVars kernelsPerDepVar
         KAS -> do
             -- kas
             distsObsGrid <- case maybeObsGridDists of
@@ -148,7 +150,7 @@ search algorithm kernDef indepVars
                         forM indepVars (\name -> case lookup name ms of
                            Just m  -> pure (name, m)
                            Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
-            return $ zipWith (kas obs maybeGridTrueDep distsObsGrid searchDepVarPos) depVars kernelsPerDepVar
+            return $ zipWith (kas obs maybeGridTrueDep distsObsGrid searchDepVarPos topNObs) depVars kernelsPerDepVar
     -- turn SSL to SSR
     let rawRows = concatMap (rowsForGridIdx perDepVar) [0..V.length grid-1]
     if isJust searchDepVarPos && isSpatioTemporal grid

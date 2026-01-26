@@ -28,10 +28,11 @@ gpr :: V.Vector Observation
     -> IndepVarsDistFlat
     -> IndepVarsDistFlat
     -> Maybe (V.Vector DepVarsPredPos)
+    -> Int
     -> DepVarName
     -> KernelOneDepVar
     -> V.Vector SearchResultLong
-gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid maybeSearchValues depVar kernel =
+gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid maybeSearchValues topNObs depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         !weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         !weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
@@ -42,7 +43,9 @@ gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid maybeSearch
             Nothing -> throwL "nugget parameter missing in kernel definition"
         resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values nugget
     in V.imap (\i ed ->
-        let topObs   = Just $ topNObsIDs 5 obs weightsObsGrid i
+        let topObs   = if topNObs > 0
+                       then Just $ topNObsIDs topNObs obs weightsObsGrid i
+                       else Nothing
             mTrueDep = maybeGridTrueDep >>= (V.!? i)
         in seek depVar maybeSearchValues mTrueDep ed topObs
      ) resDistribution
@@ -64,15 +67,18 @@ kas :: V.Vector Observation
     -> Maybe (V.Vector DepVarsPos)
     -> IndepVarsDistFlat
     -> Maybe (V.Vector DepVarsPredPos)
+    -> Int
     -> DepVarName
     -> KernelOneDepVar
     -> V.Vector SearchResultLong
-kas obs maybeGridTrueDep distsObsGrid maybeSearchValues depVar kernel =
+kas obs maybeGridTrueDep distsObsGrid maybeSearchValues topNObs depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         !weightsObsGrid = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         resDistribution = kasCore weightsObsGrid values
     in V.imap (\i ed ->
-        let topObs   = Just $ topNObsIDs 5 obs weightsObsGrid i
+        let topObs   = if topNObs > 0
+                       then Just $ topNObsIDs topNObs obs weightsObsGrid i
+                       else Nothing
             mTrueDep = maybeGridTrueDep >>= (V.!? i)
         in seek depVar maybeSearchValues mTrueDep ed topObs
      ) resDistribution
