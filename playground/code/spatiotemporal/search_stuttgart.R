@@ -113,10 +113,11 @@ search_res %>% dplyr::group_by(search_obsID, grid_yearBCAD) %>%
   dplyr::summarize(hu = sum(search_probability))
 
 search_res %>%
+  dplyr::mutate(probability = search_probability) %>%
   dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(grid_yearBCAD), cols = dplyr::vars(search_obsID)) +
-  geom_raster(aes(grid_x, grid_y, fill = search_probability)) +
+  geom_raster(aes(grid_x, grid_y, fill = probability)) +
   # geom_point(
   #   data = obs %>%
   #     dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%
