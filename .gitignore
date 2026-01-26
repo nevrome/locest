@@ -10,3 +10,5 @@ playground/data
 *.prof.*
 *.hp
 .hie/
+*.aux
+*.ps

@@ -1,184 +1,148 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module LocEst.CLI.Cross where
 
-import           LocEst.CLI.Search             (SupplementSettings (..))
-import           LocEst.CLI.Utils
-import           LocEst.CoreAlgorithms
-import           LocEst.MathUtils              (avg, foldSum)
+import           LocEst.Distance          (depEuclidean)
 import           LocEst.Parsers
 import           LocEst.Types
+import           LocEst.TypesFlat
+import           LocEst.Utils
 
-import           Conduit                       (MonadIO (liftIO))
-import           Data.Conduit                  ((.|))
-import qualified Data.Conduit                  as Con
-import qualified Data.Conduit.Algorithms.Async as ConAA
-import qualified Data.Conduit.Combinators      as ConC
-import qualified Data.Conduit.List             as ConL
-import           Data.List                     (intercalate, singleton)
-import           Data.Maybe                    (mapMaybe)
-import qualified Data.Vector                   as V
-import           Immutable.Shuffle             (shuffle)
-import           System.IO                     (hPutStrLn, stderr)
-import           System.Random                 as R
+import           Conduit                  (MonadIO (liftIO))
+import qualified Control.Monad            as OP
+import           Data.Conduit             ((.|))
+import qualified Data.Conduit             as Con
+import qualified Data.Conduit.Combinators as ConC
+import           Data.List                (foldl', intercalate, nub)
+import           Data.Maybe               (fromMaybe)
+import qualified Data.Vector              as V
+import qualified Data.Vector.Storable     as VS
+import           Immutable.Shuffle        (shuffle)
+import           LocEst.CLI.Search        (Permutation (..), search)
+import           System.IO                (hPutStrLn, stderr)
+import           System.Random            as R
 
 data CrossOptions = CrossOptions
-    { _crossInObservationFile  :: FilePath
-    , _crossSupplementSettings :: SupplementSettings
-    , _crossSettings           :: CrossSettings
-    , _crossOutFile            :: Maybe FilePath
-    , _crossOutMode            :: CrossOutModeSettings
+    { _crossInObservationFile :: FilePath
+    , _crossTestAlgorithms    :: [KernelDefinition]
+    , _crossTestFraction      :: Double
+    , _crossIterations        :: Int
+    , _crossMaybeSeed         :: Maybe Int
+    , _crossInObsObsDistFile  :: Maybe FilePath
+    , _crossOutFile           :: Maybe FilePath
     }
 
-data CrossSettings = CrossSettings {
-      _crossvalInKernDef        :: [[KernelOneDepVar]]
-    , _crossvalCoAnalyseDepVars :: Bool
-    , _crossvalInSubsetMode     :: CrossSubsetMode
-    }
-
-data CrossSubsetMode =
-      CrossFull
-    | CrossFraction {
-      _crossvalTestFraction :: Double
-    , _crossvalIterations   :: Int
-    , _crossvalMaybeSeed    :: Maybe Int
-    }
-
-data CrossOutModeSettings =
-      SummedLikelihoodPerKernelSetting
-    | IndividualSearchObsResults
-    deriving (Show)
-
-runCross :: CrossOptions -> Int -> Double -> IO ()
+runCross :: CrossOptions -> Double -> IO ()
 runCross (
-    CrossOptions inObsFile
-    crossSuppSettings
-    (CrossSettings kernsPerDepVar coAnalyseDepVars subsetMode) outFile outMode
-    ) numThreads spatDistUnitScaling = do
-    -- prepare kernel definitions
-    hPutStrLn stderr "Preparing kernel permutations"
-    let (kernDefsSets, depVarsSets) =
-            if coAnalyseDepVars
-            --kernsPerDepVar: [[kernForDepVar1], [kernForDepVar2], ..
-            then let ks = map makeKernelDefinition $ sequenceA kernsPerDepVar
-                     ds = getKeys $ head ks
-                 in (singleton ks, singleton ds)
-            else let ks = map (map (makeKernelDefinition . singleton)) kernsPerDepVar
-                     ds = map (getKeys . head) ks
-                 in (ks, ds)
+    CrossOptions
+    inObsFile
+    testAlgorithms
+    testFraction iterations maybeSeed
+    maybeObsObsDistFile
+    outFile
+    ) spatDistUnitScaling
+    = do
+    -- algorithm settings
+    let firstKernel = head testAlgorithms
+        algorithm = _kdefAlgorithm firstKernel
+        depVars   = nub $ concatMap getKeys testAlgorithms -- here we have to check every kernel
+        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar firstKernel
+    hPutStrLn stderr $ "Algorithm: " ++ show algorithm
+    hPutStrLn stderr $ "Dependent variables: " ++ intercalate ", " depVars
+    hPutStrLn stderr $ "Independent variables: " ++ intercalate ", " indepVars
     -- read observations
-    observationsRaw <- readObservations inObsFile
-    -- count nr of permutations
-    let numKernDefs = length $ concat kernDefsSets
-        numObs = length observationsRaw
-        (testFraction, numIterations) = case subsetMode of
-            CrossFull           -> (1,1)
-            CrossFraction f i _ -> (f,i)
-        numTestObs = round $ testFraction * fromIntegral numObs
-        numPermutations = numKernDefs * numTestObs * numIterations
-    -- run cross-validation for all depVars
+    !obs <- filterVarsInObs depVars indepVars <$> readObservations inObsFile
+    let nObs = V.length obs
+    hPutStrLn stderr $ "Number of observations: " ++ show nObs
+    -- read distances
+    !obsObsDistances <- traverse (readSelfDistMulti nObs) maybeObsObsDistFile
+    -- reporting split size
+    hPutStrLn stderr $ "Requested split fraction: " ++ show testFraction
+    let numTestObs = round $ testFraction * fromIntegral nObs
+    hPutStrLn stderr $ "Number of test observations: " ++ show numTestObs
+    OP.when (numTestObs == nObs) $ do
+        hPutStrLn stderr "The number of test observations equals the number of observations. \
+                         \In this special case the training set is also set to include all observations."
+    -- set base seed
+    baseSeed <- case maybeSeed of
+        Just x  -> pure x
+        Nothing -> R.randomRIO (0, maxBound :: Int)
+    hPutStrLn stderr $ "Seed for random splitting: " ++ show baseSeed
+    -- determine steps
+    hPutStrLn stderr "Preparing permutations"
+    let permutations = [ (iter, kerndef) | iter <- [1..iterations], kerndef <- testAlgorithms ]
+    hPutStrLn stderr $ "Number of requested iterations: " ++ show iterations
+    hPutStrLn stderr $ "Number of test kernel permutations: " ++ show (length testAlgorithms)
+    -- run crossvalidation
     Con.runConduitRes $
-           ConC.yieldMany (zip kernDefsSets depVarsSets)
-        .| Con.awaitForever (
-            \(kernDefs,depVars) -> do
-                liftIO $ hPutStrLn stderr $ "Working on: " ++ intercalate ", " depVars
-                -- list of independent variables
-                let indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar $ head kernDefs
-                -- modify observations
-                let observations = filterVarsInObs depVars indepVars observationsRaw
-                -- read core supplements
-                coreSupp <- liftIO $ readSupplement indepVars crossSuppSettings observationsRaw
-                -- permutation: one run of the core algorithm
-                -- iteration: one test/training split
-                iterations <- case subsetMode of
-                    CrossFull -> do
-                        liftIO $ hPutStrLn stderr "Prepare all-by-all prediction"
-                        return $ V.singleton (0, observations, observations)
-                    CrossFraction _ iterations maybeSeed -> do
-                        liftIO $ hPutStrLn stderr "Splitting test and training data"
-                        seed <- case maybeSeed of
-                                    Nothing   -> do
-                                        rng <- R.initStdGen
-                                        let (seed,_) = R.genWord32 rng
-                                        return $ fromIntegral seed
-                                    Just seed -> pure seed
-                        return $ V.map (\i -> splitTestTraining i observations numTestObs (seed + i)) (V.generate iterations id)
-                -- run cross-validation pipeline
-                liftIO $ hPutStrLn stderr "Running analysis"
-                ConC.yieldMany kernDefs
-                    .| Con.awaitForever (
-                        \kernDef ->
-                               ConC.yieldMany iterations
-                            .| ConAA.asyncMapC numThreads (
-                                \(iteration,testData,trainingData) ->
-                                       V.map (
-                                        \obs ->
-                                            let perm = Permutation
-                                                    (_hyposIndepVarsPos $ _obsPos obs)
-                                                    (Just $ DepVarsPredPosSearchObs obs)
-                                                    kernDef 0 iteration
-                                            in coreNormal
-                                                spatDistUnitScaling
-                                                coreSupp
-                                                depVars trainingData perm
-                                       ) testData
-                               ) .| ConC.concat
-                       )
-                    .| ConC.map (CrossSearchResult depVars)
-
+           ConC.yieldMany permutations
+        .| progress 1 (Just (length permutations))
+        .| ConC.mapM (\(iter, kerndef) ->
+               liftIO $ cross algorithm indepVars obsObsDistances spatDistUnitScaling
+                              baseSeed numTestObs iter obs kerndef
            )
-        .| progress 1000 (Just numPermutations)
-        .| case outMode of
-            IndividualSearchObsResults -> do
-                   sinkNamedCSV outFile
-            SummedLikelihoodPerKernelSetting -> do
-                   ConL.groupBy groupFunc
-                .| ConC.map summarizeFunc
-                .| sinkNamedCSV outFile
-    hPutStrLn stderr "Done"
+        .| sinkNamedCSV outFile
+    putStrLn "Done"
 
-readSupplement :: [String] -> SupplementSettings -> V.Vector Observation -> IO Supplement
-readSupplement indepVarsWanted
-    (SupplementSettings
-            distanceFilterThresholdsRaw
-            inSpatDistFile
-            inObsTempSamplesFile
-            noOrderCheck
-    )
-    observations = do
-    hPutStrLn stderr "Reading supplements"
-    inSpatDists <- readMaybeSpatDist noOrderCheck observations Nothing inSpatDistFile
-    inObsTempSamples <- readMaybeObsTempSamples noOrderCheck observations inObsTempSamplesFile
-    let distanceFilterThresholds = fmap (filterDistanceThresholds indepVarsWanted) distanceFilterThresholdsRaw
-    return $ Supplement distanceFilterThresholds inSpatDists inObsTempSamples
+cross
+  :: Algorithm
+  -> [IndepVarName]
+  -> Maybe SelfDistMatrixPerIndepVar
+  -> Double
+  -> Int -- base seed
+  -> Int -- numTestObs
+  -> Int -- iteration
+  -> V.Vector Observation
+  -> KernelDefinition
+  -> IO CrossvalOutput
+cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs iter obs kernDef = do
+    let seedIter = seed + iter
+        depVars  = getKeys kernDef
+        kernels  = getValues kernDef
+        nObs     = V.length obs
+        (testIdx, trainIdx) = if nTestObs == nObs
+                              -- special case: full autoprediction
+                              then (VS.fromList [0..nObs-1], VS.fromList [0..nObs-1])
+                              -- randomly slice to get training and test sets
+                              else splitIdx seedIter nTestObs nObs
+        testObs     = V.backpermute obs (V.convert testIdx)
+        trainingObs = V.backpermute obs (V.convert trainIdx)
+        -- prediction grid = test observation locations
+        predGrid = V.map posFromObs testObs
+        trueVals = V.map (filterByKey depVars . depVarPosFromObs) testObs
+        -- slice distance matrices, if present
+        !maybeObsObsDists = sliceSelfDistPerIndep trainIdx <$> maybeFullObsObsDists
+        !maybeGridGridDists = sliceSelfDistPerIndep testIdx <$> maybeFullObsObsDists
+        !maybeObsGridDists = sliceCrossDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
+    -- run search (no dep search grid, no temp grid, but true values for grid pos)
+    rows <- search algorithm kernDef 0 indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists
+                   spatDistUnitScaling depVars kernels
+                   (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
+    -- compute summary statistics
+    let perObs = zip rows (V.toList trueVals)
+        (sumDist, sumSqDist, sumLL, n) = foldl' step (0,0,0,0 :: Int) perObs
+        step (!sd,!ssd,!sll,!k) (row, trueDV) =
+            let predDV = makeValuesPerDepVar $ zip (_ssrDepVarName row) (_ssrMedian row)
+                d      = depEuclidean predDV trueDV
+                ll     = fromMaybe (-inf) (_ssrGridAggLogLik row)
+            in (sd + d, ssd + d*d, sll + ll, k + 1)
+        meanSq
+          | n == 0    = 0
+          | otherwise = sumSqDist / fromIntegral n
+    -- prepare output
+    return CrossvalOutput
+      { _crossoutIteration        = iter
+      , _crossoutDepVars          = depVars
+      , _crossoutKernelDefinition = kernDef
+      , _crossoutDistSum          = sumDist
+      , _crossoutDistMeanSquared  = meanSq
+      , _crossoutProbSum          = sumLL
+      }
 
-summarizeFunc :: [CrossSearchResult] -> CrossvalOutput
-summarizeFunc xs =
-    let depVars = _csrDepVars $ head xs
-        oneProb = _srPermutation $ _csrSearchResult $ head xs
-        kerndef = _casKernelDefinition oneProb
-        dists   = mapMaybe (fmap _slhEuclideanDep  . _srLikelihood . _csrSearchResult) xs
-        logLs   = mapMaybe (fmap _slhLogLikelihood . _srLikelihood . _csrSearchResult) xs
-        sumDists         = foldSum dists
-        meanSquaredDists = avg $ map (**2) dists
-        sumLogLs         = foldSum logLs
-    in CrossvalOutput depVars kerndef sumDists meanSquaredDists sumLogLs
-
-groupFunc :: CrossSearchResult -> CrossSearchResult -> Bool
-groupFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
-          (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
-    depVarA == depVarB && kernDefA == kernDefB
-
-sortFunc :: CrossSearchResult -> CrossSearchResult -> Ordering
-sortFunc (CrossSearchResult depVarA (SearchResult (Permutation _ _ kernDefA _ _) _ _))
-         (CrossSearchResult depVarB (SearchResult (Permutation _ _ kernDefB _ _) _ _)) =
-    compare depVarA depVarB <> compare kernDefA kernDefB
-
-splitTestTraining :: Int -> V.Vector a -> Int -> Int -> (Int, V.Vector a, V.Vector a)
-splitTestTraining iteration observations numTestObs seedOneIteration =
-    let rng = R.mkStdGen seedOneIteration
-        (observationsShuffled,_) = shuffle observations rng
-        (test, training) = V.splitAt numTestObs observationsShuffled
-    in (iteration, test, training)
-
-
+splitIdx :: Int -> Int -> Int -> (VS.Vector Int, VS.Vector Int)
+splitIdx seed nTest n =
+  let rng = R.mkStdGen seed
+      idxs = V.fromList [0..n-1]
+      (shuffled,_) = shuffle idxs rng
+  in VS.splitAt nTest (VS.convert shuffled)

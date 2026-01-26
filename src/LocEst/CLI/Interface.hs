@@ -9,11 +9,11 @@ import           LocEst.CLI.Cross
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
-import           LocEst.Exceptions
 import           LocEst.Types
+import           LocEst.Utils
 
 import           Data.Char                (isSpace, toLower)
-import           Data.List                (groupBy, isPrefixOf, singleton, sort)
+import           Data.List                (groupBy, singleton)
 import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
@@ -73,48 +73,46 @@ serialiseOptParser = SerialiseOptions <$> OP.subparser (
                             SerialiseObsFile
                             <$> optParseInObservationFile
                             )) (OP.progDesc "Serialise --obsFile."))
-                     <> OP.command "spatgrid" (OP.info (OP.helper <*> (
-                            SerialiseSpatGridFile
-                            <$> optParseInSpatGridFile
-                            )) (OP.progDesc "Serialise --spatGridFile."))
-                     <> OP.command "anygrid" (OP.info (OP.helper <*> (
-                            SerialiseSpatGridFile
-                            <$> optParseInArbitraryDimFile
-                            )) (OP.progDesc "Serialise --anyGridFile."))
-                     <> OP.command "obsdist" (OP.info (OP.helper <*> (
-                            SerialiseObsObsSpatDistFile
-                            <$> optParseInSpatDistMapFile
-                            <*> optParseInObservationFile
-                            <*> optParseInSpatDistNoOrderCheck
-                            )) (OP.progDesc "Serialise --spatDistFile for the observation-observation distance case in cross."))
-                     <> OP.command "spatdist" (OP.info (OP.helper <*> (
-                            SerialiseSpatDistFile
-                            <$> optParseInSpatDistMapFile
-                            <*> optParseInObservationFile
-                            <*> optParseInSpatGridFile
-                            <*> optParseInSpatDistNoOrderCheck
-                            )) (OP.progDesc "Serialise --spatDistFile for the observation-spatial grid case in search."))
+                     <> OP.command "grid" (OP.info (OP.helper <*> (
+                            SerialiseGridFile
+                            <$> optParseInIndepVarGridFile
+                            )) (OP.progDesc "Serialise --gridFile."))
                      <> OP.command "tempsamp" (OP.info (OP.helper <*> (
                             SerialiseObsTempSamplesFile
                             <$> optParseInObservationFile
                             <*> optParseInObsTempSamplesFile
-                            <*> optParseInSpatDistNoOrderCheck
                             )) (OP.progDesc "Serialise --tempSampFile."))
+                     <> OP.command "selfdist" (OP.info (OP.helper <*> (
+                            SerialiseSelfDistMatrixPerIndepVar
+                            <$> (VecFileObs <$> optParseInObservationFile OP.<|> VecFileGrid <$> optParseInIndepVarGridFile)
+                            <*> optParseDistFile
+                            )) (OP.progDesc "Serialise self distance matrix.")) -- TODO: make less hacky
+                     <> OP.command "crossdist" (OP.info (OP.helper <*> (
+                            SerialiseCrossDistMatrixPerIndepVar
+                            <$> optParseInObservationFile
+                            <*> optParseInIndepVarGridFile
+                            <*> optParseDistFile
+                            )) (OP.progDesc "Serialise cross distance matrix.")) -- TODO: make less hacky
                      ) <*> optParseOutFileCbor
 
 searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions
                         <$> optParseInObservationFile
-                        <*> optParseSearchGridSettings
+                        <*> OP.optional optParseInObsTempSamplesFile
+                        <*> optParseInIndepVarGridFile
+                        <*> OP.optional optParseTempGridString
+                        <*> OP.optional optParseSearchPositions
                         <*> optParseKernDefString
-                        <*> optParseNormalisation
+                        <*> OP.optional optParseInObsGridDistFile
+                        <*> OP.optional optParseInObsObsDistFile
+                        <*> OP.optional optParseInGridGridDistFile
+                        <*> optParseTopNObs
                         <*> optParseOutFile
-                        <*> optParseCoreOutMode
 
 varioOptParser :: OP.Parser VarioOptions
 varioOptParser = VarioOptions
                         <$> optParseInObservationFile
-                        <*> OP.optional optParseSpatDistSetting
+                        <*> OP.optional optParseInObsObsDistFile
                         <*> optParseAcrossSettings
                         <*> optParseSpaceTimeScaling
                         <*> optParseIndepVarsThresholds
@@ -124,15 +122,84 @@ varioOptParser = VarioOptions
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions
                         <$> optParseInObservationFile
-                        <*> optParseSupplementSettings
-                        <*> optParseCrossSettings
+                        <*> optParseKernDefStringPermutations
+                        <*> optParseTestTrainingFraction
+                        <*> optParseCrossvalIterations
+                        <*> optParseCrossvalConfSeed
+                        <*> OP.optional optParseInObsObsDistFile
                         <*> optParseOutFile
-                        <*> optParseCrossOutMode
 
-optParseSpatDistSetting :: OP.Parser SpatDistSettings
-optParseSpatDistSetting = SpatDistSettings
-                        <$> optParseInSpatDistMapFile
-                        <*> optParseInSpatDistNoOrderCheck
+
+optParseInObsGridDistFile :: OP.Parser FilePath
+optParseInObsGridDistFile = OP.strOption (
+       OP.long    "obsGridDistFile"
+    <> OP.metavar "FILE"
+    <> OP.helpDoc ( Just (
+                      s2d "Path to a .tsv/.cbor file with distances between pairs of observations and \
+                          \prediction grid positions along arbitrary independent variables. \
+                          \With this the given distances will not be calculated from the respective \
+                          \coordinates, but looked up in this table. \
+                          \The pairs must be ordered first by gridID (as in --gridFile) and then within \
+                          \that by obsID (as in --obsFile). \
+                          \The ID columns can be omitted - they are not read or validated."
+    <> OH.hardline <>     "┌─────┬──────┬─────┬────┬───────┬───────┐"
+    <> OH.hardline <>     "│obsID│gridID│space│time│indepV1│indepV2│ > [obsID] (optional):"
+    <> OH.hardline <>     "├─────┼──────┼─────┼────┼───────┼───────┤   Observations identifier"
+    <> OH.hardline <>     "│   a │    x │     │    │       │       │ > [gridID] (optional):"
+    <> OH.hardline <>     "│   b │    x │     │    │       │       │   Grid position identifier"
+    <> OH.hardline <>     "│   a │    y │     │    │       │       │ > [space]/[time]/[indepV*]:"
+    <> OH.hardline <>     "│   b │    y │     │    │       │       │   Distances"
+    <> OH.hardline <>     "└─────┴──────┴─────┴────┴───────┴───────┘"
+    ))
+    )
+
+optParseInObsObsDistFile :: OP.Parser FilePath
+optParseInObsObsDistFile = OP.strOption (
+       OP.long    "obsObsDistFile"
+    <> OP.metavar "FILE"
+    <> OP.helpDoc ( Just (
+                      s2d "Path to a .tsv/.cbor file with distances between pairs of observations \
+                          \along arbitrary independent variables. \
+                          \With this the given distances will not be calculated from the respective \
+                          \coordinates, but looked up in this table. \
+                          \The pairs must be ordered first by id1 (as in --obsFile) and then within \
+                          \that by id2 (also as in --obsFile). Every pair must only be given once, \
+                          \as the distances are symmetric. \
+                          \The ID columns can be omitted - they are not read or validated."
+    <> OH.hardline <>     "┌───┬───┬─────┬────┬───────┬───────┐"
+    <> OH.hardline <>     "│id1│id2│space│time│indepV1│indepV2│ > [id1] (optional):"
+    <> OH.hardline <>     "├───┼───┼─────┼────┼───────┼───────┤   Observations identifier"
+    <> OH.hardline <>     "│ a │ a │     │    │       │       │ > [id2] (optional):"
+    <> OH.hardline <>     "│ b │ a │     │    │       │       │   Observations identifier"
+    <> OH.hardline <>     "│ b │ b │     │    │       │       │ > [space]/[time]/[indepV*]:"
+    <> OH.hardline <>     "│ c │ a │     │    │       │       │   Distances"
+    <> OH.hardline <>     "└───┴───┴─────┴────┴───────┴───────┘"
+    ))
+    )
+
+optParseInGridGridDistFile :: OP.Parser FilePath
+optParseInGridGridDistFile = OP.strOption (
+       OP.long    "gridGridDistFile"
+    <> OP.metavar "FILE"
+    <> OP.helpDoc ( Just (
+                      s2d "Path to a .tsv/.cbor file with distances between pairs of prediction grid \
+                          \positions along arbitrary independent variables. \
+                          \With this the given distances will not be calculated from the respective \
+                          \coordinates, but looked up in this table. \
+                          \The pairs must be ordered first by id1 (as in --gridFile) and then within \
+                          \that by id2 (also as in --gridFile). Every pair must only be given once, \
+                          \as the distances are symmetric. \
+                          \The ID columns can be omitted - they are not read or validated."
+    <> OH.hardline <>     "┌───┬───┬─────┬────┬───────┬───────┐"
+    <> OH.hardline <>     "│id1│id2│space│time│indepV1│indepV2│ > [id1] (optional):"
+    <> OH.hardline <>     "├───┼───┼─────┼────┼───────┼───────┤   Grid position identifier"
+    <> OH.hardline <>     "│ a │ a │     │    │       │       │ > [id2] (optional):"
+    <> OH.hardline <>     "│ b │ a │     │    │       │       │   Grid position identifier"
+    <> OH.hardline <>     "│ b │ b │     │    │       │       │ > [space]/[time]/[indepV*]:"
+    <> OH.hardline <>     "│ c │ a │     │    │       │       │   Distances"
+    <> OH.hardline <>     "└───┴───┴─────┴────┴───────┴───────┘"
+    ))
+    )
 
 optParseIndepVarsThresholds :: OP.Parser IndepVarsThresholds
 optParseIndepVarsThresholds = OP.option (OP.eitherReader readIndepVarsThresholds) (
@@ -213,148 +280,6 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
-optParseCrossSettings :: OP.Parser CrossSettings
-optParseCrossSettings =
-    CrossSettings
-    <$> optParseKernDefStringPermutations
-    <*> optParseCoAnalyseDepVars
-    <*> optParseCrossSubsetMode
-
-optParseCrossSubsetMode :: OP.Parser CrossSubsetMode
-optParseCrossSubsetMode = optParseCrossFull OP.<|> optParseCrossFraction
-
-optParseCrossFull :: OP.Parser CrossSubsetMode
-optParseCrossFull = OP.flag' CrossFull (
-       OP.long "full"
-    <> OP.helpDoc ( Just (
-                      s2d "Use all input observations both as test and training data. \
-                          \This is faster than running through multiple test-training split iterations, \
-                          \but potentially also less reliable."
-    )))
-
-optParseCrossFraction :: OP.Parser CrossSubsetMode
-optParseCrossFraction = CrossFraction
-                    <$> optParseTestTrainingFraction
-                    <*> optParseCrossvalIterations
-                    <*> optParseCrossvalConfSeed
-
-optParseCrossOutMode :: OP.Parser CrossOutModeSettings
-optParseCrossOutMode = OP.option (OP.eitherReader readOutMode) (
-    OP.long "outMode" <>
-    OP.metavar "Summed|Obs" <>
-    OP.value SummedLikelihoodPerKernelSetting
-    <> OP.helpDoc ( Just (
-                      s2d "The type of output that should be written to the --outFile. \
-                          \Summed (default): The individual crossvalidation iterations are \
-                          \summarised to a short table with only the tested kernel parameter \
-                          \settings and the summed crossvalidation output."
-    <> OH.hardline <>     "┌──────┬─────┬──────────────┐"
-    <> OH.hardline <>     "│kernel│depV1│shape         │ Kernel shape and"
-    <> OH.hardline <>     "│      │depV2│              │ for each dependent"
-    <> OH.hardline <>     "│      │...  ├───────┬──────┤ variable;"
-    <> OH.hardline <>     "│      │     │space  │length│ length scale"
-    <> OH.hardline <>     "│      │     │time OR│      │ parameters for"
-    <> OH.hardline <>     "│      │     │indepV1│      │ each dependent and"
-    <> OH.hardline <>     "│      │     │indepV2│      │ independent one."
-    <> OH.hardline <>     "│      │     │...    │      │ from --kerndef"
-    <> OH.hardline <>     "└──────┴─────┴───────┴──────┘"
-    <> OH.hardline <>     "Crossvalidation results"
-    <> OH.hardline <>     "┌───────────────────────────────┐"
-    <> OH.hardline <>     "│sum_dep_dist_euclidean         │ Distance to and"
-    <> OH.hardline <>     "│mean_squared_dep_dist_euclidean│ likelihood of test"
-    <> OH.hardline <>     "│sum_log_likelihood             │"
-    <> OH.hardline <>     "└───────────────────────────────┘"
-    <> OH.hardline <> s2d "Obs: The output is as --outMode Full for the search subcommand, but the \
-                          \search observations (--searchObsFile) are set as the test fraction \
-                          \of the crossvalidation data split. Each iteration is returned separately."
-    ))
-    )
-    where
-        readOutMode :: String -> Either String CrossOutModeSettings
-        readOutMode s =
-            case P.runParser parseOutMode () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-        parseOutMode = P.try parseSummed P.<|> parseObs
-        parseSummed = P.string "Summed" >> return SummedLikelihoodPerKernelSetting
-        parseObs    = P.string "Obs"    >> return IndividualSearchObsResults
-
-optParseCoreOutMode :: OP.Parser CoreOutMode
-optParseCoreOutMode = OP.option (OP.eitherReader readOutMode) (
-    OP.long "outMode" <>
-    OP.metavar "Normal|Obs(n)|Samples(n,seed)" <>
-    OP.value CoreOutInterpolAndSearch
-    <> OP.helpDoc ( Just (
-                      s2d "The type of output that should be written to the --outFile. \
-                          \Normal (default): Return mean interpolation and search results."
-    <> OH.hardline <>     "┌────────────────┬──────────┐"
-    <> OH.hardline <>     "│spatID          │   indepV1│ Prediction position"
-    <> OH.hardline <>     "│x or longitude  OR  indepV2│"
-    <> OH.hardline <>     "│y or latitude   │   ...    │"
-    <> OH.hardline <>     "│yearBCAD        │          │"
-    <> OH.hardline <>     "├──────┬─────────┴──────────┤"
-    <> OH.hardline <>     "│search│depV1               │ Search position *"
-    <> OH.hardline <>     "│      │depV2               │ with --searchDepVarsPos"
-    <> OH.hardline <>     "│      │... OR              │"
-    <> OH.hardline <>     "│      │input from obs      │ with --searchObsFile"
-    <> OH.hardline <>     "├──────├─────┬──────────────┤"
-    <> OH.hardline <>     "│kernel│depV1│shape         │ Kernel shape and"
-    <> OH.hardline <>     "│      │depV2│              │ for each dependent"
-    <> OH.hardline <>     "│      │...  ├───────┬──────┤ variable;"
-    <> OH.hardline <>     "│      │     │space  │length│ length scale"
-    <> OH.hardline <>     "│      │     │time OR│      │ parameters for"
-    <> OH.hardline <>     "│      │     │indepV1│      │ each dependent and"
-    <> OH.hardline <>     "│      │     │indepV2│      │ independent one."
-    <> OH.hardline <>     "│      │     │...    │      │ from --kerndef"
-    <> OH.hardline <>     "├──────┴─────┴───────┴──────┤"
-    <> OH.hardline <>     "│temp_sampling_iteration    │ Age sample iteration"
-    <> OH.hardline <>     "├────────┬─────┬────────────┤"
-    <> OH.hardline <>     "│interpol│depV1│neff,       │ Interpolation output"
-    <> OH.hardline <>     "│        │depV2│avg, var    │"
-    <> OH.hardline <>     "│        │...  │var_prior,  │"
-    <> OH.hardline <>     "│        │     │low +       │"
-    <> OH.hardline <>     "│        │     │median +    │"
-    <> OH.hardline <>     "│        │     │up +        │"
-    <> OH.hardline <>     "│        │     │logl *      │"
-    <> OH.hardline <>     "│        │     │prob *%     │"
-    <> OH.hardline <>     "├────────┴─────┴────────────┤"
-    <> OH.hardline <>     "│dep_dist_euclidean         │ Summary search"
-    <> OH.hardline <>     "│log_likelihood             │ results across"
-    <> OH.hardline <>     "│probability %              │ all variables *"
-    <> OH.hardline <>     "└───────────────────────────┘"
-    <> OH.hardline <>     " * for the search case"
-    <> OH.hardline <>     " + with --outMode Short only these are returned"
-    <> OH.hardline <>     " % when normalisation is active"
-    <> OH.hardline <> s2d "Samples(n,seed): Returns not the mean interpolation result but a random \
-                          \sample from the posterior predictive distribution."
-    <> OH.hardline <> s2d "Obs(n): Returns no interpolation results but a list of the n input \
-                          \observations with the highest weight for each prediction grid point \
-                          \(summed across dependent variables)."
-    ))
-    )
-    where
-        readOutMode :: String -> Either String CoreOutMode
-        readOutMode s =
-            case P.runParser parseOutMode () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-        parseOutMode = P.try parseNormal P.<|> parseObs P.<|> parseInterpolSample
-        parseNormal = P.string "Normal" >> return CoreOutInterpolAndSearch
-        parseObs   = do
-            parseRecordType "Obs" $ do
-                n <- parseArgument "n" parseInt
-                return $ CoreOutObsWeight n
-        parseInterpolSample = do
-            parseRecordType "Samples" $ do
-                n <- parseArgument "n" parseInt
-                s <- parseArgumentOptional "seed" parseInt
-                r <- parseArgumentOptional "range" parseSamplingRange
-                return $ CoreOutInterpolSamples n s r
-        parseSamplingRange = P.try parseOneSigma P.<|> P.try parseTwoSigma P.<|> parseFullDistribution
-        parseOneSigma = P.string "1sigma" >> return OneSigma
-        parseTwoSigma = P.string "2sigma" >> return TwoSigma
-        parseFullDistribution = P.string "Full" >> return FullDistribution
-
 optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
 optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (
        OP.long  "seed"
@@ -372,9 +297,13 @@ optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
     <> OP.metavar "DOUBLE"
     <> OP.value 0.2
     <> OP.helpDoc ( Just (
-                      s2d "Fraction of the observations that should be used as test data for the crossvalidation. \
-                          \1 - testFraction will be used as training data. The fraction must be between 0 and 1. \
-                          \Default: 0.2"
+                          s2d "Fraction of the observations that should be used as test data for the \
+                              \crossvalidation. 1 - testFraction will be used as training data. \
+                              \The fraction must be between 0 and 1. Default: 0.2"
+        <> OH.hardline <>     "When the fraction is so large that the number of test observations \
+                              \equals the total number of observations, then all observations are used \
+                              \for the training set. In this case the seed has no effect and all \
+                              \iterations yield the same result."
     ))
     )
     where
@@ -396,11 +325,16 @@ optParseCrossvalIterations = OP.option OP.auto (
     ))
     )
 
-optParseAcrossIndepVars :: OP.Parser Bool
-optParseAcrossIndepVars = OP.switch (
-       OP.long "acrossIndepVars"
+optParseTopNObs :: OP.Parser Int
+optParseTopNObs = OP.option OP.auto (
+       OP.long    "topobs"
+    <> OP.metavar "INT"
+    <> OP.value 0
     <> OP.helpDoc ( Just (
-                      s2d "Calculate the variogram for Euclidean distances across all independent variables."
+                      s2d "When this is >0, then a list of n observations with the highest weight \
+                          \is computed for each prediction grid point and dependent variable. \
+                          \It is documented in an output column [grid_top_obs_<dependent_variable>]. \
+                          \Default: 0"
     ))
     )
 
@@ -437,29 +371,6 @@ optParseSpaceTimeScaling = OP.option (OP.eitherReader readSpaceTime) (
     ))
     <> OP.value (1,1)
     )
-
-optParseNormalisation :: OP.Parser Normalisation
-optParseNormalisation = OP.option (OP.eitherReader readNormalisation) (
-    OP.long "normalisation" <>
-    OP.metavar "NoNorm|NormBySpace" <>
-    OP.value NoNorm
-    <> OP.helpDoc ( Just (
-                      s2d "Should the output likelihoods from the search algorithm should be normalised? \
-                          \Normalisation adds a column [probability] to the output table."
-    <> OH.hardline <> s2d "NoNorm (default): Apply no normalisation."
-    <> OH.hardline <> s2d "NormBySpace: Normalise across all spatial positions at one point in time \
-                          \so across one \"time slice\". Only relevant for spatiotemporal interpolation."
-    ))
-    )
-    where
-        readNormalisation :: String -> Either String Normalisation
-        readNormalisation s =
-            case P.runParser parseNormalisation () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
-        parseNormalisation = P.try parseNormBySpace P.<|> parseNoNorm
-        parseNormBySpace = P.string "NormBySpace" >> return NormBySpace
-        parseNoNorm      = P.string "NoNorm"      >> return NoNorm
 
 optParseQuiet :: OP.Parser Bool
 optParseQuiet = OP.switch (
@@ -524,164 +435,36 @@ optParseInObsTempSamplesFile = OP.strOption (
     ))
     )
 
-optParseSearchGridSettings :: OP.Parser SearchGridSettings
-optParseSearchGridSettings =
-    SearchGridSettings
-        <$> optParseIndepVarsPredGridSettings
-        <*> OP.optional optParseSearchPositions
+optParseDistFile :: OP.Parser FilePath
+optParseDistFile = OP.strOption (
+    OP.long "distFile" <>
+    OP.metavar "FILE" <>
+    OP.help "TODO")
 
 optParseSearchPositions :: OP.Parser DepVarsPredGridSettings
 optParseSearchPositions =
            DirectDepVarsGridSettings <$> optParseSearchDepVarsPos
     OP.<|> SearchObsDepVarsGridSettings <$> optParseInSearchObservationFile
 
-optParseIndepVarsPredGridSettings :: OP.Parser IndepVarsPredGridSettings
-optParseIndepVarsPredGridSettings =
-    (SpaceTimeGridSettings
-        <$> optParseInSpatGridFile
-        <*> optParseTempGridString
-        <*> optParseSupplementSettings
-    ) OP.<|>
-    (ArbitraryDimGridSettings
-        <$> optParseInArbitraryDimFile
-        <*> optParseSupplementSettings
-    )
-
-optParseSupplementSettings :: OP.Parser SupplementSettings
-optParseSupplementSettings =
-    SupplementSettings
-        <$> optParseDistanceThresholds
-        <*> OP.optional optParseInSpatDistMapFile
-        <*> OP.optional optParseInObsTempSamplesFile
-        <*> optParseInSpatDistNoOrderCheck
-
-optParseDistanceThresholds :: OP.Parser (Maybe DistanceThresholds)
-optParseDistanceThresholds = do
-    OP.liftA2 buildThresholds optParseIndepMinFilter optParseIndepMaxFilter
-    where
-        buildThresholds ::
-               Maybe (Either (Double, Double) ArbitraryDimThresholds)
-            -> Maybe (Either (Double, Double) ArbitraryDimThresholds)
-            -> Maybe DistanceThresholds
-        buildThresholds Nothing Nothing = Nothing
-        buildThresholds (Just minF) Nothing =
-            case minF of
-                Left x  -> Just $ SpaceTimeFilterThresholds (Just x) Nothing
-                Right x -> Just $ ArbitraryDimFilterThresholds (Just x) Nothing
-        buildThresholds Nothing (Just maxF) =
-            case maxF of
-                Left x  -> Just $ SpaceTimeFilterThresholds Nothing (Just x)
-                Right x -> Just $ ArbitraryDimFilterThresholds Nothing (Just x)
-        buildThresholds (Just minF) (Just maxF) =
-            case (minF, maxF) of
-                (Left _, Right _) -> throwL "--indepMinFilter and --indepMaxFilter must agree"
-                (Right _, Left _) -> throwL "--indepMinFilter and --indepMaxFilter must agree"
-                (Left miF, Left maF)   -> Just $ SpaceTimeFilterThresholds (Just miF) (Just maF)
-                (Right miF, Right maF) -> Just $ ArbitraryDimFilterThresholds (Just miF) (Just maF)
-
-optParseIndepMinFilter :: OP.Parser (Maybe (Either (Double, Double) ArbitraryDimThresholds))
-optParseIndepMinFilter = OP.optional $ OP.option (OP.eitherReader readFilterThresholds) (
-       OP.long    "indepMinFilter"
-    <> OP.metavar "c(space=DOUBLE,time=DOUBLE)|c(indepV1=DOUBLE,...)"
-    <> OP.helpDoc ( Just (
-                      s2d "Radius filter. Only consider observations above \
-                          \a certain minimum distance for the interpolation at the prediction \
-                          \grid points."
-    ))
-    )
-
-optParseIndepMaxFilter :: OP.Parser (Maybe (Either (Double, Double) ArbitraryDimThresholds))
-optParseIndepMaxFilter = OP.optional $ OP.option (OP.eitherReader readFilterThresholds) (
-       OP.long    "indepMaxFilter"
-    <> OP.metavar "c(space=DOUBLE,time=DOUBLE)|c(indepV1=DOUBLE,...)"
-    <> OP.helpDoc ( Just (
-                      s2d "Radius filter. Only consider observations below \
-                          \a certain maximum distance."
-    ))
-    )
-
-readFilterThresholds :: String -> Either String (Either (Double, Double) ArbitraryDimThresholds)
-readFilterThresholds s =
-    case P.runParser parseIndepVarsThresholds () "" s of
-        Left err -> Left $ showParsecErr err
-        Right x  -> x
-    where
-        parseIndepVarsThresholds = do
-            res <- parseNamedVector parseIndepVarName parsePositiveDouble
-            return (makeSpatTempOrAbritraryDim res)
-        makeSpatTempOrAbritraryDim :: [(String, Double)] -> Either String (Either (Double, Double) ArbitraryDimThresholds)
-        makeSpatTempOrAbritraryDim xs
-            | sort (map fst xs) == ["space", "time"] = Right $ Left $ tuplify xs
-            | all (isPrefixOf "indep" . fst) xs      = Right $ Right $ makeValuesPerIndepVar xs
-            | otherwise                              = Left "--indepMinFilter and --indepMaxFilter can fit \
-                                                              \either to a spatiotemporal or a arbitrary variable setup"
-        tuplify :: [(String,Double)] -> (Double,Double)
-        tuplify [("space",spatialThreshold), ("time",temporalThreshold)] = (spatialThreshold,temporalThreshold)
-        tuplify [("time",temporalThreshold), ("space",spatialThreshold)] = (spatialThreshold,temporalThreshold)
-        tuplify _                                                        = throwL "this can not happen"
-
-optParseInSpatDistMapFile :: OP.Parser FilePath
-optParseInSpatDistMapFile = OP.strOption (
-       OP.long    "spatDistFile"
-    <> OP.metavar "FILE"
-    <> OP.helpDoc ( Just (
-                      s2d "Path to a .tsv/.cbor file with spatial distances between pairs of observations and spatial \
-                          \prediction grid points. If this is given, then the spatial distances will \
-                          \not be calculated from the respective coordinates, but looked up in this \
-                          \table. The pairs must be ordered first like and by --obsFile and then like \
-                          \and by --spatGridFile."
-    <> OH.hardline <>     "┌─────┬──────┬────┐"
-    <> OH.hardline <>     "│obsID│spatID│dist│ > [obsID]:"
-    <> OH.hardline <>     "├─────┼──────┼────┤   Observations identifier"
-    <> OH.hardline <>     "│   a │    x │    │ > [spatID]:"
-    <> OH.hardline <>     "│   a │    y │    │   Spatial coordinate identifier"
-    <> OH.hardline <>     "│   b │    x │    │ > [dist]:"
-    <> OH.hardline <>     "│   b │    y │    │   Spatial distance"
-    <> OH.hardline <>     "└─────┴──────┴────┘"
-    ))
-    )
-
-optParseInSpatDistNoOrderCheck :: OP.Parser Bool
-optParseInSpatDistNoOrderCheck = OP.switch (
-    OP.long "noOrderCheck"
-    <> OP.helpDoc ( Just (
-                    s2d "The input files --spatDistFile and --tempSampFile undergo an order validation \
-                        \when read from .tsv (not from .cbor!). This validation is computationally \
-                        \expensive for large files and can be turned off with this flag to speed up the reading. \
-                        \This should only be set if the order is certainly correct, e.g. if it was \
-                        \validated previously."
-    ))
-    )
-
-optParseInArbitraryDimFile :: OP.Parser FilePath
-optParseInArbitraryDimFile = OP.strOption (
-       OP.long    "anyGridFile"
-    <> OP.metavar "FILE"
-    <> OP.helpDoc ( Just (
-                      s2d "Path to a .tsv/.cbor file with arbitrary dimension coordinates where interpolation \
-                          \should be performed."
-    <> OH.hardline <>     "┌───────┬───────┬────────┐"
-    <> OH.hardline <>     "│indepV1│indepV2│indep...│ > [indepV1, ...]:"
-    <> OH.hardline <>     "├───────┼───────┼────────┤   Independent variable"
-    <> OH.hardline <>     "│       │       │        │   position"
-    <> OH.hardline <>     "└───────┴───────┴────────┘"
-    ))
-    )
-
-optParseInSpatGridFile :: OP.Parser FilePath
-optParseInSpatGridFile = OP.strOption (
-       OP.long    "spatGridFile"
+optParseInIndepVarGridFile :: OP.Parser FilePath
+optParseInIndepVarGridFile = OP.strOption (
+       OP.long    "gridFile"
     <> OP.short   'g'
     <> OP.metavar "FILE"
     <> OP.helpDoc ( Just (
-                      s2d "Path to a .tsv/.cbor file with spatial coordinates where interpolation \
-                          \and search should be performed."
-    <> OH.hardline <>     "┌──────┬───┬───┐"
-    <> OH.hardline <>     "│spatID│ x │ y │ > [spatID]:"
-    <> OH.hardline <>     "├──────┼───┼───┤   Spatial coordinate identifier"
-    <> OH.hardline <>     "│      │   │   │ > [x, y] or [longitude, latitude]"
-    <> OH.hardline <>     "│      │   │   │   Spatial coordinates"
-    <> OH.hardline <>     "└──────┴───┴───┘"
+                      s2d "Path to a .tsv/.cbor file with independent variable positions \
+                          \(e.g. spatial coordinates) where interpolation and search should be performed."
+    <> OH.hardline <>     "┌───┬───┐"
+    <> OH.hardline <>     "│ x │ y │ > [x, y] or [longitude, latitude]"
+    <> OH.hardline <>     "├───┼───┤   Spatial coordinates"
+    <> OH.hardline <>     "│   │   │"
+    <> OH.hardline <>     "└───┴───┘"
+    <> OH.hardline <>     "OR"
+    <> OH.hardline <>     "┌───────┬───────┬────────┐"
+    <> OH.hardline <>     "│indepV1│indepV2│indep...│ > [indepV1, ...]:"
+    <> OH.hardline <>     "├───────┼───────┼────────┤   Independent variable"
+    <> OH.hardline <>     "│       │       │        │   positions"
+    <> OH.hardline <>     "└───────┴───────┴────────┘"
     ))
     )
 
@@ -793,30 +576,36 @@ optParseOutFile = OP.option (Just <$> OP.str) (
     <> OP.value Nothing
     <> OP.helpDoc ( Just (
                       s2d "Path to an output .tsv file. If not provided, then the output will be written \
-                          \to stdout. See --outMode to set the desired type of output."
+                          \to stdout."
     ))
     )
 
 optParseKernDefString :: OP.Parser KernelDefinition
 optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
-       OP.long    "kerndef"
-    <> OP.short   'k'
+       OP.long    "algodef"
+    <> OP.short   'a'
     <> OP.metavar "DSL"
     <> OP.helpDoc ( Just (
-                      s2d "Kernel parameter settings for the interpolation."
-    <> OH.hardline <>     "┌──────────────────┐"
-    <> OH.hardline <>     "│c(                │ named list of dependent variables"
-    <> OH.hardline <>     "│  depV1 = k(      │ - first dependent variable"
-    <> OH.hardline <>     "│    shape = SqEx, │   - either SqEx = Squared exponential"
-    <> OH.hardline <>     "│                  │         or Linear = Linear kernel"
-    <> OH.hardline <>     "│    lengths = c(  │   - named list with length scale"
-    <> OH.hardline <>     "│      space = ... │     for each independent variable"
-    <> OH.hardline <>     "│      time = ...  │     (can also be \"indep...\")"
-    <> OH.hardline <>     "│    )             │"
-    <> OH.hardline <>     "│  ),              │"
-    <> OH.hardline <>     "│  depV2 = k(...)  │ - second dependent variable"
-    <> OH.hardline <>     "│)                 │"
-    <> OH.hardline <>     "└──────────────────┘"
+                      s2d "Algorithm parameter settings for the interpolation."
+    <> OH.hardline <>     "┌────────────────────┐"
+    <> OH.hardline <>     "│def(                │"
+    <> OH.hardline <>     "│  algorithm = GPR,  │ interpolation algorithm"
+    <> OH.hardline <>     "│                    │ - either GPR or KAS"
+    <> OH.hardline <>     "│  depVars = c(      │ named list of dependent variables"
+    <> OH.hardline <>     "│    depV1 = k(      │ - first dependent variable"
+    <> OH.hardline <>     "│      shape = SqEx, │   - either SqEx = Squared exponential"
+    <> OH.hardline <>     "│                    │         or Linear = Linear kernel"
+    <> OH.hardline <>     "│      lengths = c(  │   - named list with length scale"
+    <> OH.hardline <>     "│        space = ... │     for each independent variable"
+    <> OH.hardline <>     "│        time = ...  │     (can also be \"indep...\")"
+    <> OH.hardline <>     "│      ),            │"
+    <> OH.hardline <>     "│      nugget = ...  │   - (optional) nugget parameter"
+    <> OH.hardline <>     "│                    │     only relevant for GPR"
+    <> OH.hardline <>     "│    ),              │"
+    <> OH.hardline <>     "│    depV2 = k(...)  │ - second dependent variable"
+    <> OH.hardline <>     "│  )                 │"
+    <> OH.hardline <>     "│)                   │"
+    <> OH.hardline <>     "└────────────────────┘"
     <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified, but \
                           \all variables must also exist in --obsFile and --spatGridFile/--anyGridFile."
     ))
@@ -829,48 +618,53 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
                 Right x  -> Right x
         parseAKernDefString :: P.Parser KernelDefinition
         parseAKernDefString = do
-                    nested <- parseNamedVector parseDepVarName parseShapeLengths
-                    return $ makeKernelDefinition $ map (\(name,(s,l)) -> KernelOneDepVar name s l) nested
+                    kerndef <- parseRecordType "def" $ do
+                        algo <- parseArgument "algorithm" parseAlgorithm
+                        kernelSets <- parseArgument "depVars" (parseNamedVector parseDepVarName parseShapeLengths)
+                        return (algo, kernelSets)
+                    return $ makeKernelDefinition (fst kerndef) $
+                        map (\(name,(s,l,n)) -> KernelOneDepVar name s l n) (snd kerndef)
         parseShapeLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
                 l <- parseArgument "lengths" parseKernelLengths
-                return (s,l)
+                n <- parseArgumentOptional "nugget" parseNugget
+                return (s,l,n)
+        parseAlgorithm = do
+            algo <- parseAnyString
+            makeAlgorithm algo
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
         parseKernelLengths = KernelLengths . makeValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
+        parseNugget = parsePositiveFloatNumber
 
-optParseCoAnalyseDepVars :: OP.Parser Bool
-optParseCoAnalyseDepVars = OP.switch (
-       OP.long "coAnalyseDepVars"
-    <> OP.helpDoc ( Just (
-                      s2d "Run the crossvalidation for all permutations of kernel parameters \
-                          \of all dependent variables. This is computationally very expensive. \
-                          \By default each dependent variable is analysed independently."
-    ))
-    )
-
-optParseKernDefStringPermutations :: OP.Parser [[KernelOneDepVar]]
+optParseKernDefStringPermutations :: OP.Parser [KernelDefinition]
 optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString) (
-       OP.long    "kerndef"
-    <> OP.short   'k'
+       OP.long    "algodef"
+    <> OP.short   'a'
     <> OP.metavar "DSL"
     <> OP.helpDoc ( Just (
-                      s2d "Kernel parameter settings that should be tested with the crossvalidation."
-    <> OH.hardline <>     "┌──────────────────┐"
-    <> OH.hardline <>     "│c(                │ named list of dependent variables"
-    <> OH.hardline <>     "│  depV1 = k(      │ - first dependent variable"
-    <> OH.hardline <>     "│    shape = SqEx, │   - either SqEx = Squared exponential"
-    <> OH.hardline <>     "│                  │         or Linear = Linear kernel"
-    <> OH.hardline <>     "│    lengths = c(  │   - named list with length scale"
-    <> OH.hardline <>     "│      space = ... │     for each independent variable *"
-    <> OH.hardline <>     "│      time = ...  │     (can also be \"indep...\")"
-    <> OH.hardline <>     "│    )             │"
-    <> OH.hardline <>     "│  ),              │"
-    <> OH.hardline <>     "│  depV2 = k(...)  │ - second dependent variable"
-    <> OH.hardline <>     "│)                 │"
-    <> OH.hardline <>     "└──────────────────┘"
+                      s2d "Algorithm parameter settings for the interpolation."
+    <> OH.hardline <>     "┌────────────────────┐"
+    <> OH.hardline <>     "│def(                │"
+    <> OH.hardline <>     "│  algorithm = GPR,  │ interpolation algorithm"
+    <> OH.hardline <>     "│                    │ - either GPR or KAS"
+    <> OH.hardline <>     "│  depVars = c(      │ named list of dependent variables"
+    <> OH.hardline <>     "│    depV1 = k(      │ - first dependent variable"
+    <> OH.hardline <>     "│      shape = SqEx, │   - either SqEx = Squared exponential"
+    <> OH.hardline <>     "│                    │         or Linear = Linear kernel"
+    <> OH.hardline <>     "│      lengths = c(  │   - named list with length scale"
+    <> OH.hardline <>     "│        space = ... │     for each independent variable *"
+    <> OH.hardline <>     "│        time = ...  │     (can also be \"indep...\")"
+    <> OH.hardline <>     "│      ),            │"
+    <> OH.hardline <>     "│      nugget = ...  │   - (optional) nugget parameter"
+    <> OH.hardline <>     "│                    │     only relevant for GPR"
+    <> OH.hardline <>     "│    ),              │"
+    <> OH.hardline <>     "│    depV2 = k(...)  │ - second dependent variable"
+    <> OH.hardline <>     "│  )                 │"
+    <> OH.hardline <>     "│)                   │"
+    <> OH.hardline <>     "└────────────────────┘"
     <> OH.hardline <> s2d "Any number of dependent and independent variables can be specified, but \
                           \all variables must also exist in --obsFile and --spatGridFile/--anyGridFile."
     <> OH.hardline <> s2d "* Unlike for the search subcommand, here multiple values can be given for the \
@@ -881,20 +675,49 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
     ))
     )
     where
-        readKernDefString :: String -> Either String [[KernelOneDepVar]]
+        readKernDefString :: String -> Either String [KernelDefinition]
         readKernDefString s =
             case P.runParser parseAKernDefString () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
-        parseAKernDefString :: P.Parser [[KernelOneDepVar]]
+        parseAKernDefString :: P.Parser [KernelDefinition]
         parseAKernDefString = do
-                    perDepVar <- parseNamedVector parseDepVarName parseShapeLengths
-                    return $ map (\(name,(s,ls)) -> map (KernelOneDepVar name s) ls) perDepVar
+            kerndefs <- parseRecordType "def" $ do
+                algo <- parseArgument "algorithm" parseAlgorithm
+                kernelSets <- parseArgument "depVars" (parseNamedVector parseDepVarName parseShapeLengths)
+                return (algo, kernelSets)
+            -- all depVar permutations
+            -- let (algo, depVars) = kerndefs
+            --     expandedPerDepVar :: [[KernelOneDepVar]]
+            --     expandedPerDepVar =
+            --         [ [ KernelOneDepVar name shape lengths nugget
+            --           | lengths <- lengthsList
+            --           ]
+            --         | (name, (shape, lengthsList, nugget)) <- depVars
+            --         ]
+            --     allCombinations :: [[KernelOneDepVar]]
+            --     allCombinations = sequence expandedPerDepVar
+            -- return $ map (makeKernelDefinition algo) allCombinations
+            -- one KernelDefinition per depvar, sweeping only its permutations
+            let (algo, depVars) = kerndefs
+                allVariants :: [[KernelOneDepVar]]
+                allVariants =
+                  concat
+                    [ [ [KernelOneDepVar name shape lengths nugget]
+                      | lengths <- lengthsList
+                      ]
+                    | (name, (shape, lengthsList, nugget)) <- depVars
+                    ]
+            return $ map (makeKernelDefinition algo) allVariants
         parseShapeLengths = do
             parseRecordType "k" $ do
                 s <- parseArgument "shape" parseKernelShapes
                 ls <- parseArgument "lengths" parseKernelLengths
-                return (s,ls)
+                n <- parseArgumentOptional "nugget" parseNugget
+                return (s,ls,n)
+        parseAlgorithm = do
+            algo <- parseAnyString
+            makeAlgorithm algo
         parseKernelShapes = do
             shape <- parseAnyString
             makeKernelShape shape
@@ -904,6 +727,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
             let flattened = map (\(name,vs) -> map (name,) vs) res
                 permutations = sequenceA flattened
             return $ map (KernelLengths . makeValuesPerIndepVar) permutations
+        parseNugget = parsePositiveFloatNumber
         parseSequence = parseDoubleSequence
         parseList = parseVector parseDouble
         parseSingle = singleton <$> parseDouble

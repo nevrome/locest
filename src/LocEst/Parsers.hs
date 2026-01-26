@@ -1,30 +1,37 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE Strict           #-}
+{-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Strict            #-}
 
 module LocEst.Parsers where
 
-import           LocEst.CLI.Utils
-import           LocEst.Exceptions
 import           LocEst.Types
+import           LocEst.TypesFlat
+import           LocEst.Utils
 
-import qualified Codec.Serialise           as S
-import           Conduit                   (MonadIO, MonadResource, liftIO)
-import           Control.Monad             (when)
+import qualified Codec.Serialise                as S
+import           Conduit                        (MonadIO, MonadResource, liftIO)
+import           Control.Monad                  (forM_, when)
 import           Control.Monad.Error.Class
-import qualified Data.ByteString.Builder   as BB
-import qualified Data.ByteString.Char8     as Bchs
-import           Data.Char                 (ord)
-import           Data.Conduit              (ConduitT, Void, (.|))
-import qualified Data.Conduit              as Con
-import qualified Data.Conduit.Combinators  as ConC
-import qualified Data.Csv                  as Csv
-import qualified Data.Csv.Builder          as CsvB
-import qualified Data.Csv.Conduit          as ConCsv
-import           Data.IORef                (modifyIORef, newIORef, readIORef)
-import qualified Data.Vector               as V
-import           System.FilePath           (takeExtension)
-import           System.IO                 (Handle, IOMode (..), hClose,
-                                            hPutStrLn, openFile, stderr, stdout)
+import qualified Data.ByteString.Builder        as BB
+import qualified Data.ByteString.Char8          as Bchs
+import qualified Data.ByteString.Lex.Fractional as LexFrac
+import           Data.Char                      (ord)
+import           Data.Conduit                   (ConduitT, Void, (.|))
+import qualified Data.Conduit                   as Con
+import qualified Data.Conduit.Combinators       as ConC
+import qualified Data.Csv                       as Csv
+import qualified Data.Csv.Builder               as CsvB
+import qualified Data.Csv.Conduit               as ConCsv
+import           Data.IORef                     (modifyIORef, newIORef,
+                                                 readIORef)
+import qualified Data.Vector                    as V
+import qualified Data.Vector.Storable           as VS
+import qualified Data.Vector.Storable.Mutable   as VSM
+import           System.FilePath                (takeExtension)
+import           System.IO                      (Handle, IOMode (..), hClose,
+                                                 hPutStrLn, openFile, stderr,
+                                                 stdout)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -37,136 +44,175 @@ encodingOptions = Csv.defaultEncodeOptions {
         Csv.encDelimiter = fromIntegral (ord '\t')
     }
 
--- complex parsers
 
-readMaybeObsTempSamples :: Bool -> V.Vector Observation -> Maybe FilePath -> IO (Maybe TempSampleMatrix)
-readMaybeObsTempSamples _ _ Nothing = pure Nothing
-readMaybeObsTempSamples noOrderCheck obs (Just path)
-    | takeExtension path == ".cbor" = Just <$> readTempSamp (ReadTempSampDeserialise path)
-    | otherwise                     = Just <$> readTempSamp (ReadTempSampParse noOrderCheck obs path)
+-- matrix parsers
 
-data ReadTempSampSpec =
-      ReadTempSampDeserialise FilePath
-    | ReadTempSampParse Bool (V.Vector Observation) FilePath
+readSelfDistMulti :: Int -> FilePath -> IO SelfDistMatrixPerIndepVar
+readSelfDistMulti n path
+    | takeExtension path == ".cbor" = do
+        hPutStrLn stderr "Reading symmetric multidimensional distances"
+        hPutStrLn stderr $ "Deserialising " ++ path
+        res <- S.readFileDeserialise path
+        hPutStrLn stderr "Done"
+        return res
+    | otherwise = do
+        hPutStrLn stderr "Reading symmetric multidimensional distances"
+        let nHalf = n*(n+1) `div` 2 -- length of packed upper triangle
+        -- read entire file into memory
+        !raw <- Bchs.readFile path
+        let ls = Bchs.lines raw
+        when (null ls) $ throwL "empty file"
+        -- parse header: id1, id2, then indep vars
+        let headerBS    = head ls
+            allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerBS))
+            namesV      = V.filter (\nm -> nm /= "id1" && nm /= "id2") allNames
+            stride      = V.length namesV
+            indepIndices = V.findIndices (\nm -> nm /= "id1" && nm /= "id2") allNames
+        -- allocate packed half-matrix vectors for each indep var
+        matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nHalf)
+        -- data rows (assumed in packed upper triangle order)
+        let dataLines = tail ls
+        -- would be a neat test, but requires reading list into memory:
+        --     !lenRows = length dataLines
+        -- when (lenRows /= nHalf) $
+        --     throwL $ "row count mismatch: expected " ++ show nHalf ++ " got " ++ show lenRows
+        -- process each data row
+        let loop _ [] = pure ()
+            loop !rowIx (bs:rest) = do
+                let cols = Bchs.split '\t' bs
+                -- write each indep var value to packed vector at rowIx
+                forM_ [0..stride-1] $ \dimIx -> do
+                    let colIx = indepIndices V.! dimIx
+                        bsVal = cols !! colIx
+                        !val  = case LexFrac.readDecimal bsVal of
+                                  Just (d, _) -> d
+                                  Nothing     -> throwL $ "invalid double " ++ Bchs.unpack (cols !! colIx) ++ " at row" ++ show rowIx
+                    VSM.unsafeWrite (matsMV V.! dimIx) rowIx val
+                when (rowIx `mod` 1000000 == 0) $ hPutStrLn stderr $ show rowIx
+                loop (rowIx+1) rest
+        loop 0 dataLines
+        -- freeze
+        frozen <- V.forM (V.zip namesV matsMV) $ \(name, mv) -> do
+                     v <- VS.unsafeFreeze mv
+                     pure (name, SelfDistMatrix v)
+        hPutStrLn stderr "Done"
+        pure $ SelfDistMatrixPerIndepVar (V.toList frozen)
 
-readTempSamp :: ReadTempSampSpec -> IO TempSampleMatrix
-readTempSamp (ReadTempSampDeserialise path) = do
-    hPutStrLn stderr "Reading age samples"
-    hPutStrLn stderr $ "Deserialising " ++ path
-    hPutStrLn stderr "Warning: There is no input validation for serialised input"
-    res <- S.readFileDeserialise path
-    hPutStrLn stderr "Done"
-    return res
-readTempSamp (ReadTempSampParse noOrderCheck obs path) = do
-    hPutStrLn stderr "Reading age samples"
-    hPutStrLn stderr $ "Parsing " ++ path
-    let nObs = V.length obs
-    -- determine number of samples to expect
-    hPutStrLn stderr "Counting the number of age samples"
-    nSamples <- Con.runConduitRes $
-        sourceCSV path .|
-        ConC.mapM unwrapCSVParsingErrors .|
-        ConC.takeWhile (\(TempSample obsID _) -> obsID == _obsID (V.head obs)) .|
-        ConC.length
-    if nSamples > 0
-    then hPutStrLn stderr $ "Expected age samples per observation: " ++ show nSamples
-    else throwLIO $
-            "Order of entries in --tempSampFile not equal to -i. " ++
-            "Expected first value: " ++ _obsID (V.head obs)
-    -- start the actual parsing
-    sampleVec <- Con.runConduitRes $
-        sourceCSV path .|
-        ConC.mapM unwrapCSVParsingErrors .|
-        (
-            if noOrderCheck
-            then ConC.map (\(TempSample _ age) -> age)
-            else checkOrder nSamples
-        ) .|
-        ConC.sinkVectorN (nObs * nSamples)
-    hPutStrLn stderr "Done"
-    return $ TempSampleMatrix nSamples nObs sampleVec
-    where
-    checkOrder :: (MonadIO m) => Int -> ConduitT TempSample YearBCAD m ()
-    checkOrder nSamples = do
-        loop (concatMap (replicate nSamples . getID) obs)
-        where
-            loop (expected:rest) = do
-                val <- Con.await
-                case val of
-                    Just oneTempSamp -> do
-                        let (TempSample obsID age) = oneTempSamp
-                        if obsID == expected
-                        then do
-                            Con.yield age
-                            loop rest
-                        else do
-                            -- throw an exception if the order is not as expected
-                            liftIO $ throwLIO $
-                                "Order of entries in --tempSampFile not equal to -i. " ++
-                                "Expected: " ++ expected ++ " but got: " ++ obsID
-                    Nothing -> return ()
-            loop [] = return ()
+readCrossDistMulti :: Int -> Int -> FilePath -> IO CrossDistMatrixPerIndepVar
+readCrossDistMulti nObs nGrid path
+    | takeExtension path == ".cbor" = do
+        hPutStrLn stderr "Reading asymmetric multidimensional distances"
+        hPutStrLn stderr $ "Deserialising " ++ path
+        res <- S.readFileDeserialise path
+        hPutStrLn stderr "Done"
+        return res
+    | otherwise = do
+        hPutStrLn stderr "Reading asymmetric multidimensional distances"
+        let nTotal = nObs * nGrid
+        -- read entire file into memory
+        !raw <- Bchs.readFile path
+        let ls = Bchs.lines raw
+        when (null ls) $ error "Empty TSV file"
+        -- parse header (tab-separated dimension names)
+        let headerBS    = head ls
+            allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerBS))
+            namesV      = V.filter (\nm -> nm /= "obsID" && nm /= "gridID") allNames
+            stride      = V.length namesV
+            indepIndices = V.findIndices (\nm -> nm /= "obsID" && nm /= "gridID") allNames
+        -- allocate one mutable vector per dimension
+        matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nTotal)
+        -- data rows
+        let dataLines = tail ls
+        -- would be a neat test, but requires reading list into memory:
+        --     !nRows = length dataLines
+        -- when (nRows /= nTotal) $
+        --     throwL $ "row count mismatch: expected " ++ show nTotal ++ " got " ++ show nRows
+        -- process each data row
+        let loop _ [] = pure ()
+            loop !rowIx (bs:rest) = do
+                let cols = Bchs.split '\t' bs
+                -- write each indep var value to packed vector at rowIx
+                forM_ [0..stride-1] $ \dimIx -> do
+                    let colIx = indepIndices V.! dimIx
+                        !val  =  case LexFrac.readDecimal (cols !! colIx) of
+                             Just (d, _) -> d
+                             Nothing     -> error $ "Invalid double " ++ Bchs.unpack (cols !! colIx) ++ " at row" ++ show rowIx
+                    VSM.unsafeWrite (matsMV V.! dimIx) rowIx val
+                when (rowIx `mod` 1000000 == 0) $ hPutStrLn stderr $ show rowIx
+                loop (rowIx+1) rest
+        loop 0 dataLines
+        -- freeze
+        frozen <- V.forM (V.zip namesV matsMV) $ \(name, mv) -> do
+                     v <- VS.unsafeFreeze mv
+                     pure (name, CrossDistMatrix nObs nGrid v)
+        hPutStrLn stderr "Done"
+        pure $ CrossDistMatrixPerIndepVar (V.toList frozen)
 
-readMaybeSpatDist :: Bool -> V.Vector Observation -> Maybe (V.Vector SpatPos) -> Maybe FilePath -> IO (Maybe SpatDistMatrix)
-readMaybeSpatDist _ _ _ Nothing = pure Nothing
-readMaybeSpatDist noOrderCheck obs maybeSpatGrid (Just path)
-    | takeExtension path == ".cbor" = Just <$> readSpatDist (ReadSpatDistDeserialise path)
-    | otherwise                     = Just <$> readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path)
+readTempSamp :: V.Vector Observation -> FilePath -> IO TempSampleMatrix
+readTempSamp obs path
+    | takeExtension path == ".cbor" = do
+        hPutStrLn stderr "Reading age samples"
+        hPutStrLn stderr $ "Deserialising " ++ path
+        hPutStrLn stderr "Warning: There is no input validation for serialised input"
+        res <- S.readFileDeserialise path
+        hPutStrLn stderr "Done"
+        return res
+    | otherwise = do
+        hPutStrLn stderr "Reading age samples"
+        hPutStrLn stderr $ "Parsing " ++ path
+        let nObs = V.length obs
+        -- determine number of samples to expect
+        hPutStrLn stderr "Counting the number of age samples"
+        nSamples <- Con.runConduitRes $
+            sourceCSV path .|
+            ConC.mapM unwrapCSVParsingErrors .|
+            ConC.takeWhile (\(TempSample obsID _) -> obsID == _obsID (V.head obs)) .|
+            ConC.length
+        if nSamples > 0
+        then hPutStrLn stderr $ "Expected age samples per observation: " ++ show nSamples
+        else throwLIO $
+                "Order of entries in --tempSampFile not equal to -i. " ++
+                "Expected first value: " ++ _obsID (V.head obs)
+        -- start the actual parsing
+        sampleVec <- Con.runConduitRes $
+               sourceCSV path
+            .| ConC.mapM unwrapCSVParsingErrors
+            .| checkOrder nSamples
+            .| ConC.sinkVectorN (nObs * nSamples)
+        hPutStrLn stderr "Done"
+        return $ TempSampleMatrix nSamples nObs sampleVec
+            where
+            checkOrder :: (MonadIO m) => Int -> ConduitT TempSample YearBCAD m ()
+            checkOrder nSamples = do
+                loop (concatMap (replicate nSamples . getID) obs)
+                where
+                    loop (expected:rest) = do
+                        val <- Con.await
+                        case val of
+                            Just oneTempSamp -> do
+                                let (TempSample obsID age) = oneTempSamp
+                                if obsID == expected
+                                then do
+                                    Con.yield age
+                                    loop rest
+                                else do
+                                    -- throw an exception if the order is not as expected
+                                    liftIO $ throwLIO $
+                                        "Order of entries in --tempSampFile not equal to -i. " ++
+                                        "Expected: " ++ expected ++ " but got: " ++ obsID
+                            Nothing -> return ()
+                    loop [] = return ()
 
-data ReadSpatDistSpec =
-      ReadSpatDistDeserialise FilePath
-    | ReadSpatDistParse Bool (V.Vector Observation) (Maybe (V.Vector SpatPos)) FilePath
+-- simpler parsers
 
-readSpatDist :: ReadSpatDistSpec -> IO SpatDistMatrix
-readSpatDist (ReadSpatDistDeserialise path) = do
-    hPutStrLn stderr "Reading spatial distances"
-    hPutStrLn stderr $ "Deserialising " ++ path
-    hPutStrLn stderr "Warning: There is no input validation for serialised input"
-    res <- S.readFileDeserialise path
-    hPutStrLn stderr "Done"
-    return res
-readSpatDist (ReadSpatDistParse noOrderCheck obs maybeSpatGrid path) = do
-    hPutStrLn stderr "Reading spatial distances"
-    hPutStrLn stderr $ "Parsing " ++ path
-    let nObs = V.length obs
-        nGridPoints = maybe nObs V.length maybeSpatGrid
-    distVec <- Con.runConduitRes $
-        sourceCSV path .|
-        ConC.mapM unwrapCSVParsingErrors .|
-        (
-            if noOrderCheck
-            then ConC.map (\(SpatDistObsGrid _ _ dist) -> dist)
-            else checkOrder
-        ) .|
-        ConC.sinkVectorN (nObs * nGridPoints)
-    hPutStrLn stderr "Done"
-    return $ AUDistMatrix nGridPoints nObs distVec
-    where
-    checkOrder :: (MonadIO m) => ConduitT SpatDistObsGrid Double m ()
-    checkOrder = do
-        let outerCycle = V.map getID obs
-            innerCycle = maybe outerCycle (V.map getID) maybeSpatGrid
-            fullCycle  = [(o,i) | o <- V.toList outerCycle, i <- V.toList innerCycle]
-        loop fullCycle
-        where
-            loop (expected:rest) = do
-                val <- Con.await
-                case val of
-                    Just oneSpatDist -> do
-                        let (SpatDistObsGrid obsID spatID dist) = oneSpatDist
-                        if (obsID, spatID) == expected
-                        then do
-                            Con.yield dist
-                            loop rest
-                        else do
-                            -- throw an exception if the order is not as expected
-                            liftIO $ throwLIO $
-                                "Order of entries in --spatDistFile not equal to -i and -g. " ++
-                                "Expected: " ++ show expected ++ " but got: " ++ show (obsID, spatID)
-                    Nothing -> return ()
-            loop [] = return ()
-
--- simpler parsers without additional file requirements
+readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO (V.Vector DepVarsPredPos)
+readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
+    let depVarsPosReordered = V.map (filterByKey depVars) $ V.fromList depVarsPos
+    return $ V.map DepVarsPredPosDirect depVarsPosReordered
+readDepVarsPredGrid depVars indepVars (SearchObsDepVarsGridSettings path) = do
+    !obs <- readObservations path -- search observations
+    let obsFiltered = filterVarsInObs depVars indepVars obs
+    return $ V.map DepVarsPredPosSearchObs obsFiltered
 
 readObservations :: FilePath -> IO (V.Vector Observation)
 readObservations path = do
@@ -181,12 +227,11 @@ readArbitraryDimPos path = do
     res <- readToVector path
     return res
 
-readSpatPos :: FilePath -> IO (V.Vector SpatPos)
-readSpatPos path = do
-    hPutStrLn stderr "Reading spatial grid positions"
+readIndepVarsPos :: FilePath -> IO (V.Vector IndepVarsPos)
+readIndepVarsPos path = do
+    hPutStrLn stderr "Reading grid positions"
     res <- readToVector path
-    let resWithID = V.zipWith setIndex res (V.generate (V.length res) id)
-    return resWithID
+    return res
 
 readToVector :: (Csv.FromNamedRecord a, S.Serialise a) => FilePath -> IO (V.Vector a)
 readToVector path
@@ -201,13 +246,6 @@ readToVector path
         res <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.sinkVector
         hPutStrLn stderr "Done"
         return res
-
-readCSVToList :: (Csv.FromNamedRecord a) => FilePath -> IO [a]
-readCSVToList path = do
-    hPutStrLn stderr $ "Parsing " ++ path
-    parseRes <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.sinkList
-    hPutStrLn stderr "Done"
-    return parseRes
 
 unwrapCSVParsingErrors :: (Show b, Show c, MonadIO m) => Either (Either b c) a -> m a
 unwrapCSVParsingErrors parseRes =

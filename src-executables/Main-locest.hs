@@ -4,9 +4,8 @@ import           LocEst.CLI.Cross         (CrossOptions (..), runCross)
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise     (SerialiseOptions (..), runSerialise)
-import           LocEst.CLI.Utils         (setNumberOfThreads)
 import           LocEst.CLI.Vario         (VarioOptions (..), runVario)
-import           LocEst.Exceptions
+import           LocEst.Utils
 
 import           Control.Exception        (catch)
 import           Data.List                (isInfixOf)
@@ -66,10 +65,8 @@ main = do
                 , OP.prefColumns = 100
                 , OP.prefHelpShowGlobal = False
             }) optParserInfo mergedCmdArgs
-    -- number of threads
-    numThreads <- setNumberOfThreads
     -- run requested subcommand
-    catch (run subcommand numThreads quiet spatDistUnitScaling) handler
+    catch (run subcommand quiet spatDistUnitScaling) handler
     where
         -- handling the special --configFile argument
         getConfigFilePath :: [String] -> Maybe FilePath
@@ -91,19 +88,19 @@ main = do
             hPutStrLn stderr $ renderLocEstException e
             exitFailure
 
-run :: Subcommand -> Int -> Bool -> Double -> IO ()
-run o numThreads False spatDistUnitScaling =
-    runCmd o numThreads spatDistUnitScaling
-run o numThreads True spatDistUnitScaling = do
+run :: Subcommand -> Bool -> Double -> IO ()
+run o False spatDistUnitScaling =
+    runCmd o spatDistUnitScaling
+run o True spatDistUnitScaling = do
     hPutStrLn stderr "Working silently"
-    hSilence [stderr] (runCmd o numThreads spatDistUnitScaling)
+    hSilence [stderr] (runCmd o spatDistUnitScaling)
 
-runCmd :: Subcommand -> Int -> Double -> IO ()
-runCmd o numThreads spatDistUnitScaling = case o of
+runCmd :: Subcommand -> Double -> IO ()
+runCmd o spatDistUnitScaling = case o of
     CmdSerialise opts -> runSerialise opts
-    CmdSearch opts    -> runSearch opts numThreads spatDistUnitScaling
-    CmdVario opts     -> runVario opts numThreads spatDistUnitScaling
-    CmdCross opts     -> runCross opts numThreads spatDistUnitScaling
+    CmdSearch opts    -> runSearch opts spatDistUnitScaling
+    CmdVario opts     -> runVario opts spatDistUnitScaling
+    CmdCross opts     -> runCross opts spatDistUnitScaling
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (

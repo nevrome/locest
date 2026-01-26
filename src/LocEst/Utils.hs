@@ -1,17 +1,36 @@
-module LocEst.CLI.Utils where
+{-# LANGUAGE DeriveGeneric #-}
+
+module LocEst.Utils where
 
 import           Conduit           (MonadIO, liftIO)
+import           Control.DeepSeq   (NFData)
+import           Control.Exception (Exception, throw, throwIO)
 import           Data.Conduit      (ConduitT)
 import qualified Data.Conduit.List as ConC
 import           Data.IORef        (modifyIORef, newIORef, readIORef)
-import           GHC.Conc          (getNumCapabilities)
+import           GHC.Generics      (Generic)
 import           System.IO         (hPutStrLn, stderr)
 
-setNumberOfThreads :: IO Int
-setNumberOfThreads = do
-    detectedThreads <- getNumCapabilities
-    hPutStrLn stderr $ "Working with threads: " ++ show detectedThreads
-    return detectedThreads
+-- | Different exceptions for locest
+newtype LocEstException = LocEstException String
+    deriving (Show, Generic, Eq)
+
+instance Exception LocEstException
+instance NFData LocEstException
+
+renderLocEstException :: LocEstException -> String
+renderLocEstException (LocEstException s) = "\nError:\n" ++ s
+
+throwL :: String -> a
+throwL s = throw $ LocEstException s
+throwLIO :: String -> IO a
+throwLIO s = throwIO $ LocEstException s
+
+inf :: Fractional a => a
+inf = 1/0
+
+nan :: Fractional a => a
+nan = 0/0
 
 progress :: (MonadIO m) => Int -> Maybe Int -> ConduitT i i m ()
 progress reportNum goal = do

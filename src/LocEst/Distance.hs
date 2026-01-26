@@ -1,125 +1,276 @@
+{-# LANGUAGE TupleSections #-}
+
 module LocEst.Distance where
 
-import           LocEst.Exceptions
 import           LocEst.Types
+import           LocEst.TypesFlat
 
-import qualified Data.Vector       as V
+import           Data.Foldable                (Foldable (foldl'), forM_)
+import qualified Data.Vector                  as V
+import qualified Data.Vector.Storable         as VS
+import qualified Data.Vector.Storable.Mutable as VSM
 
-filterObs ::
-       Double
-    -> Supplement
-    -> Permutation
-    -> V.Vector Observation
-    -> (V.Vector Observation, V.Vector IndepVarsDist)
-filterObs spatDistUnitScaling (Supplement filterThresholds maybeSpatDistMap maybeTempSamples) sett =
-    V.unzip . V.mapMaybe handleOne
-    where
-        handleOne :: Observation -> Maybe (Observation, IndepVarsDist)
-        handleOne obs =
-            let dist = getDist spatDistUnitScaling maybeSpatDistMap maybeTempSamples sett obs
-            in if inFilterRange filterThresholds dist
-               then Just (obs,dist)
-               else Nothing
+calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> [IndepVarName] -> IO CrossDistMatrixPerIndepVar
+calcObsGridDistances spatScale obs grid varsToCompute = do
+    let indepVarNames = case grid V.! 0 of
+          IndepSpatTempPos _                            -> ["space", "time"]
+          IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.toList ns
+    let selected = filter (`elem` varsToCompute) indepVarNames
+    mats <- mapM (calcObsGridOneDim spatScale obs grid) selected
+    pure (CrossDistMatrixPerIndepVar mats)
 
-getDist ::
-       Double -> Maybe SpatDistMatrix -> Maybe TempSampleMatrix
-    -> Permutation
-    -> Observation
-    -> IndepVarsDist
--- spatiotemporal distances
-getDist
-    spatDistUnitScaling maybeSpatDistMap maybeTempSamples
-    (Permutation (IndepSpatTempPos (SpatTempPos gridSpatPos gridTempPos)) _ _ tempSampIteration _)
-    (Observation obsIndex _ (HyperPos (IndepSpatTempPos (SpatTempPos obsSpatPos obsTempPos)) _) _) =
-        let spatDist = findSpatDist maybeSpatDistMap
-            spaceDistScaled = spatDist * spatDistUnitScaling
-            tempDist = findTempDist maybeTempSamples
-        in IndepSpatTempDist (SpatTempDist spaceDistScaled tempDist)
-        where
-            -- temporal distances
-            findTempDist :: Maybe TempSampleMatrix -> Double
-            -- calculate distances from mean ages
-            findTempDist Nothing = temporalDistTempPos gridTempPos obsTempPos
-            -- look up age samples and calculate distances from them
-            findTempDist (Just tempSampleMatrix) =
-                let (TempPos gridPointAge) = gridTempPos
-                    obsAgeSample = lookUpTempSample tempSampleMatrix tempSampIteration obsIndex
-                in temporalDistYearBCAD gridPointAge obsAgeSample
-            -- spatial distances
-            findSpatDist :: Maybe SpatDistMatrix -> Double
-            -- calculate distances
-            findSpatDist Nothing = spatialDistSpatPos gridSpatPos obsSpatPos
-            -- look up distances
-            findSpatDist (Just spatDistMatrix) =
-                let gridSpatPosIndex = getIndex gridSpatPos
-                in lookUpDistanceAU spatDistMatrix gridSpatPosIndex obsIndex
--- arbitrary dim distances
-getDist
-    _ _ _
-    (Permutation (IndepArbitraryDimPos gridAbritryDimPos) _ _ _ _)
-    (Observation _ _ (HyperPos (IndepArbitraryDimPos obsArbitraryDimPos) _) _) =
-        let keys = getKeys obsArbitraryDimPos
-            obsPos  = getValues obsArbitraryDimPos
-            gridPos = getValues gridAbritryDimPos
-            arbitraryDimDist = makeValuesPerIndepVar $ zip keys (allDistances obsPos gridPos)
-        in IndepArbitraryDimDist arbitraryDimDist
--- wrong input
-getDist _ _ _ _ _ = throwL "mismatch of independent variable definitions in distance calculation"
+calcObsGridOneDim :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarName -> IO (IndepVarName, CrossDistMatrix)
+calcObsGridOneDim spatScale obs grid varName = do
+  case grid V.! 0 of
+    IndepSpatTempPos _ ->
+      case varName of
+        "space" -> do
+          let obsPos  = V.map (spatPosFromIndepVarsPos . posFromObs) obs
+              gridPos = V.map spatPosFromIndepVarsPos grid
+          fmap (varName,) (computeSpaceCrossDistMatrix spatScale obsPos gridPos)
+        "time"  -> do
+          let obsPos  = V.map (tempPosFromIndepVarsPos . posFromObs) obs
+              gridPos = V.map tempPosFromIndepVarsPos grid
+          fmap (varName,) (computeTimeCrossDistMatrix obsPos gridPos)
+        _       -> error ("Unknown space-time variable: " ++ varName)
+    IndepArbitraryDimPos (ValuesPerIndepVar names _) ->
+      case V.elemIndex varName names of
+        Just ix -> do
+          let obsPos  = V.map (anyPosFromIndepVarsPos . posFromObs) obs
+              gridPos = V.map anyPosFromIndepVarsPos grid
+          fmap (varName,) (computeArbitraryCrossDistMatrix ix obsPos gridPos)
+        Nothing -> error ("Unknown arbitrary variable: " ++ varName)
 
-inFilterRange :: Maybe DistanceThresholds -> IndepVarsDist -> Bool
-inFilterRange Nothing _ = True
-inFilterRange
-    (Just (SpaceTimeFilterThresholds minFilter maxFilter))
-    (IndepSpatTempDist (SpatTempDist spatDistsKM tempDist)) =
-    let minDecision = case minFilter of
-            Nothing -> True
-            Just (spaceMinFilter, timeMinFilter) -> spatDistsKM >= spaceMinFilter && tempDist >= timeMinFilter
-        maxDecision = case maxFilter of
-            Nothing -> True
-            Just (spaceMaxFilter, timeMaxFilter) -> spatDistsKM <= spaceMaxFilter && tempDist <= timeMaxFilter
-    in minDecision && maxDecision
-inFilterRange
-    (Just (ArbitraryDimFilterThresholds minFilter maxFilter))
-    (IndepArbitraryDimDist (ValuesPerIndepVar dists)) =
-    let minDecision = case minFilter of
-            Nothing -> True
-            Just (ValuesPerIndepVar minThresholds) -> all (\((_,x), (_,y)) -> x >= y) $ zip dists minThresholds
-        maxDecision = case maxFilter of
-            Nothing -> True
-            Just (ValuesPerIndepVar maxThresholds) -> all (\((_,x), (_,y)) -> x <= y) $ zip dists maxThresholds
-    in minDecision && maxDecision
-inFilterRange _ _ = True
+computeSpaceCrossDistMatrix :: Double -> V.Vector SpatPos -> V.Vector SpatPos -> IO CrossDistMatrix
+computeSpaceCrossDistMatrix spatScale obs grid = do
+  let nrObs  = V.length obs
+      nrGrid = V.length grid
+  mv <- VSM.new (nrGrid * nrObs)
+  forM_ [0 .. nrGrid-1] $ \gy ->
+    let s2 = grid V.! gy
+    in forM_ [0 .. nrObs-1] $ \ox ->
+         let s1 = obs V.! ox
+         in VSM.write mv (gy*nrObs + ox) (spatialDistSpatPos s1 s2 * spatScale)
+  frozen <- VS.unsafeFreeze mv
+  pure (CrossDistMatrix nrObs nrGrid frozen)
+
+computeTimeCrossDistMatrix :: V.Vector TempPos -> V.Vector TempPos -> IO CrossDistMatrix
+computeTimeCrossDistMatrix obs grid = do
+  let nrObs  = V.length obs
+      nrGrid = V.length grid
+  mv <- VSM.new (nrGrid * nrObs)
+  forM_ [0 .. nrGrid-1] $ \gy ->
+    let t2 = grid V.! gy
+    in forM_ [0 .. nrObs-1] $ \ox ->
+         let t1 = obs V.! ox
+         in VSM.write mv (gy*nrObs + ox) (temporalDistTempPos t1 t2)
+  frozen <- VS.unsafeFreeze mv
+  pure (CrossDistMatrix nrObs nrGrid frozen)
+
+computeArbitraryCrossDistMatrix :: Int -> V.Vector (VS.Vector Double) -> V.Vector (VS.Vector Double) -> IO CrossDistMatrix
+computeArbitraryCrossDistMatrix ix obs grid = do
+  let nrObs  = V.length obs
+      nrGrid = V.length grid
+  mv <- VSM.new (nrGrid * nrObs)
+  forM_ [0 .. nrGrid-1] $ \gy ->
+    let vs2 = grid V.! gy
+    in forM_ [0 .. nrObs-1] $ \ox ->
+         let vs1 = obs V.! ox
+         in VSM.write mv (gy*nrObs + ox) (abs (vs1 VS.! ix - vs2 VS.! ix))
+  frozen <- VS.unsafeFreeze mv
+  pure (CrossDistMatrix nrObs nrGrid frozen)
+
+crossDistMatrixToFlat :: CrossDistMatrixPerIndepVar -> IndepVarsDistFlat
+crossDistMatrixToFlat cdmPerIndepVar =
+    let mats = getValues cdmPerIndepVar -- [CrossDistMatrix]
+        stride = length mats             -- number of dimensions
+        nRows  = _cdmNrRows (head mats) -- grid size
+        nCols  = _cdmNrCols (head mats) -- obs size
+        total  = nRows * nCols
+        -- tags vector: assume all same type — infer from dimension names or external info
+        tagsVec = VS.replicate total $
+                    case head (getKeys cdmPerIndepVar) of
+                      "space" -> False
+                      _       -> True
+        -- payload: interleave dimensions per row/col
+        payloadVec = VS.generate (total * stride) $ \k ->
+            let (idx, dimIx) = k `divMod` stride
+            in _cdmMatrix (mats !! dimIx) VS.! idx
+    in IndepVarsDistFlat tagsVec payloadVec stride
+
+-- TODO: do scaling more elegantly: Could consider any variable, not just space and time
+mergeDistsIndepVar :: (Double, Double) -> SelfDistMatrixPerIndepVar -> IO SelfDistMatrixPerIndepVar
+mergeDistsIndepVar (spaceScale, timeScale) (SelfDistMatrixPerIndepVar ms) = do
+    case ms of
+      [] -> error "mergeDists: no matrices to merge"
+      _  -> do
+        -- all half matrices should have the same length
+        let nHalf = VS.length (let (SelfDistMatrix v) = snd (head ms) in v)
+        mv <- VSM.new nHalf
+        forM_ [0..nHalf-1] $ \i -> do
+          -- sum-of-squares accumulator
+          let ssq = foldl' (\acc (name, SelfDistMatrix v) ->
+                               let scale | name == "space" = spaceScale
+                                         | name == "time"  = timeScale
+                                         | otherwise       = 1.0
+                               in acc + (v VS.! i / scale) ** 2
+                           ) 0.0 ms
+          VSM.write mv i (sqrt ssq)
+        distsMerged <- VS.unsafeFreeze mv
+        pure $ SelfDistMatrixPerIndepVar [("acrossIndep", SelfDistMatrix distsMerged)]
+
+mergeDistsDepVar :: SelfDistMatrixPerIndepVar -> IO SelfDistMatrixPerIndepVar
+mergeDistsDepVar (SelfDistMatrixPerIndepVar ms) = do
+    case ms of
+      [] -> error "mergeDists: no matrices to merge"
+      _  -> do
+        -- all half matrices should have the same length
+        let nHalf = VS.length (let (SelfDistMatrix v) = snd (head ms) in v)
+        mv <- VSM.new nHalf
+        forM_ [0..nHalf-1] $ \i -> do
+          -- sum-of-squares accumulator
+          let ssq = foldl' (\acc (_, SelfDistMatrix v) -> acc + (v VS.! i) ** 2) 0.0 ms
+          VSM.write mv i (sqrt ssq)
+        distsMerged <- VS.unsafeFreeze mv
+        pure $ SelfDistMatrixPerIndepVar [("acrossDep", SelfDistMatrix distsMerged)]
+
+calcObsObsDistDepVar :: V.Vector Observation -> [DepVarName] -> IO SelfDistMatrixPerIndepVar
+calcObsObsDistDepVar obs varsToCompute = do
+    let depVarNames = getKeys $ depVarPosFromObs (V.head obs)
+        selected = filter (`elem` varsToCompute) depVarNames
+    mats <- mapM (calcSelfDistOneDimDepVar (\(Observation _ _ (HyperPos _ pos) _) -> pos) obs) selected
+    pure (SelfDistMatrixPerIndepVar mats)
+
+calcSelfDistOneDimDepVar :: (a -> DepVarsPos) -> V.Vector a -> DepVarName -> IO (DepVarName, SelfDistMatrix)
+calcSelfDistOneDimDepVar getPos vec varName =
+  let names = V.fromList $ getKeys $ getPos (V.head vec)
+  in case V.elemIndex varName names of
+      Just ix -> do
+        let pos  = V.map (anyPosFromDepVarsPos . getPos) vec
+        fmap (varName,) (computeArbitrarySelfDistMatrix ix pos)
+      Nothing -> error ("Unknown dependent variable: " ++ varName)
+
+calcObsObsDistances :: Double -> V.Vector Observation -> [IndepVarName] -> IO SelfDistMatrixPerIndepVar
+calcObsObsDistances scale obs varsToCompute = do
+    let indepVarNames = case posFromObs (V.head obs) of
+                        IndepSpatTempPos _ -> ["space","time"]
+                        IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.toList ns
+        selected = filter (`elem` varsToCompute) indepVarNames
+    mats <- mapM (calcSelfDistOneDim scale (\(Observation _ _ (HyperPos pos _) _) -> pos) obs) selected
+    pure (SelfDistMatrixPerIndepVar mats)
+
+calcGridGridDistances :: Double -> V.Vector IndepVarsPos -> [IndepVarName] -> IO SelfDistMatrixPerIndepVar
+calcGridGridDistances scale grid varsToCompute = do
+    let indepVarNames = case grid V.! 0 of
+                        IndepSpatTempPos _ -> ["space","time"]
+                        IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.toList ns
+        selected = filter (`elem` varsToCompute) indepVarNames
+    mats <- mapM (calcSelfDistOneDim scale id grid) selected
+    pure (SelfDistMatrixPerIndepVar mats)
+
+calcSelfDistOneDim :: Double -> (a -> IndepVarsPos) -> V.Vector a -> IndepVarName -> IO (IndepVarName, SelfDistMatrix)
+calcSelfDistOneDim spatScale getPos vec varName =
+  case getPos (V.head vec) of
+    IndepSpatTempPos _ ->
+      case varName of
+        "space" -> do
+          let pos  = V.map (spatPosFromIndepVarsPos . getPos) vec
+          fmap (varName,) (computeSpaceSelfDistMatrix spatScale pos)
+        "time"  -> do
+          let pos  = V.map (tempPosFromIndepVarsPos . getPos) vec
+          fmap (varName,) (computeTimeSelfDistMatrix pos)
+        _       -> error ("Unknown ST variable: " ++ varName)
+    IndepArbitraryDimPos (ValuesPerIndepVar names _) ->
+      case V.elemIndex varName names of
+        Just ix -> do
+          let pos  = V.map (anyPosFromIndepVarsPos . getPos) vec
+          fmap (varName,) (computeArbitrarySelfDistMatrix ix pos)
+        Nothing -> error ("Unknown AR variable: " ++ varName)
+
+computeSpaceSelfDistMatrix :: Double -> V.Vector SpatPos -> IO SelfDistMatrix
+computeSpaceSelfDistMatrix spatScale vec = do
+  let n     = V.length vec
+      nHalf = n*(n+1) `div` 2
+  mv <- VSM.new nHalf
+  forM_ [0..n-1] $ \i ->
+    let s1 = vec V.! i
+    in forM_ [0..i] $ \j ->
+         let s2 = vec V.! j
+         in VSM.write mv (idxHalf i j) (spatialDistSpatPos s1 s2 * spatScale)
+  frozen <- VS.unsafeFreeze mv
+  pure (SelfDistMatrix frozen)
+
+computeTimeSelfDistMatrix :: V.Vector TempPos -> IO SelfDistMatrix
+computeTimeSelfDistMatrix vec = do
+  let n     = V.length vec
+      nHalf = n*(n+1) `div` 2
+  mv <- VSM.new nHalf
+  forM_ [0..n-1] $ \i ->
+    let t1 = vec V.! i
+    in forM_ [0..i] $ \j ->
+         let t2 = vec V.! j
+         in VSM.write mv (idxHalf i j) (temporalDistTempPos t1 t2)
+  frozen <- VS.unsafeFreeze mv
+  pure (SelfDistMatrix frozen)
+
+computeArbitrarySelfDistMatrix :: Int -> V.Vector (VS.Vector Double) -> IO SelfDistMatrix
+computeArbitrarySelfDistMatrix ix vec = do
+  let n     = V.length vec
+      nHalf = n*(n+1) `div` 2
+  mv <- VSM.new nHalf
+  forM_ [0..n-1] $ \i ->
+    let vs1 = vec V.! i
+    in forM_ [0..i] $ \j ->
+         let vs2 = vec V.! j
+         in VSM.write mv (idxHalf i j) (abs (vs1 VS.! ix - vs2 VS.! ix))
+  frozen <- VS.unsafeFreeze mv
+  pure (SelfDistMatrix frozen)
+
+selfDistMatrixToFlatHalf :: SelfDistMatrixPerIndepVar -> IndepVarsDistFlat
+selfDistMatrixToFlatHalf sdmPerIndepVar =
+    let mats   = getValues sdmPerIndepVar -- [SelfDistMatrix]
+        stride = length mats               -- number of dimensions
+        nHalf  = VS.length (let (SelfDistMatrix v) = head mats in v)
+        -- tags vector: same simple heuristic as crossDistMatrixToFlat
+        tagsVec = VS.replicate nHalf $
+                    case head (getKeys sdmPerIndepVar) of
+                      "space" -> False
+                      _       -> True
+        -- payload: stride‐interleave each dim's half vector
+        payloadVec = VS.generate (nHalf * stride) $ \k ->
+            let (idx, dimIx) = k `divMod` stride
+                SelfDistMatrix vec = mats !! dimIx
+            in vec VS.! idx
+    in IndepVarsDistFlat tagsVec payloadVec stride
 
 -- distance helper functions
 
-allDistances :: [Double] -> [Double] -> [Double]
-allDistances = zipWith (\x y -> abs (x - y))
+{-# INLINE depEuclidean #-}
+depEuclidean :: DepVarsPos -> DepVarsPos -> Double
+depEuclidean (ValuesPerDepVar _ v1) (ValuesPerDepVar _ v2) =
+    sqrt . VS.sum $ VS.zipWith (\x y -> (x - y)^(2 :: Int)) v1 v2
 
-euclideanDistance :: [Double] -> [Double] -> Double
-euclideanDistance list1 list2 =
-  let squaredDifferences = zipWith (\x y -> (x - y) ** 2) list1 list2
-  in sqrt $ sum squaredDifferences
-
+{-# INLINE temporalDistTempPos #-}
 temporalDistTempPos :: TempPos -> TempPos -> Double
 temporalDistTempPos (TempPos t1) (TempPos t2) = temporalDistYearBCAD t1 t2
 
+{-# INLINE temporalDistYearBCAD #-}
 temporalDistYearBCAD :: YearBCAD -> YearBCAD -> Double
 temporalDistYearBCAD t1 t2 = fromIntegral $ abs (t1 - t2)
 
-spatialDistSpatTempPos :: SpatTempPos -> SpatTempPos -> Double
-spatialDistSpatTempPos (SpatTempPos spatP1 _) (SpatTempPos spatP2 _) =
-    spatialDistSpatPos spatP1 spatP2
-
+{-# INLINE spatialDistSpatPos #-}
 spatialDistSpatPos :: SpatPos -> SpatPos -> Double
 spatialDistSpatPos (SpatPosCartesian p1) (SpatPosCartesian p2) = spatialDistCartesianPos p1 p2
 spatialDistSpatPos (SpatPosLongLat p1) (SpatPosLongLat p2) = spatialDistLongLatPos p1 p2
 spatialDistSpatPos _ _ = error "Can not be calculated"
 
+{-# INLINE spatialDistCartesianPos #-}
 spatialDistCartesianPos :: CartesianPos -> CartesianPos -> Double
 spatialDistCartesianPos (CartesianPos _ _ x1 y1) (CartesianPos _ _ x2 y2) =
     sqrt (((x1 - x2) ** 2) + ((y1 - y2) ** 2))
 
 -- Haversine distance in metres
+{-# INLINE spatialDistLongLatPos #-}
 spatialDistLongLatPos :: LongLatPos -> LongLatPos -> Double
 spatialDistLongLatPos (LongLatPos _ _ (Longitude lon1) (Latitude lat1))
                       (LongLatPos _ _ (Longitude lon2) (Latitude lat2)) =
