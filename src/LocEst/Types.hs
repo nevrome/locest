@@ -241,13 +241,13 @@ instance Csv.DefaultOrdered KernelDefinition where
     headerOrder (KernelDefinition _ l) =
         Csv.header $ ["algorithm"] ++ (map (\x -> Bchs.pack $ "kernel_" ++ x) $ concatMap oneColSet l)
         where
-            oneColSet :: KernelOneDepVar -> [String]
-            oneColSet (KernelOneDepVar name _ lengths (Just _)) =
-                let lengthscaleCols = map (++ "_length") $ getKeys lengths
-                in map (\x -> name ++ "_" ++ x) $ "shape":lengthscaleCols ++ ["nugget"]
-            oneColSet (KernelOneDepVar name _ lengths Nothing) =
-                let lengthscaleCols = map (++ "_length") $ getKeys lengths
-                in map (\x -> name ++ "_" ++ x) $ "shape":lengthscaleCols
+        oneColSet :: KernelOneDepVar -> [String]
+        oneColSet (KernelOneDepVar name _ lengths (Just _)) =
+            let lengthscaleCols = map (++ "_length") $ getKeys lengths
+            in map (\x -> x ++ "_" ++ name) $ "shape":lengthscaleCols ++ ["nugget"]
+        oneColSet (KernelOneDepVar name _ lengths Nothing) =
+            let lengthscaleCols = map (++ "_length") $ getKeys lengths
+            in map (\x -> x ++ "_" ++ name) $ "shape":lengthscaleCols
 instance Csv.ToRecord KernelDefinition where
     toRecord (KernelDefinition algo l) =
         V.cons (Csv.toField algo) $ V.concatMap oneColSet $ V.fromList l
