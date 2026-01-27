@@ -90,8 +90,32 @@ runSearch (SearchOptions
 factor :: Maybe a -> (a -> Int) -> Int
 factor element extractor = maybe 1 extractor element
 
-search :: Algorithm
-       -> KernelDefinition
+search
+  :: Algorithm
+  -> KernelDefinition
+  -> Int
+  -> [IndepVarName]
+  -> Maybe CrossDistMatrixPerIndepVar
+  -> Maybe SelfDistMatrixPerIndepVar
+  -> Double
+  -> [DepVarName]
+  -> [KernelOneDepVar]
+  -> Permutation
+  -> IO [SearchResultRow]
+search algorithm kernDef topNObs indepVars
+     maybeObsGridDists maybeObsObsDists
+     spatDistUnitScaling
+     depVars kernelsPerDepVar
+     perm@(Permutation tempIter _ grid _ searchDepVarPos) = do
+  perDepVar <- searchPerDepVar
+      algorithm topNObs indepVars
+      maybeObsGridDists maybeObsObsDists
+      spatDistUnitScaling
+      depVars kernelsPerDepVar
+      perm
+  pure $ searchResultsToRows kernDef tempIter grid searchDepVarPos perDepVar
+
+searchPerDepVar :: Algorithm
        -> Int
        -> [IndepVarName]
        -> Maybe CrossDistMatrixPerIndepVar
@@ -101,13 +125,13 @@ search :: Algorithm
        -> [DepVarName]
        -> [KernelOneDepVar]
        -> Permutation
-       -> IO [SearchResultRow]
-search algorithm kernDef topNObs indepVars
+       -> IO [V.Vector SearchResultLong]
+searchPerDepVar algorithm topNObs indepVars
      maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
      spatDistUnitScaling
      depVars kernelsPerDepVar
-     (Permutation tempSamplingIteration obs grid maybeGridTrueDep searchDepVarPos) = do
-    perDepVar <- case algorithm of
+     (Permutation _ obs grid maybeGridTrueDep searchDepVarPos) =
+    case algorithm of
         GPR -> do
             -- gpr
             distsObsGrid <- case maybeObsGridDists of -- this could be refactored to be shorter
@@ -146,48 +170,51 @@ search algorithm kernDef topNObs indepVars
                            Just m  -> pure (name, m)
                            Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
             return $ zipWith (kas obs maybeGridTrueDep distsObsGrid searchDepVarPos topNObs) depVars kernelsPerDepVar
-    -- turn SSL to SSR
-    let rawRows = concatMap (rowsForGridIdx perDepVar) [0..V.length grid-1]
-    if isJust searchDepVarPos && isSpatioTemporal grid
-    then return $ normaliseByTimeSlice rawRows
-    else return rawRows
-    where
-        rowsForGridIdx :: [V.Vector SearchResultLong] -> Int -> [SearchResultRow]
-        rowsForGridIdx perDepVar i =
-            let resAtI = map (V.! i) perDepVar
-                mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
-                mkRow mSearchOne llsOne =
-                    let truthLLs = map _sslGridLogLikelihood resAtI
-                    in SSR {
-                          _ssrTempSampIter     = tempSamplingIteration
-                        , _ssrKernDef          = kernDef
-                        , _ssrGridIndepVarsPos = grid V.! i
-                        , _ssrTopObsIDs        = map _sslTopObsIDs resAtI
-                        , _ssrDepVarName       = map _sslDepVarName resAtI
-                        , _ssrLowerBound       = map _sslLowerBound resAtI
-                        , _ssrMedian           = map _sslMedian     resAtI
-                        , _ssrUpperBound       = map _sslUpperBound resAtI
-                        , _ssrGridLogLikelihood = truthLLs
-                        , _ssrGridAggLogLik     = sumIfAllJust truthLLs
-                        , _ssrSearchPos        = mSearchOne
-                        , _ssrLogLikelihood    = llsOne
-                        , _ssrAggLogLikelihood = sumIfAllJust llsOne
-                        , _ssrProbability      = Nothing
-                        }
-                -- extract per-depVar likelihoods at index j (safely)
-                llsAt :: Int -> [Maybe Double]
-                llsAt j = [ mv >>= (V.!? j) | mv <- map _sslLogLikelihood resAtI ]
-                -- branches for absent/present search candidates
-                depCount  = length perDepVar
-                rowsNoSearch :: [SearchResultRow]
-                rowsNoSearch = [ mkRow Nothing (replicate depCount Nothing) ]
-                rowsWithSearch :: V.Vector DepVarsPredPos -> [SearchResultRow]
-                rowsWithSearch svec = V.toList $ V.imap (\j sp -> mkRow (Just sp) (llsAt j)) svec
-            in maybe rowsNoSearch rowsWithSearch searchDepVarPos
-        sumIfAllJust :: [Maybe Double] -> Maybe Double
-        sumIfAllJust xs = do
-          ys <- sequence xs
-          if null ys then Nothing else Just (sum ys)
+
+searchResultsToRows
+  :: KernelDefinition
+  -> Int
+  -> V.Vector IndepVarsPos
+  -> Maybe (V.Vector DepVarsPredPos)
+  -> [V.Vector SearchResultLong]
+  -> [SearchResultRow]
+searchResultsToRows kernDef tempSamplingIteration grid searchDepVarPos perDepVar =
+  let rawRows = concatMap rowsForGridIdx [0 .. V.length grid - 1]
+  in if isJust searchDepVarPos && isSpatioTemporal grid
+        then normaliseByTimeSlice rawRows
+        else rawRows
+  where
+    rowsForGridIdx :: Int -> [SearchResultRow]
+    rowsForGridIdx i =
+      let resAtI = map (V.! i) perDepVar
+          depCount = length perDepVar
+          mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
+          mkRow mSearchOne llsOne =
+            let truthLLs = map _sslGridLogLikelihood resAtI
+            in SSR
+                 { _ssrTempSampIter      = tempSamplingIteration
+                 , _ssrKernDef           = kernDef
+                 , _ssrGridIndepVarsPos  = grid V.! i
+                 , _ssrTopObsIDs         = map _sslTopObsIDs resAtI
+                 , _ssrDepVarName        = map _sslDepVarName resAtI
+                 , _ssrLowerBound        = map _sslLowerBound resAtI
+                 , _ssrMedian            = map _sslMedian resAtI
+                 , _ssrUpperBound        = map _sslUpperBound resAtI
+                 , _ssrGridLogLikelihood = truthLLs
+                 , _ssrGridAggLogLik     = sumIfAllJust truthLLs
+                 , _ssrSearchPos         = mSearchOne
+                 , _ssrLogLikelihood     = llsOne
+                 , _ssrAggLogLikelihood  = sumIfAllJust llsOne
+                 , _ssrProbability       = Nothing
+                 }
+          llsAt :: Int -> [Maybe Double]
+          llsAt j = [ mv >>= (V.!? j) | mv <- map _sslLogLikelihood resAtI ]
+          rowsNoSearch = [ mkRow Nothing (replicate depCount Nothing) ]
+          rowsWithSearch svec = V.toList $ V.imap (\j sp -> mkRow (Just sp) (llsAt j)) svec
+      in maybe rowsNoSearch rowsWithSearch searchDepVarPos
+    sumIfAllJust xs = do
+      ys <- sequence xs
+      if null ys then Nothing else Just (sum ys)
 
 -- normalisation mechanism
 normaliseByTimeSlice :: [SearchResultRow] -> [SearchResultRow]

@@ -20,7 +20,7 @@ import           Data.Maybe               (fromMaybe)
 import qualified Data.Vector              as V
 import qualified Data.Vector.Mutable      as VM
 import qualified Data.Vector.Storable     as VS
-import           LocEst.CLI.Search        (Permutation (..), search)
+import           LocEst.CLI.Search        (Permutation (..), searchPerDepVar)
 import           System.IO                (hPutStrLn, stderr)
 import           System.Random            as R
 
@@ -100,51 +100,49 @@ cross
   -> KernelDefinition
   -> IO CrossvalOutput
 cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs iter obs kernDef = do
-    let seedIter  = seed + iter
-        depVars = getKeys kernDef -- given the input this is only one
+    let seedIter = seed + iter
+        depVars = getKeys kernDef
         oneDepVar = case depVars of
             [x] -> x
-            _   -> throwL "impossible"
-    let kernels  = getValues kernDef
-        nObs     = V.length obs
-        (testIdx, trainIdx) = if nTestObs == nObs
-                              -- special case: full autoprediction
-                              then (VS.fromList [0..nObs-1], VS.fromList [0..nObs-1])
-                              -- randomly slice to get training and test sets
-                              else splitIdx seedIter nTestObs nObs
+            _   -> throwL "cross: expected exactly one dependent variable"
+        kernels = getValues kernDef
+        nObs    = V.length obs
+        (testIdx, trainIdx)
+          -- full autoprediction
+          | nTestObs == nObs = (VS.fromList [0 .. nObs - 1], VS.fromList [0 .. nObs - 1])
+          | otherwise = splitIdx seedIter nTestObs nObs
         testObs     = V.backpermute obs (V.convert testIdx)
         trainingObs = V.backpermute obs (V.convert trainIdx)
-        -- prediction grid = test observation locations
+        -- prediction grid = locations of test observations
         predGrid = V.map posFromObs testObs
+        -- true dependent-variable values at grid points
         trueVals = V.map (filterByKey [oneDepVar] . depVarPosFromObs) testObs
-        -- slice distance matrices, if present
+        -- slice distance matrices if provided
         !maybeObsObsDists = sliceSelfDistPerIndep trainIdx <$> maybeFullObsObsDists
         !maybeObsGridDists = sliceCrossDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
-        -- !maybeGridGridDists = sliceSelfDistPerIndep testIdx <$> maybeFullObsObsDists
-    -- run search (no dep search grid, no temp grid, but true values for grid pos)
-    rows <- search algorithm kernDef 0 indepVars maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
-                   spatDistUnitScaling [oneDepVar] kernels
-                   (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
-    -- compute summary statistics
-    let (sumSqErr, sumLL, n) = foldl' step (0, 0, 0 :: Int) $ zip rows (V.toList trueVals)
-        step :: (Double, Double, Int) -> (SearchResultRow, DepVarsPos) -> (Double, Double, Int)
-        step (!sse, !sll, !k) (row, trueDV) =
-            -- per‑dep‑var squared errors
-            let trueVal = lookupUnsafe trueDV oneDepVar
-                medianOneDepVar = case _ssrMedian row of
-                    [x] -> x
-                    _   -> throwL "impossible"
-                d = medianOneDepVar - trueVal
-                sqErr = d * d
-                ll = fromMaybe (-inf) (_ssrGridAggLogLik row)
-            in (sse + sqErr, sll + ll, k + 1)
-    -- prepare output
-    return CrossvalOutput
+    -- run interpolation (no dep-search grid, but true grid values provided)
+    perDepVar <- searchPerDepVar algorithm 0 indepVars maybeObsGridDists maybeObsObsDists
+                                 spatDistUnitScaling [oneDepVar] kernels
+                                 (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
+    -- extract the single dependent-variable result vector
+    depRes <- case perDepVar of
+        [v] -> pure v
+        _   -> throwL "cross: expected exactly one SearchResultLong vector"
+    -- accumulate CV statistics
+    let (sumSqErr, sumLL, n) =  V.ifoldl' step (0, 0, 0 :: Int) depRes
+        step (!sse, !sll, !k) i ssl =
+            let trueDV   = trueVals V.! i
+                trueVal  = lookupUnsafe trueDV oneDepVar
+                medianV  = _sslMedian ssl
+                d        = medianV - trueVal
+                ll       = fromMaybe (-inf) (_sslGridLogLikelihood ssl)
+            in (sse + d * d, sll + ll, k + 1)
+    pure CrossvalOutput
       { _crossoutIteration        = iter
       , _crossoutDepVars          = [oneDepVar]
       , _crossoutKernelDefinition = kernDef
       , _crossoutDistSum          = sumSqErr
-      , _crossoutDistMeanSquared  = if n == 0 then 0 else sumSqErr / fromIntegral n
+      , _crossoutDistMeanSquared  =  if n == 0 then 0 else sumSqErr / fromIntegral n
       , _crossoutProbSum          = sumLL
       }
 
