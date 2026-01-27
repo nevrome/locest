@@ -69,3 +69,66 @@ ggplot() +
   scale_fill_viridis_c() +
   coord_fixed()
 
+# crossvalidation
+kernels_to_test <-
+  # create a permutation grid of spatial (ds) and temporal (dt) lengthscale parameters
+  expand.grid(
+    ds = seq(200, 1200, 200)*1000, # *1000 to transform from kilometres to meters
+    dt = seq(200, 1200, 200)
+  ) %>%
+  # create objects of type mobest_kernelsetting from them
+  purrr::pmap(function(...) {
+    row <- list(...)
+    mobest::create_kernset(
+      C1 = mobest::create_kernel(
+        dsx = row$ds,
+        dsy = row$ds,
+        dt  = row$dt,
+        g   = 0.1
+      ),
+      C2 = mobest::create_kernel(
+        dsx = row$ds,
+        dsy = row$ds,
+        dt  = row$dt,
+        g   = 0.1
+      )
+    )
+  }) %>%
+  # name then and  package them in an object of type mobest_kernelsetting_multi
+  magrittr::set_names(paste("kernel", 1:length(.), sep = "_")) %>%
+  do.call(mobest::create_kernset_multi, .)
+
+interpol_comparison <- mobest::crossvalidate(
+  independent = ind,
+  dependent   = dep,
+  kernel      = kernels_to_test,
+  iterations  = 2, # in a real-world setting this should be set to 10+ iterations
+  groups      = 5, # and this to 10
+  quiet       = F
+)
+
+kernel_grid_mobest <- interpol_comparison %>%
+  dplyr::group_by(dependent_var_id, ds = dsx, dt) %>%
+  dplyr::summarise(
+    meas = mean(difference^2),
+    .groups = "drop"
+  )
+
+p1 <- ggplot() +
+  geom_raster(
+    data = kernel_grid_mobest %>% dplyr::filter(dependent_var_id == "C1"),
+    mapping = aes(x = ds / 1000, y = dt, fill = meas)
+  ) +
+  scale_fill_viridis_c(direction = -1) +
+  coord_fixed() +
+  theme_bw()
+
+p2 <- ggplot() +
+  geom_raster(
+    data = kernel_grid_mobest %>% dplyr::filter(dependent_var_id == "C2"),
+    mapping = aes(x = ds / 1000, y = dt, fill = meas)
+  ) +
+  scale_fill_viridis_c(direction = -1) +
+  coord_fixed()
+
+cowplot::plot_grid(p1, p2)

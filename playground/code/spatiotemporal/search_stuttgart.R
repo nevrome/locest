@@ -65,33 +65,6 @@ vario_res %>%
     scales = "free"
   )
 
-# crossvalidation
-
-# stack install --profile
-# stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
-# profiteur locest.prof
-
-system('time OMP_NUM_THREADS=4 locest cross --configFile code/spatiotemporal/cross.conf')
-
-cross_res <- readr::read_tsv("data/spatiotemporal/cross.tsv")
-
-cross_res %>%
-  dplyr::group_by(depVar, kernel_space_length, kernel_time_length) %>%
-  dplyr::summarise(
-    dplyr::across(
-      tidyselect::all_of(c(
-        "sum_dep_dist_euclidean",
-        "mean_squared_dep_dist_euclidean",
-        "sum_log_likelihood")),
-      mean
-    )
-  ) %>%
-  dplyr::filter(depVar == "depC2") %>%
-  ggplot() +
-  geom_raster(aes(x = kernel_space_length, y = kernel_time_length, fill = sum_log_likelihood)) +
-  facet_grid(rows = dplyr::vars(depVar)) +
-  scale_fill_viridis_c()#direction = -1)
-
 # normal search test
 # stack install --profile
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -p
@@ -127,3 +100,47 @@ search_res %>%
   # ) +
   scale_fill_viridis_c() +
   coord_fixed()
+
+# crossvalidation
+
+# stack install --profile
+# stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
+# profiteur locest.prof
+
+system('time OMP_NUM_THREADS=20 locest cross --configFile code/spatiotemporal/cross.conf')
+
+cross_res <- readr::read_tsv("data/spatiotemporal/cross.tsv")
+
+kernel_grid_locest <- cross_res %>%
+  dplyr::group_by(depVar, kernel_space_length, kernel_time_length) %>%
+  dplyr::summarise(
+    dplyr::across(
+      tidyselect::all_of(c(
+        "sum_dep_dist_euclidean",
+        "mean_squared_dep_dist_euclidean",
+        "sum_log_likelihood")),
+      mean
+    ), .groups = "drop"
+  ) %>%
+  dplyr::mutate(
+    meas = mean_squared_dep_dist_euclidean
+  )
+
+p1 <- ggplot() +
+  geom_raster(
+    data = kernel_grid_locest %>% dplyr::filter(depVar == "depC1"),
+    mapping = aes(x = kernel_space_length, y = kernel_time_length, fill = meas)
+  ) +
+  scale_fill_viridis_c(direction = -1) +
+  coord_fixed()
+
+p2 <- ggplot() +
+  geom_raster(
+    data = kernel_grid_locest %>% dplyr::filter(depVar == "depC2"),
+    mapping = aes(x = kernel_space_length, y = kernel_time_length, fill = meas)
+  ) +
+  scale_fill_viridis_c(direction = -1) +
+  coord_fixed()
+
+cowplot::plot_grid(p1, p2)
+

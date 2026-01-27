@@ -3,7 +3,6 @@
 
 module LocEst.CLI.Cross where
 
-import           LocEst.Distance          (depEuclidean)
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.TypesFlat
@@ -101,9 +100,12 @@ cross
   -> KernelDefinition
   -> IO CrossvalOutput
 cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs iter obs kernDef = do
-    let seedIter = seed + iter
-        depVars  = getKeys kernDef
-        kernels  = getValues kernDef
+    let seedIter  = seed + iter
+        depVars = getKeys kernDef -- given the input this is only one
+        oneDepVar = case depVars of
+            [x] -> x
+            _   -> throwL "impossible"
+    let kernels  = getValues kernDef
         nObs     = V.length obs
         (testIdx, trainIdx) = if nTestObs == nObs
                               -- special case: full autoprediction
@@ -114,33 +116,35 @@ cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs
         trainingObs = V.backpermute obs (V.convert trainIdx)
         -- prediction grid = test observation locations
         predGrid = V.map posFromObs testObs
-        trueVals = V.map (filterByKey depVars . depVarPosFromObs) testObs
+        trueVals = V.map (filterByKey [oneDepVar] . depVarPosFromObs) testObs
         -- slice distance matrices, if present
         !maybeObsObsDists = sliceSelfDistPerIndep trainIdx <$> maybeFullObsObsDists
         !maybeObsGridDists = sliceCrossDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
         -- !maybeGridGridDists = sliceSelfDistPerIndep testIdx <$> maybeFullObsObsDists
     -- run search (no dep search grid, no temp grid, but true values for grid pos)
     rows <- search algorithm kernDef 0 indepVars maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
-                   spatDistUnitScaling depVars kernels
+                   spatDistUnitScaling [oneDepVar] kernels
                    (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
     -- compute summary statistics
-    let perObs = zip rows (V.toList trueVals)
-        (sumDist, sumSqDist, sumLL, n) = foldl' step (0,0,0,0 :: Int) perObs
-        step (!sd,!ssd,!sll,!k) (row, trueDV) =
-            let predDV = makeValuesPerDepVar $ zip (_ssrDepVarName row) (_ssrMedian row)
-                d      = depEuclidean predDV trueDV
-                ll     = fromMaybe (-inf) (_ssrGridAggLogLik row)
-            in (sd + d, ssd + d*d, sll + ll, k + 1)
-        meanSq
-          | n == 0    = 0
-          | otherwise = sumSqDist / fromIntegral n
+    let (sumSqErr, sumLL, n) = foldl' step (0, 0, 0 :: Int) $ zip rows (V.toList trueVals)
+        step :: (Double, Double, Int) -> (SearchResultRow, DepVarsPos) -> (Double, Double, Int)
+        step (!sse, !sll, !k) (row, trueDV) =
+            -- per‑dep‑var squared errors
+            let trueVal = lookupUnsafe trueDV oneDepVar
+                medianOneDepVar = case _ssrMedian row of
+                    [x] -> x
+                    _   -> throwL "impossible"
+                d = medianOneDepVar - trueVal
+                sqErr = d * d
+                ll = fromMaybe (-inf) (_ssrGridAggLogLik row)
+            in (sse + sqErr, sll + ll, k + 1)
     -- prepare output
     return CrossvalOutput
       { _crossoutIteration        = iter
-      , _crossoutDepVars          = depVars
+      , _crossoutDepVars          = [oneDepVar]
       , _crossoutKernelDefinition = kernDef
-      , _crossoutDistSum          = sumDist
-      , _crossoutDistMeanSquared  = meanSq
+      , _crossoutDistSum          = sumSqErr
+      , _crossoutDistMeanSquared  = if n == 0 then 0 else sumSqErr / fromIntegral n
       , _crossoutProbSum          = sumLL
       }
 
