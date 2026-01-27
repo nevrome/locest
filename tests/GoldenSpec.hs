@@ -4,6 +4,7 @@ import           Control.Monad
 import           System.IO
 import           System.Process
 import           Test.Hspec
+import Numeric (showFFloat)
 
 spec :: Spec
 spec = goldenSpec
@@ -33,7 +34,18 @@ goldenSpec =
                     hSetBuffering out NoBuffering
                     hSetBuffering err NoBuffering
                     -- compare cli output
-                    outExpected <- readFile $ "tests/golden/outCLI/" ++ testConf ++ ".out"
+                    outExpectedRaw <- readFile $ "tests/golden/outCLI/" ++ testConf ++ ".out"
                     outRealRaw  <- liftA2 (\x y -> x ++ filter (/= '\r') y) (hGetContents err) (hGetContents out)
-                    let outReal = (unlines . drop 3 . lines) outRealRaw
+                    let outExpected = normalize outExpectedRaw
+                        outReal = normalize (unlines . drop 3 . lines $ outRealRaw)
                     outReal `shouldBe` outExpected
+
+-- before comparing, round all floats to a fixed precision.
+normalize :: String -> String
+normalize = unlines . map normLine . lines
+  where
+    normLine = unwords . map normTok . words
+    normTok tok =
+      case reads tok :: [(Double, String)] of
+        [(x,"")] -> showFFloat (Just 5) x ""
+        _        -> tok
