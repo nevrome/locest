@@ -31,7 +31,7 @@ import qualified Data.Vector.Storable.Mutable   as VSM
 import           System.FilePath                (takeExtension)
 import           System.IO                      (Handle, IOMode (..), hClose,
                                                  hPutStrLn, openFile, stderr,
-                                                 stdout)
+                                                 stdout, hFlush)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions
@@ -266,7 +266,7 @@ sourceCSV path =
 
 appendNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => Maybe FilePath -> ConduitT a Void m ()
 appendNamedCSV Nothing =
-    Con.bracketP (return stdout) (const $ return ()) $ \handle ->
+    Con.bracketP (return stdout) hFlush $ \handle ->
            ConCsv.toCsv encodingOptions
         .| ConC.mapM_ (liftIO . Bchs.hPutStr handle)
 appendNamedCSV (Just path) =
@@ -276,7 +276,7 @@ appendNamedCSV (Just path) =
 
 sinkNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => Maybe FilePath -> ConduitT a Void m ()
 sinkNamedCSV Nothing =
-    Con.bracketP (return stdout) (const $ return ()) $ \handle ->
+    Con.bracketP (return stdout) hFlush $ \handle ->
            writeHeaderCSV handle
         .| ConCsv.toCsv encodingOptions
         .| ConC.mapM_ (liftIO . Bchs.hPutStr handle)
