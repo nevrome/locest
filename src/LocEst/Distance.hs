@@ -1,12 +1,12 @@
+{-# LANGUAGE BangPatterns  #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE BangPatterns #-}
 
 module LocEst.Distance where
 
 import           LocEst.Types
 import           LocEst.TypesFlat
 
-import           Data.Foldable                (Foldable (foldl'), forM_)
+import           Data.Foldable                (forM_)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Storable         as VS
 import qualified Data.Vector.Storable.Mutable as VSM

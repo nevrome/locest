@@ -30,8 +30,8 @@ import qualified Data.Vector.Storable           as VS
 import qualified Data.Vector.Storable.Mutable   as VSM
 import           System.FilePath                (takeExtension)
 import           System.IO                      (Handle, IOMode (..), hClose,
-                                                 hPutStrLn, openFile, stderr,
-                                                 stdout, hFlush)
+                                                 hFlush, hPutStrLn, openFile,
+                                                 stderr, stdout)
 
 -- helper functions
 decodingOptions :: Csv.DecodeOptions

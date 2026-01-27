@@ -1,10 +1,10 @@
 module GoldenSpec (spec) where
 
 import           Control.Monad
+import           Numeric        (showFFloat)
 import           System.IO
 import           System.Process
 import           Test.Hspec
-import Numeric (showFFloat)
 
 spec :: Spec
 spec = goldenSpec

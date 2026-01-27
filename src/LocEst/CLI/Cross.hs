@@ -11,14 +11,15 @@ import           LocEst.Utils
 
 import           Conduit                  (MonadIO (liftIO))
 import qualified Control.Monad            as OP
+import           Control.Monad.ST         (runST)
 import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
-import           Data.List                (foldl', intercalate, nub)
+import           Data.List                (intercalate, nub)
 import           Data.Maybe               (fromMaybe)
 import qualified Data.Vector              as V
+import qualified Data.Vector.Mutable      as VM
 import qualified Data.Vector.Storable     as VS
-import           Immutable.Shuffle        (shuffle)
 import           LocEst.CLI.Search        (Permutation (..), search)
 import           System.IO                (hPutStrLn, stderr)
 import           System.Random            as R
@@ -146,3 +147,18 @@ splitIdx seed nTest n =
       idxs = V.fromList [0..n-1]
       (shuffled,_) = shuffle idxs rng
   in VS.splitAt nTest (VS.convert shuffled)
+
+shuffle :: V.Vector a -> R.StdGen -> (V.Vector a, R.StdGen)
+shuffle vec0 gen0 =
+  let n = V.length vec0
+  in runST $ do
+       mv <- V.thaw vec0
+       let go !i !gen
+             | i <= 1 = do
+                 v <- V.freeze mv
+                 pure (v, gen)
+             | otherwise = do
+                 let (j, gen') = R.randomR (0, i-1) gen
+                 VM.swap mv (i-1) j
+                 go (i-1) gen'
+       go n gen0

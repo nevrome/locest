@@ -28,7 +28,7 @@ library
       , bytestring
       , cassava
       , cassava-conduit >= 0.6.0 && < 1.0.0
-      , filepath >= 1.4 && < 1.5
+      , filepath >= 1.4 && < 1.6
       , unordered-containers
       , conduit
       , deepseq
@@ -36,7 +36,6 @@ library
       , vector-algorithms
       , optparse-applicative
       , parsec
-      , perfect-vector-shuffle
       , mtl
       , random
       , serialise
@@ -63,7 +62,7 @@ executable locest
     build-depends:
         base
       , locest
-      , optparse-applicative >= 0.16 && < 0.19
+      , optparse-applicative >= 0.16 && < 0.20
       , silently
     other-modules:
       Paths_locest

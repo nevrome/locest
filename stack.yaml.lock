@@ -3,21 +3,10 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/topics/lock_files
 
-packages:
-- completed:
-    commit: 501b61b4dbc189f1bb8e2080ccfd85473f2ac554
-    git: https://github.com/Boarders/perfect-vector-shuffle
-    name: perfect-vector-shuffle
-    pantry-tree:
-      sha256: 9bd3a5050e3f9fb206f468475dfd86fcfa4d82fcd3fdd0776389791598b07a24
-      size: 792
-    version: 0.1.1.1
-  original:
-    commit: 501b61b4dbc189f1bb8e2080ccfd85473f2ac554
-    git: https://github.com/Boarders/perfect-vector-shuffle
+packages: []
 snapshots:
 - completed:
-    sha256: 08bd13ce621b41a8f5e51456b38d5b46d7783ce114a50ab604d6bbab0d002146
-    size: 720271
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/22/43.yaml
-  original: lts-22.43
+    sha256: a578d98b69e5742eaf2c42d870e9c5011e5f8b5ad216f04ca8f52caadc8bf89c
+    size: 715419
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2025/12/30.yaml
+  original: nightly-2025-12-30

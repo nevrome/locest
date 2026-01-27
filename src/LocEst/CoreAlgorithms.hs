@@ -146,7 +146,7 @@ gprCore d dx dxx y g =
         mup      = M.flatten $ dx M.<> alpha
         -- sigmaP diagonal only:
         dxxDiag   = case dxx of
-                        Just x -> M.takeDiag x
+                        Just x  -> M.takeDiag x
                         Nothing -> VS.replicate (M.rows dx) 1.0
         betaT     = M.tr beta
         diagTerm  = sumRows (dx * betaT)
