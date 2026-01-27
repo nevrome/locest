@@ -97,6 +97,7 @@ search
   -> [IndepVarName]
   -> Maybe CrossDistMatrixPerIndepVar
   -> Maybe SelfDistMatrixPerIndepVar
+  -- -> Maybe SelfDistMatrixPerIndepVar
   -> Double
   -> [DepVarName]
   -> [KernelOneDepVar]
@@ -133,8 +134,7 @@ searchPerDepVar algorithm topNObs indepVars
      (Permutation _ obs grid maybeGridTrueDep searchDepVarPos) =
     case algorithm of
         GPR -> do
-            -- gpr
-            distsObsGrid <- case maybeObsGridDists of -- this could be refactored to be shorter
+            distsObsGrid <- case maybeObsGridDists of
                 Nothing -> do
                     crossDistMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
                 Just (CrossDistMatrixPerIndepVar ms) ->
@@ -160,7 +160,6 @@ searchPerDepVar algorithm topNObs indepVars
             --                Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
             return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs searchDepVarPos topNObs) depVars kernelsPerDepVar
         KAS -> do
-            -- kas
             distsObsGrid <- case maybeObsGridDists of
                 Nothing -> do
                      crossDistMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
