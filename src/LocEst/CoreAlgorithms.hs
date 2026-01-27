@@ -35,7 +35,7 @@ gpr :: V.Vector Observation
 gpr obs _ -- grid
     maybeGridTrueDep distsObsGrid distsObsObs -- distsGridGrid
     maybeSearchValues topNObs depVar kernel =
-    let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
+    let values = VS.generate (V.length obs) $ \i -> getDepVarsPos depVar (obs V.! i)
         !weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         !weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
         -- !weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
@@ -74,7 +74,7 @@ kas :: V.Vector Observation
     -> KernelOneDepVar
     -> V.Vector SearchResultLong
 kas obs maybeGridTrueDep distsObsGrid maybeSearchValues topNObs depVar kernel =
-    let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
+    let values = VS.generate (V.length obs) $ \i -> getDepVarsPos depVar (obs V.! i)
         !weightsObsGrid = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         resDistribution = kasCore weightsObsGrid values
     in V.imap (\i ed ->
@@ -136,26 +136,20 @@ gprCore d dx dxx y g =
         k     = d + M.scale g (M.ident nObs)
         -- Cholesky factorisation (SPD assumption)
         cholK = M.chol (M.trustSym k)
-        -- RHS matrix: y and dx^T as columns
-        rhs   = M.fromColumns (y : M.toColumns (M.tr dx))
-        -- solve in one go, reusing factorisation
-        sol   = M.cholSolve cholK rhs
         -- alpha = k^-1 y
-        alphaCol = M.takeColumns 1 sol
+        alpha = M.cholSolve cholK (M.asColumn y)
         -- beta = k^-1 dx^T
-        beta     = M.dropColumns 1 sol
+        beta  = M.cholSolve cholK (M.tr dx)
         -- variance scale tau^2-hat
-        tau2hat  = (y `M.dot` M.flatten alphaCol) / fromIntegral nObs
+        tau2hat  = (y `M.dot` M.flatten alpha) / fromIntegral nObs
         -- posterior mean: dx * alpha
-        mup      = M.flatten $ dx M.<> alphaCol
+        mup      = M.flatten $ dx M.<> alpha
         -- sigmaP diagonal only:
         dxxDiag   = case dxx of
                         Just x -> M.takeDiag x
                         Nothing -> VS.replicate (M.rows dx) 1.0
         betaT     = M.tr beta
-        dxRows    = M.toRows dx
-        betaTRows = M.toRows betaT
-        diagTerm  = VS.fromList $ zipWith M.dot dxRows betaTRows
+        diagTerm  = sumRows (dx * betaT)
         sigmaDiag = VS.zipWith (\dxxi diTerm -> tau2hat * (dxxi + g - diTerm))
                                (VS.convert dxxDiag)
                                diagTerm
@@ -239,9 +233,9 @@ computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
         firstTag   = tags `VS.unsafeIndex` 0
         -- choose weight function based on kernel shape
         !weightFun = case _kodvShape kernel of
-            SquaredExponential -> \ds2 -> 1 / exp ds2
+            SquaredExponential -> exp . negate -- \ds2 -> 1 / exp ds2
             Linear             -> \ds2 -> 1 / (1 + sqrt ds2)
-            Exponential        -> \ds2 -> 1 / exp (sqrt ds2)
+            Exponential        -> exp . negate . sqrt -- \ds2 -> 1 / exp (sqrt ds2
     in if not firstTag
          -- spat/temp case (stride == 2)
          then case thetasList of
