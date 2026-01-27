@@ -26,22 +26,24 @@ gpr :: V.Vector Observation
     -> Maybe (V.Vector DepVarsPos)
     -> IndepVarsDistFlat
     -> IndepVarsDistFlat
-    -> IndepVarsDistFlat
+    -- -> IndepVarsDistFlat
     -> Maybe (V.Vector DepVarsPredPos)
     -> Int
     -> DepVarName
     -> KernelOneDepVar
     -> V.Vector SearchResultLong
-gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid maybeSearchValues topNObs depVar kernel =
+gpr obs _ -- grid
+    maybeGridTrueDep distsObsGrid distsObsObs -- distsGridGrid
+    maybeSearchValues topNObs depVar kernel =
     let values  = VS.convert $ V.map (getDepVarsPos depVar) obs
         !weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         !weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
-        !weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
+        -- !weightsGridGrid = expandHalfToMatrix (V.length grid) $ computeWeightsFlat kernel distsGridGrid
     -- in error $ show $ VS.take 100 $ VS.reverse $ M.flatten $ weightsGridGrid
         nugget = case _kodvNugget kernel of
             Just x  -> x
             Nothing -> throwL "nugget parameter missing in kernel definition"
-        resDistribution = gprCore weightsObsObs weightsObsGrid weightsGridGrid values nugget
+        resDistribution = gprCore weightsObsObs weightsObsGrid Nothing values nugget
     in V.imap (\i ed ->
         let topObs   = if topNObs > 0
                        then Just $ topNObsIDs topNObs obs weightsObsGrid i
@@ -121,7 +123,7 @@ seek depVar maybeSearchValues maybeTrueDep (Left _) topObs =
 gprCore ::
        M.Matrix Double -- obs–obs weights
     -> M.Matrix Double -- grid–obs weights
-    -> M.Matrix Double -- grid–grid weights
+    -> Maybe (M.Matrix Double) -- grid–grid weights
     -> M.Vector Double -- y: measured values in dependent variable space
     -> Double          -- nugget noise term g
     -> V.Vector (Either String NormalDistribution)
@@ -147,7 +149,9 @@ gprCore d dx dxx y g =
         -- posterior mean: dx * alpha
         mup      = M.flatten $ dx M.<> alphaCol
         -- sigmaP diagonal only:
-        dxxDiag   = M.takeDiag dxx
+        dxxDiag   = case dxx of
+                        Just x -> M.takeDiag x
+                        Nothing -> VS.replicate (M.rows dx) 1.0
         betaT     = M.tr beta
         dxRows    = M.toRows dx
         betaTRows = M.toRows betaT

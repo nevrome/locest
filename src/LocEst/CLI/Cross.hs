@@ -113,10 +113,10 @@ cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs
         trueVals = V.map (filterByKey depVars . depVarPosFromObs) testObs
         -- slice distance matrices, if present
         !maybeObsObsDists = sliceSelfDistPerIndep trainIdx <$> maybeFullObsObsDists
-        !maybeGridGridDists = sliceSelfDistPerIndep testIdx <$> maybeFullObsObsDists
         !maybeObsGridDists = sliceCrossDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
+        -- !maybeGridGridDists = sliceSelfDistPerIndep testIdx <$> maybeFullObsObsDists
     -- run search (no dep search grid, no temp grid, but true values for grid pos)
-    rows <- search algorithm kernDef 0 indepVars maybeObsGridDists maybeObsObsDists maybeGridGridDists
+    rows <- search algorithm kernDef 0 indepVars maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
                    spatDistUnitScaling depVars kernels
                    (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
     -- compute summary statistics

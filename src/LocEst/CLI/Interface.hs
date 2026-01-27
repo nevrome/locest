@@ -105,7 +105,7 @@ searchOptParser = SearchOptions
                         <*> optParseKernDefString
                         <*> OP.optional optParseInObsGridDistFile
                         <*> OP.optional optParseInObsObsDistFile
-                        <*> OP.optional optParseInGridGridDistFile
+                        -- <*> OP.optional optParseInGridGridDistFile
                         <*> optParseTopNObs
                         <*> optParseOutFile
 

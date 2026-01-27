@@ -32,7 +32,7 @@ data SearchOptions = SearchOptions
     , _searchAlgorithm           :: KernelDefinition
     , _searchInObsGridDistFile   :: Maybe FilePath
     , _searchInObsObsDistFile    :: Maybe FilePath
-    , _searchInGridGridDistFile  :: Maybe FilePath
+    -- , _searchInGridGridDistFile  :: Maybe FilePath
     , _searchTopNObs             :: Int
     , _searchOutFile             :: Maybe FilePath
     }
@@ -41,7 +41,7 @@ runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
     inObsFile maybeTempSampFile inIndepVarsPredGridFile maybeTempGrid
     inMaybeDepSearchGrid kernDef
-    maybeObsGridDistFile maybeObsObsDistFile maybeGridGridDistFile
+    maybeObsGridDistFile maybeObsObsDistFile -- maybeGridGridDistFile
     topNObs outFile
     ) spatDistUnitScaling = do
     -- algorithm settings
@@ -67,7 +67,7 @@ runSearch (SearchOptions
     -- read distances
     !obsGridDistances  <- traverse (readCrossDistMulti nObs nGrid) maybeObsGridDistFile
     !obsObsDistances   <- traverse (readSelfDistMulti nObs) maybeObsObsDistFile
-    !gridGridDistances <- traverse (readSelfDistMulti nGrid) maybeGridGridDistFile
+    -- !gridGridDistances <- traverse (readSelfDistMulti nGrid) maybeGridGridDistFile
     -- permutations
     hPutStrLn stderr "Preparing permutations"
     let permutations = createPermutations obs maybeTempSamp indepPredGrid depSearchGrid maybeTempGrid
@@ -80,7 +80,8 @@ runSearch (SearchOptions
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . search algorithm kernDef topNObs indepVars obsGridDistances obsObsDistances gridGridDistances spatDistUnitScaling depVars kernels)
+        .| ConL.concatMapM (liftIO . search algorithm kernDef topNObs indepVars obsGridDistances obsObsDistances -- gridGridDistances
+                                            spatDistUnitScaling depVars kernels)
         .| progress 1000 (Just nrOutputRows)
         .| sinkNamedCSV outFile
     putStrLn "Done"
@@ -94,14 +95,14 @@ search :: Algorithm
        -> [IndepVarName]
        -> Maybe CrossDistMatrixPerIndepVar
        -> Maybe SelfDistMatrixPerIndepVar
-       -> Maybe SelfDistMatrixPerIndepVar
+       -- -> Maybe SelfDistMatrixPerIndepVar
        -> Double
        -> [DepVarName]
        -> [KernelOneDepVar]
        -> Permutation
        -> IO [SearchResultRow]
 search algorithm kernDef topNObs indepVars
-     maybeObsGridDists maybeObsObsDists maybeGridGridDists
+     maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
      spatDistUnitScaling
      depVars kernelsPerDepVar
      (Permutation tempSamplingIteration obs grid maybeGridTrueDep searchDepVarPos) = do
@@ -124,17 +125,15 @@ search algorithm kernDef topNObs indepVars
                         forM indepVars (\name -> case lookup name ms of
                            Just m  -> pure (name, m)
                            Nothing -> calcSelfDistOneDim spatDistUnitScaling (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
-            distsGridGrid <- case maybeGridGridDists of
-                Nothing -> do
-                     selfDistMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
-                Just (SelfDistMatrixPerIndepVar ms) ->
-                    selfDistMatrixToFlatHalf . SelfDistMatrixPerIndepVar <$>
-                        forM indepVars (\name -> case lookup name ms of
-                           Just m  -> pure (name, m)
-                           Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
-            --putStrLn $ show $ VS.take 100 $ VS.reverse $ payload distsObsGrid
-            --error "test"
-            return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs distsGridGrid searchDepVarPos topNObs) depVars kernelsPerDepVar
+            -- distsGridGrid <- case maybeGridGridDists of
+            --     Nothing -> do
+            --          selfDistMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
+            --     Just (SelfDistMatrixPerIndepVar ms) ->
+            --         selfDistMatrixToFlatHalf . SelfDistMatrixPerIndepVar <$>
+            --             forM indepVars (\name -> case lookup name ms of
+            --                Just m  -> pure (name, m)
+            --                Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
+            return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs searchDepVarPos topNObs) depVars kernelsPerDepVar
         KAS -> do
             -- kas
             distsObsGrid <- case maybeObsGridDists of
