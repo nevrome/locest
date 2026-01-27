@@ -55,11 +55,11 @@ gpr obs _ -- grid
 expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
 expandHalfToMatrix n halfVec =
     M.reshape n $ VS.create $ do
-      mvec <- VSM.new (n*n)
+      mvec <- VSM.unsafeNew (n*n)
       let idx col row = col*n + row  -- column-major index
       forM_ [0..n-1] $ \i ->
         forM_ [0..i] $ \j -> do
-          let v = halfVec VS.! idxHalf i j
+          let v = halfVec `VS.unsafeIndex` idxHalf i j
           -- write (i,j) and (j,i)
           VSM.unsafeWrite mvec (idx j i) v
           VSM.unsafeWrite mvec (idx i j) v
@@ -150,9 +150,7 @@ gprCore d dx dxx y g =
                         Nothing -> VS.replicate (M.rows dx) 1.0
         betaT     = M.tr beta
         diagTerm  = sumRows (dx * betaT)
-        sigmaDiag = VS.zipWith (\dxxi diTerm -> tau2hat * (dxxi + g - diTerm))
-                               (VS.convert dxxDiag)
-                               diagTerm
+        sigmaDiag = VS.zipWith (\dxxi diTerm -> tau2hat * (dxxi + g - diTerm)) dxxDiag diagTerm
         -- full posterior covariance
         -- nGrid = M.rows dxx
         -- dxxFull  = dxx + M.scale g (M.ident nGrid)
