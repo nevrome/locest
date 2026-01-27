@@ -16,7 +16,6 @@ import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import qualified Data.Conduit.List        as ConL
-import           Data.Foldable            (foldl')
 import           Data.List                (intercalate)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe               (isJust)
@@ -47,7 +46,9 @@ runSearch (SearchOptions
     -- algorithm settings
     let algorithm = _kdefAlgorithm kernDef
         depVars   = getKeys kernDef
-        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar kernDef
+        indepVars = case _kdefPerDepVar kernDef of
+            (k:_) -> getKeys (_kodvLengths k)
+            []    -> throwL "runSearch: empty KernelDefinition (this should be impossible)"
         kernels   = getValues kernDef
     hPutStrLn stderr $ "Algorithm: " ++ show algorithm
     hPutStrLn stderr $ "Dependent variables: " ++ intercalate ", " depVars

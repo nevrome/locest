@@ -7,9 +7,11 @@ import           LocEst.Types
 import           LocEst.TypesFlat
 
 import           Data.Foldable                (forM_)
+import           Data.Maybe                   (listToMaybe)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Storable         as VS
 import qualified Data.Vector.Storable.Mutable as VSM
+import           LocEst.Utils                 (throwL)
 
 calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> [IndepVarName] -> IO CrossDistMatrixPerIndepVar
 calcObsGridDistances spatScale obs grid varsToCompute = do
@@ -106,9 +108,9 @@ crossDistMatrixToFlat cdmPerIndepVar =
         nCols = _cdmNrCols (V.head matsV)
         total = nRows * nCols
         -- compute tag once (all elements are identical)
-        firstTag = case head (getKeys cdmPerIndepVar) of
-                     "space" -> False
-                     _       -> True
+        firstTag = case listToMaybe (getKeys cdmPerIndepVar) of
+                     Just "space" -> False
+                     _            -> True
         tagsVec = VS.replicate total firstTag
         -- precompute all matrix vectors
         matVecs = V.map _cdmMatrix matsV
@@ -126,9 +128,9 @@ mergeDistsIndepVar :: (Double, Double) -> SelfDistMatrixPerIndepVar -> IO SelfDi
 mergeDistsIndepVar (spaceScale, timeScale) (SelfDistMatrixPerIndepVar ms) = do
     case ms of
       [] -> error "mergeDists: no matrices to merge"
-      _  -> do
+      x:_  -> do
         -- all half matrices should have the same length
-        let nHalf = VS.length (let (SelfDistMatrix v) = snd (head ms) in v)
+        let nHalf = VS.length (let (SelfDistMatrix v) = snd x in v)
         mv <- VSM.new nHalf
         forM_ [0..nHalf-1] $ \i -> do
           -- sum-of-squares accumulator
@@ -146,9 +148,9 @@ mergeDistsDepVar :: SelfDistMatrixPerIndepVar -> IO SelfDistMatrixPerIndepVar
 mergeDistsDepVar (SelfDistMatrixPerIndepVar ms) = do
     case ms of
       [] -> error "mergeDists: no matrices to merge"
-      _  -> do
+      x:_  -> do
         -- all half matrices should have the same length
-        let nHalf = VS.length (let (SelfDistMatrix v) = snd (head ms) in v)
+        let nHalf = VS.length (let (SelfDistMatrix v) = snd x in v)
         mv <- VSM.new nHalf
         forM_ [0..nHalf-1] $ \i -> do
           -- sum-of-squares accumulator
@@ -251,14 +253,16 @@ computeArbitrarySelfDistMatrix ix vec = do
 
 selfDistMatrixToFlatHalf :: SelfDistMatrixPerIndepVar -> IndepVarsDistFlat
 selfDistMatrixToFlatHalf sdmPerIndepVar =
-    let mats   = getValues sdmPerIndepVar -- [SelfDistMatrix]
-        stride = length mats               -- number of dimensions
-        nHalf  = VS.length (let (SelfDistMatrix v) = head mats in v)
+    let mats   = getValues sdmPerIndepVar
+        stride = length mats -- number of dimensions
+        nHalf  = case mats of
+            (SelfDistMatrix v:_) -> VS.length v
+            [] -> throwL "selfDistMatrixToFlatHalf: empty SelfDistMatrixPerIndepVar"
         -- tags vector: same simple heuristic as crossDistMatrixToFlat
         tagsVec = VS.replicate nHalf $
-                    case head (getKeys sdmPerIndepVar) of
-                      "space" -> False
-                      _       -> True
+                    case listToMaybe (getKeys sdmPerIndepVar) of
+                      Just "space" -> False
+                      _            -> True
         -- payload: stride‐interleave each dim's half vector
         payloadVec = VS.generate (nHalf * stride) $ \k ->
             let (idx, dimIx) = k `divMod` stride

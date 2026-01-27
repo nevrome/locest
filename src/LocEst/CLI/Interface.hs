@@ -14,6 +14,7 @@ import           LocEst.Utils
 
 import           Data.Char                (isSpace, toLower)
 import           Data.List                (groupBy, singleton)
+import qualified Data.List.NonEmpty       as N
 import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
@@ -639,7 +640,7 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
         parseKernelLengths = KernelLengths . makeValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
         parseNugget = parsePositiveFloatNumber
 
-optParseKernDefStringPermutations :: OP.Parser [KernelDefinition]
+optParseKernDefStringPermutations :: OP.Parser (N.NonEmpty KernelDefinition)
 optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString) (
        OP.long    "algodef"
     <> OP.short   'a'
@@ -675,11 +676,13 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
     ))
     )
     where
-        readKernDefString :: String -> Either String [KernelDefinition]
+        readKernDefString :: String -> Either String (N.NonEmpty KernelDefinition)
         readKernDefString s =
             case P.runParser parseAKernDefString () "" s of
                 Left err -> Left $ showParsecErr err
-                Right x  -> Right x
+                Right xs -> case N.nonEmpty xs of
+                    Just ne -> Right ne
+                    Nothing -> Left "No kernel definitions found (expected at least one)"
         parseAKernDefString :: P.Parser [KernelDefinition]
         parseAKernDefString = do
             kerndefs <- parseRecordType "def" $ do

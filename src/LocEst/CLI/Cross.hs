@@ -16,6 +16,7 @@ import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import           Data.List                (intercalate, nub)
+import qualified Data.List.NonEmpty       as N
 import           Data.Maybe               (fromMaybe)
 import qualified Data.Vector              as V
 import qualified Data.Vector.Mutable      as VM
@@ -26,7 +27,7 @@ import           System.Random            as R
 
 data CrossOptions = CrossOptions
     { _crossInObservationFile :: FilePath
-    , _crossTestAlgorithms    :: [KernelDefinition]
+    , _crossTestAlgorithms    :: N.NonEmpty KernelDefinition
     , _crossTestFraction      :: Double
     , _crossIterations        :: Int
     , _crossMaybeSeed         :: Maybe Int
@@ -45,10 +46,12 @@ runCross (
     ) spatDistUnitScaling
     = do
     -- algorithm settings
-    let firstKernel = head testAlgorithms
+    let firstKernel = N.head testAlgorithms
         algorithm = _kdefAlgorithm firstKernel
         depVars   = nub $ concatMap getKeys testAlgorithms -- here we have to check every kernel
-        indepVars = getKeys $ _kodvLengths $ head $ _kdefPerDepVar firstKernel
+        indepVars = case _kdefPerDepVar firstKernel of
+            (k:_) -> getKeys (_kodvLengths k)
+            []    -> throwL "runSearch: empty KernelDefinition (this should be impossible)"
     hPutStrLn stderr $ "Algorithm: " ++ show algorithm
     hPutStrLn stderr $ "Dependent variables: " ++ intercalate ", " depVars
     hPutStrLn stderr $ "Independent variables: " ++ intercalate ", " indepVars
@@ -72,7 +75,7 @@ runCross (
     hPutStrLn stderr $ "Seed for random splitting: " ++ show baseSeed
     -- determine steps
     hPutStrLn stderr "Preparing permutations"
-    let permutations = [ (iter, kerndef) | iter <- [1..iterations], kerndef <- testAlgorithms ]
+    let permutations = [ (iter, kerndef) | iter <- [1..iterations], kerndef <- N.toList testAlgorithms ]
     hPutStrLn stderr $ "Number of requested iterations: " ++ show iterations
     hPutStrLn stderr $ "Number of test kernel permutations: " ++ show (length testAlgorithms)
     -- run crossvalidation

@@ -60,18 +60,17 @@ readSelfDistMulti n path
         let nHalf = n*(n+1) `div` 2 -- length of packed upper triangle
         -- read entire file into memory
         !raw <- Bchs.readFile path
-        let ls = Bchs.lines raw
-        when (null ls) $ throwL "empty file"
+        (headerLine,dataLines) <- case Bchs.lines raw of
+            []     -> throwL "empty file"
+            (h:ts) -> pure (h,ts)
         -- parse header: id1, id2, then indep vars
-        let headerBS    = head ls
-            allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerBS))
+        let allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerLine))
             namesV      = V.filter (\nm -> nm /= "id1" && nm /= "id2") allNames
             stride      = V.length namesV
             indepIndices = V.findIndices (\nm -> nm /= "id1" && nm /= "id2") allNames
         -- allocate packed half-matrix vectors for each indep var
         matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nHalf)
         -- data rows (assumed in packed upper triangle order)
-        let dataLines = tail ls
         -- would be a neat test, but requires reading list into memory:
         --     !lenRows = length dataLines
         -- when (lenRows /= nHalf) $
@@ -111,18 +110,17 @@ readCrossDistMulti nObs nGrid path
         let nTotal = nObs * nGrid
         -- read entire file into memory
         !raw <- Bchs.readFile path
-        let ls = Bchs.lines raw
-        when (null ls) $ error "Empty TSV file"
+        (headerLine,dataLines) <- case Bchs.lines raw of
+            []     -> throwL "empty file"
+            (h:ts) -> pure (h,ts)
         -- parse header (tab-separated dimension names)
-        let headerBS    = head ls
-            allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerBS))
+        let allNames    = V.fromList (map Bchs.unpack (Bchs.split '\t' headerLine))
             namesV      = V.filter (\nm -> nm /= "obsID" && nm /= "gridID") allNames
             stride      = V.length namesV
             indepIndices = V.findIndices (\nm -> nm /= "obsID" && nm /= "gridID") allNames
         -- allocate one mutable vector per dimension
         matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nTotal)
         -- data rows
-        let dataLines = tail ls
         -- would be a neat test, but requires reading list into memory:
         --     !nRows = length dataLines
         -- when (nRows /= nTotal) $
