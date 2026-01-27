@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE BangPatterns #-}
 
 module LocEst.Distance where
 
@@ -45,12 +46,16 @@ computeSpaceCrossDistMatrix :: Double -> V.Vector SpatPos -> V.Vector SpatPos ->
 computeSpaceCrossDistMatrix spatScale obs grid = do
   let nrObs  = V.length obs
       nrGrid = V.length grid
-  mv <- VSM.new (nrGrid * nrObs)
-  forM_ [0 .. nrGrid-1] $ \gy ->
-    let s2 = grid V.! gy
-    in forM_ [0 .. nrObs-1] $ \ox ->
-         let s1 = obs V.! ox
-         in VSM.write mv (gy*nrObs + ox) (spatialDistSpatPos s1 s2 * spatScale)
+      !nTot  = nrGrid * nrObs
+  mv <- VSM.new nTot
+  forM_ [0 .. nrGrid-1] $ \gy -> do
+    -- cache grid point once per outer loop
+    let !s2    = V.unsafeIndex grid gy
+        !base  = gy * nrObs
+    forM_ [0 .. nrObs-1] $ \ox -> do
+      let !s1 = V.unsafeIndex obs ox
+          !d  = spatialDistSpatPos s1 s2 * spatScale
+      VSM.unsafeWrite mv (base + ox) d
   frozen <- VS.unsafeFreeze mv
   pure (CrossDistMatrix nrObs nrGrid frozen)
 
@@ -58,25 +63,35 @@ computeTimeCrossDistMatrix :: V.Vector TempPos -> V.Vector TempPos -> IO CrossDi
 computeTimeCrossDistMatrix obs grid = do
   let nrObs  = V.length obs
       nrGrid = V.length grid
-  mv <- VSM.new (nrGrid * nrObs)
-  forM_ [0 .. nrGrid-1] $ \gy ->
-    let t2 = grid V.! gy
-    in forM_ [0 .. nrObs-1] $ \ox ->
-         let t1 = obs V.! ox
-         in VSM.write mv (gy*nrObs + ox) (temporalDistTempPos t1 t2)
+      !nTot  = nrGrid * nrObs
+  mv <- VSM.new nTot
+  forM_ [0 .. nrGrid-1] $ \gy -> do
+    let !t2   = V.unsafeIndex grid gy
+        !base = gy * nrObs
+    forM_ [0 .. nrObs-1] $ \ox -> do
+      let !t1 = V.unsafeIndex obs ox
+      VSM.unsafeWrite mv (base + ox) (temporalDistTempPos t1 t2)
   frozen <- VS.unsafeFreeze mv
   pure (CrossDistMatrix nrObs nrGrid frozen)
 
-computeArbitraryCrossDistMatrix :: Int -> V.Vector (VS.Vector Double) -> V.Vector (VS.Vector Double) -> IO CrossDistMatrix
+computeArbitraryCrossDistMatrix
+  :: Int
+  -> V.Vector (VS.Vector Double) -- obs positions
+  -> V.Vector (VS.Vector Double) -- grid positions
+  -> IO CrossDistMatrix
 computeArbitraryCrossDistMatrix ix obs grid = do
   let nrObs  = V.length obs
       nrGrid = V.length grid
-  mv <- VSM.new (nrGrid * nrObs)
-  forM_ [0 .. nrGrid-1] $ \gy ->
-    let vs2 = grid V.! gy
-    in forM_ [0 .. nrObs-1] $ \ox ->
-         let vs1 = obs V.! ox
-         in VSM.write mv (gy*nrObs + ox) (abs (vs1 VS.! ix - vs2 VS.! ix))
+      !nTot  = nrGrid * nrObs
+  mv <- VSM.new nTot
+  forM_ [0 .. nrGrid-1] $ \gy -> do
+    let !vs2  = V.unsafeIndex grid gy
+        !x2   = VS.unsafeIndex vs2 ix -- cache grid coordinate once
+        !base = gy * nrObs
+    forM_ [0 .. nrObs-1] $ \ox -> do
+      let !vs1 = V.unsafeIndex obs ox
+          !x1  = VS.unsafeIndex vs1 ix
+      VSM.unsafeWrite mv (base + ox) (abs (x1 - x2))
   frozen <- VS.unsafeFreeze mv
   pure (CrossDistMatrix nrObs nrGrid frozen)
 
