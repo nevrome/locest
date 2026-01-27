@@ -70,7 +70,8 @@ computeTimeCrossDistMatrix obs grid = do
         !base = gy * nrObs
     forM_ [0 .. nrObs-1] $ \ox -> do
       let !t1 = V.unsafeIndex obs ox
-      VSM.unsafeWrite mv (base + ox) (temporalDistTempPos t1 t2)
+          !d  = temporalDistTempPos t1 t2
+      VSM.unsafeWrite mv (base + ox) d
   frozen <- VS.unsafeFreeze mv
   pure (CrossDistMatrix nrObs nrGrid frozen)
 
@@ -91,7 +92,8 @@ computeArbitraryCrossDistMatrix ix obs grid = do
     forM_ [0 .. nrObs-1] $ \ox -> do
       let !vs1 = V.unsafeIndex obs ox
           !x1  = VS.unsafeIndex vs1 ix
-      VSM.unsafeWrite mv (base + ox) (abs (x1 - x2))
+          !d = abs (x1 - x2)
+      VSM.unsafeWrite mv (base + ox) d
   frozen <- VS.unsafeFreeze mv
   pure (CrossDistMatrix nrObs nrGrid frozen)
 
