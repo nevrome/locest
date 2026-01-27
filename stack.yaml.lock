@@ -15,13 +15,6 @@ packages:
   original:
     commit: 501b61b4dbc189f1bb8e2080ccfd85473f2ac554
     git: https://github.com/Boarders/perfect-vector-shuffle
-- completed:
-    hackage: conduit-algorithms-0.0.14.0@sha256:c8d14228d9634886c9dd4d0ef4cc7b029a93c323e99afb3878c3a9753372df67,3451
-    pantry-tree:
-      sha256: 137331b44d6be5d6e2c7247c5199107e467c5d152aa3ef66a026ca8bd54a0d66
-      size: 865
-  original:
-    hackage: conduit-algorithms-0.0.14.0@sha256:c8d14228d9634886c9dd4d0ef4cc7b029a93c323e99afb3878c3a9753372df67,3451
 snapshots:
 - completed:
     sha256: 08bd13ce621b41a8f5e51456b38d5b46d7783ce114a50ab604d6bbab0d002146
