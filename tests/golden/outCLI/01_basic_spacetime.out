@@ -1,6 +1,21 @@
-Working with threads: 1
-Working silently
-spatID	x	y	yearBCAD	kernel_depV1_shape	kernel_depV1_space_length	kernel_depV1_time_length	kernel_depV2_shape	kernel_depV2_space_length	kernel_depV2_time_length	temp_sampling_iteration	cross_iteration	interpol_depV1_neff	interpol_depV1_var	interpol_depV1_var_prior	interpol_depV1_post	interpol_depV1_low	interpol_depV1_median	interpol_depV1_up	interpol_depV2_neff	interpol_depV2_var	interpol_depV2_var_prior	interpol_depV2_post	interpol_depV2_low	interpol_depV2_median	interpol_depV2_up
-S1	0.0	0.0	0	SqEx	200.0	300.0	SqEx	200.0	300.0	0	0	1.3861950800601766	0.6997724523030008	0.2529474713187219	TRUE	-3.7844559184994804	0.26538792877224193	4.315231776043961	1.3861950800601766	2.799089809212003	1.0117898852748877	TRUE	-7.568911836998961	0.5307758575444839	8.630463552087923
-S1	0.0	0.0	300	SqEx	200.0	300.0	SqEx	200.0	300.0	0	0	1.7357588823428847	0.5761168847658291	0.27678479030250996	TRUE	-2.4950508509173916	0.5761168847658291	3.6472846204490486	1.7357588823428847	2.3044675390633165	1.1071391612100399	TRUE	-4.990101701834783	1.1522337695316582	7.294569240898097
-S1	0.0	0.0	600	SqEx	200.0	300.0	SqEx	200.0	300.0	0	0	1.3861950800601766	0.6997724523030007	0.2529474713187219	TRUE	-3.7844559184994804	0.26538792877224193	4.315231776043961	1.3861950800601766	2.7990898092120027	1.0117898852748877	TRUE	-7.568911836998961	0.5307758575444839	8.630463552087923
+Algorithm: GPR
+Dependent variables: depV1, depV2
+Independent variables: space, time
+Reading observations
+Parsing inData/01_obs_spacetime.tsv
+Streaming...
+Done
+Number of observations: 3
+Reading grid positions
+Parsing inData/02_spatgrid_spacetime.tsv
+Streaming...
+Done
+Number of grid positions: 1
+Preparing permutations
+Running interpolation
+Streaming...
+temp_sampling_iteration	algorithm	kernel_shape_depV1	kernel_space_length_depV1	kernel_time_length_depV1	kernel_nugget_depV1	kernel_shape_depV2	kernel_space_length_depV2	kernel_time_length_depV2	kernel_nugget_depV2	grid_x	grid_y	grid_yearBCAD	interpol_lower_quant_depV1	interpol_median_depV1	interpol_upper_quant_depV1	interpol_lower_quant_depV2	interpol_median_depV2	interpol_upper_quant_depV2
+0	GPR	SqEx	200.0	300.0	0.1	SqEx	200.0	300.0	0.1	0.0	0.0	0	-0.4936728462126835	3.8341677874346725e-2	0.5703562019613768	-0.987345692425367	7.668335574869345e-2	1.1407124039227536
+0	GPR	SqEx	200.0	300.0	0.1	SqEx	200.0	300.0	0.1	0.0	0.0	300	0.35325838505085816	0.8834452454000177	1.4136321057491772	0.7065167701017163	1.7668904908000354	2.8272642114983544
+0	GPR	SqEx	200.0	300.0	0.1	SqEx	200.0	300.0	0.1	0.0	0.0	600	-0.49367284621268354	3.834167787434667e-2	0.5703562019613768	-0.9873456924253671	7.668335574869334e-2	1.1407124039227536
+Done

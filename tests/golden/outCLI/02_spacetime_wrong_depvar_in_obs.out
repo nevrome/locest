@@ -1,17 +1,19 @@
-Working with threads: 1
+Algorithm: GPR
+Dependent variables: depV1, depV2
+Independent variables: space, time
 Reading observations
 Parsing inData/03_obs_spacetime_wrong_depvar.tsv
 Streaming...
 Done
-Preparing prediction grid
-Assuming a spatiotemporal system
-Reading spatial grid positions
+Number of observations: 3
+Reading grid positions
 Parsing inData/02_spatgrid_spacetime.tsv
 Streaming...
 Done
+Number of grid positions: 1
 Preparing permutations
-Running analysis
+Running interpolation
 Streaming...
 
 Error:
-Failed lookup. Missing key: depV2
+Missing key: depV2

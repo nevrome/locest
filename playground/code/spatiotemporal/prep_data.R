@@ -3,12 +3,12 @@ library(magrittr)
 load("~/agora/mobest.analysis.2022/data/genotype_data/janno_final.RData")
 load("~/agora/mobest.analysis.2022/data/spatial/extended_area.RData")
 
-hu <- mobest::create_prediction_grid(
+spatiotemporal_grid <- mobest::create_prediction_grid(
   extended_area,
   spatial_cell_size = 30000
 ) %>% mobest::geopos_to_spatpos(-7000)
 
-hu %>%
+spatiotemporal_grid %>%
   dplyr::select(
     spatID = id, x, y
   ) %>%
