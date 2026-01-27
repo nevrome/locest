@@ -67,6 +67,7 @@ vario_res %>%
 
 # crossvalidation
 
+# stack install --profile
 # stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
 # profiteur locest.prof
 
@@ -91,13 +92,12 @@ cross_res %>%
   facet_grid(rows = dplyr::vars(depVar)) +
   scale_fill_viridis_c()#direction = -1)
 
-# system('time locest serialise --obsFile data/spatiotemporal/obs.tsv --outFile data/spatiotemporal/obs.cbor')
-
 # normal search test
+# stack install --profile
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -p
 # profiteur locest.prof
 # memory profiling:
-# OMP_NUM_THREADS=4 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -RTS
+# OMP_NUM_THREADS=20 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -RTS
 # hp2ps -c locest.hp
 
 system('time OMP_NUM_THREADS=20 locest search --configFile code/spatiotemporal/basic.conf')

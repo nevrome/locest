@@ -99,20 +99,26 @@ computeArbitraryCrossDistMatrix ix obs grid = do
 
 crossDistMatrixToFlat :: CrossDistMatrixPerIndepVar -> IndepVarsDistFlat
 crossDistMatrixToFlat cdmPerIndepVar =
-    let mats = getValues cdmPerIndepVar -- [CrossDistMatrix]
-        stride = length mats             -- number of dimensions
-        nRows  = _cdmNrRows (head mats) -- grid size
-        nCols  = _cdmNrCols (head mats) -- obs size
-        total  = nRows * nCols
-        -- tags vector: assume all same type — infer from dimension names or external info
-        tagsVec = VS.replicate total $
-                    case head (getKeys cdmPerIndepVar) of
-                      "space" -> False
-                      _       -> True
-        -- payload: interleave dimensions per row/col
-        payloadVec = VS.generate (total * stride) $ \k ->
-            let (idx, dimIx) = k `divMod` stride
-            in _cdmMatrix (mats !! dimIx) VS.! idx
+    let mats = getValues cdmPerIndepVar
+        matsV = V.fromList mats -- convert to vector for O(1) indexing
+        stride = V.length matsV
+        nRows = _cdmNrRows (V.head matsV)
+        nCols = _cdmNrCols (V.head matsV)
+        total = nRows * nCols
+        -- compute tag once (all elements are identical)
+        firstTag = case head (getKeys cdmPerIndepVar) of
+                     "space" -> False
+                     _       -> True
+        tagsVec = VS.replicate total firstTag
+        -- precompute all matrix vectors
+        matVecs = V.map _cdmMatrix matsV
+        -- build payload without per-element divMod
+        payloadVec = VS.create $ do
+            mv <- VSM.unsafeNew (total * stride)
+            V.iforM_ matVecs $ \dimIx vec ->
+                VS.iforM_ vec $ \idx val ->
+                    VSM.unsafeWrite mv (idx * stride + dimIx) val
+            return mv
     in IndepVarsDistFlat tagsVec payloadVec stride
 
 -- TODO: do scaling more elegantly: Could consider any variable, not just space and time
