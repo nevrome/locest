@@ -149,15 +149,16 @@ writeVariograms vars path = Con.runConduitRes $ ConC.yieldMany (concatMap varToL
     where
         varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]
         varToLong (EmpiricalVariogramOneVarCombination i d (EmpiricalVariogram xs)) =
-            map (\(iv, dv) -> EmpiricalVariogramSingleBin i d iv dv) xs
+            map (\(iv, dv, nrPairs) -> EmpiricalVariogramSingleBin i d iv dv nrPairs) xs
 
-perBin :: VU.Vector (Int, Double) -> VU.Vector Double -> ((Double,Double,Double), Int, Int) -> ((Double,Double,Double), Double)
+perBin :: VU.Vector (Int, Double) -> VU.Vector Double -> ((Double,Double,Double), Int, Int) -> ((Double,Double,Double), Double, Int)
 perBin sortedIndepDists depDists (minMidMax, startSorted, stopSorted) =
     let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
         depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
+        nrPairs = VU.length depDistsPerBin
         -- calculate variance per bin
         variance = calcHalfMeanSquared depDistsPerBin
-    in (minMidMax, variance)
+    in (minMidMax, variance, nrPairs)
 
 -- perform binning of an indepVar
 binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [((Double, Double, Double), Int, Int)]

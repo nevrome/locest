@@ -156,7 +156,7 @@ crossSummaryHeader :: Csv.Header
 crossSummaryHeader = Csv.header ["sum_dep_dist_euclidean","mean_squared_dep_dist_euclidean","sum_log_likelihood"]
 
 -- | A data type for an empirical variogram
-newtype EmpiricalVariogram = EmpiricalVariogram [((Double,Double,Double), Double)]
+newtype EmpiricalVariogram = EmpiricalVariogram [((Double,Double,Double), Double, Int)] -- (bin, variance, number of pairs)
     deriving Show
 
 data EmpiricalVariogramOneVarCombination = EmpiricalVariogramOneVarCombination IndepVarName DepVarName EmpiricalVariogram
@@ -166,15 +166,17 @@ data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin {
     _evIndepVar :: IndepVarName,
     _evDepVar   :: DepVarName,
     _evBin      :: (Double,Double,Double),
-    _evVariance :: Double
+    _evVariance :: Double,
+    _evNrPairs  :: Int
     }
     deriving Show
 
 instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
-    headerOrder _ = Csv.header ["indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance"]
+    headerOrder _ = Csv.header ["indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance", "nr_pairs"]
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
-    toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv) =
-        Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax, Csv.toField dv]
+    toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv npairs) =
+        Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax,
+                    Csv.toField dv, Csv.toField npairs]
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
