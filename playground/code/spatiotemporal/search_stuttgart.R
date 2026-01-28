@@ -65,6 +65,10 @@ vario_res %>%
     scales = "free"
   )
 
+system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "OneBinMax(max = c(space = 100, time = 100))" --outFile data/spatiotemporal/vario_nugget.tsv --across AllCombinations')
+
+readr::read_tsv("data/spatiotemporal/vario_nugget.tsv")
+
 # normal search test
 # stack install --profile
 # stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -p
