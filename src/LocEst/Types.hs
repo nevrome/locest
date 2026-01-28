@@ -30,16 +30,16 @@ filterByKeyList keys = filter (\(k,_) -> k `elem` keys)
 filterVarsInObs :: [String] -> [String] -> V.Vector Observation -> V.Vector Observation
 filterVarsInObs depVarsWanted indepVarsWanted = V.map handleOne
     where
-        handleOne :: Observation -> Observation
-        -- spatiotemporal case
-        handleOne o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs) _) =
-            let depRes = filterByKey depVarsWanted depInObs
-            in o { _obsPos = HyperPos std depRes }
-        -- arbitrary dimension case
-        handleOne o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs) _) =
-            let depRes   = filterByKey depVarsWanted depInObs
-                indepRes = filterByKey indepVarsWanted indepInObs
-            in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
+    handleOne :: Observation -> Observation
+    -- spatiotemporal case
+    handleOne o@(Observation _ _ (HyperPos std@(IndepSpatTempPos _) depInObs) _) =
+        let depRes = filterByKey depVarsWanted depInObs
+        in o { _obsPos = HyperPos std depRes }
+    -- arbitrary dimension case
+    handleOne o@(Observation _ _ (HyperPos (IndepArbitraryDimPos indepInObs) depInObs) _) =
+        let depRes   = filterByKey depVarsWanted depInObs
+            indepRes = filterByKey indepVarsWanted indepInObs
+        in o { _obsPos = HyperPos (IndepArbitraryDimPos indepRes) depRes }
 
 filterVarsInIndepVarsPos :: [String] -> IndepVarsPos -> IndepVarsPos
 filterVarsInIndepVarsPos _ x@(IndepSpatTempPos _) = x
@@ -49,78 +49,77 @@ filterVarsInIndepVarsPos indepVarsWanted (IndepArbitraryDimPos x) =
 -- data types
 
 -- | A data type for interpolation output for one dependent variable
-data SearchResultLong = SSL {
-      _sslDepVarName        :: DepVarName -- name of the dependent variable
-    , _sslLowerBound        :: Double     -- lower boundary of the 95% interval
-    , _sslMedian            :: Double     -- median (weighted average)
-    , _sslUpperBound        :: Double     -- upper boundary of the 95% interval
-    , _sslGridDepPos        :: Maybe DepVarsPos
-    , _sslGridLogLikelihood :: Maybe Double -- log-likelihood for true value
-    , _sslSearchPos         :: Maybe (V.Vector DepVarsPredPos) -- search values
-    , _sslLogLikelihood     :: Maybe (V.Vector Double) -- log-likelihood for search value
-    , _sslTopObsIDs         :: Maybe String
+data SearchResultLong = SRL {
+      _srlDepVarName        :: DepVarName -- name of the dependent variable
+    , _srlLowerBound        :: Double     -- lower boundary of the 95% interval
+    , _srlMedian            :: Double     -- median (weighted average)
+    , _srlUpperBound        :: Double     -- upper boundary of the 95% interval
+    , _srlGridDepPos        :: Maybe DepVarsPos
+    , _srlGridLogLikelihood :: Maybe Double -- log-likelihood for true value
+    , _srlSearchPos         :: Maybe (V.Vector DepVarsPredPos) -- search values
+    , _srlLogLikelihood     :: Maybe (V.Vector Double) -- log-likelihood for search value
+    , _srlTopObsIDs         :: Maybe String
 } deriving (Eq, Show, Generic)
 
--- | A data type for nterpolation output, aggregated per row (so per grid position and per search candidate)
-data SearchResultRow = SSR {
-      _ssrTempSampIter      :: Int
-    , _ssrKernDef           :: KernelDefinition
-    , _ssrGridIndepVarsPos  :: IndepVarsPos
-    , _ssrTopObsIDs         :: [Maybe String]
-    , _ssrDepVarName        :: [DepVarName]
-    , _ssrLowerBound        :: [Double]
-    , _ssrMedian            :: [Double]
-    , _ssrUpperBound        :: [Double]
-    , _ssrGridLogLikelihood :: [Maybe Double]
-    , _ssrGridAggLogLik     :: Maybe Double
-    , _ssrSearchPos         :: Maybe DepVarsPredPos
-    , _ssrLogLikelihood     :: [Maybe Double]
-    , _ssrAggLogLikelihood  :: Maybe Double
-    , _ssrProbability       :: Maybe Double
+-- | A data type for interpolation output, aggregated per row (so per grid position and per search candidate)
+data SearchResultWide = SRW {
+      _srwTempSampIter      :: Int
+    , _srwKernDef           :: KernelDefinition
+    , _srwGridIndepVarsPos  :: IndepVarsPos
+    , _srwTopObsIDs         :: [Maybe String]
+    , _srwDepVarName        :: [DepVarName]
+    , _srwLowerBound        :: [Double]
+    , _srwMedian            :: [Double]
+    , _srwUpperBound        :: [Double]
+    , _srwGridLogLikelihood :: [Maybe Double]
+    , _srwGridAggLogLik     :: Maybe Double
+    , _srwSearchPos         :: Maybe DepVarsPredPos
+    , _srwLogLikelihood     :: [Maybe Double]
+    , _srwAggLogLikelihood  :: Maybe Double
+    , _srwProbability       :: Maybe Double
 } deriving (Eq, Show, Generic)
 
-instance Csv.DefaultOrdered SearchResultRow where
-  headerOrder (SSR _ kernDef gridIndep topObs names _ _ _ gridLLs gridAgg mSearch lls aggLLs probs) =
-    let perDepCols :: DepVarName -> [Bchs.ByteString]
-        perDepCols dv =
-          map Bchs.pack (
-                [ "interpol_lower_quant_"  ++ dv
-                , "interpol_median_"       ++ dv
-                , "interpol_upper_quant_"  ++ dv
-                ]
-                ++ ["grid_top_obs_" ++ dv | not (all isNothing topObs)]
-                ++ ["grid_log_likelihood_" ++ dv | not (all isNothing gridLLs)]
-                ++ ["search_log_likelihood_" ++ dv | not (all isNothing lls)]
-            )
-    in    Csv.header ["temp_sampling_iteration"]
-       <> Csv.headerOrder kernDef
-       <> V.map ("grid_" <>) (Csv.headerOrder gridIndep)
-       <> maybe V.empty Csv.headerOrder mSearch
-       <> V.fromList (concatMap perDepCols names)
-       <> maybe V.empty (const $ Csv.header ["grid_agg_log_likelihood"]) gridAgg
-       <> maybe V.empty (const $ Csv.header ["search_agg_log_likelihood"]) aggLLs
-       <> maybe V.empty (const $ Csv.header ["search_probability"]) probs
-instance Csv.ToRecord SearchResultRow where
-  toRecord (SSR tsi kernDef gridIndep topObs names lowB medV upB gridLLs gridAgg mSearch lls aggLLs probs) =
-    let n = length names
-        seg i =
-          Csv.record (
-                [ Csv.toField (OutDouble (lowB !! i))
-                , Csv.toField (medV  !! i)
-                , Csv.toField (OutDouble (upB  !! i))
-                ]
-                ++ [ toFieldMaybeString (topObs !! i) | not (all isNothing topObs)]
-                ++ [ toFieldMaybeDouble (gridLLs !! i) | not (all isNothing gridLLs)]
-                ++ [ toFieldMaybeDouble (lls !! i) | not (all isNothing lls)]
-            )
-    in    Csv.record [Csv.toField tsi]
-       <> Csv.toRecord kernDef
-       <> Csv.toRecord gridIndep
-       <> maybe V.empty Csv.toRecord mSearch
-       <> V.concat [ seg i | i <- [0 .. n-1] ]
-       <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble gridAgg]) gridAgg
-       <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble aggLLs]) aggLLs
-       <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble probs]) probs
+instance Csv.DefaultOrdered SearchResultWide where
+    headerOrder (SRW _ kernDef gridIndep topObs names _ _ _ gridLLs gridAgg mSearch lls aggLLs probs) =
+        let perDepCols :: DepVarName -> [Bchs.ByteString]
+            perDepCols dv =
+              map Bchs.pack (
+                    [ "interpol_lower_quant_"  ++ dv
+                    , "interpol_median_"       ++ dv
+                    , "interpol_upper_quant_"  ++ dv
+                    ]
+                    ++ ["grid_top_obs_" ++ dv | not (all isNothing topObs)]
+                    ++ ["grid_log_likelihood_" ++ dv | not (all isNothing gridLLs)]
+                    ++ ["search_log_likelihood_" ++ dv | not (all isNothing lls)]
+                )
+        in    Csv.header ["temp_sampling_iteration"]
+           <> Csv.headerOrder kernDef
+           <> V.map ("grid_" <>) (Csv.headerOrder gridIndep)
+           <> maybe V.empty Csv.headerOrder mSearch
+           <> V.fromList (concatMap perDepCols names)
+           <> maybe V.empty (const $ Csv.header ["grid_agg_log_likelihood"]) gridAgg
+           <> maybe V.empty (const $ Csv.header ["search_agg_log_likelihood"]) aggLLs
+           <> maybe V.empty (const $ Csv.header ["search_probability"]) probs
+instance Csv.ToRecord SearchResultWide where
+    toRecord (SRW tsi kernDef gridIndep topObs names lowB medV upB gridLLs gridAgg mSearch lls aggLLs probs) =
+        let n = length names
+            seg i = Csv.record (
+                        [ Csv.toField (OutDouble (lowB !! i))
+                        , Csv.toField (medV  !! i)
+                        , Csv.toField (OutDouble (upB  !! i))
+                        ]
+                        ++ [ toFieldMaybeString (topObs !! i) | not (all isNothing topObs)]
+                        ++ [ toFieldMaybeDouble (gridLLs !! i) | not (all isNothing gridLLs)]
+                        ++ [ toFieldMaybeDouble (lls !! i) | not (all isNothing lls)]
+                    )
+        in    Csv.record [Csv.toField tsi]
+           <> Csv.toRecord kernDef
+           <> Csv.toRecord gridIndep
+           <> maybe V.empty Csv.toRecord mSearch
+           <> V.concat [ seg i | i <- [0 .. n-1] ]
+           <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble gridAgg]) gridAgg
+           <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble aggLLs]) aggLLs
+           <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble probs]) probs
 
 toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
 toFieldMaybeDouble Nothing  = Bchs.empty
@@ -562,7 +561,8 @@ isSpatioTemporal v = case v V.!? 0 of
 data SpatTempDist = SpatTempDist {
       _spatDist :: Double
     , _tempDist :: Double
-} deriving (Eq, Generic)
+    }
+    deriving (Eq, Generic)
 
 instance NFData SpatTempDist
 instance Csv.DefaultOrdered SpatTempDist where
@@ -576,7 +576,8 @@ instance Csv.ToRecord SpatTempDist where
 data SpatTempPos = SpatTempPos {
       _spatialPos  :: SpatPos
     , _temporalPos :: TempPos
-} deriving (Eq, Show, Generic, Ord)
+    }
+    deriving (Eq, Show, Generic, Ord)
 
 instance S.Serialise SpatTempPos
 instance NFData SpatTempPos
@@ -599,7 +600,8 @@ instance Csv.ToRecord SpatTempPos where
 data TempSample = TempSample {
       _tempSampObsID :: String
     , _tempSampAge   :: YearBCAD
-} deriving (Show, Generic)
+    }
+    deriving (Show, Generic)
 
 instance NFData TempSample
 instance Csv.FromNamedRecord TempSample where

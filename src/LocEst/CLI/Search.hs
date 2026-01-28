@@ -91,40 +91,40 @@ factor :: Maybe a -> (a -> Int) -> Int
 factor element extractor = maybe 1 extractor element
 
 search
-  :: Double
-  -> Algorithm
-  -> KernelDefinition
-  -> Int
-  -> [IndepVarName]
-  -> Maybe CrossDistMatrixPerIndepVar
-  -> Maybe SelfDistMatrixPerIndepVar
-  -- -> Maybe SelfDistMatrixPerIndepVar
-  -> [DepVarName]
-  -> [KernelOneDepVar]
-  -> Permutation
-  -> IO [SearchResultRow]
+    :: Double
+    -> Algorithm
+    -> KernelDefinition
+    -> Int
+    -> [IndepVarName]
+    -> Maybe CrossDistMatrixPerIndepVar
+    -> Maybe SelfDistMatrixPerIndepVar
+    -- -> Maybe SelfDistMatrixPerIndepVar
+    -> [DepVarName]
+    -> [KernelOneDepVar]
+    -> Permutation
+    -> IO [SearchResultWide]
 search spatDistUnitScaling algorithm kernDef topNObs indepVars
      maybeObsGridDists maybeObsObsDists
      depVars kernelsPerDepVar
      perm@(Permutation tempIter _ grid _ searchDepVarPos) = do
-  perDepVar <- searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
-      maybeObsGridDists maybeObsObsDists
-      depVars kernelsPerDepVar
-      perm
-  pure $ searchResultsToRows kernDef tempIter grid searchDepVarPos perDepVar
+    perDepVar <- searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
+        maybeObsGridDists maybeObsObsDists
+        depVars kernelsPerDepVar
+        perm
+    pure $ searchResultsLongToWide kernDef tempIter grid searchDepVarPos perDepVar
 
-searchPerDepVar ::
-        Double
-       -> Algorithm
-       -> Int
-       -> [IndepVarName]
-       -> Maybe CrossDistMatrixPerIndepVar
-       -> Maybe SelfDistMatrixPerIndepVar
-       -- -> Maybe SelfDistMatrixPerIndepVar
-       -> [DepVarName]
-       -> [KernelOneDepVar]
-       -> Permutation
-       -> IO [V.Vector SearchResultLong]
+searchPerDepVar
+    :: Double
+    -> Algorithm
+    -> Int
+    -> [IndepVarName]
+    -> Maybe CrossDistMatrixPerIndepVar
+    -> Maybe SelfDistMatrixPerIndepVar
+    -- -> Maybe SelfDistMatrixPerIndepVar
+    -> [DepVarName]
+    -> [KernelOneDepVar]
+    -> Permutation
+    -> IO [V.Vector SearchResultLong]
 searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
      maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
      depVars kernelsPerDepVar
@@ -167,44 +167,44 @@ searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
                            Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
             return $ zipWith (kas obs maybeGridTrueDep distsObsGrid searchDepVarPos topNObs) depVars kernelsPerDepVar
 
-searchResultsToRows
-  :: KernelDefinition
-  -> Int
-  -> V.Vector IndepVarsPos
-  -> Maybe (V.Vector DepVarsPredPos)
-  -> [V.Vector SearchResultLong]
-  -> [SearchResultRow]
-searchResultsToRows kernDef tempSamplingIteration grid searchDepVarPos perDepVar =
-  let rawRows = concatMap rowsForGridIdx [0 .. V.length grid - 1]
-  in if isJust searchDepVarPos && isSpatioTemporal grid
-     then normaliseByTimeSlice rawRows
-     else rawRows
+searchResultsLongToWide
+    :: KernelDefinition
+    -> Int
+    -> V.Vector IndepVarsPos
+    -> Maybe (V.Vector DepVarsPredPos)
+    -> [V.Vector SearchResultLong]
+    -> [SearchResultWide]
+searchResultsLongToWide kernDef tempSamplingIteration grid searchDepVarPos perDepVar =
+    let rawRows = concatMap rowsForGridIdx [0 .. V.length grid - 1]
+    in if isJust searchDepVarPos && isSpatioTemporal grid
+       then normaliseByTimeSlice rawRows
+       else rawRows
   where
-    rowsForGridIdx :: Int -> [SearchResultRow]
+    rowsForGridIdx :: Int -> [SearchResultWide]
     rowsForGridIdx i =
       let resAtI = map (V.! i) perDepVar
           depCount = length perDepVar
-          mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultRow
+          mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultWide
           mkRow mSearchOne llsOne =
-            let truthLLs = map _sslGridLogLikelihood resAtI
-            in SSR
-                 { _ssrTempSampIter      = tempSamplingIteration
-                 , _ssrKernDef           = kernDef
-                 , _ssrGridIndepVarsPos  = grid V.! i
-                 , _ssrTopObsIDs         = map _sslTopObsIDs resAtI
-                 , _ssrDepVarName        = map _sslDepVarName resAtI
-                 , _ssrLowerBound        = map _sslLowerBound resAtI
-                 , _ssrMedian            = map _sslMedian resAtI
-                 , _ssrUpperBound        = map _sslUpperBound resAtI
-                 , _ssrGridLogLikelihood = truthLLs
-                 , _ssrGridAggLogLik     = sumIfAllJust truthLLs
-                 , _ssrSearchPos         = mSearchOne
-                 , _ssrLogLikelihood     = llsOne
-                 , _ssrAggLogLikelihood  = sumIfAllJust llsOne
-                 , _ssrProbability       = Nothing
+            let truthLLs = map _srlGridLogLikelihood resAtI
+            in SRW
+                 { _srwTempSampIter      = tempSamplingIteration
+                 , _srwKernDef           = kernDef
+                 , _srwGridIndepVarsPos  = grid V.! i
+                 , _srwTopObsIDs         = map _srlTopObsIDs resAtI
+                 , _srwDepVarName        = map _srlDepVarName resAtI
+                 , _srwLowerBound        = map _srlLowerBound resAtI
+                 , _srwMedian            = map _srlMedian resAtI
+                 , _srwUpperBound        = map _srlUpperBound resAtI
+                 , _srwGridLogLikelihood = truthLLs
+                 , _srwGridAggLogLik     = sumIfAllJust truthLLs
+                 , _srwSearchPos         = mSearchOne
+                 , _srwLogLikelihood     = llsOne
+                 , _srwAggLogLikelihood  = sumIfAllJust llsOne
+                 , _srwProbability       = Nothing
                  }
           llsAt :: Int -> [Maybe Double]
-          llsAt j = [ mv >>= (V.!? j) | mv <- map _sslLogLikelihood resAtI ]
+          llsAt j = [ mv >>= (V.!? j) | mv <- map _srlLogLikelihood resAtI ]
           rowsNoSearch = [ mkRow Nothing (replicate depCount Nothing) ]
           rowsWithSearch svec = V.toList $ V.imap (\j sp -> mkRow (Just sp) (llsAt j)) svec
       in maybe rowsNoSearch rowsWithSearch searchDepVarPos
@@ -213,11 +213,11 @@ searchResultsToRows kernDef tempSamplingIteration grid searchDepVarPos perDepVar
       if null ys then Nothing else Just (sum ys)
 
 -- normalisation mechanism
-normaliseByTimeSlice :: [SearchResultRow] -> [SearchResultRow]
+normaliseByTimeSlice :: [SearchResultWide] -> [SearchResultWide]
 normaliseByTimeSlice rows =
     -- group all log-likelihoods per time slice
     let grouped = foldl' (\m row ->
-                      case _ssrAggLogLikelihood row of
+                      case _srwAggLogLikelihood row of
                         Just ll -> Map.insertWith (++) (makeKey row) [ll] m
                         Nothing -> Map.insertWith (++) (makeKey row) [] m
                    ) Map.empty rows
@@ -228,18 +228,18 @@ normaliseByTimeSlice rows =
                      in (maxLog, denom)
                   ) grouped
     -- normalise each row within its time slice
-        normRow row = case (_ssrAggLogLikelihood row, Map.lookup (makeKey row) factors) of
+        normRow row = case (_srwAggLogLikelihood row, Map.lookup (makeKey row) factors) of
             (Just ll, Just (maxLog, denom)) | denom > 0 ->
-                 row { _ssrProbability = Just $ exp (ll - maxLog) / denom }
-            _ -> row { _ssrProbability = Nothing }
+                 row { _srwProbability = Just $ exp (ll - maxLog) / denom }
+            _ -> row { _srwProbability = Nothing }
     in map normRow rows
 
-makeKey :: SearchResultRow -> (DepVarsPredPos, Int)
+makeKey :: SearchResultWide -> (DepVarsPredPos, Int)
 makeKey row =
-    let searchPos = case _ssrSearchPos row of
+    let searchPos = case _srwSearchPos row of
             Just x -> x
             _      -> error "impossible state"
-        t = case _ssrGridIndepVarsPos row of
+        t = case _srwGridIndepVarsPos row of
             IndepSpatTempPos (SpatTempPos _ (TempPos x)) -> x
             _ -> error "impossible state"
     in (searchPos, t)
@@ -254,29 +254,29 @@ data Permutation = Permutation {
 } deriving (Show)
 
 createPermutations
-  :: V.Vector Observation
-  -> Maybe TempSampleMatrix
-  -> V.Vector IndepVarsPos
-  -> Maybe (V.Vector DepVarsPredPos)
-  -> Maybe [AbsRelTempPos]
-  -> [Permutation]
+    :: V.Vector Observation
+    -> Maybe TempSampleMatrix
+    -> V.Vector IndepVarsPos
+    -> Maybe (V.Vector DepVarsPredPos)
+    -> Maybe [AbsRelTempPos]
+    -> [Permutation]
 createPermutations obs m indepPredGrid maybeDepSearchGrid maybeTempGrid =
-  [ Permutation
-      { _permTempSamplingIteration = tempSampIndex
-      , _permObs                   = tempSampObs
-      , _permIndepPredGrid         = grid'
-      , _permGridTrueDep           = Nothing
-      , _permDepSearchGrid         = dep'
-      }
-  | (tempSampIndex, tempSampObs) <- tempSampleAxis obs m
-  , (grid', dep') <- splitDataByTempGrid maybeTempGrid indepPredGrid maybeDepSearchGrid
-  ]
+    [ Permutation
+        { _permTempSamplingIteration = tempSampIndex
+        , _permObs                   = tempSampObs
+        , _permIndepPredGrid         = grid'
+        , _permGridTrueDep           = Nothing
+        , _permDepSearchGrid         = dep'
+        }
+    | (tempSampIndex, tempSampObs) <- tempSampleAxis obs m
+    , (grid', dep') <- splitDataByTempGrid maybeTempGrid indepPredGrid maybeDepSearchGrid
+    ]
 
 -- axis 1: temporal resampling over observations
 tempSampleAxis
-  :: V.Vector Observation
-  -> Maybe TempSampleMatrix
-  -> [(Int, V.Vector Observation)]
+    :: V.Vector Observation
+    -> Maybe TempSampleMatrix
+    -> [(Int, V.Vector Observation)]
 tempSampleAxis obs m = [ (ix, V.map (applyTempSamp m ix) obs) | ix <- [0 .. nrTempSamples m - 1] ]
 
 applyTempSamp :: Maybe TempSampleMatrix -> Int -> Observation -> Observation
@@ -291,32 +291,31 @@ applyTempSamp _ _ obs = obs
 type TimeSlice = (V.Vector IndepVarsPos, Maybe (V.Vector DepVarsPredPos))
 
 splitDataByTempGrid
-  :: Maybe [AbsRelTempPos]
-  -> V.Vector IndepVarsPos
-  -> Maybe (V.Vector DepVarsPredPos)
-  -> [TimeSlice]
+    :: Maybe [AbsRelTempPos]
+    -> V.Vector IndepVarsPos
+    -> Maybe (V.Vector DepVarsPredPos)
+    -> [TimeSlice]
 splitDataByTempGrid Nothing indepPredGrid maybeDepSearchGrid =
-  [(indepPredGrid, maybeDepSearchGrid)]
+    [(indepPredGrid, maybeDepSearchGrid)]
 splitDataByTempGrid (Just tempPos) indepPredGrid maybeDepSearchGrid =
-  let spatGrid = V.map spatPosFromIndepVarsPos indepPredGrid
-  in concatMap (expandOne spatGrid maybeDepSearchGrid) tempPos
+    let spatGrid = V.map spatPosFromIndepVarsPos indepPredGrid
+    in concatMap (expandOne spatGrid maybeDepSearchGrid) tempPos
 
 makeGridAtTime :: V.Vector SpatPos -> YearBCAD -> V.Vector IndepVarsPos
-makeGridAtTime spatGrid year =
-  V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos year))) spatGrid
+makeGridAtTime spatGrid year = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos year))) spatGrid
 
 expandOne
-  :: V.Vector SpatPos
-  -> Maybe (V.Vector DepVarsPredPos)
-  -> AbsRelTempPos
-  -> [TimeSlice]
+    :: V.Vector SpatPos
+    -> Maybe (V.Vector DepVarsPredPos)
+    -> AbsRelTempPos
+    -> [TimeSlice]
 expandOne spatGrid maybeDepSearchGrid = \case
-  AbsTempPos yearBCAD -> [(makeGridAtTime spatGrid yearBCAD, maybeDepSearchGrid)]
-  RelTempPos yearDist ->
-    case maybeDepSearchGrid of
-      Nothing -> []
-      Just depGrid ->
-        let refAges = V.toList (V.mapMaybe getObsAge depGrid)
-            grids   = [ makeGridAtTime spatGrid (r + yearDist) | r <- refAges ]
-            deps    = map Just (V.group depGrid) -- depends on pre-arranged ordering
-        in zip grids deps
+    AbsTempPos yearBCAD -> [(makeGridAtTime spatGrid yearBCAD, maybeDepSearchGrid)]
+    RelTempPos yearDist ->
+        case maybeDepSearchGrid of
+          Nothing -> []
+          Just depGrid ->
+              let refAges = V.toList (V.mapMaybe getObsAge depGrid)
+                  grids   = [ makeGridAtTime spatGrid (r + yearDist) | r <- refAges ]
+                  deps    = map Just (V.group depGrid) -- depends on pre-arranged ordering
+              in zip grids deps

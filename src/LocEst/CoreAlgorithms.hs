@@ -86,42 +86,42 @@ kas obs maybeGridTrueDep distsObsGrid maybeSearchValues topNObs depVar kernel =
      ) resDistribution
 
 topNObsIDs
-  :: Int
-  -> V.Vector Observation
-  -> M.Matrix Double   -- grid * obs
-  -> Int               -- grid index
-  -> String
+    :: Int
+    -> V.Vector Observation
+    -> M.Matrix Double   -- grid * obs
+    -> Int               -- grid index
+    -> String
 topNObsIDs n obs weights gridIx =
     let row = [ (obs V.! j, weights `M.atIndex` (gridIx, j)) | j <- [0 .. V.length obs - 1] ]
     in intercalate ";" [ _obsID o | (o, _) <- take n (sortOn (Down . snd) row) ]
 
-seek :: ContDistr b =>
-       DepVarName
+seek :: ContDistr b
+    => DepVarName
     -> Maybe (V.Vector DepVarsPredPos)
     -> Maybe DepVarsPos
     -> Either String b
     -> Maybe String
     -> SearchResultLong
 seek depVar maybeSearchValues maybeTrueDep (Right distribution) topObs =
-            let lower  = quantile distribution 0.025
-                median = quantile distribution 0.5
-                upper  = quantile distribution 0.975
-                logLTruth = do
-                    trueDep <- maybeTrueDep
-                    let trueVal = lookupUnsafe trueDep depVar
-                    pure (logDensity distribution trueVal)
-                searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
-                logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
-            in SSL depVar lower median upper maybeTrueDep logLTruth maybeSearchValues logL topObs
+    let lower  = quantile distribution 0.025
+        median = quantile distribution 0.5
+        upper  = quantile distribution 0.975
+        logLTruth = do
+            trueDep <- maybeTrueDep
+            let trueVal = lookupUnsafe trueDep depVar
+            pure (logDensity distribution trueVal)
+        searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
+        logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
+    in SRL depVar lower median upper maybeTrueDep logLTruth maybeSearchValues logL topObs
 seek depVar maybeSearchValues maybeTrueDep (Left _) topObs =
     let logLTruth = maybeTrueDep *> Just (-inf)   -- if truth exists but dist failed, mark as -inf; else Nothing
         logLSearch = case maybeSearchValues of
                        Just x  -> Just (V.replicate (V.length x) (-inf))
                        Nothing -> Nothing
-    in SSL depVar (-inf) nan inf maybeTrueDep logLTruth maybeSearchValues logLSearch topObs
+    in SRL depVar (-inf) nan inf maybeTrueDep logLTruth maybeSearchValues logLSearch topObs
 
-gprCore ::
-       M.Matrix Double -- obs–obs weights
+gprCore
+    :: M.Matrix Double -- obs–obs weights
     -> M.Matrix Double -- grid–obs weights
     -> Maybe (M.Matrix Double) -- grid–grid weights
     -> M.Vector Double -- y: measured values in dependent variable space
@@ -162,6 +162,10 @@ gprCore d dx dxx y g =
     --in marginals mup sigmaP
     --in (mup, sigmaP, sigmaInt)
 
+{-# INLINE sumRows #-}
+sumRows :: M.Matrix M.R -> M.Vector M.R
+sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
+
 marginalsFromDiag :: M.Vector Double -> VS.Vector Double -> V.Vector (Either String NormalDistribution)
 marginalsFromDiag meanVec varVec =
     let n = M.size meanVec
@@ -196,8 +200,8 @@ normal mu std
 --             std   = sqrt var
 --         in normal mu std
 
-kasCore ::
-       M.Matrix M.R
+kasCore
+    :: M.Matrix M.R
     -> M.Vector M.R
     -> V.Vector (Either String (LinearTransform StudentT))
 kasCore weights y =
@@ -215,9 +219,14 @@ kasCore weights y =
       scale = M.cmap sqrt ((1 + 1/(totalWeight + 1)) * weightedVar)
       dof = totalWeight
 
-{-# INLINE sumRows #-}
-sumRows :: M.Matrix M.R -> M.Vector M.R
-sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
+-- mapping Mathematica's StudentTDistribution interface to the interface in the
+-- Haskell statistics package
+generalizedStudentT :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
+generalizedStudentT mu scale dof
+    | isNaN scale = Left "sigma is NaN"
+    | scale <= 0  = Left "sigma must be > 0"
+    | dof   <= 0  = Left "degree of freedoms must be > 0"
+    | otherwise   = Right $ studentTUnstandardized dof mu scale
 
 computeWeightsFlat :: KernelOneDepVar -> IndepVarsDistFlat -> VS.Vector Double
 computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
@@ -257,12 +266,3 @@ computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =
                                    in go (j+1) (acc + x*x)
                            in go 0 0.0
                 in weightFun ds2
-
--- mapping Mathematica's StudentTDistribution interface to the interface in the
--- Haskell statistics package
-generalizedStudentT :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
-generalizedStudentT mu scale dof
-    | isNaN scale = Left "sigma is NaN"
-    | scale <= 0  = Left "sigma must be > 0"
-    | dof   <= 0  = Left "degree of freedoms must be > 0"
-    | otherwise   = Right $ studentTUnstandardized dof mu scale

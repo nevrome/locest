@@ -89,16 +89,16 @@ runCross (
     putStrLn "Done"
 
 cross
-  :: Double
-  -> Algorithm
-  -> [IndepVarName]
-  -> Maybe SelfDistMatrixPerIndepVar
-  -> Int -- base seed
-  -> Int -- numTestObs
-  -> Int -- iteration
-  -> V.Vector Observation
-  -> KernelDefinition
-  -> IO CrossvalOutput
+    :: Double
+    -> Algorithm
+    -> [IndepVarName]
+    -> Maybe SelfDistMatrixPerIndepVar
+    -> Int -- base seed
+    -> Int -- numTestObs
+    -> Int -- iteration
+    -> V.Vector Observation
+    -> KernelDefinition
+    -> IO CrossvalOutput
 cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed nTestObs iter obs kernDef = do
     let seedIter = seed + iter
         depVars = getKeys kernDef
@@ -130,11 +130,11 @@ cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed nTestObs
         _   -> throwL "cross: expected exactly one SearchResultLong vector"
     -- accumulate CV statistics
     let (sumSqErr, sumLL, n) =  V.ifoldl' step (0, 0, 0 :: Int) depRes
-        step (!sse, !sll, !k) i ssl =
+        step (!sse, !sll, !k) i srl =
             let trueVal  = lookupUnsafe (trueVals V.! i) oneDepVar
-                medianV  = _sslMedian ssl
+                medianV  = _srlMedian srl
                 d        = medianV - trueVal
-                ll       = fromMaybe (-inf) (_sslGridLogLikelihood ssl)
+                ll       = fromMaybe (-inf) (_srlGridLogLikelihood srl)
             in (sse + d * d, sll + ll, k + 1)
     pure CrossvalOutput
       { _crossoutIteration        = iter
@@ -147,15 +147,15 @@ cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed nTestObs
 
 splitIdx :: Int -> Int -> Int -> (VS.Vector Int, VS.Vector Int)
 splitIdx seed nTest n =
-  let rng = R.mkStdGen seed
-      idxs = V.fromList [0..n-1]
-      (shuffled,_) = shuffle idxs rng
-  in VS.splitAt nTest (VS.convert shuffled)
+    let rng = R.mkStdGen seed
+        idxs = V.fromList [0..n-1]
+        (shuffled,_) = shuffle idxs rng
+    in VS.splitAt nTest (VS.convert shuffled)
 
 shuffle :: V.Vector a -> R.StdGen -> (V.Vector a, R.StdGen)
 shuffle vec0 gen0 =
-  let n = V.length vec0
-  in runST $ do
+    let n = V.length vec0
+    in runST $ do
        mv <- V.thaw vec0
        let go !i !gen
              | i <= 1 = do

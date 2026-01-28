@@ -191,9 +191,9 @@ calcHalfMeanSquared dists =
 
 sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
 sortWithIndices v = do
-  mv <- VU.thaw v    -- Create a mutable copy
-  VA.sortBy (compare `on` snd) mv -- Sort it in-place
-  VU.unsafeFreeze mv -- Convert back to a pure vector
+    mv <- VU.thaw v    -- Create a mutable copy
+    VA.sortBy (compare `on` snd) mv -- Sort it in-place
+    VU.unsafeFreeze mv -- Convert back to a pure vector
 getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
 getIndicesForBin sortedVec i1 i2 =
     --let !_ = unsafePerformIO $ putStrLn (show i1 ++ " " ++ show (i2 - i1))

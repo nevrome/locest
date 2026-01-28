@@ -18,38 +18,38 @@ import           GHC.Generics         (Generic)
 
 sliceSelfDistPerIndep :: VS.Vector Int -> SelfDistMatrixPerIndepVar -> SelfDistMatrixPerIndepVar
 sliceSelfDistPerIndep idxs (SelfDistMatrixPerIndepVar ms) =
-  SelfDistMatrixPerIndepVar [ (name, sliceSelfDistMatrix idxs m) | (name,m) <- ms ]
+    SelfDistMatrixPerIndepVar [ (name, sliceSelfDistMatrix idxs m) | (name,m) <- ms ]
 
 sliceCrossDistPerIndep :: VS.Vector Int -> VS.Vector Int -> SelfDistMatrixPerIndepVar -> CrossDistMatrixPerIndepVar
 sliceCrossDistPerIndep testIdx trainIdx (SelfDistMatrixPerIndepVar ms) =
-  CrossDistMatrixPerIndepVar [ (name, sliceCrossDistMatrix testIdx trainIdx m) | (name,m) <- ms ]
+    CrossDistMatrixPerIndepVar [ (name, sliceCrossDistMatrix testIdx trainIdx m) | (name,m) <- ms ]
 
 sliceSelfDistMatrix
     :: VS.Vector Int
     -> SelfDistMatrix
     -> SelfDistMatrix
 sliceSelfDistMatrix idxs (SelfDistMatrix full) =
-  let n = VS.length idxs
-      nHalf = n*(n+1) `div` 2
-      v = VS.generate nHalf $ \k ->
-            let (i,j) = unHalf k
-                oi = idxs VS.! i
-                oj = idxs VS.! j
-            in full VS.! idxHalf oi oj
-  in SelfDistMatrix v
-  where
-    unHalf :: Int -> (Int, Int)
-    unHalf k = go 0 k
-      where
-        go !i !r
-          | r <= i    = (i, r)
-          | otherwise = go (i+1) (r - (i+1))
+    let n = VS.length idxs
+        nHalf = n*(n+1) `div` 2
+        v = VS.generate nHalf $ \k ->
+              let (i,j) = unHalf k
+                  oi = idxs VS.! i
+                  oj = idxs VS.! j
+              in full VS.! idxHalf oi oj
+    in SelfDistMatrix v
+    where
+      unHalf :: Int -> (Int, Int)
+      unHalf k = go 0 k
+        where
+          go !i !r
+            | r <= i    = (i, r)
+            | otherwise = go (i+1) (r - (i+1))
 
 sliceCrossDistMatrix
-  :: VS.Vector Int  -- test indices (rows)
-  -> VS.Vector Int  -- train indices (cols)
-  -> SelfDistMatrix   -- full obs–obs
-  -> CrossDistMatrix
+    :: VS.Vector Int  -- test indices (rows)
+    -> VS.Vector Int  -- train indices (cols)
+    -> SelfDistMatrix   -- full obs–obs
+    -> CrossDistMatrix
 sliceCrossDistMatrix testIdx trainIdx (SelfDistMatrix full) =
   let nGrid = VS.length testIdx
       nObs  = VS.length trainIdx
@@ -73,14 +73,15 @@ data IndepVarsDistFlat = IndepVarsDistFlat {
      _tags    :: VS.Vector Bool -- False means IndepSpatTempDist, True means IndepArbitraryDimDist
    , _payload :: VS.Vector Double -- distances stored contiguously per row.
    , _stride  :: Int -- number of doubles per row (max of 2 or arbitrary dim length)
-   } deriving (Generic)
+   }
+   deriving (Generic)
 
 instance NFData IndepVarsDistFlat
 
 -- | A data type for a symmetric pairwise distance matrix within one set;
 -- this matrix has (n*n)/2 - n entries and a triangular shape
 newtype SelfDistMatrix = SelfDistMatrix (VS.Vector Double)
-   deriving (Generic, Show, Eq)
+    deriving (Generic, Show, Eq)
 
 instance NFData SelfDistMatrix
 instance S.Serialise SelfDistMatrix
@@ -108,7 +109,7 @@ data CrossDistMatrix = CrossDistMatrix {
       _cdmNrCols :: Int -- column number
     , _cdmNrRows :: Int -- row number
     , _cdmMatrix :: VS.Vector Double
-} deriving (Generic, Show, Eq)
+    } deriving (Generic, Show, Eq)
 
 instance NFData CrossDistMatrix
 instance S.Serialise CrossDistMatrix

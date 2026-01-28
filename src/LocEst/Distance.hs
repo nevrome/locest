@@ -24,80 +24,80 @@ calcObsGridDistances spatScale obs grid varsToCompute = do
 
 calcObsGridOneDim :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> IndepVarName -> IO (IndepVarName, CrossDistMatrix)
 calcObsGridOneDim spatScale obs grid varName = do
-  case grid V.! 0 of
-    IndepSpatTempPos _ ->
-      case varName of
-        "space" -> do
-          let obsPos  = V.map (spatPosFromIndepVarsPos . posFromObs) obs
-              gridPos = V.map spatPosFromIndepVarsPos grid
-          fmap (varName,) (computeSpaceCrossDistMatrix spatScale obsPos gridPos)
-        "time"  -> do
-          let obsPos  = V.map (tempPosFromIndepVarsPos . posFromObs) obs
-              gridPos = V.map tempPosFromIndepVarsPos grid
-          fmap (varName,) (computeTimeCrossDistMatrix obsPos gridPos)
-        _       -> error ("Unknown space-time variable: " ++ varName)
-    IndepArbitraryDimPos (ValuesPerIndepVar names _) ->
-      case V.elemIndex varName names of
-        Just ix -> do
-          let obsPos  = V.map (anyPosFromIndepVarsPos . posFromObs) obs
-              gridPos = V.map anyPosFromIndepVarsPos grid
-          fmap (varName,) (computeArbitraryCrossDistMatrix ix obsPos gridPos)
-        Nothing -> error ("Unknown arbitrary variable: " ++ varName)
+    case grid V.! 0 of
+        IndepSpatTempPos _ ->
+            case varName of
+                "space" -> do
+                  let obsPos  = V.map (spatPosFromIndepVarsPos . posFromObs) obs
+                      gridPos = V.map spatPosFromIndepVarsPos grid
+                  fmap (varName,) (computeSpaceCrossDistMatrix spatScale obsPos gridPos)
+                "time"  -> do
+                  let obsPos  = V.map (tempPosFromIndepVarsPos . posFromObs) obs
+                      gridPos = V.map tempPosFromIndepVarsPos grid
+                  fmap (varName,) (computeTimeCrossDistMatrix obsPos gridPos)
+                _       -> error ("Unknown space-time variable: " ++ varName)
+        IndepArbitraryDimPos (ValuesPerIndepVar names _) ->
+            case V.elemIndex varName names of
+                Just ix -> do
+                    let obsPos  = V.map (anyPosFromIndepVarsPos . posFromObs) obs
+                        gridPos = V.map anyPosFromIndepVarsPos grid
+                    fmap (varName,) (computeArbitraryCrossDistMatrix ix obsPos gridPos)
+                Nothing -> error ("Unknown arbitrary variable: " ++ varName)
 
 computeSpaceCrossDistMatrix :: Double -> V.Vector SpatPos -> V.Vector SpatPos -> IO CrossDistMatrix
 computeSpaceCrossDistMatrix spatScale obs grid = do
-  let nrObs  = V.length obs
-      nrGrid = V.length grid
-      !nTot  = nrGrid * nrObs
-  mv <- VSM.new nTot
-  forM_ [0 .. nrGrid-1] $ \gy -> do
-    -- cache grid point once per outer loop
-    let !s2    = V.unsafeIndex grid gy
-        !base  = gy * nrObs
-    forM_ [0 .. nrObs-1] $ \ox -> do
-      let !s1 = V.unsafeIndex obs ox
-          !d  = spatialDistSpatPos s1 s2 * spatScale
-      VSM.unsafeWrite mv (base + ox) d
-  frozen <- VS.unsafeFreeze mv
-  pure (CrossDistMatrix nrObs nrGrid frozen)
+    let nrObs  = V.length obs
+        nrGrid = V.length grid
+        !nTot  = nrGrid * nrObs
+    mv <- VSM.new nTot
+    forM_ [0 .. nrGrid-1] $ \gy -> do
+        -- cache grid point once per outer loop
+        let !s2    = V.unsafeIndex grid gy
+            !base  = gy * nrObs
+        forM_ [0 .. nrObs-1] $ \ox -> do
+            let !s1 = V.unsafeIndex obs ox
+                !d  = spatialDistSpatPos s1 s2 * spatScale
+            VSM.unsafeWrite mv (base + ox) d
+    frozen <- VS.unsafeFreeze mv
+    pure (CrossDistMatrix nrObs nrGrid frozen)
 
 computeTimeCrossDistMatrix :: V.Vector TempPos -> V.Vector TempPos -> IO CrossDistMatrix
 computeTimeCrossDistMatrix obs grid = do
-  let nrObs  = V.length obs
-      nrGrid = V.length grid
-      !nTot  = nrGrid * nrObs
-  mv <- VSM.new nTot
-  forM_ [0 .. nrGrid-1] $ \gy -> do
-    let !t2   = V.unsafeIndex grid gy
-        !base = gy * nrObs
-    forM_ [0 .. nrObs-1] $ \ox -> do
-      let !t1 = V.unsafeIndex obs ox
-          !d  = temporalDistTempPos t1 t2
-      VSM.unsafeWrite mv (base + ox) d
-  frozen <- VS.unsafeFreeze mv
-  pure (CrossDistMatrix nrObs nrGrid frozen)
+    let nrObs  = V.length obs
+        nrGrid = V.length grid
+        !nTot  = nrGrid * nrObs
+    mv <- VSM.new nTot
+    forM_ [0 .. nrGrid-1] $ \gy -> do
+        let !t2   = V.unsafeIndex grid gy
+            !base = gy * nrObs
+        forM_ [0 .. nrObs-1] $ \ox -> do
+            let !t1 = V.unsafeIndex obs ox
+                !d  = temporalDistTempPos t1 t2
+            VSM.unsafeWrite mv (base + ox) d
+    frozen <- VS.unsafeFreeze mv
+    pure (CrossDistMatrix nrObs nrGrid frozen)
 
 computeArbitraryCrossDistMatrix
-  :: Int
-  -> V.Vector (VS.Vector Double) -- obs positions
-  -> V.Vector (VS.Vector Double) -- grid positions
-  -> IO CrossDistMatrix
+    :: Int
+    -> V.Vector (VS.Vector Double) -- obs positions
+    -> V.Vector (VS.Vector Double) -- grid positions
+    -> IO CrossDistMatrix
 computeArbitraryCrossDistMatrix ix obs grid = do
-  let nrObs  = V.length obs
-      nrGrid = V.length grid
-      !nTot  = nrGrid * nrObs
-  mv <- VSM.new nTot
-  forM_ [0 .. nrGrid-1] $ \gy -> do
-    let !vs2  = V.unsafeIndex grid gy
-        !x2   = VS.unsafeIndex vs2 ix -- cache grid coordinate once
-        !base = gy * nrObs
-    forM_ [0 .. nrObs-1] $ \ox -> do
-      let !vs1 = V.unsafeIndex obs ox
-          !x1  = VS.unsafeIndex vs1 ix
-          !d = abs (x1 - x2)
-      VSM.unsafeWrite mv (base + ox) d
-  frozen <- VS.unsafeFreeze mv
-  pure (CrossDistMatrix nrObs nrGrid frozen)
+    let nrObs  = V.length obs
+        nrGrid = V.length grid
+        !nTot  = nrGrid * nrObs
+    mv <- VSM.new nTot
+    forM_ [0 .. nrGrid-1] $ \gy -> do
+        let !vs2  = V.unsafeIndex grid gy
+            !x2   = VS.unsafeIndex vs2 ix -- cache grid coordinate once
+            !base = gy * nrObs
+        forM_ [0 .. nrObs-1] $ \ox -> do
+            let !vs1 = V.unsafeIndex obs ox
+                !x1  = VS.unsafeIndex vs1 ix
+                !d = abs (x1 - x2)
+            VSM.unsafeWrite mv (base + ox) d
+    frozen <- VS.unsafeFreeze mv
+    pure (CrossDistMatrix nrObs nrGrid frozen)
 
 crossDistMatrixToFlat :: CrossDistMatrixPerIndepVar -> IndepVarsDistFlat
 crossDistMatrixToFlat cdmPerIndepVar =
@@ -127,37 +127,37 @@ crossDistMatrixToFlat cdmPerIndepVar =
 mergeDistsIndepVar :: (Double, Double) -> SelfDistMatrixPerIndepVar -> IO SelfDistMatrixPerIndepVar
 mergeDistsIndepVar (spaceScale, timeScale) (SelfDistMatrixPerIndepVar ms) = do
     case ms of
-      [] -> error "mergeDists: no matrices to merge"
-      x:_  -> do
-        -- all half matrices should have the same length
-        let nHalf = VS.length (let (SelfDistMatrix v) = snd x in v)
-        mv <- VSM.new nHalf
-        forM_ [0..nHalf-1] $ \i -> do
-          -- sum-of-squares accumulator
-          let ssq = foldl' (\acc (name, SelfDistMatrix v) ->
-                               let scale | name == "space" = spaceScale
-                                         | name == "time"  = timeScale
-                                         | otherwise       = 1.0
-                               in acc + (v VS.! i / scale) ** 2
-                           ) 0.0 ms
-          VSM.write mv i (sqrt ssq)
-        distsMerged <- VS.unsafeFreeze mv
-        pure $ SelfDistMatrixPerIndepVar [("acrossIndep", SelfDistMatrix distsMerged)]
+        [] -> error "mergeDists: no matrices to merge"
+        x:_  -> do
+          -- all half matrices should have the same length
+          let nHalf = VS.length (let (SelfDistMatrix v) = snd x in v)
+          mv <- VSM.new nHalf
+          forM_ [0..nHalf-1] $ \i -> do
+              -- sum-of-squares accumulator
+              let ssq = foldl' (\acc (name, SelfDistMatrix v) ->
+                                   let scale | name == "space" = spaceScale
+                                             | name == "time"  = timeScale
+                                             | otherwise       = 1.0
+                                   in acc + (v VS.! i / scale) ** 2
+                               ) 0.0 ms
+              VSM.write mv i (sqrt ssq)
+          distsMerged <- VS.unsafeFreeze mv
+          pure $ SelfDistMatrixPerIndepVar [("acrossIndep", SelfDistMatrix distsMerged)]
 
 mergeDistsDepVar :: SelfDistMatrixPerIndepVar -> IO SelfDistMatrixPerIndepVar
 mergeDistsDepVar (SelfDistMatrixPerIndepVar ms) = do
     case ms of
-      [] -> error "mergeDists: no matrices to merge"
-      x:_  -> do
-        -- all half matrices should have the same length
-        let nHalf = VS.length (let (SelfDistMatrix v) = snd x in v)
-        mv <- VSM.new nHalf
-        forM_ [0..nHalf-1] $ \i -> do
-          -- sum-of-squares accumulator
-          let ssq = foldl' (\acc (_, SelfDistMatrix v) -> acc + (v VS.! i) ** 2) 0.0 ms
-          VSM.write mv i (sqrt ssq)
-        distsMerged <- VS.unsafeFreeze mv
-        pure $ SelfDistMatrixPerIndepVar [("acrossDep", SelfDistMatrix distsMerged)]
+        [] -> error "mergeDists: no matrices to merge"
+        x:_  -> do
+          -- all half matrices should have the same length
+          let nHalf = VS.length (let (SelfDistMatrix v) = snd x in v)
+          mv <- VSM.new nHalf
+          forM_ [0..nHalf-1] $ \i -> do
+              -- sum-of-squares accumulator
+              let ssq = foldl' (\acc (_, SelfDistMatrix v) -> acc + (v VS.! i) ** 2) 0.0 ms
+              VSM.write mv i (sqrt ssq)
+          distsMerged <- VS.unsafeFreeze mv
+          pure $ SelfDistMatrixPerIndepVar [("acrossDep", SelfDistMatrix distsMerged)]
 
 calcObsObsDistDepVar :: V.Vector Observation -> [DepVarName] -> IO SelfDistMatrixPerIndepVar
 calcObsObsDistDepVar obs varsToCompute = do
@@ -168,18 +168,18 @@ calcObsObsDistDepVar obs varsToCompute = do
 
 calcSelfDistOneDimDepVar :: (a -> DepVarsPos) -> V.Vector a -> DepVarName -> IO (DepVarName, SelfDistMatrix)
 calcSelfDistOneDimDepVar getPos vec varName =
-  let names = V.fromList $ getKeys $ getPos (V.head vec)
-  in case V.elemIndex varName names of
-      Just ix -> do
-        let pos  = V.map (anyPosFromDepVarsPos . getPos) vec
-        fmap (varName,) (computeArbitrarySelfDistMatrix ix pos)
-      Nothing -> error ("Unknown dependent variable: " ++ varName)
+    let names = V.fromList $ getKeys $ getPos (V.head vec)
+    in case V.elemIndex varName names of
+        Just ix -> do
+            let pos  = V.map (anyPosFromDepVarsPos . getPos) vec
+            fmap (varName,) (computeArbitrarySelfDistMatrix ix pos)
+        Nothing -> error ("Unknown dependent variable: " ++ varName)
 
 calcObsObsDistances :: Double -> V.Vector Observation -> [IndepVarName] -> IO SelfDistMatrixPerIndepVar
 calcObsObsDistances scale obs varsToCompute = do
     let indepVarNames = case posFromObs (V.head obs) of
-                        IndepSpatTempPos _ -> ["space","time"]
-                        IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.toList ns
+                          IndepSpatTempPos _ -> ["space","time"]
+                          IndepArbitraryDimPos (ValuesPerIndepVar ns _) -> V.toList ns
         selected = filter (`elem` varsToCompute) indepVarNames
     mats <- mapM (calcSelfDistOneDim scale (\(Observation _ _ (HyperPos pos _) _) -> pos) obs) selected
     pure (SelfDistMatrixPerIndepVar mats)
@@ -214,42 +214,42 @@ calcSelfDistOneDim spatScale getPos vec varName =
 
 computeSpaceSelfDistMatrix :: Double -> V.Vector SpatPos -> IO SelfDistMatrix
 computeSpaceSelfDistMatrix spatScale vec = do
-  let n     = V.length vec
-      nHalf = n*(n+1) `div` 2
-  mv <- VSM.new nHalf
-  forM_ [0..n-1] $ \i ->
-    let s1 = vec V.! i
-    in forM_ [0..i] $ \j ->
-         let s2 = vec V.! j
-         in VSM.write mv (idxHalf i j) (spatialDistSpatPos s1 s2 * spatScale)
-  frozen <- VS.unsafeFreeze mv
-  pure (SelfDistMatrix frozen)
+    let n     = V.length vec
+        nHalf = n*(n+1) `div` 2
+    mv <- VSM.new nHalf
+    forM_ [0..n-1] $ \i ->
+        let s1 = vec V.! i
+        in forM_ [0..i] $ \j ->
+             let s2 = vec V.! j
+             in VSM.write mv (idxHalf i j) (spatialDistSpatPos s1 s2 * spatScale)
+    frozen <- VS.unsafeFreeze mv
+    pure (SelfDistMatrix frozen)
 
 computeTimeSelfDistMatrix :: V.Vector TempPos -> IO SelfDistMatrix
 computeTimeSelfDistMatrix vec = do
-  let n     = V.length vec
-      nHalf = n*(n+1) `div` 2
-  mv <- VSM.new nHalf
-  forM_ [0..n-1] $ \i ->
-    let t1 = vec V.! i
-    in forM_ [0..i] $ \j ->
-         let t2 = vec V.! j
-         in VSM.write mv (idxHalf i j) (temporalDistTempPos t1 t2)
-  frozen <- VS.unsafeFreeze mv
-  pure (SelfDistMatrix frozen)
+    let n     = V.length vec
+        nHalf = n*(n+1) `div` 2
+    mv <- VSM.new nHalf
+    forM_ [0..n-1] $ \i ->
+        let t1 = vec V.! i
+        in forM_ [0..i] $ \j ->
+             let t2 = vec V.! j
+             in VSM.write mv (idxHalf i j) (temporalDistTempPos t1 t2)
+    frozen <- VS.unsafeFreeze mv
+    pure (SelfDistMatrix frozen)
 
 computeArbitrarySelfDistMatrix :: Int -> V.Vector (VS.Vector Double) -> IO SelfDistMatrix
 computeArbitrarySelfDistMatrix ix vec = do
-  let n     = V.length vec
-      nHalf = n*(n+1) `div` 2
-  mv <- VSM.new nHalf
-  forM_ [0..n-1] $ \i ->
-    let vs1 = vec V.! i
-    in forM_ [0..i] $ \j ->
-         let vs2 = vec V.! j
-         in VSM.write mv (idxHalf i j) (abs (vs1 VS.! ix - vs2 VS.! ix))
-  frozen <- VS.unsafeFreeze mv
-  pure (SelfDistMatrix frozen)
+    let n     = V.length vec
+        nHalf = n*(n+1) `div` 2
+    mv <- VSM.new nHalf
+    forM_ [0..n-1] $ \i ->
+        let vs1 = vec V.! i
+        in forM_ [0..i] $ \j ->
+             let vs2 = vec V.! j
+             in VSM.write mv (idxHalf i j) (abs (vs1 VS.! ix - vs2 VS.! ix))
+    frozen <- VS.unsafeFreeze mv
+    pure (SelfDistMatrix frozen)
 
 selfDistMatrixToFlatHalf :: SelfDistMatrixPerIndepVar -> IndepVarsDistFlat
 selfDistMatrixToFlatHalf sdmPerIndepVar =
