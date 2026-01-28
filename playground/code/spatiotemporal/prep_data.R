@@ -1,10 +1,34 @@
 library(magrittr)
 
-load("~/agora/mobest.analysis.2022/data/genotype_data/janno_final.RData")
-load("~/agora/mobest.analysis.2022/data/spatial/extended_area.RData")
+#### derive test data files from the mobest data analysis project ####
 
+# load("~/agora/mobest.analysis.2022/data/genotype_data/janno_final.RData")
+# janno_final %>%
+#   dplyr::select(
+#     Poseidon_ID, Genetic_Sex, Group_Name,
+#     Latitude, Longitude, x, y,
+#     Date_Type, Date_C14_Labnr, Date_C14_Uncal_BP, Date_C14_Uncal_BP_Err,
+#     Date_BC_AD_Start, Date_BC_AD_Stop,
+#     Date_BC_AD_Median_Derived,
+#     C1_mds_u, C2_mds_u,
+#     Publication
+#   ) %>%
+#   janno::as.janno() %>%
+#   janno::write_janno(
+#     path = "data_tracked/test_observations.janno",
+#     remove_source_file_column = T
+#   )
+# 
+# load("~/agora/mobest.analysis.2022/data/spatial/extended_area.RData")
+# extended_area %>% sf::st_write(dsn = "data_tracked/test_area.gpkg")
+
+#### prepare derived data products for locest tests ####
+
+test_area <- sf::st_read("data_tracked/test_area.gpkg")
+
+# prediction grid
 spatiotemporal_grid <- mobest::create_prediction_grid(
-  extended_area,
+  test_area,
   spatial_cell_size = 30000
 ) %>% mobest::geopos_to_spatpos(-7000)
 
@@ -17,7 +41,10 @@ spatiotemporal_grid %>%
   ) %>%
   readr::write_tsv(file = "data/spatiotemporal/grid.tsv")
 
-janno_final %>%
+# observations file
+test_observations <- readr::read_tsv("data_tracked/test_observations.janno")
+
+test_observations %>%
   dplyr::select(
     obsID = Poseidon_ID,
     x, y,
@@ -27,7 +54,8 @@ janno_final %>%
   )  %>%
   readr::write_tsv(file = "data/spatiotemporal/obs.tsv")
 
-janno_final %>%
+# temporal resampling
+test_observations %>%
   dplyr::select(
     Poseidon_ID,
     Date_Type,
@@ -57,21 +85,8 @@ janno_final %>%
 
 system("currycarbon -i data/spatiotemporal/currycarbon_input.txt -q --samplesFile data/spatiotemporal/currycarbon_result.tsv -n 5 --seed 123")
 
-janno_final %>%
+# search position
+test_observations %>%
   dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
   dplyr::select(Poseidon_ID, C1_mds_u, C2_mds_u) %>%
   as.matrix
-
-# janno_final %>%
-#   dplyr::filter(grepl("Stuttgart", Poseidon_ID)) %>%
-#   dplyr::select(
-#     obsID = Poseidon_ID,
-#     x, y
-#   )  %>%
-#   readr::write_tsv(file = "~/agora/locest/playground/test2GridOnePoint.tsv")
-
-range(janno_final$C1_mds_u)
-range(janno_final$C2_mds_u)
-seq(min(janno_final$C1_mds_u), max(janno_final$C1_mds_u), 0.01)
-seq(min(janno_final$C2_mds_u), max(janno_final$C2_mds_u), 0.01)
-
