@@ -139,10 +139,10 @@ cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs
             in (sse + d * d, sll + ll, k + 1)
     pure CrossvalOutput
       { _crossoutIteration        = iter
-      , _crossoutDepVars          = [oneDepVar]
+      , _crossoutDepVars          = oneDepVar
       , _crossoutKernelDefinition = kernDef
       , _crossoutDistSum          = sumSqErr
-      , _crossoutDistMeanSquared  =  if n == 0 then 0 else sumSqErr / fromIntegral n
+      , _crossoutDistMeanSquared  = if n == 0 then 0 else sumSqErr / fromIntegral n
       , _crossoutProbSum          = sumLL
       }
 

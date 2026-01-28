@@ -133,7 +133,7 @@ toFieldMaybeString (Just x) = Csv.toField x
 -- | A data type for crossvalidation output
 data CrossvalOutput = CrossvalOutput {
       _crossoutIteration        :: Int
-    , _crossoutDepVars          :: [DepVarName]
+    , _crossoutDepVars          :: DepVarName
     , _crossoutKernelDefinition :: KernelDefinition
     , _crossoutDistSum          :: Double
     , _crossoutDistMeanSquared  :: Double
@@ -142,20 +142,12 @@ data CrossvalOutput = CrossvalOutput {
 
 instance NFData CrossvalOutput
 instance Csv.DefaultOrdered CrossvalOutput where
-    headerOrder (CrossvalOutput _ [depVar] algo _ _ _) =
-        Csv.header ["iteration", "depVar"] <> removeDepVarFromHeader depVar (Csv.headerOrder algo) <> crossSummaryHeader
-    headerOrder (CrossvalOutput _ _ algo _ _ _) =
-        Csv.header ["iteration"] <> Csv.headerOrder algo <> crossSummaryHeader
+    headerOrder (CrossvalOutput _ oneDepVar algo _ _ _) =
+        Csv.header ["iteration", "depVar"] <> removeDepVarFromHeader oneDepVar (Csv.headerOrder algo) <> crossSummaryHeader
 instance Csv.ToRecord CrossvalOutput where
-    toRecord (CrossvalOutput iter [depVar] algo sumDist meanSquaredDist sumProb) =
+    toRecord (CrossvalOutput iter oneDepVar algo sumDist meanSquaredDist sumProb) =
            Csv.toRecord [Csv.toField iter]
-        <> Csv.toRecord [Csv.toField depVar]
-        <> Csv.toRecord algo
-        <> Csv.record [Csv.toField sumDist]
-        <> Csv.record [Csv.toField meanSquaredDist]
-        <> Csv.record [Csv.toField $ OutDouble sumProb]
-    toRecord (CrossvalOutput iter _ algo sumDist meanSquaredDist sumProb) =
-           Csv.toRecord [Csv.toField iter]
+        <> Csv.toRecord [Csv.toField oneDepVar]
         <> Csv.toRecord algo
         <> Csv.record [Csv.toField sumDist]
         <> Csv.record [Csv.toField meanSquaredDist]
