@@ -150,7 +150,8 @@ subcommandParser = OP.subparser (
         varioOptInfo = OP.info (OP.helper <*> (CmdVario <$> varioOptParser))
             (OP.progDesc "Calculate variograms binned based on distances in independent variable space.")
         crossOptInfo = OP.info (OP.helper <*> (CmdCross <$> crossOptParser))
-            (OP.progDesc "Compare hyperparameter settings for the interpolation through crossvalidation.")
+            (OP.progDesc "Compare hyperparameter settings for the interpolation through Monte Carlo \
+                         \crossvalidation (repeated random sub-sampling).")
         serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
             (OP.progDesc "Transform input data to compact binary files in .cbor format \
                          \to load it faster in the other subcommands.")
