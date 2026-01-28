@@ -81,8 +81,8 @@ runSearch (SearchOptions
     hPutStrLn stderr "Running interpolation"
     Con.runConduitRes $
            ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . search algorithm kernDef topNObs indepVars obsGridDistances obsObsDistances -- gridGridDistances
-                                            spatDistUnitScaling depVars kernels)
+        .| ConL.concatMapM (liftIO . search spatDistUnitScaling algorithm kernDef topNObs indepVars obsGridDistances obsObsDistances -- gridGridDistances
+                                             depVars kernels)
         .| progress 1000 (Just nrOutputRows)
         .| sinkNamedCSV outFile
     putStrLn "Done"
@@ -91,45 +91,42 @@ factor :: Maybe a -> (a -> Int) -> Int
 factor element extractor = maybe 1 extractor element
 
 search
-  :: Algorithm
+  :: Double
+  -> Algorithm
   -> KernelDefinition
   -> Int
   -> [IndepVarName]
   -> Maybe CrossDistMatrixPerIndepVar
   -> Maybe SelfDistMatrixPerIndepVar
   -- -> Maybe SelfDistMatrixPerIndepVar
-  -> Double
   -> [DepVarName]
   -> [KernelOneDepVar]
   -> Permutation
   -> IO [SearchResultRow]
-search algorithm kernDef topNObs indepVars
+search spatDistUnitScaling algorithm kernDef topNObs indepVars
      maybeObsGridDists maybeObsObsDists
-     spatDistUnitScaling
      depVars kernelsPerDepVar
      perm@(Permutation tempIter _ grid _ searchDepVarPos) = do
-  perDepVar <- searchPerDepVar
-      algorithm topNObs indepVars
+  perDepVar <- searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
       maybeObsGridDists maybeObsObsDists
-      spatDistUnitScaling
       depVars kernelsPerDepVar
       perm
   pure $ searchResultsToRows kernDef tempIter grid searchDepVarPos perDepVar
 
-searchPerDepVar :: Algorithm
+searchPerDepVar ::
+        Double
+       -> Algorithm
        -> Int
        -> [IndepVarName]
        -> Maybe CrossDistMatrixPerIndepVar
        -> Maybe SelfDistMatrixPerIndepVar
        -- -> Maybe SelfDistMatrixPerIndepVar
-       -> Double
        -> [DepVarName]
        -> [KernelOneDepVar]
        -> Permutation
        -> IO [V.Vector SearchResultLong]
-searchPerDepVar algorithm topNObs indepVars
+searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
      maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
-     spatDistUnitScaling
      depVars kernelsPerDepVar
      (Permutation _ obs grid maybeGridTrueDep searchDepVarPos) =
     case algorithm of
@@ -180,8 +177,8 @@ searchResultsToRows
 searchResultsToRows kernDef tempSamplingIteration grid searchDepVarPos perDepVar =
   let rawRows = concatMap rowsForGridIdx [0 .. V.length grid - 1]
   in if isJust searchDepVarPos && isSpatioTemporal grid
-        then normaliseByTimeSlice rawRows
-        else rawRows
+     then normaliseByTimeSlice rawRows
+     else rawRows
   where
     rowsForGridIdx :: Int -> [SearchResultRow]
     rowsForGridIdx i =

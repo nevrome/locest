@@ -82,24 +82,24 @@ runCross (
            ConC.yieldMany permutations
         .| progress 1 (Just (length permutations))
         .| ConC.mapM (\(iter, kerndef) ->
-               liftIO $ cross algorithm indepVars obsObsDistances spatDistUnitScaling
+               liftIO $ cross spatDistUnitScaling algorithm indepVars obsObsDistances
                               baseSeed numTestObs iter obs kerndef
            )
         .| sinkNamedCSV outFile
     putStrLn "Done"
 
 cross
-  :: Algorithm
+  :: Double
+  -> Algorithm
   -> [IndepVarName]
   -> Maybe SelfDistMatrixPerIndepVar
-  -> Double
   -> Int -- base seed
   -> Int -- numTestObs
   -> Int -- iteration
   -> V.Vector Observation
   -> KernelDefinition
   -> IO CrossvalOutput
-cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs iter obs kernDef = do
+cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed nTestObs iter obs kernDef = do
     let seedIter = seed + iter
         depVars = getKeys kernDef
         oneDepVar = case depVars of
@@ -121,8 +121,8 @@ cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs
         !maybeObsObsDists = sliceSelfDistPerIndep trainIdx <$> maybeFullObsObsDists
         !maybeObsGridDists = sliceCrossDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
     -- run interpolation (no dep-search grid, but true grid values provided)
-    perDepVar <- searchPerDepVar algorithm 0 indepVars maybeObsGridDists maybeObsObsDists
-                                 spatDistUnitScaling [oneDepVar] kernels
+    perDepVar <- searchPerDepVar spatDistUnitScaling algorithm 0 indepVars maybeObsGridDists maybeObsObsDists
+                                 [oneDepVar] kernels
                                  (Permutation iter trainingObs predGrid (Just trueVals) Nothing)
     -- extract the single dependent-variable result vector
     depRes <- case perDepVar of
@@ -131,8 +131,7 @@ cross algorithm indepVars maybeFullObsObsDists spatDistUnitScaling seed nTestObs
     -- accumulate CV statistics
     let (sumSqErr, sumLL, n) =  V.ifoldl' step (0, 0, 0 :: Int) depRes
         step (!sse, !sll, !k) i ssl =
-            let trueDV   = trueVals V.! i
-                trueVal  = lookupUnsafe trueDV oneDepVar
+            let trueVal  = lookupUnsafe (trueVals V.! i) oneDepVar
                 medianV  = _sslMedian ssl
                 d        = medianV - trueVal
                 ll       = fromMaybe (-inf) (_sslGridLogLikelihood ssl)
