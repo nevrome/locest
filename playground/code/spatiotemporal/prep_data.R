@@ -44,15 +44,21 @@ spatiotemporal_grid %>%
 # observations file
 test_observations <- readr::read_tsv("data_tracked/test_observations.janno")
 
-test_observations %>%
+obs <- test_observations %>%
   dplyr::select(
     obsID = Poseidon_ID,
     x, y,
     yearBCAD = Date_BC_AD_Median_Derived,
     depC1 = C1_mds_u,
     depC2 = C2_mds_u
-  )  %>%
-  readr::write_tsv(file = "data/spatiotemporal/obs.tsv")
+  )
+
+obs %>% readr::write_tsv(file = "data/spatiotemporal/obs.tsv")
+
+# search observation file
+obs %>%
+  dplyr::filter(obsID %in% c("UzOO77", "Stuttgart_published.DG", "R19.SG")) %>%
+  readr::write_tsv(file = "data/spatiotemporal/search_obs.tsv")
 
 # temporal resampling
 test_observations %>%

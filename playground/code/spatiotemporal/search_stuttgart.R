@@ -75,6 +75,9 @@ vario_res %>%
 
 system('time OMP_NUM_THREADS=20 locest search --configFile code/spatiotemporal/basic.conf')
 
+# run with slurm
+# srun --cpus-per-task=20 --export=ALL,OMP_NUM_THREADS=20 time locest search --configFile code/spatiotemporal/basic.conf
+
 # better memory profiling with GNU time
 # export TIME="time result\ncmd: %C\nreal %es\nuser %Us \nsys  %Ss \nmemory: %MKB \ncpu: %P"
 # OMP_NUM_THREADS=4 /usr/bin/time locest search --configFile code/spatiotemporal/basic.conf
