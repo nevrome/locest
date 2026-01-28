@@ -25,6 +25,7 @@ data Options = Options {
       _subcommand          :: Subcommand
     , _quiet               :: Bool
     , _spatDistUnitScaling :: Double
+    , _configFile          :: Maybe FilePath
     }
 
 data Subcommand =
@@ -57,7 +58,7 @@ main = do
             configFileArgs <- catch (parseConfigFile cmdArgs configFilePath) handler
             return $ cmdArgs ++ configFileArgs
     -- parse arguments
-    (Options subcommand quiet spatDistUnitScaling) <-
+    (Options subcommand quiet spatDistUnitScaling _) <-
         OP.handleParseResult $
             OP.execParserPure (OP.defaultPrefs {
                   OP.prefShowHelpOnError = False
@@ -109,16 +110,27 @@ optParserInfo = OP.info (
         <$> subcommandParser
         <*> optParseQuiet
         <*> optParseSpatDistUnitScaling
+        <*> optParseConfigFileFake
         )) (
     OP.briefDesc
     <> OP.progDesc "Spatiotemporal interpolation and search for macroscale archaeological data."
     <> OP.footerDoc (
         Just $ pretty $
-            "Configuration for memory management and thread scheduling can be done with\n"
-         ++ "GHC's Runtime system (RTS) options. They can be set with \"+RTS ... -RTS\" on the\n"
-         ++ "command line, e.g. \"locest search <arguments> +RTS -N5 -RTS\" to run with 5 threads."
+            "Parallel computing in locest is handled by BLAS, and the number of threads\n"
+         ++ "can be set with an environment variable, depening on the BLAS implementation.\n"
+         ++ "e.g. OMP_NUM_THREADS = 4 locest search ..."
         )
     )
+
+-- exists only for documentation!
+optParseConfigFileFake :: OP.Parser (Maybe FilePath)
+optParseConfigFileFake =
+  OP.optional $
+    OP.strOption
+      ( OP.long "configFile"
+     <> OP.metavar "FILE"
+     <> OP.help "Read additional command line options from FILE, can be overwritten."
+      )
 
 versionOption :: OP.Parser (a -> a)
 versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.help "Show version")

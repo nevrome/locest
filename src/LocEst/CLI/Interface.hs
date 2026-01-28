@@ -300,11 +300,11 @@ optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
     <> OP.helpDoc ( Just (
                           s2d "Fraction of the observations that should be used as test data for the \
                               \crossvalidation. 1 - testFraction will be used as training data. \
-                              \The fraction must be between 0 and 1. Default: 0.2"
-        <> OH.hardline <>     "When the fraction is so large that the number of test observations \
+                              \The fraction must be between 0 and 1. \
+                              \When the fraction is so large that the number of test observations \
                               \equals the total number of observations, then all observations are used \
                               \for the training set. In this case the seed has no effect and all \
-                              \iterations yield the same result."
+                              \iterations yield the same result. Default: 0."
     ))
     )
     where
@@ -595,6 +595,7 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
     <> OH.hardline <>     "│  depVars = c(      │ named list of dependent variables"
     <> OH.hardline <>     "│    depV1 = k(      │ - first dependent variable"
     <> OH.hardline <>     "│      shape = SqEx, │   - either SqEx = Squared exponential"
+    <> OH.hardline <>     "│                    │         or Ex = Exponential"
     <> OH.hardline <>     "│                    │         or Linear = Linear kernel"
     <> OH.hardline <>     "│      lengths = c(  │   - named list with length scale"
     <> OH.hardline <>     "│        space = ... │     for each independent variable"
@@ -654,6 +655,7 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
     <> OH.hardline <>     "│  depVars = c(      │ named list of dependent variables"
     <> OH.hardline <>     "│    depV1 = k(      │ - first dependent variable"
     <> OH.hardline <>     "│      shape = SqEx, │   - either SqEx = Squared exponential"
+    <> OH.hardline <>     "│                    │         or Ex = Exponential"
     <> OH.hardline <>     "│                    │         or Linear = Linear kernel"
     <> OH.hardline <>     "│      lengths = c(  │   - named list with length scale"
     <> OH.hardline <>     "│        space = ... │     for each independent variable *"
