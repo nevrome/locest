@@ -198,4 +198,4 @@ sortWithIndices v = do
 getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
 getIndicesForBin sortedVec i1 i2 =
     --let !_ = unsafePerformIO $ putStrLn (show i1 ++ " " ++ show (i2 - i1))
-    VU.map fst $ VU.slice i1 (i2 - i1) sortedVec
+    VU.map fst $ VU.slice i1 (i2 - i1 + 1) sortedVec
