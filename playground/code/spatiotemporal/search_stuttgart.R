@@ -77,6 +77,8 @@ system('time OMP_NUM_THREADS=20 locest search --configFile code/spatiotemporal/b
 
 # run with slurm
 # srun --cpus-per-task=20 --export=ALL,OMP_NUM_THREADS=20 time locest search --configFile code/spatiotemporal/basic.conf
+# access slurm node to see resource use
+# srun --pty -w hpc034 bash
 
 # better memory profiling with GNU time
 # export TIME="time result\ncmd: %C\nreal %es\nuser %Us \nsys  %Ss \nmemory: %MKB \ncpu: %P"
@@ -112,6 +114,9 @@ search_res %>%
 
 system('time OMP_NUM_THREADS=20 locest cross --configFile code/spatiotemporal/cross.conf')
 
+# run with slurm
+# srun --cpus-per-task=50 --export=ALL,OMP_NUM_THREADS=50,OPENBLAS_VERBOSE=2 time locest cross --configFile code/spatiotemporal/cross.conf
+
 cross_res <- readr::read_tsv("data/spatiotemporal/cross.tsv")
 
 kernel_grid_locest <- cross_res %>%
@@ -128,6 +133,10 @@ kernel_grid_locest <- cross_res %>%
   dplyr::mutate(
     meas = mean_squared_dep_dist_euclidean
   )
+
+kernel_grid_locest %>%
+  dplyr::group_by(depVar) %>%
+  dplyr::slice_min(meas)
 
 p1 <- ggplot() +
   geom_raster(
