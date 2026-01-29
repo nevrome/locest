@@ -103,16 +103,16 @@ seek :: ContDistr b
     -> Maybe String
     -> SearchResultLong
 seek depVar maybeSearchValues maybeTrueDep (Right distribution) topObs =
-    let lower  = quantile distribution 0.025
-        median = quantile distribution 0.5
-        upper  = quantile distribution 0.975
+    let low = quantile distribution 0.025
+        med = quantile distribution 0.5
+        up  = quantile distribution 0.975
         logLTruth = do
             trueDep <- maybeTrueDep
             let trueVal = lookupUnsafe trueDep depVar
             pure (logDensity distribution trueVal)
         searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
         logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
-    in SRL depVar lower median upper maybeTrueDep logLTruth maybeSearchValues logL topObs
+    in SRL depVar low med up maybeTrueDep logLTruth maybeSearchValues logL topObs
 seek depVar maybeSearchValues maybeTrueDep (Left _) topObs =
     let logLTruth = maybeTrueDep *> Just (-inf)   -- if truth exists but dist failed, mark as -inf; else Nothing
         logLSearch = case maybeSearchValues of

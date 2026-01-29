@@ -65,7 +65,7 @@ vario_emp %>%
     scales = "free"
   )
 
-system('time locest variofit --obsFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv')
+system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv')
 
 vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
 

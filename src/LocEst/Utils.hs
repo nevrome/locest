@@ -8,9 +8,9 @@ import           Control.Exception (Exception, throw, throwIO)
 import           Data.Conduit      (ConduitT)
 import qualified Data.Conduit.List as ConC
 import           Data.IORef        (modifyIORef, newIORef, readIORef)
+import           Data.List         (sort)
 import           GHC.Generics      (Generic)
 import           System.IO         (hPutStrLn, stderr)
-import Data.List (sort)
 
 -- | Different exceptions for locest
 newtype LocEstException = LocEstException String

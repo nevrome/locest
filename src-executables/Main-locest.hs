@@ -5,7 +5,7 @@ import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise     (SerialiseOptions (..), runSerialise)
 import           LocEst.CLI.Vario         (VarioOptions (..), runVario)
-import           LocEst.CLI.VarioFit         (VarioFitOptions (..), runVarioFit)
+import           LocEst.CLI.VarioFit      (VarioFitOptions (..), runVarioFit)
 import           LocEst.Utils
 
 import           Control.Exception        (catch)

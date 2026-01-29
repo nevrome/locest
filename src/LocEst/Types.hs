@@ -191,14 +191,14 @@ instance Csv.ToRecord EmpiricalVariogramSingleBin where
                     Csv.toField dv, Csv.toField npairs]
 
 data VariogramFit = VariogramFit
-  { _vfIndepVar :: IndepVarName
-  , _vfDepVar   :: DepVarName
-  , _vfKernel   :: KernelShape
-  , _vfNugget   :: Double   -- nugget variance (or scaled, document!)
-  , _vfSill     :: Double   -- τ²
+  { _vfIndepVar     :: IndepVarName
+  , _vfDepVar       :: DepVarName
+  , _vfKernel       :: KernelShape
+  , _vfNugget       :: Double   -- nugget variance (or scaled, document!)
+  , _vfSill         :: Double   -- τ²
   , _vfScaledNugget :: Double -- nug/sill
-  , _vfRange    :: Double   -- lengthscale
-  , _vfLoss     :: Double   -- weighted SSE
+  , _vfRange        :: Double   -- lengthscale
+  , _vfLoss         :: Double   -- weighted SSE
   } deriving (Show, Generic)
 
 instance Csv.DefaultOrdered VariogramFit where
