@@ -19,6 +19,7 @@ import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.String       as P
+import LocEst.CLI.VarioFit (VarioFitOptions(..))
 
 -- helper functions for optparse applicative help text
 s2d :: String -> OH.Doc
@@ -119,6 +120,11 @@ varioOptParser = VarioOptions
                         <*> optParseIndepVarsThresholds
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
+
+varioFitOptParser :: OP.Parser VarioFitOptions
+varioFitOptParser = VarioFitOptions
+                        <$> optParseInObservationFile
+                        <*> optParseOutFile
 
 crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions

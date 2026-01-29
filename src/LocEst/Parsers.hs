@@ -203,6 +203,14 @@ readTempSamp obs path
 
 -- simpler parsers
 
+readEmpiricalVariogram :: FilePath -> IO [EmpiricalVariogramSingleBin]
+readEmpiricalVariogram path = do
+    hPutStrLn stderr "Reading empirical variograms"
+    hPutStrLn stderr $ "Parsing " ++ path
+    res <- Con.runConduitRes $ sourceCSV path .| ConC.mapM unwrapCSVParsingErrors .| ConC.sinkList
+    hPutStrLn stderr "Done"
+    return res
+
 readDepVarsPredGrid :: [String] -> [String] -> DepVarsPredGridSettings -> IO (V.Vector DepVarsPredPos)
 readDepVarsPredGrid depVars _ (DirectDepVarsGridSettings depVarsPos) = do
     let depVarsPosReordered = V.map (filterByKey depVars) $ V.fromList depVarsPos

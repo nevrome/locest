@@ -10,6 +10,7 @@ import qualified Data.Conduit.List as ConC
 import           Data.IORef        (modifyIORef, newIORef, readIORef)
 import           GHC.Generics      (Generic)
 import           System.IO         (hPutStrLn, stderr)
+import Data.List (sort)
 
 -- | Different exceptions for locest
 newtype LocEstException = LocEstException String
@@ -66,3 +67,9 @@ forM :: Monad m => [a] -> (a -> m b) -> m [b]
 forM = flip mapM
 for :: [a] -> (a -> b) -> [b]
 for = flip map
+
+median :: [Double] -> Double
+median xs =
+  let ys = sort xs
+      n  = length ys
+  in ys !! (n `div` 2)

@@ -5,6 +5,7 @@ import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise     (SerialiseOptions (..), runSerialise)
 import           LocEst.CLI.Vario         (VarioOptions (..), runVario)
+import           LocEst.CLI.VarioFit         (VarioFitOptions (..), runVarioFit)
 import           LocEst.Utils
 
 import           Control.Exception        (catch)
@@ -32,6 +33,7 @@ data Subcommand =
       CmdSerialise SerialiseOptions
     | CmdSearch SearchOptions
     | CmdVario VarioOptions
+    | CmdVarioFit VarioFitOptions
     | CmdCross CrossOptions
 
 -- CLI interface configuration
@@ -101,6 +103,7 @@ runCmd o spatDistUnitScaling = case o of
     CmdSerialise opts -> runSerialise opts
     CmdSearch opts    -> runSearch opts spatDistUnitScaling
     CmdVario opts     -> runVario opts spatDistUnitScaling
+    CmdVarioFit opts  -> runVarioFit opts
     CmdCross opts     -> runCross opts spatDistUnitScaling
 
 optParserInfo :: OP.ParserInfo Options
@@ -139,6 +142,7 @@ subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
            OP.command "search" searchOptInfo
         <> OP.command "vario" varioOptInfo
+        <> OP.command "variofit" varioFitOptInfo
         <> OP.command "cross" crossOptInfo
         <> OP.command "serialise" serialiseOptInfo
     )
@@ -149,6 +153,8 @@ subcommandParser = OP.subparser (
                          \for individual \"search\" observations.")
         varioOptInfo = OP.info (OP.helper <*> (CmdVario <$> varioOptParser))
             (OP.progDesc "Calculate variograms binned based on distances in independent variable space.")
+        varioFitOptInfo = OP.info (OP.helper <*> (CmdVarioFit <$> varioFitOptParser))
+            (OP.progDesc "...")
         crossOptInfo = OP.info (OP.helper <*> (CmdCross <$> crossOptParser))
             (OP.progDesc "Compare hyperparameter settings for the interpolation through Monte Carlo \
                          \crossvalidation (repeated random sub-sampling).")

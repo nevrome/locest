@@ -171,12 +171,42 @@ data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin {
     }
     deriving Show
 
+instance Csv.FromNamedRecord EmpiricalVariogramSingleBin where
+    parseNamedRecord m =
+        EmpiricalVariogramSingleBin
+            <$> filterLookup m "indepVar"
+            <*> filterLookup m "depVar"
+            <*> ( (,,)
+                    <$> filterLookup m "bin_min"
+                    <*> filterLookup m "bin_mid"
+                    <*> filterLookup m "bin_max"
+                )
+            <*> filterLookup m "variance"
+            <*> filterLookup m "nr_pairs"
 instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
     headerOrder _ = Csv.header ["indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance", "nr_pairs"]
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
     toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv npairs) =
         Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax,
                     Csv.toField dv, Csv.toField npairs]
+
+data VariogramFit = VariogramFit
+  { _vfIndepVar :: IndepVarName
+  , _vfDepVar   :: DepVarName
+  , _vfKernel   :: KernelShape
+  , _vfNugget   :: Double   -- nugget variance (or scaled, document!)
+  , _vfSill     :: Double   -- τ²
+  , _vfScaledNugget :: Double -- nug/sill
+  , _vfRange    :: Double   -- lengthscale
+  , _vfLoss     :: Double   -- weighted SSE
+  } deriving (Show, Generic)
+
+instance Csv.DefaultOrdered VariogramFit where
+    headerOrder _ = Csv.header [ "indepVar", "depVar", "kernel", "nugget", "sill", "nugget_scaled", "range", "loss" ]
+instance Csv.ToRecord VariogramFit where
+    toRecord (VariogramFit iv dv kernel nug sill scalednug range loss) =
+        Csv.record [ Csv.toField iv, Csv.toField dv, Csv.toField kernel, Csv.toField nug
+                   , Csv.toField sill, Csv.toField scalednug, Csv.toField range, Csv.toField loss ]
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]
@@ -357,8 +387,6 @@ makeKernelShape "SqEx"   = pure SquaredExponential
 makeKernelShape "Linear" = pure Linear
 makeKernelShape "Ex"     = pure Exponential
 makeKernelShape x        = fail $ "Kernel shape " ++ show x ++ " not recognized"
-
-type SquaredWeightedDist = Double
 
 -- | A data type for a per-dimension distances in independent variable space
 data IndepVarsDist = IndepSpatTempDist SpatTempDist | IndepArbitraryDimDist ArbitraryDimDists

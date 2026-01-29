@@ -20,7 +20,7 @@ library
     exposed-modules:
       LocEst.CLI.Search, LocEst.Types, LocEst.TypesFlat, LocEst.TypesUtils, LocEst.Parsers, LocEst.Distance,
       LocEst.CLI.Interface, LocEst.CLI.ConfigLang, LocEst.CoreAlgorithms, LocEst.Utils,
-      LocEst.CLI.Serialise, LocEst.CLI.Vario, LocEst.CLI.Cross
+      LocEst.CLI.Serialise, LocEst.CLI.Vario, LocEst.CLI.VarioFit, LocEst.CLI.Cross
     hs-source-dirs:
       src
     build-depends:
@@ -41,6 +41,7 @@ library
       , serialise
       , statistics
       , hmatrix
+      , hmatrix-gsl
       , containers
       , bytestring-lexing
     default-language:

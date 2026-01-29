@@ -52,11 +52,11 @@ system('time locest serialise selfdist -g data/spatiotemporal/grid.tsv --distFil
 # stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -p
 # profiteur locest.prof
 
-system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario.tsv --across AllCombinations')
+system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --across AllCombinations')
 
-vario_res <- readr::read_tsv("data/spatiotemporal/vario.tsv")
+vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 
-vario_res %>%
+vario_emp %>%
   ggplot() +
   geom_point(aes(bin_mid, variance)) +
   facet_grid(
@@ -65,9 +65,52 @@ vario_res %>%
     scales = "free"
   )
 
-system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "OneBinMax(max = c(space = 100, time = 100))" --outFile data/spatiotemporal/vario_nugget.tsv --across AllCombinations')
+system('time locest variofit --obsFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv')
 
-readr::read_tsv("data/spatiotemporal/vario_nugget.tsv")
+vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
+
+variogram_fun <- function(kernel, h, nug, sill, range) {
+  switch(
+    kernel,
+    "SqEx"   = nug + sill * (1 - exp(-(h^2) / (range^2))),
+    "Ex"     = nug + sill * (1 - exp(-h / range)),
+    "Linear" = nug + sill * pmin(1, h / range),
+    stop("Unknown kernel")
+  )
+}
+
+vario_curves <- vario_emp %>%
+  dplyr::group_by(indepVar, depVar) %>%
+  dplyr::summarise(
+    h_min = min(bin_mid),
+    h_max = max(bin_mid),
+    .groups = "drop"
+  ) %>%
+  dplyr::left_join(vario_fit, by = c("indepVar", "depVar")) %>%
+  dplyr::mutate(
+    h = purrr::map2(h_min, h_max, \(x, y) seq(x, y, length.out = 200)),
+  ) %>%
+  tidyr::unnest(h) %>%
+  dplyr::mutate(
+    .,
+    gamma = purrr::pmap_dbl(., \(kernel, h, nugget, sill, range, ...) variogram_fun(kernel, h, nugget, sill, range))
+  )
+
+ggplot() +
+  facet_grid(
+    rows = vars(depVar),
+    cols = vars(indepVar),
+    scales = "free"
+  ) +
+  geom_point(
+    data = vario_emp,
+    aes(x = bin_mid, y = variance),
+  ) +
+  geom_line(
+    data = vario_curves,
+    aes(x = h, y = gamma, colour = kernel)
+  )
+  
 
 # normal search test
 # stack install --profile
