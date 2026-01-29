@@ -194,19 +194,20 @@ data VariogramFit = VariogramFit
   { _vfIndepVar     :: IndepVarName
   , _vfDepVar       :: DepVarName
   , _vfKernel       :: KernelShape
-  , _vfNugget       :: Double   -- nugget variance (or scaled, document!)
-  , _vfSill         :: Double   -- τ²
-  , _vfScaledNugget :: Double -- nug/sill
+  , _vfNugget       :: Double   -- nugget
+  , _vfPartialSill  :: Double -- partial sill
+  , _vfSill         :: Double   -- sill
+  , _vfScaledNugget :: Double -- nugget/sill (relevant for kriging as implemented in locest)
   , _vfRange        :: Double   -- lengthscale
   , _vfLoss         :: Double   -- weighted SSE
   } deriving (Show, Generic)
 
 instance Csv.DefaultOrdered VariogramFit where
-    headerOrder _ = Csv.header [ "indepVar", "depVar", "kernel", "nugget", "sill", "nugget_scaled", "range", "loss" ]
+    headerOrder _ = Csv.header [ "indepVar", "depVar", "kernel", "nugget", "partial_sill", "sill", "scaled_nugget", "range", "loss" ]
 instance Csv.ToRecord VariogramFit where
-    toRecord (VariogramFit iv dv kernel nug sill scalednug range loss) =
+    toRecord (VariogramFit iv dv kernel nug psill sill scalednug range loss) =
         Csv.record [ Csv.toField iv, Csv.toField dv, Csv.toField kernel, Csv.toField nug
-                   , Csv.toField sill, Csv.toField scalednug, Csv.toField range, Csv.toField loss ]
+                   , Csv.toField psill, Csv.toField sill, Csv.toField scalednug, Csv.toField range, Csv.toField loss ]
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]

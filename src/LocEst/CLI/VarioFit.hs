@@ -40,15 +40,15 @@ groupBins bins =
       mkGroup []     = error "groupBins: impossible empty group"
 
 type VariogramModel = Double -> Double -> Double -> Double -> Double
--- v(h) = nugget + sill * f(h / range)
+-- v(h) = nugget + psill * f(h / range)
 
 variogramModel :: KernelShape -> VariogramModel
 variogramModel SquaredExponential =
-    \nug sill range h -> nug + sill * (1 - exp (- ((h * h) / (range * range))))
+    \nug psill range h -> nug + psill * (1 - exp (- ((h * h) / (range * range))))
 variogramModel Exponential =
-    \nug sill range h -> nug + sill * (1 - exp (- (h / range)))
+    \nug psill range h -> nug + psill * (1 - exp (- (h / range)))
 variogramModel Linear =
-    \nug sill range h -> nug + sill * min 1 (h / range)
+    \nug psill range h -> nug + psill * min 1 (h / range)
 
 fitAllKernels :: [KernelShape] -> (IndepVarName, DepVarName, [EmpiricalVariogramSingleBin]) -> [VariogramFit]
 fitAllKernels kernels (iv, dv, bins) = map (fitOneKernel iv dv bins) kernels
@@ -64,36 +64,38 @@ fitOneKernel iv dv bins kernel =
         ys = map _evVariance bins
         ws = map (fromIntegral . _evNrPairs) bins
         -- initial guesses
-        sill0   = maximum ys
+        psill0  = maximum ys
         nug0    = minimum ys
         range0  = median hs
-        (nug, sill, range) = optimize (variogramModel kernel) hs ys ws (nug0, sill0, range0)
-        loss = weightedSSE (variogramModel kernel) hs ys ws (nug, sill, range)
-    in VariogramFit iv dv kernel nug sill (nug/sill) range loss
+        (nug, psill, range) = optimize (variogramModel kernel) hs ys ws (nug0, psill0, range0)
+        loss = weightedSSE (variogramModel kernel) hs ys ws (nug, psill, range)
+        sill = psill + nug
+        nugscaled = nug/sill
+    in VariogramFit iv dv kernel nug psill sill nugscaled range loss
 
 optimize
   :: VariogramModel
   -> [Double] -> [Double] -> [Double]
   -> (Double,Double,Double)
   -> (Double,Double,Double)
-optimize model hs ys ws (nug0, sill0, range0) =
+optimize model hs ys ws (nug0, psill0, range0) =
   let
       lossFun :: [Double] -> Double
-      lossFun [lnNug, lnSill, lnRange] = weightedSSE model hs ys ws (exp lnNug, exp lnSill, exp lnRange)
+      lossFun [lnNug, lnPSill, lnRange] = weightedSSE model hs ys ws (exp lnNug, exp lnPSill, exp lnRange)
       lossFun _ = 1e12 -- large penalty
-      x0 = map log [nug0, sill0, range0]
+      x0 = map log [nug0, psill0, range0]
       tol      = 1e-6
       maxIters = 500
       step     = replicate 3 1e-2
       (sol, _) = GSL.minimize GSL.NMSimplex2 tol maxIters step lossFun x0
   in case map exp sol of
-         [nug, sill, range] -> (nug, sill, range)
-         _                  -> error "optimize: output missmatch"
+         [nug, psill, range] -> (nug, psill, range)
+         _                   -> error "optimize: output missmatch"
 
 weightedSSE
     :: VariogramModel
     -> [Double] -> [Double] -> [Double]
     -> (Double,Double,Double)
     -> Double
-weightedSSE model hs ys ws (nug,sill,range) =
-    sum [ w * (y - model nug sill range h) ** 2 | (h,y,w) <- zip3 hs ys ws ]
+weightedSSE model hs ys ws (nug,psill,range) =
+    sum [ w * (y - model nug psill range h) ** 2 | (h,y,w) <- zip3 hs ys ws ]

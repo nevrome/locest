@@ -222,8 +222,11 @@ optParseIndepVarsThresholds = OP.option (OP.eitherReader readIndepVarsThresholds
     <> OP.helpDoc ( Just (
                       s2d "Thresholds for the filtering distances across independent variables. \
                           \When computing a variogram for temporal distances it might for example \
-                          \be desirable to constraint the spatial distances, so that only observations \
-                          \in spatial proximity are considered."
+                          \be desirable to constrain the spatial distances, so that only observations \
+                          \in spatial proximity are considered. This threshold does not \
+                          \filter on the focal independent variable, but on the other independent variables! \
+                          \Does not work when --across is set so that distances are aggregated across \
+                          \independent variables."
     ))
     )
 
