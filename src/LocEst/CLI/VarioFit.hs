@@ -44,7 +44,7 @@ type VariogramModel = Double -> Double -> Double -> Double -> Double
 
 variogramModel :: KernelShape -> VariogramModel
 variogramModel SquaredExponential =
-    \nug psill range h -> nug + psill * (1 - exp (- ((h * h) / (range * range))))
+    \nug psill range h -> nug + psill * (1 - exp (- ((h ** 2) / (range ** 2))))
 variogramModel Exponential =
     \nug psill range h -> nug + psill * (1 - exp (- (h / range)))
 variogramModel Linear =

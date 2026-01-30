@@ -46,6 +46,8 @@ gridGridPacked <- tibble::tibble(
 readr::write_tsv(gridGridPacked, "data/spatiotemporal/gridGridDistFile.tsv")
 system('time locest serialise selfdist -g data/spatiotemporal/grid.tsv --distFile data/spatiotemporal/gridGridDistFile.tsv -o data/spatiotemporal/gridGridDistFile.cbor')
 
+#### vario ####
+
 # stack install --profile
 # stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -hc -l
 # eventlog2html locest.eventlog
@@ -111,7 +113,8 @@ ggplot() +
     data = vario_curves,
     aes(x = h, y = gamma, colour = kernel)
   )
-  
+
+#### search ####
 
 # normal search test
 # stack install --profile
@@ -154,7 +157,7 @@ search_res %>%
   scale_fill_viridis_c() +
   coord_fixed()
 
-# crossvalidation
+#### cross ####
 
 # stack install --profile
 # stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
