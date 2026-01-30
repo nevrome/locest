@@ -504,9 +504,7 @@ instance PseudoMap ValuesPerDepVar Double where
     allSameVars xs = allEqual $ map getKeys xs
     filterByKey ks (ValuesPerDepVar ns vs) =
         let keepIx = V.findIndices (`elem` ks) ns
-        in ValuesPerDepVar
-             (V.backpermute ns keepIx)
-             (VS.backpermute vs (VS.fromList (V.toList keepIx)))
+        in ValuesPerDepVar (V.backpermute ns keepIx) (VS.backpermute vs (V.convert keepIx))
 
 -- | A data type for independent vars with some value
 type IndepVarsThresholds = ValuesPerIndepVar
@@ -547,9 +545,7 @@ instance PseudoMap ValuesPerIndepVar Double where
     allSameVars xs = allEqual $ map getKeys xs
     filterByKey ks (ValuesPerIndepVar ns vs) =
         let keepIx = V.findIndices (`elem` ks) ns
-        in ValuesPerIndepVar
-             (V.backpermute ns keepIx)
-             (VS.backpermute vs (VS.fromList (V.toList keepIx)))
+        in ValuesPerIndepVar (V.backpermute ns keepIx) (VS.backpermute vs (V.convert keepIx))
 
 anyPosFromDepVarsPos :: DepVarsPos -> VS.Vector Double
 anyPosFromDepVarsPos (ValuesPerDepVar _ v) = v

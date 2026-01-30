@@ -53,7 +53,7 @@ system('time locest serialise selfdist -g data/spatiotemporal/grid.tsv --distFil
 # profiteur locest.prof
 
 # --across AllCombinations
-system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv')
+system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)"')
 
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 
@@ -66,10 +66,7 @@ vario_emp %>%
     scales = "free"
   )
 
-vario_emp_filtered <- vario_emp %>% dplyr::filter(bin_max <= 2000)
-readr::write_tsv(vario_emp_filtered, "data/spatiotemporal/vario_emp_filtered.tsv")
-
-system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp_filtered.tsv --outFile data/spatiotemporal/vario_fit.tsv')
+system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv')
 
 vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
 
@@ -83,7 +80,7 @@ variogram_fun <- function(kernel, h, nug, psill, range) {
   )
 }
 
-vario_curves <- vario_emp_filtered %>%
+vario_curves <- vario_emp %>%
   dplyr::group_by(indepVar, depVar) %>%
   dplyr::summarise(
     h_min = min(bin_mid),
@@ -107,7 +104,7 @@ ggplot() +
     scales = "free"
   ) +
   geom_point(
-    data = vario_emp_filtered,
+    data = vario_emp,
     aes(x = bin_mid, y = variance),
   ) +
   geom_line(

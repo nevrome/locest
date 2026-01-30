@@ -26,6 +26,7 @@ data VarioOptions = VarioOptions {
     , _voAcrossSettings      :: AcrossSettings
     , _voSpaceTimeScaling    :: (Double,Double)
     , _voIndepVarsThresholds :: IndepVarsThresholds
+    , _voIndepVarsCrossThresholds :: IndepVarsThresholds
     , _voOutFile             :: Maybe FilePath
     , _voBinMode             :: BinModeSettings
 }
@@ -51,7 +52,8 @@ data BinModeSettings =
 
 runVario :: VarioOptions -> Double -> IO ()
 runVario
-    (VarioOptions inObsFile maybeObsObsDistFile acrossSetting (spaceScaling,timeScaling) indepVarsThresholds outFile binModeSettings)
+    (VarioOptions inObsFile maybeObsObsDistFile acrossSetting (spaceScaling,timeScaling)
+    indepVarsThresholds indepVarsCrossThresholds outFile binModeSettings)
     spatDistUnitScaling = do
     -- read observations
     !obs <- readObservations inObsFile
@@ -103,17 +105,24 @@ runVario
                 hPutStrLn stderr ("Working on " ++ indepVarName)
                 -- indexing (must be done before any filtering)
                 let indepDistsIndexed = VU.indexed $ VS.convert indepDists
-                -- indepVar cross-filtering - only when acrossIndepVars is inactive
-                    indepDistsFiltered =
-                        if acrossIndepVars
-                        then indepDistsIndexed
-                        else
-                            let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsThresholds
-                                belowThresholdPerIndepVar = map (VU.convert . isBelowIndepVarsThreshold distsPerIndepVar) relevantThresholds
-                                belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VS.length indepDists) True) belowThresholdPerIndepVar
-                            in VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsIndexed
+                    indepDistsIndexedModified =
+                        if not acrossIndepVars
+                        then do
+                            -- indepVar filtering
+                            let indepDistsFiltered =
+                                    case filter (\(name,_) -> name == indepVarName) $ toList indepVarsThresholds of
+                                        [(_,relevantThreshold)] -> VU.filter ((<= relevantThreshold) . snd) indepDistsIndexed
+                                        _                       -> indepDistsIndexed
+                            -- indepVar cross-filtering
+                                indepDistsCrossFiltered =
+                                    let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsCrossThresholds
+                                        belowThresholdPerIndepVar = map (VU.convert . isBelowIndepVarsThreshold distsPerIndepVar) relevantThresholds
+                                        belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VS.length indepDists) True) belowThresholdPerIndepVar
+                                    in VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsFiltered
+                             in indepDistsCrossFiltered
+                        else indepDistsIndexed
                 -- sort indep distance vector for easy binning
-                sortedIndepDists <- sortWithIndices indepDistsFiltered -- very time-consuming!
+                sortedIndepDists <- sortWithIndices indepDistsIndexedModified -- very time-consuming!
                 -- get start index and stop index for each bin in the sorted indep vector
                 let startStopPerBin = case binModeSettings of
                         BinByNrBins nrBins      -> binIndepVarByNrBins sortedIndepDists nrBins
