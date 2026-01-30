@@ -35,11 +35,11 @@ search_dep <- mobest::create_obs(
 
 kernset <- mobest::create_kernset(
   C1 = mobest::create_kernel(
-    dsx = 800 * 1000, dsy = 800 * 1000, dt = 800,
+    dsx = 800 * 1000, dsy = 800 * 1000, dt = 700,
     g = 0.1
   ),
   C2 = mobest::create_kernel(
-    dsx = 800 * 1000, dsy = 800 * 1000, dt = 800,
+    dsx = 900 * 1000, dsy = 900 * 1000, dt = 800,
     g = 0.1
   )
 )
@@ -73,8 +73,8 @@ ggplot() +
 kernels_to_test <-
   # create a permutation grid of spatial (ds) and temporal (dt) lengthscale parameters
   expand.grid(
-    ds = seq(200, 1200, 200)*1000, # *1000 to transform from kilometres to meters
-    dt = seq(200, 1200, 200)
+    ds = seq(400, 1400, 100)*1000, # *1000 to transform from kilometres to meters
+    dt = seq(400, 1400, 100)
   ) %>%
   # create objects of type mobest_kernelsetting from them
   purrr::pmap(function(...) {

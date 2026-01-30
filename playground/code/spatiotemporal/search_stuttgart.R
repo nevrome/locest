@@ -54,20 +54,26 @@ system('time locest serialise selfdist -g data/spatiotemporal/grid.tsv --distFil
 # stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -p
 # profiteur locest.prof
 
+# full empirical variogram
 # --across AllCombinations
-system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)"')
-
+system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
-
 vario_emp %>%
   ggplot() +
+  facet_grid(rows = dplyr::vars(depVar), cols = dplyr::vars(indepVar), scales = "free") +
   geom_point(aes(bin_mid, variance)) +
-  facet_grid(
-    rows = dplyr::vars(depVar),
-    cols = dplyr::vars(indepVar),
-    scales = "free"
-  )
+  scale_y_continuous(limits = c(0, NA))
 
+# distance-filtered empirical variogram
+system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2500, time = 2500)"')
+vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
+vario_emp %>%
+  ggplot() +
+  facet_grid(rows = dplyr::vars(depVar), cols = dplyr::vars(indepVar), scales = "free") +
+  geom_point(aes(bin_mid, variance)) +
+  scale_y_continuous(limits = c(0, NA))
+
+# fit theoretical variogram
 system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv')
 
 vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
@@ -84,11 +90,7 @@ variogram_fun <- function(kernel, h, nug, psill, range) {
 
 vario_curves <- vario_emp %>%
   dplyr::group_by(indepVar, depVar) %>%
-  dplyr::summarise(
-    h_min = min(bin_mid),
-    h_max = max(bin_mid),
-    .groups = "drop"
-  ) %>%
+  dplyr::summarise(h_min = min(bin_mid), h_max = max(bin_mid), .groups = "drop") %>%
   dplyr::left_join(vario_fit, by = c("indepVar", "depVar")) %>%
   dplyr::mutate(
     h = purrr::map2(h_min, h_max, \(x, y) seq(x, y, length.out = 200)),
@@ -96,15 +98,13 @@ vario_curves <- vario_emp %>%
   tidyr::unnest(h) %>%
   dplyr::mutate(
     .,
-    gamma = purrr::pmap_dbl(., \(kernel, h, nugget, partial_sill, range, ...) variogram_fun(kernel, h, nugget, partial_sill, range))
+    gamma = purrr::pmap_dbl(., \(kernel, h, nugget, partial_sill, range, ...) {
+      variogram_fun(kernel, h, nugget, partial_sill, range)
+    })
   )
 
 ggplot() +
-  facet_grid(
-    rows = vars(depVar),
-    cols = vars(indepVar),
-    scales = "free"
-  ) +
+  facet_grid(rows = vars(depVar), cols = vars(indepVar), scales = "free") +
   geom_point(
     data = vario_emp,
     aes(x = bin_mid, y = variance),
@@ -112,50 +112,8 @@ ggplot() +
   geom_line(
     data = vario_curves,
     aes(x = h, y = gamma, colour = kernel)
-  )
-
-#### search ####
-
-# normal search test
-# stack install --profile
-# stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -p
-# profiteur locest.prof
-# memory profiling:
-# OMP_NUM_THREADS=20 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -RTS
-# hp2ps -c locest.hp
-
-system('time OMP_NUM_THREADS=20 locest search --configFile code/spatiotemporal/basic.conf')
-
-# run with slurm
-# srun --cpus-per-task=20 --export=ALL,OMP_NUM_THREADS=20 time locest search --configFile code/spatiotemporal/basic.conf
-# access slurm node to see resource use
-# srun --pty -w hpc034 bash
-
-# better memory profiling with GNU time
-# export TIME="time result\ncmd: %C\nreal %es\nuser %Us \nsys  %Ss \nmemory: %MKB \ncpu: %P"
-# OMP_NUM_THREADS=4 /usr/bin/time locest search --configFile code/spatiotemporal/basic.conf
-
-search_res <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
-
-# normalization sanity check
-search_res %>% dplyr::group_by(search_obsID, grid_yearBCAD) %>%
-  dplyr::summarize(hu = sum(search_probability))
-
-search_res %>%
-  dplyr::mutate(probability = search_probability) %>%
-  dplyr::filter(temp_sampling_iteration == 0) %>%
-  ggplot() +
-  facet_grid(rows = dplyr::vars(grid_yearBCAD), cols = dplyr::vars(search_obsID)) +
-  geom_raster(aes(grid_x, grid_y, fill = probability)) +
-  # geom_point(
-  #   data = obs %>%
-  #     dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%
-  #     dplyr::mutate(yearBCAD = round(yearBCAD, -3)),
-  #   aes(x,y),
-  #   shape = 4, color = "red"
-  # ) +
-  scale_fill_viridis_c() +
-  coord_fixed()
+  ) +
+  scale_y_continuous(limits = c(0, NA))
 
 #### cross ####
 
@@ -163,10 +121,10 @@ search_res %>%
 # stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
 # profiteur locest.prof
 
-system('time OMP_NUM_THREADS=20 locest cross --configFile code/spatiotemporal/cross.conf')
+system('time OMP_NUM_THREADS=3 locest cross --configFile code/spatiotemporal/cross.conf')
 
 # run with slurm
-# srun --cpus-per-task=50 --export=ALL,OMP_NUM_THREADS=50,OPENBLAS_VERBOSE=2 time locest cross --configFile code/spatiotemporal/cross.conf
+# srun --cpus-per-task=3 --export=ALL,OMP_NUM_THREADS=3,OPENBLAS_VERBOSE=2 time locest cross --configFile code/spatiotemporal/cross.conf
 
 cross_res <- readr::read_tsv("data/spatiotemporal/cross.tsv")
 
@@ -207,3 +165,45 @@ p2 <- ggplot() +
 
 cowplot::plot_grid(p1, p2)
 
+#### search ####
+
+# normal search test
+# stack install --profile
+# stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -p
+# profiteur locest.prof
+# memory profiling:
+# OMP_NUM_THREADS=20 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -RTS
+# hp2ps -c locest.hp
+
+system('time OMP_NUM_THREADS=3 locest search --configFile code/spatiotemporal/basic.conf')
+
+# run with slurm
+# srun --cpus-per-task=20 --export=ALL,OMP_NUM_THREADS=20 time locest search --configFile code/spatiotemporal/basic.conf
+# access slurm node to see resource use
+# srun --pty -w hpc034 bash
+
+# better memory profiling with GNU time
+# export TIME="time result\ncmd: %C\nreal %es\nuser %Us \nsys  %Ss \nmemory: %MKB \ncpu: %P"
+# OMP_NUM_THREADS=4 /usr/bin/time locest search --configFile code/spatiotemporal/basic.conf
+
+search_res <- readr::read_tsv("data/spatiotemporal/basic_result.tsv")
+
+# normalization sanity check
+search_res %>% dplyr::group_by(search_obsID, grid_yearBCAD) %>%
+  dplyr::summarize(hu = sum(search_probability))
+
+search_res %>%
+  dplyr::mutate(probability = search_probability) %>%
+  dplyr::filter(temp_sampling_iteration == 0) %>%
+  ggplot() +
+  facet_grid(rows = dplyr::vars(grid_yearBCAD), cols = dplyr::vars(search_obsID)) +
+  geom_raster(aes(grid_x, grid_y, fill = probability)) +
+  # geom_point(
+  #   data = obs %>%
+  #     dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%
+  #     dplyr::mutate(yearBCAD = round(yearBCAD, -3)),
+  #   aes(x,y),
+  #   shape = 4, color = "red"
+  # ) +
+  scale_fill_viridis_c() +
+  coord_fixed()
