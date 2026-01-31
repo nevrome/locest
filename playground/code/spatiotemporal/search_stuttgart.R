@@ -20,7 +20,7 @@ obsGridDists <- fields::rdist(
   #dplyr::transmute(gridID, obsID, space = value/1000)
   dplyr::transmute(space = round(value/1000, 1))
 readr::write_tsv(obsGridDists, "data/spatiotemporal/obsGridDistFile.tsv")
-system('time locest serialise crossdist -i data/spatiotemporal/obs.tsv -g data/spatiotemporal/grid.tsv --distFile data/spatiotemporal/obsGridDistFile.tsv -o data/spatiotemporal/obsGridDistFile.cbor')
+system('time locest serialise crossdist -i data/spatiotemporal/obs.tsv -g data/spatiotemporal/grid.tsv --obsGridDistFile data/spatiotemporal/obsGridDistFile.tsv -o data/spatiotemporal/obsGridDistFile.cbor')
 
 space_mat <- fields::rdist(as.matrix(obs[c("x","y")])) / 1000
 n <- nrow(obs)
@@ -32,19 +32,19 @@ obsObsPacked <- tibble::tibble(
   space = round(space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)], 1)
 )
 readr::write_tsv(obsObsPacked, "data/spatiotemporal/obsObsDistFile.tsv")
-system('time locest serialise selfdist -i data/spatiotemporal/obs.tsv --distFile data/spatiotemporal/obsObsDistFile.tsv -o data/spatiotemporal/obsObsDistFile.cbor')
+system('time locest serialise selfdist -i data/spatiotemporal/obs.tsv --obsObsDistFile data/spatiotemporal/obsObsDistFile.tsv -o data/spatiotemporal/obsObsDistFile.cbor')
 
-space_mat <- fields::rdist(as.matrix(grid[c("x","y")])) / 1000
-n <- nrow(grid)
-pairs <- do.call(rbind, lapply(0:(n-1), function(i) cbind(row = i, col = 0:i)))
-gridGridPacked <- tibble::tibble(
-  #id1 = grid$spatID[pairs[, "row"] + 1],
-  #id2 = grid$spatID[pairs[, "col"] + 1],
-  #space = space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)]
-  space = round(space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)], 1)
-)
-readr::write_tsv(gridGridPacked, "data/spatiotemporal/gridGridDistFile.tsv")
-system('time locest serialise selfdist -g data/spatiotemporal/grid.tsv --distFile data/spatiotemporal/gridGridDistFile.tsv -o data/spatiotemporal/gridGridDistFile.cbor')
+# space_mat <- fields::rdist(as.matrix(grid[c("x","y")])) / 1000
+# n <- nrow(grid)
+# pairs <- do.call(rbind, lapply(0:(n-1), function(i) cbind(row = i, col = 0:i)))
+# gridGridPacked <- tibble::tibble(
+#   #id1 = grid$spatID[pairs[, "row"] + 1],
+#   #id2 = grid$spatID[pairs[, "col"] + 1],
+#   #space = space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)]
+#   space = round(space_mat[cbind(pairs[, "row"] + 1, pairs[, "col"] + 1)], 1)
+# )
+# readr::write_tsv(gridGridPacked, "data/spatiotemporal/gridGridDistFile.tsv")
+# system('time locest serialise selfdist -g data/spatiotemporal/grid.tsv --gridGridDistFile data/spatiotemporal/gridGridDistFile.tsv -o data/spatiotemporal/gridGridDistFile.cbor')
 
 #### vario ####
 
@@ -56,7 +56,7 @@ system('time locest serialise selfdist -g data/spatiotemporal/grid.tsv --distFil
 
 # full empirical variogram
 # --across AllCombinations
-system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv')
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
@@ -65,7 +65,7 @@ vario_emp %>%
   scale_y_continuous(limits = c(0, NA))
 
 # distance-filtered empirical variogram
-system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2500, time = 2500)"')
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2500, time = 2500)"')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
