@@ -14,8 +14,8 @@ Number of grid positions: 1
 Preparing permutations
 Running interpolation
 Streaming...
+Done
 temp_sampling_iteration	algorithm	kernel_shape_depV1	kernel_space_length_depV1	kernel_time_length_depV1	kernel_nugget_depV1	kernel_shape_depV2	kernel_space_length_depV2	kernel_time_length_depV2	kernel_nugget_depV2	grid_x	grid_y	grid_yearBCAD	interpol_lower_quant_depV1	interpol_median_depV1	interpol_upper_quant_depV1	interpol_lower_quant_depV2	interpol_median_depV2	interpol_upper_quant_depV2
 0	GPR	SqEx	200.0	300.0	0.1	SqEx	200.0	300.0	0.1	0.0	0.0	0	-0.4936728462126835	3.8341677874346725e-2	0.5703562019613768	-0.987345692425367	7.668335574869345e-2	1.1407124039227536
 0	GPR	SqEx	200.0	300.0	0.1	SqEx	200.0	300.0	0.1	0.0	0.0	300	0.35325838505085816	0.8834452454000177	1.4136321057491772	0.7065167701017163	1.7668904908000354	2.8272642114983544
 0	GPR	SqEx	200.0	300.0	0.1	SqEx	200.0	300.0	0.1	0.0	0.0	600	-0.49367284621268354	3.834167787434667e-2	0.5703562019613768	-0.9873456924253671	7.668335574869334e-2	1.1407124039227536
-Done
