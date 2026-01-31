@@ -86,7 +86,7 @@ runCross (
                               baseSeed numTestObs iter obs kerndef
            )
         .| sinkNamedCSV outFile
-    putStrLn "Done"
+    hPutStrLn stderr "Done"
 
 cross
     :: Double

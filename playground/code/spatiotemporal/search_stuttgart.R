@@ -17,7 +17,7 @@ obsGridDists <- fields::rdist(
     grid %>% dplyr::transmute(id = 1:dplyr::n(), gridID = spatID),
     by = c("Var2" = "id")
   ) %>%
-  #dplyr::transmute(obsID, gridID, space = value/1000)
+  #dplyr::transmute(gridID, obsID, space = value/1000)
   dplyr::transmute(space = round(value/1000, 1))
 readr::write_tsv(obsGridDists, "data/spatiotemporal/obsGridDistFile.tsv")
 system('time locest serialise crossdist -i data/spatiotemporal/obs.tsv -g data/spatiotemporal/grid.tsv --distFile data/spatiotemporal/obsGridDistFile.tsv -o data/spatiotemporal/obsGridDistFile.cbor')
@@ -56,7 +56,7 @@ system('time locest serialise selfdist -g data/spatiotemporal/grid.tsv --distFil
 
 # full empirical variogram
 # --across AllCombinations
-system('time locest vario --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv')
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "EqualSize(100)" --outFile data/spatiotemporal/vario_emp.tsv')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
@@ -129,6 +129,7 @@ system('time OMP_NUM_THREADS=3 locest cross --configFile code/spatiotemporal/cro
 cross_res <- readr::read_tsv("data/spatiotemporal/cross.tsv")
 
 kernel_grid_locest <- cross_res %>%
+  dplyr::filter(iteration == 1) %>%
   dplyr::group_by(depVar, kernel_space_length, kernel_time_length) %>%
   dplyr::summarise(
     dplyr::across(

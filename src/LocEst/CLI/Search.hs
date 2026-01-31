@@ -29,8 +29,8 @@ data SearchOptions = SearchOptions
     , _searchInTempGrid          :: Maybe [AbsRelTempPos]
     , _searchInDepSearchGrid     :: Maybe DepVarsPredGridSettings
     , _searchAlgorithm           :: KernelDefinition
-    , _searchInObsGridDistFile   :: Maybe FilePath
     , _searchInObsObsDistFile    :: Maybe FilePath
+    , _searchInObsGridDistFile   :: Maybe FilePath
     -- , _searchInGridGridDistFile  :: Maybe FilePath
     , _searchTopNObs             :: Int
     , _searchOutFile             :: Maybe FilePath
@@ -40,7 +40,7 @@ runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
     inObsFile maybeTempSampFile inIndepVarsPredGridFile maybeTempGrid
     inMaybeDepSearchGrid kernDef
-    maybeObsGridDistFile maybeObsObsDistFile -- maybeGridGridDistFile
+    maybeObsObsDistFile maybeObsGridDistFile -- maybeGridGridDistFile
     topNObs outFile
     ) spatDistUnitScaling = do
     -- algorithm settings
@@ -85,7 +85,7 @@ runSearch (SearchOptions
                                              depVars kernels)
         .| progress 1000 (Just nrOutputRows)
         .| sinkNamedCSV outFile
-    putStrLn "Done"
+    hPutStrLn stderr "Done"
 
 factor :: Maybe a -> (a -> Int) -> Int
 factor element extractor = maybe 1 extractor element

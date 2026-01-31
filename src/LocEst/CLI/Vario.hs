@@ -21,14 +21,14 @@ import qualified Data.Vector.Unboxed          as VU
 import           System.IO                    (hPutStrLn, stderr)
 
 data VarioOptions = VarioOptions {
-      _voInObservationFile   :: FilePath
-    , _voInObsObsDistFile    :: Maybe FilePath
-    , _voAcrossSettings      :: AcrossSettings
-    , _voSpaceTimeScaling    :: (Double,Double)
-    , _voIndepVarsThresholds :: IndepVarsThresholds
+      _voInObservationFile        :: FilePath
+    , _voInObsObsDistFile         :: Maybe FilePath
+    , _voAcrossSettings           :: AcrossSettings
+    , _voSpaceTimeScaling         :: (Double,Double)
+    , _voIndepVarsThresholds      :: IndepVarsThresholds
     , _voIndepVarsCrossThresholds :: IndepVarsThresholds
-    , _voOutFile             :: Maybe FilePath
-    , _voBinMode             :: BinModeSettings
+    , _voOutFile                  :: Maybe FilePath
+    , _voBinMode                  :: BinModeSettings
 }
 
 data AcrossSettings =

@@ -141,7 +141,7 @@ versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.hel
 subcommandParser :: OP.Parser Subcommand
 subcommandParser = OP.subparser (
            OP.command "search" searchOptInfo
-        <> OP.command "vario" varioOptInfo
+        <> OP.command "varioemp" varioOptInfo
         <> OP.command "variofit" varioFitOptInfo
         <> OP.command "cross" crossOptInfo
         <> OP.command "serialise" serialiseOptInfo
@@ -152,9 +152,9 @@ subcommandParser = OP.subparser (
                          \variable space) and optionally determine a probabilistic measure of similarity \
                          \for individual \"search\" observations.")
         varioOptInfo = OP.info (OP.helper <*> (CmdVario <$> varioOptParser))
-            (OP.progDesc "Calculate variograms binned based on distances in independent variable space.")
+            (OP.progDesc "Calculate empirical variograms binned based on distances in independent variable space.")
         varioFitOptInfo = OP.info (OP.helper <*> (CmdVarioFit <$> varioFitOptParser))
-            (OP.progDesc "...")
+            (OP.progDesc "Fit theoretical variogram models to the empirical variograms computed with varioemp.")
         crossOptInfo = OP.info (OP.helper <*> (CmdCross <$> crossOptParser))
             (OP.progDesc "Compare hyperparameter settings for the interpolation through Monte Carlo \
                          \crossvalidation (repeated random sub-sampling).")
