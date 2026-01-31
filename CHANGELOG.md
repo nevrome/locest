@@ -1,1 +1,1 @@
-- V 0.0.1.0: Begin of the changelog and thus documented progress for locest.
+- V 2.0.0.0: Begin of the changelog and thus documented progress for locest.
