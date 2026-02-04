@@ -134,11 +134,13 @@ runVario
                                     mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
                                 in binIndepVarForNugget sortedIndepDists (makeValuesPerIndepVar [("acrossIndep", mergedThreshold)]) indepVarName
                             else binIndepVarForNugget sortedIndepDists thresholds indepVarName
+                -- add infinite bin to compute total variance
+                let allBins = startStopPerBin ++ [((0, inf, inf), 0, VU.length sortedIndepDists - 1)]
                 -- loop over depVars
                 forM distsPerDepVar $ \(depVarName, SelfDistMatrix depDists) -> do
                     -- loop over bins
                     variancesPerBin <- Con.runConduitRes $
-                            ConC.yieldMany startStopPerBin
+                            ConC.yieldMany allBins
                             .| ConL.map (perBin sortedIndepDists $ VU.convert depDists)
                             .| ConC.sinkList
                     hPutStrLn stderr ("-> " ++ depVarName)

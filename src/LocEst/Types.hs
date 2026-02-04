@@ -177,9 +177,9 @@ instance Csv.FromNamedRecord EmpiricalVariogramSingleBin where
             <$> filterLookup m "indepVar"
             <*> filterLookup m "depVar"
             <*> ( (,,)
-                    <$> filterLookup m "bin_min"
-                    <*> filterLookup m "bin_mid"
-                    <*> filterLookup m "bin_max"
+                    <$> (outDouble2Double <$> filterLookup m "bin_min")
+                    <*> (outDouble2Double <$> filterLookup m "bin_mid")
+                    <*> (outDouble2Double <$> filterLookup m "bin_max")
                 )
             <*> filterLookup m "variance"
             <*> filterLookup m "nr_pairs"
@@ -187,7 +187,8 @@ instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
     headerOrder _ = Csv.header ["indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance", "nr_pairs"]
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
     toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv npairs) =
-        Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax,
+        Csv.record [Csv.toField i, Csv.toField d,
+                    Csv.toField $ OutDouble bmin, Csv.toField $ OutDouble bmid, Csv.toField $ OutDouble bmax,
                     Csv.toField dv, Csv.toField npairs]
 
 data VariogramFit = VariogramFit

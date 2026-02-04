@@ -90,7 +90,7 @@ variogram_fun <- function(kernel, h, nug, psill, range) {
 
 vario_curves <- vario_emp %>%
   dplyr::group_by(indepVar, depVar) %>%
-  dplyr::summarise(h_min = min(bin_mid), h_max = max(bin_mid), .groups = "drop") %>%
+  dplyr::summarise(h_min = min(bin_mid), h_max = max(bin_mid[!is.infinite(bin_mid)]), .groups = "drop") %>%
   dplyr::left_join(vario_fit, by = c("indepVar", "depVar")) %>%
   dplyr::mutate(
     h = purrr::map2(h_min, h_max, \(x, y) seq(x, y, length.out = 200)),
@@ -112,6 +112,10 @@ ggplot() +
   geom_line(
     data = vario_curves,
     aes(x = h, y = gamma, colour = kernel)
+  ) +
+  geom_vline(
+    data = vario_fit,
+    aes(xintercept = range, colour = kernel)
   ) +
   scale_y_continuous(limits = c(0, NA))
 

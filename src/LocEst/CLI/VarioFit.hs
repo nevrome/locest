@@ -16,6 +16,7 @@ import           System.IO                (hPutStrLn, stderr)
 
 data VarioFitOptions = VarioFitOptions
     { _vfInFile  :: FilePath
+    , _vfFreeSill :: Bool
     , _vfOutFile :: Maybe FilePath
     --, _vfKernels  :: [KernelShape]
     } deriving Show
@@ -25,7 +26,7 @@ runVarioFit opts = do
     !bins <- readEmpiricalVariogram (_vfInFile opts)
     hPutStrLn stderr "Fitting theoretical models..."
     let !grouped = groupBins bins
-        !fits    = concatMap (fitAllKernels [SquaredExponential, Exponential, Linear]) grouped
+        !fits    = concatMap (fitAllKernels (_vfFreeSill opts) [SquaredExponential, Exponential, Linear]) grouped
     Con.runConduitRes $ ConC.yieldMany fits .| sinkNamedCSV (_vfOutFile opts)
     hPutStrLn stderr "Done"
 
@@ -50,47 +51,80 @@ variogramModel Exponential =
 variogramModel Linear =
     \nug psill range h -> nug + psill * min 1 (h / range)
 
-fitAllKernels :: [KernelShape] -> (IndepVarName, DepVarName, [EmpiricalVariogramSingleBin]) -> [VariogramFit]
-fitAllKernels kernels (iv, dv, bins) = map (fitOneKernel iv dv bins) kernels
+fitAllKernels :: Bool -> [KernelShape] -> (IndepVarName, DepVarName, [EmpiricalVariogramSingleBin]) -> [VariogramFit]
+fitAllKernels freeSill kernels (iv, dv, bins) = map (fitOneKernel freeSill iv dv bins) kernels
 
 fitOneKernel
-    :: IndepVarName
+    :: Bool
+    -> IndepVarName
     -> DepVarName
     -> [EmpiricalVariogramSingleBin]
     -> KernelShape
     -> VariogramFit
-fitOneKernel iv dv bins kernel =
-    let hs = map ((\(_,m,_) -> m) . _evBin) bins
-        ys = map _evVariance bins
-        ws = map (fromIntegral . _evNrPairs) bins
-        -- initial guesses
-        psill0  = maximum ys
-        nug0    = minimum ys
-        range0  = median hs
-        (nug, psill, range) = optimize (variogramModel kernel) hs ys ws (nug0, psill0, range0)
+fitOneKernel freeSill iv dv bins kernel =
+    let infinityBin = last bins
+        normalBins = init bins
+        hs = map ((\(_,m,_) -> m) . _evBin) normalBins
+        ys = map _evVariance normalBins
+        ws = map (fromIntegral . _evNrPairs) normalBins
+        -- optimize function parameters
+        (nug, psill, range) =
+            if not freeSill
+            then
+                let fixedSill = _evVariance infinityBin
+                    nug0   = minimum ys
+                    range0 = median hs
+                in optimizeFixedSill (variogramModel kernel) hs ys ws fixedSill (nug0, range0)
+            else
+                let psill0 = maximum ys
+                    nug0   = minimum ys
+                    range0 = median hs
+                in optimizeFreeSill (variogramModel kernel) hs ys ws (nug0, psill0, range0)
         loss = weightedSSE (variogramModel kernel) hs ys ws (nug, psill, range)
         sill = psill + nug
         nugscaled = nug/sill
     in VariogramFit iv dv kernel nug psill sill nugscaled range loss
 
-optimize
+        -- 
+
+optimizeFixedSill
+  :: VariogramModel
+  -> [Double] -> [Double] -> [Double]
+  -> Double
+  -> (Double,Double)
+  -> (Double,Double,Double)
+optimizeFixedSill model hs ys ws sill (nug0, range0) =
+  let x0       = map log [nug0, range0]
+      step     = [1e-2, 1e-2]
+      tol      = 1e-6
+      maxIters = 500
+      (sol, _) = GSL.minimize GSL.NMSimplex2 tol maxIters step lossFun x0
+  in case map exp sol of
+         [nug, range] -> (nug, sill - nug, range)
+         _            -> error "optimize: output missmatch"
+  where
+      lossFun :: [Double] -> Double
+      lossFun [lnNug, lnRange] = weightedSSE model hs ys ws (exp lnNug, sill - exp lnNug, exp lnRange)
+      lossFun _ = 1e12 -- large penalty
+
+optimizeFreeSill
   :: VariogramModel
   -> [Double] -> [Double] -> [Double]
   -> (Double,Double,Double)
   -> (Double,Double,Double)
-optimize model hs ys ws (nug0, psill0, range0) =
-  let
-      lossFun :: [Double] -> Double
-      lossFun [lnNug, lnPSill, lnRange] = weightedSSE model hs ys ws (exp lnNug, exp lnPSill, exp lnRange)
-      lossFun _ = 1e12 -- large penalty
-      x0 = map log [nug0, psill0, range0]
+optimizeFreeSill model hs ys ws (nug0, psill0, range0) =
+  let x0       = map log [nug0, psill0, range0]
+      step     = [1e-2, 1e-2, 1e-2]
       tol      = 1e-6
       maxIters = 500
-      step     = replicate 3 1e-2
       (sol, _) = GSL.minimize GSL.NMSimplex2 tol maxIters step lossFun x0
   in case map exp sol of
          [nug, psill, range] -> (nug, psill, range)
          _                   -> error "optimize: output missmatch"
+  where
+      lossFun :: [Double] -> Double
+      lossFun [lnNug, lnPSill, lnRange] = weightedSSE model hs ys ws (exp lnNug, exp lnPSill, exp lnRange)
+      lossFun _ = 1e12 -- large penalty
 
 weightedSSE
     :: VariogramModel

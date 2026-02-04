@@ -125,6 +125,7 @@ varioOptParser = VarioOptions
 varioFitOptParser :: OP.Parser VarioFitOptions
 varioFitOptParser = VarioFitOptions
                         <$> optParseEmpiricalVarioFile
+                        <*> optParseFreeSill
                         <*> optParseOutFile
 
 crossOptParser :: OP.Parser CrossOptions
@@ -410,6 +411,14 @@ optParseQuiet = OP.switch (
     OP.long "quiet" <>
     OP.short 'q' <>
     OP.help "Suppress the printing of progress messages to the stderr stream on the command line."
+    )
+
+optParseFreeSill :: OP.Parser Bool
+optParseFreeSill = OP.switch (
+    OP.long "freeSill" <>
+    OP.help "Should the sill be a free parameter that is optimized in the variogram fitting process? \
+            \By default it is fixed to the total variance (read from the \"infinite\" bin in the \
+            \varioemp output) and does not get fitted."
     )
 
 optParseSpatDistUnitScaling :: OP.Parser Double

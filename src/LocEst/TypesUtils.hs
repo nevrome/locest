@@ -55,6 +55,13 @@ instance Csv.ToField OutBool where
 newtype OutDouble = OutDouble Double
     deriving (Eq, Generic)
 instance NFData OutDouble
+instance Csv.FromField OutDouble where
+    parseField x
+        | x == "Inf" = pure $ OutDouble inf
+        | x == "-Inf" = pure $ OutDouble (-inf)
+        | otherwise = do
+            d <- Csv.parseField x
+            return $ OutDouble d
 instance Csv.ToField OutDouble where
     toField (OutDouble x)
         | x == inf    = "Inf"
@@ -65,6 +72,9 @@ instance Show OutDouble where
         | x == inf    = "Inf"
         | x == (-inf) = "-Inf"
         | otherwise        = show x
+
+outDouble2Double :: OutDouble -> Double
+outDouble2Double (OutDouble x) = x
 
 -- lookup one column by name
 filterLookup :: Csv.FromField a => Csv.NamedRecord -> Bchs.ByteString -> Csv.Parser a
