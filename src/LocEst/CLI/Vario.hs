@@ -134,17 +134,20 @@ runVario
                                     mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
                                 in binIndepVarForNugget sortedIndepDists (makeValuesPerIndepVar [("acrossIndep", mergedThreshold)]) indepVarName
                             else binIndepVarForNugget sortedIndepDists thresholds indepVarName
-                -- add infinite bin to compute total variance
-                let allBins = startStopPerBin ++ [((0, inf, inf), 0, VU.length sortedIndepDists - 1)]
+                -- add infinite bin to compute total variance in filtered (!) distances
+                -- let allBins = startStopPerBin ++ [((0, inf, inf), 0, VU.length sortedIndepDists - 1)]
                 -- loop over depVars
                 forM distsPerDepVar $ \(depVarName, SelfDistMatrix depDists) -> do
                     -- loop over bins
                     variancesPerBin <- Con.runConduitRes $
-                            ConC.yieldMany allBins
+                            ConC.yieldMany startStopPerBin
                             .| ConL.map (perBin sortedIndepDists $ VU.convert depDists)
                             .| ConC.sinkList
+                    -- add infinite bin with total variance across all (!) distances
+                    let totalVarianceForDepVar = calcHalfMeanSquared $ VU.convert depDists
+                        withInfiniteBin = variancesPerBin ++ [((0, inf, inf), totalVarianceForDepVar, VS.length indepDists)]
                     hPutStrLn stderr ("-> " ++ depVarName)
-                    return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram variancesPerBin)
+                    return $ EmpiricalVariogramOneVarCombination indepVarName depVarName (EmpiricalVariogram withInfiniteBin)
     -- write variograms to the file system
     writeVariograms (concat empiricalVariograms) outFile
     hPutStrLn stderr "Done"

@@ -25,7 +25,7 @@ runVarioFit :: VarioFitOptions -> IO ()
 runVarioFit (VarioFitOptions inFile kernels freeSill outFile) = do
     !bins <- readEmpiricalVariogram inFile
     hPutStrLn stderr "Fitting theoretical models..."
-    hPutStrLn stderr $ "Selected kernels:" ++ intercalate "," (map show kernels)
+    hPutStrLn stderr $ "Selected kernels: " ++ intercalate "," (map show kernels)
     let !grouped = groupBins bins
         !fits    = concatMap (fitAllKernels freeSill kernels) grouped
     Con.runConduitRes $ ConC.yieldMany fits .| sinkNamedCSV outFile
