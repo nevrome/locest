@@ -10,24 +10,25 @@ import           Conduit                  ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import           Data.Function            (on)
-import           Data.List                (groupBy, sortOn)
+import           Data.List                (groupBy, sortOn, intercalate)
 import qualified Numeric.GSL.Minimization as GSL
 import           System.IO                (hPutStrLn, stderr)
 
 data VarioFitOptions = VarioFitOptions
-    { _vfInFile  :: FilePath
+    { _vfInFile   :: FilePath
+    , _vfKernels  :: [KernelShape]
     , _vfFreeSill :: Bool
-    , _vfOutFile :: Maybe FilePath
-    --, _vfKernels  :: [KernelShape]
+    , _vfOutFile  :: Maybe FilePath
     } deriving Show
 
 runVarioFit :: VarioFitOptions -> IO ()
-runVarioFit opts = do
-    !bins <- readEmpiricalVariogram (_vfInFile opts)
+runVarioFit (VarioFitOptions inFile kernels freeSill outFile) = do
+    !bins <- readEmpiricalVariogram inFile
     hPutStrLn stderr "Fitting theoretical models..."
+    hPutStrLn stderr $ "Selected kernels:" ++ intercalate "," (map show kernels)
     let !grouped = groupBins bins
-        !fits    = concatMap (fitAllKernels (_vfFreeSill opts) [SquaredExponential, Exponential, Linear]) grouped
-    Con.runConduitRes $ ConC.yieldMany fits .| sinkNamedCSV (_vfOutFile opts)
+        !fits    = concatMap (fitAllKernels freeSill kernels) grouped
+    Con.runConduitRes $ ConC.yieldMany fits .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
 groupBins :: [EmpiricalVariogramSingleBin] -> [(IndepVarName, DepVarName, [EmpiricalVariogramSingleBin])]

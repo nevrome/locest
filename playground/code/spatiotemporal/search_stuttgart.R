@@ -74,7 +74,7 @@ vario_emp %>%
   scale_y_continuous(limits = c(0, NA))
 
 # fit theoretical variogram
-system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv')
+system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv -k SqEx')
 
 vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
 

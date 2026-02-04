@@ -20,6 +20,7 @@ import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.String       as P
+import Data.Functor.Identity (Identity)
 
 -- helper functions for optparse applicative help text
 s2d :: String -> OH.Doc
@@ -125,6 +126,7 @@ varioOptParser = VarioOptions
 varioFitOptParser :: OP.Parser VarioFitOptions
 varioFitOptParser = VarioFitOptions
                         <$> optParseEmpiricalVarioFile
+                        <*> optParseKernelShapes
                         <*> optParseFreeSill
                         <*> optParseOutFile
 
@@ -672,11 +674,30 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
         parseAlgorithm = do
             algo <- parseAnyString
             makeAlgorithm algo
-        parseKernelShapes = do
-            shape <- parseAnyString
-            makeKernelShape shape
         parseKernelLengths = KernelLengths . makeValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
         parseNugget = parsePositiveFloatNumber
+
+optParseKernelShapes :: OP.Parser [KernelShape]
+optParseKernelShapes = OP.many $ OP.option (OP.eitherReader readKernelShapeString) (
+       OP.long    "kernel"
+    <> OP.short   'k'
+    <> OP.metavar "SqEx|Ex|Linear"
+    <> OP.helpDoc ( Just (
+                      s2d "Kernel shapes that can be fitted. Can be given multiple times to fit \
+                          \multiple kernels."
+    ))
+    )
+    where
+        readKernelShapeString :: String -> Either String KernelShape
+        readKernelShapeString s =
+            case P.runParser parseKernelShapes () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+
+parseKernelShapes :: P.ParsecT String () Identity KernelShape
+parseKernelShapes = do
+    shape <- parseAnyString
+    makeKernelShape shape
 
 optParseKernDefStringPermutations :: OP.Parser (N.NonEmpty KernelDefinition)
 optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString) (
@@ -760,9 +781,6 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
         parseAlgorithm = do
             algo <- parseAnyString
             makeAlgorithm algo
-        parseKernelShapes = do
-            shape <- parseAnyString
-            makeKernelShape shape
         parseKernelLengths ::  P.Parser [KernelLengths]
         parseKernelLengths = do
             res <- parseNamedVector parseIndepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)
