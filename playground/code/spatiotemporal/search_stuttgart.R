@@ -56,12 +56,12 @@ system('time locest serialise selfdist -i data/spatiotemporal/obs.tsv --obsObsDi
 
 # full empirical variogram
 # --across AllCombinations
-system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv')
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --iterations 5')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(depVar), cols = dplyr::vars(indepVar), scales = "free") +
-  geom_point(aes(bin_mid, variance)) +
+  geom_point(aes(bin_mid, variance, color = iteration)) +
   scale_y_continuous(limits = c(0, NA))
 
 # distance-filtered empirical variogram
