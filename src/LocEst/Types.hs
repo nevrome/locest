@@ -159,22 +159,29 @@ crossSummaryHeader = Csv.header ["sum_dep_dist_euclidean","mean_squared_dep_dist
 newtype EmpiricalVariogram = EmpiricalVariogram [((Double,Double,Double), Double, Int)] -- (bin, variance, number of pairs)
     deriving Show
 
-data EmpiricalVariogramOneVarCombination = EmpiricalVariogramOneVarCombination IndepVarName DepVarName EmpiricalVariogram
-    deriving Show
+data EmpiricalVariogramOneVarCombination = EmpiricalVariogramOneVarCombination
+    { _evcIteration :: Int
+    , _evcIndepVar  :: IndepVarName
+    , _evcDepVar    :: DepVarName
+    , _evcVario     :: EmpiricalVariogram
+    }
+  deriving Show
 
-data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin {
-    _evIndepVar :: IndepVarName,
-    _evDepVar   :: DepVarName,
-    _evBin      :: (Double,Double,Double),
-    _evVariance :: Double,
-    _evNrPairs  :: Int
+data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin
+    { _evIteration :: Int
+    , _evIndepVar  :: IndepVarName
+    , _evDepVar    :: DepVarName
+    , _evBin       :: (Double,Double,Double)
+    , _evVariance  :: Double
+    , _evNrPairs   :: Int
     }
     deriving Show
 
 instance Csv.FromNamedRecord EmpiricalVariogramSingleBin where
     parseNamedRecord m =
         EmpiricalVariogramSingleBin
-            <$> filterLookup m "indepVar"
+            <$> filterLookup m "iteration"
+            <*> filterLookup m "indepVar"
             <*> filterLookup m "depVar"
             <*> ( (,,)
                     <$> (outDouble2Double <$> filterLookup m "bin_min")
@@ -184,10 +191,10 @@ instance Csv.FromNamedRecord EmpiricalVariogramSingleBin where
             <*> filterLookup m "variance"
             <*> filterLookup m "nr_pairs"
 instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
-    headerOrder _ = Csv.header ["indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance", "nr_pairs"]
+    headerOrder _ = Csv.header ["iteration", "indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance", "nr_pairs"]
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
-    toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv npairs) =
-        Csv.record [Csv.toField i, Csv.toField d,
+    toRecord (EmpiricalVariogramSingleBin bootIter i d (bmin, bmid, bmax) dv npairs) =
+        Csv.record [Csv.toField bootIter, Csv.toField i, Csv.toField d,
                     Csv.toField $ OutDouble bmin, Csv.toField $ OutDouble bmid, Csv.toField $ OutDouble bmax,
                     Csv.toField dv, Csv.toField npairs]
 

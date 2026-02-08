@@ -10,7 +10,7 @@ import           Conduit                  ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import           Data.Function            (on)
-import           Data.List                (groupBy, sortOn, intercalate)
+import           Data.List                (groupBy, intercalate, sortOn)
 import qualified Numeric.GSL.Minimization as GSL
 import           System.IO                (hPutStrLn, stderr)
 
@@ -86,7 +86,7 @@ fitOneKernel freeSill iv dv bins kernel =
         nugscaled = nug/sill
     in VariogramFit iv dv kernel nug psill sill nugscaled range loss
 
-        -- 
+        --
 
 optimizeFixedSill
   :: VariogramModel

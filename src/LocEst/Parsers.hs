@@ -57,7 +57,7 @@ readSelfDistMulti n path
         return res
     | otherwise = do
         hPutStrLn stderr "Reading symmetric multidimensional distances"
-        let nHalf = n*(n+1) `div` 2 -- length of packed upper triangle
+        let nHalf = n*(n+1) `div` 2 -- length of packed lower triangle
         -- read entire file into memory
         !raw <- Bchs.readFile path
         (headerLine,dataLines) <- case Bchs.lines raw of
@@ -70,7 +70,7 @@ readSelfDistMulti n path
             indepIndices = V.findIndices (\nm -> nm /= "id1" && nm /= "id2") allNames
         -- allocate packed half-matrix vectors for each indep var
         matsMV <- V.forM (V.enumFromN (0 :: Int) stride) $ const (VSM.new nHalf)
-        -- data rows (assumed in packed upper triangle order)
+        -- data rows (assumed in packed lower triangle order)
         -- would be a neat test, but requires reading list into memory:
         --     !lenRows = length dataLines
         -- when (lenRows /= nHalf) $

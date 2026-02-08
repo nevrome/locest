@@ -13,6 +13,7 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import           Data.Char                (isSpace, toLower)
+import           Data.Functor.Identity    (Identity)
 import           Data.List                (groupBy, singleton)
 import qualified Data.List.NonEmpty       as N
 import           LocEst.CLI.VarioFit      (VarioFitOptions (..))
@@ -20,7 +21,6 @@ import qualified Options.Applicative      as OP
 import qualified Options.Applicative.Help as OH
 import qualified Text.Parsec              as P
 import qualified Text.Parsec.String       as P
-import Data.Functor.Identity (Identity)
 
 -- helper functions for optparse applicative help text
 s2d :: String -> OH.Doc
@@ -120,6 +120,9 @@ varioOptParser = VarioOptions
                         <*> optParseSpaceTimeScaling
                         <*> optParseIndepVarsThresholds
                         <*> optParseIndepVarsCrossThresholds
+                        <*> optParseBootstrapIterations
+                        <*> optParseBootstrapFraction
+                        <*> optParseSeed
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
 
@@ -136,7 +139,7 @@ crossOptParser = CrossOptions
                         <*> optParseKernDefStringPermutations
                         <*> optParseTestTrainingFraction
                         <*> optParseCrossvalIterations
-                        <*> optParseCrossvalConfSeed
+                        <*> optParseSeed
                         <*> OP.optional optParseInObsObsDistFile
                         <*> optParseOutFile
 
@@ -309,14 +312,14 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
-optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
-optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (
+optParseSeed :: OP.Parser (Maybe Int)
+optParseSeed = OP.option (Just <$> OP.auto) (
        OP.long  "seed"
     <> OP.metavar "INT"
     <> OP.value Nothing
     <> OP.helpDoc ( Just (
-                      s2d "Seed for the random number generator used to create test and training data \
-                          \subsets. Default: A random seed (not reproducible)."
+                      s2d "Seed for the random number generator used to create data subsets. \
+                          \Default: A random seed (not reproducible)."
     ))
     )
 
@@ -341,6 +344,35 @@ optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
             case P.runParser parseFraction () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
+
+optParseBootstrapFraction :: OP.Parser Double
+optParseBootstrapFraction = OP.option (OP.eitherReader readFraction) (
+       OP.long    "omitFraction"
+    <> OP.metavar "DOUBLE"
+    <> OP.value 0.2
+    <> OP.helpDoc ( Just (
+                          s2d "Fraction of the observations that should be omitted in every \
+                              \bootstrapping run. Default: 0.1"
+    ))
+    )
+    where
+        readFraction :: String -> Either String Double
+        readFraction s =
+            case P.runParser parseFraction () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+
+optParseBootstrapIterations :: OP.Parser Int
+optParseBootstrapIterations = OP.option OP.auto (
+       OP.long    "iterations"
+    <> OP.metavar "INT"
+    <> OP.value 0
+    <> OP.helpDoc ( Just (
+                      s2d "Number resampling iterations. How often should the input observations \
+                          \be subset to compute the variogram. No subsetting is done if this is set \
+                          \to 0. Default: 0"
+    ))
+    )
 
 optParseCrossvalIterations :: OP.Parser Int
 optParseCrossvalIterations = OP.option OP.auto (
