@@ -31,14 +31,14 @@ runVarioFit (VarioFitOptions inFile kernels freeSill outFile) = do
     Con.runConduitRes $ ConC.yieldMany fits .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-groupBins :: [EmpiricalVariogramSingleBin] -> [(IndepVarName, DepVarName, [EmpiricalVariogramSingleBin])]
+groupBins :: [EmpiricalVariogramSingleBin] -> [(Int, IndepVarName, DepVarName, [EmpiricalVariogramSingleBin])]
 groupBins bins =
-    let key b = (_evIndepVar b, _evDepVar b)
+    let key b = (_evIteration b, _evIndepVar b, _evDepVar b)
         sorted = sortOn key bins
         groups = groupBy ((==) `on` key) sorted
     in map mkGroup groups
     where
-      mkGroup (b:bs) = (_evIndepVar b, _evDepVar b, b:bs)
+      mkGroup (b:bs) = (_evIteration b, _evIndepVar b, _evDepVar b, b:bs)
       mkGroup []     = error "groupBins: impossible empty group"
 
 type VariogramModel = Double -> Double -> Double -> Double -> Double
@@ -52,17 +52,18 @@ variogramModel Exponential =
 variogramModel Linear =
     \nug psill range h -> nug + psill * min 1 (h / range)
 
-fitAllKernels :: Bool -> [KernelShape] -> (IndepVarName, DepVarName, [EmpiricalVariogramSingleBin]) -> [VariogramFit]
-fitAllKernels freeSill kernels (iv, dv, bins) = map (fitOneKernel freeSill iv dv bins) kernels
+fitAllKernels :: Bool -> [KernelShape] -> (Int, IndepVarName, DepVarName, [EmpiricalVariogramSingleBin]) -> [VariogramFit]
+fitAllKernels freeSill kernels (i, iv, dv, bins) = map (fitOneKernel freeSill i iv dv bins) kernels
 
 fitOneKernel
     :: Bool
+    -> Int
     -> IndepVarName
     -> DepVarName
     -> [EmpiricalVariogramSingleBin]
     -> KernelShape
     -> VariogramFit
-fitOneKernel freeSill iv dv bins kernel =
+fitOneKernel freeSill iteration iv dv bins kernel =
     let infinityBin = last bins
         normalBins = init bins
         hs = map ((\(_,m,_) -> m) . _evBin) normalBins
@@ -84,9 +85,7 @@ fitOneKernel freeSill iv dv bins kernel =
         loss = weightedSSE (variogramModel kernel) hs ys ws (nug, psill, range)
         sill = psill + nug
         nugscaled = nug/sill
-    in VariogramFit iv dv kernel nug psill sill nugscaled range loss
-
-        --
+    in VariogramFit iteration iv dv kernel nug psill sill nugscaled range loss
 
 optimizeFixedSill
   :: VariogramModel

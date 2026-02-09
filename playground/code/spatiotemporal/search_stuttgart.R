@@ -61,16 +61,16 @@ vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(depVar), cols = dplyr::vars(indepVar), scales = "free") +
-  geom_point(aes(bin_mid, variance, color = iteration)) +
+  geom_point(aes(bin_mid, variance, color = as.factor(iteration))) +
   scale_y_continuous(limits = c(0, NA))
 
 # distance-filtered empirical variogram
-system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)"')
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 5 --omitFraction 0.2')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(depVar), cols = dplyr::vars(indepVar), scales = "free") +
-  geom_point(aes(bin_mid, variance)) +
+  geom_point(aes(bin_mid, variance, color = as.factor(iteration))) +
   scale_y_continuous(limits = c(0, NA))
 
 # fit theoretical variogram
@@ -89,9 +89,9 @@ variogram_fun <- function(kernel, h, nug, psill, range) {
 }
 
 vario_curves <- vario_emp %>%
-  dplyr::group_by(indepVar, depVar) %>%
+  dplyr::group_by(iteration, indepVar, depVar) %>%
   dplyr::summarise(h_min = min(bin_mid), h_max = max(bin_mid[!is.infinite(bin_mid)]), .groups = "drop") %>%
-  dplyr::left_join(vario_fit, by = c("indepVar", "depVar")) %>%
+  dplyr::left_join(vario_fit, by = c("iteration", "indepVar", "depVar")) %>%
   dplyr::mutate(
     h = purrr::map2(h_min, h_max, \(x, y) seq(x, y, length.out = 200)),
   ) %>%
@@ -107,11 +107,11 @@ ggplot() +
   facet_grid(rows = vars(depVar), cols = vars(indepVar), scales = "free") +
   geom_point(
     data = vario_emp,
-    aes(x = bin_mid, y = variance),
+    aes(x = bin_mid, y = variance, colour = as.factor(iteration)),
   ) +
   geom_line(
     data = vario_curves,
-    aes(x = h, y = gamma, colour = kernel)
+    aes(x = h, y = gamma, colour = kernel, group = interaction(iteration, kernel))
   ) +
   geom_vline(
     data = vario_fit,
