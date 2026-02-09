@@ -30,9 +30,9 @@ data VarioOptions = VarioOptions {
     , _voSpaceTimeScaling         :: (Double,Double)
     , _voIndepVarsThresholds      :: IndepVarsThresholds
     , _voIndepVarsCrossThresholds :: IndepVarsThresholds
-    , _voBootstrapIters           :: Int -- 0 = no bootstrap
-    , _voBootstrapFrac            :: Double
-    , _voBootstrapMaybeSeed       :: Maybe Int
+    , _voSubsamplingIters         :: Int -- 0 = no subsampling
+    , _voSubsamplingFrac          :: Double
+    , _voSubsamplingMaybeSeed     :: Maybe Int
     , _voOutFile                  :: Maybe FilePath
     , _voBinMode                  :: BinModeSettings
 }
@@ -59,23 +59,23 @@ data BinModeSettings =
 runVario :: VarioOptions -> Double -> IO ()
 runVario
     (VarioOptions inObsFile maybeObsObsDistFile acrossSetting (spaceScaling,timeScaling)
-    indepVarsThresholds indepVarsCrossThresholds bootIters bootFrac bootSeed outFile binModeSettings)
+    indepVarsThresholds indepVarsCrossThresholds subsamplingIters subsamplingFrac subsamplingSeed outFile binModeSettings)
     spatDistUnitScaling = do
     -- read observations
     !obs <- readObservations inObsFile
     let nObs = V.length obs
     -- read distances
     !obsObsDistances <- traverse (readSelfDistMulti nObs) maybeObsObsDistFile
-    -- prepare bootstrapping plan
-    bootstrapPlan <- case bootIters of
-        0 -> pure [(0, Nothing)] -- no bootstrapping
+    -- prepare subsampling plan
+    subsamplingPlan <- case subsamplingIters of
+        0 -> pure [(0, Nothing)] -- no subsampling
         iters -> do
-            baseSeed <- case bootSeed of
+            baseSeed <- case subsamplingSeed of
                 Just s  -> pure s
                 Nothing -> R.randomRIO (0, maxBound :: Int)
-            hPutStrLn stderr $ "Seed for bootstrapping: " ++ show baseSeed
-            let nRemove = round (bootFrac * fromIntegral nObs)
-            return [(iter, Just (bootstrapRemoveIdx (baseSeed + iter) nRemove nObs)) | iter <- [1 .. iters]]
+            hPutStrLn stderr $ "Seed for subsampling: " ++ show baseSeed
+            let nRemove = round (subsamplingFrac * fromIntegral nObs)
+            return [(iter, Just (subsamplingRemoveIdx (baseSeed + iter) nRemove nObs)) | iter <- [1 .. iters]]
     -- configure across-settings
     hPutStrLn stderr $ "Distance merging mode: " ++ show acrossSetting
     let acrossModes = case acrossSetting of
@@ -115,11 +115,11 @@ runVario
                                  mergeDistsDepVar allDists
                            else calcObsObsDistDepVar obs depVars
         hPutStrLn stderr "Calculating empirical variograms..."
-        -- loop over bootstrapping iterations
-        forM bootstrapPlan $ \(bootIter, maybeRemoveIdx) -> do
+        -- loop over subsampling iterations
+        forM subsamplingPlan $ \(subsamplingIter, maybeRemoveIdx) -> do
             let !distsPerIndepVar' = maybe rawIndepDists (\rm -> removeObservationsMulti nObs rm distsPerIndepVar) maybeRemoveIdx
                 !distsPerDepVar' = maybe distsPerDepVar (\rm -> removeObservationsMulti nObs rm distsPerDepVar) maybeRemoveIdx
-            OP.when (bootIter > 0) $ hPutStrLn stderr $ "Bootstrapping iteration: " ++ show bootIter
+            OP.when (subsamplingIters > 0) $ hPutStrLn stderr $ "Subsampling iteration: " ++ show subsamplingIter
             -- loop over all permutations of indepVars and depVars to calculate empirical variograms
             fmap concat $
                 -- loop over indepVars
@@ -168,7 +168,7 @@ runVario
                         let totalVarianceForDepVar = calcHalfMeanSquared $ VU.convert depDists
                             withInfiniteBin = variancesPerBin ++ [((0, inf, inf), totalVarianceForDepVar, VS.length indepDists)]
                         hPutStrLn stderr (indepVarName ++ " -> " ++ depVarName)
-                        return $ EmpiricalVariogramOneVarCombination bootIter indepVarName depVarName (EmpiricalVariogram withInfiniteBin)
+                        return $ EmpiricalVariogramOneVarCombination subsamplingIter indepVarName depVarName (EmpiricalVariogram withInfiniteBin)
     -- write variograms to the file system
     hPutStrLn stderr "Writing result table..."
     writeVariograms (concat $ concat empiricalVariograms) outFile
@@ -184,8 +184,8 @@ writeVariograms :: [EmpiricalVariogramOneVarCombination] -> Maybe FilePath -> IO
 writeVariograms vars path = Con.runConduitRes $ ConC.yieldMany (concatMap varToLong vars) .| sinkNamedCSV path
     where
         varToLong :: EmpiricalVariogramOneVarCombination -> [EmpiricalVariogramSingleBin]
-        varToLong (EmpiricalVariogramOneVarCombination bootIter i d (EmpiricalVariogram xs)) =
-            map (\(iv, dv, nrPairs) -> EmpiricalVariogramSingleBin bootIter i d iv dv nrPairs) xs
+        varToLong (EmpiricalVariogramOneVarCombination subsamplingIter i d (EmpiricalVariogram xs)) =
+            map (\(iv, dv, nrPairs) -> EmpiricalVariogramSingleBin subsamplingIter i d iv dv nrPairs) xs
 
 perBin :: VU.Vector (Int, Double) -> VU.Vector Double -> ((Double,Double,Double), Int, Int) -> ((Double,Double,Double), Double, Int)
 perBin sortedIndepDists depDists (minMidMax, startSorted, stopSorted) =
@@ -236,6 +236,6 @@ getIndicesForBin sortedVec i1 i2 =
     --let !_ = unsafePerformIO $ putStrLn (show i1 ++ " " ++ show (i2 - i1))
     VU.map fst $ VU.slice i1 (i2 - i1 + 1) sortedVec
 
--- bootstrapping
-bootstrapRemoveIdx :: Int -> Int -> Int -> VS.Vector Int
-bootstrapRemoveIdx seed nRemove nObs = fst $ splitIdx seed nRemove nObs
+-- subsampling
+subsamplingRemoveIdx :: Int -> Int -> Int -> VS.Vector Int
+subsamplingRemoveIdx seed nRemove nObs = fst $ splitIdx seed nRemove nObs

@@ -193,10 +193,10 @@ instance Csv.FromNamedRecord EmpiricalVariogramSingleBin where
 instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
     headerOrder _ = Csv.header ["iteration", "indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance", "nr_pairs"]
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
-    toRecord (EmpiricalVariogramSingleBin bootIter i d (bmin, bmid, bmax) dv npairs) =
-        Csv.record [Csv.toField bootIter, Csv.toField i, Csv.toField d,
+    toRecord (EmpiricalVariogramSingleBin i iv dv (bmin, bmid, bmax) v npairs) =
+        Csv.record [Csv.toField i, Csv.toField iv, Csv.toField dv,
                     Csv.toField $ OutDouble bmin, Csv.toField $ OutDouble bmid, Csv.toField $ OutDouble bmax,
-                    Csv.toField dv, Csv.toField npairs]
+                    Csv.toField v, Csv.toField npairs]
 
 data VariogramFit = VariogramFit
   { _vfIteration    :: Int

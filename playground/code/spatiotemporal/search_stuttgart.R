@@ -77,12 +77,6 @@ vario_emp %>%
 system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv -k SqEx -k Ex')
 vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
 
-vario_fit %>%
-  ggplot() +
-  facet_grid(rows = vars(depVar), cols = vars(indepVar)) +
-  geom_density(aes(x = range, fill = kernel), alpha = 0.5) +
-  scale_x_continuous(limits = range(density(vario_fit$range)$x))
-
 variogram_fun <- function(kernel, h, nug, psill, range) {
   switch(
     kernel,

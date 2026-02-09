@@ -120,8 +120,8 @@ varioOptParser = VarioOptions
                         <*> optParseSpaceTimeScaling
                         <*> optParseIndepVarsThresholds
                         <*> optParseIndepVarsCrossThresholds
-                        <*> optParseBootstrapIterations
-                        <*> optParseBootstrapFraction
+                        <*> optParseSubsamplingIterations
+                        <*> optParseSubsamplingFraction
                         <*> optParseSeed
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
@@ -345,14 +345,14 @@ optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
 
-optParseBootstrapFraction :: OP.Parser Double
-optParseBootstrapFraction = OP.option (OP.eitherReader readFraction) (
+optParseSubsamplingFraction :: OP.Parser Double
+optParseSubsamplingFraction = OP.option (OP.eitherReader readFraction) (
        OP.long    "omitFraction"
     <> OP.metavar "DOUBLE"
     <> OP.value 0.2
     <> OP.helpDoc ( Just (
-                          s2d "Fraction of the observations that should be omitted in every \
-                              \bootstrapping run. Default: 0.1"
+                          s2d "Fraction of the observations that should be randomly omitted in every \
+                              \subsampling run. Default: 0.2"
     ))
     )
     where
@@ -362,13 +362,13 @@ optParseBootstrapFraction = OP.option (OP.eitherReader readFraction) (
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
 
-optParseBootstrapIterations :: OP.Parser Int
-optParseBootstrapIterations = OP.option OP.auto (
+optParseSubsamplingIterations :: OP.Parser Int
+optParseSubsamplingIterations = OP.option OP.auto (
        OP.long    "iterations"
     <> OP.metavar "INT"
     <> OP.value 0
     <> OP.helpDoc ( Just (
-                      s2d "Number resampling iterations. How often should the input observations \
+                      s2d "Number subsampling iterations. How often should the input observations \
                           \be subset to compute the variogram. No subsetting is done if this is set \
                           \to 0. Default: 0"
     ))
