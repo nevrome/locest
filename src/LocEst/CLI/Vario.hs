@@ -75,7 +75,7 @@ runVario
                 Nothing -> R.randomRIO (0, maxBound :: Int)
             hPutStrLn stderr $ "Seed for subsampling: " ++ show baseSeed
             let nRemove = round (subsamplingFrac * fromIntegral nObs)
-            return [(iter, Just (subsamplingRemoveIdx (baseSeed + iter) nRemove nObs)) | iter <- [1 .. iters]]
+            return [(iter, Just (fst $ splitIdx (baseSeed + iter) nRemove nObs)) | iter <- [1 .. iters]]
     -- configure across-settings
     hPutStrLn stderr $ "Distance merging mode: " ++ show acrossSetting
     let acrossModes = case acrossSetting of
@@ -235,7 +235,3 @@ getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
 getIndicesForBin sortedVec i1 i2 =
     --let !_ = unsafePerformIO $ putStrLn (show i1 ++ " " ++ show (i2 - i1))
     VU.map fst $ VU.slice i1 (i2 - i1 + 1) sortedVec
-
--- subsampling
-subsamplingRemoveIdx :: Int -> Int -> Int -> VS.Vector Int
-subsamplingRemoveIdx seed nRemove nObs = fst $ splitIdx seed nRemove nObs
