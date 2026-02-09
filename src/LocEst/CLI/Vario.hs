@@ -9,6 +9,7 @@ import           LocEst.TypesFlat
 import           LocEst.Utils
 
 import           Conduit                      ((.|))
+import qualified Control.Monad                as OP
 import qualified Data.Conduit                 as Con
 import qualified Data.Conduit.Combinators     as ConC
 import qualified Data.Conduit.List            as ConL
@@ -65,6 +66,16 @@ runVario
     let nObs = V.length obs
     -- read distances
     !obsObsDistances <- traverse (readSelfDistMulti nObs) maybeObsObsDistFile
+    -- prepare bootstrapping plan
+    bootstrapPlan <- case bootIters of
+        0 -> pure [(0, Nothing)] -- no bootstrapping
+        iters -> do
+            baseSeed <- case bootSeed of
+                Just s  -> pure s
+                Nothing -> R.randomRIO (0, maxBound :: Int)
+            hPutStrLn stderr $ "Seed for bootstrapping: " ++ show baseSeed
+            let nRemove = round (bootFrac * fromIntegral nObs)
+            return [(iter, Just (bootstrapRemoveIdx (baseSeed + iter) nRemove nObs)) | iter <- [1 .. iters]]
     -- configure across-settings
     hPutStrLn stderr $ "Distance merging mode: " ++ show acrossSetting
     let acrossModes = case acrossSetting of
@@ -73,17 +84,6 @@ runVario
             AcrossDepVars   -> [(False, True )]
             AcrossBoth      -> [(True,  True )]
             AcrossComb      -> [(False, False), (True, False), (False, True), (True, True)]
-    -- prepare bootstrapping plan
-    baseSeed <- case bootSeed of
-        Just s  -> pure s
-        Nothing -> R.randomRIO (0, maxBound :: Int)
-    hPutStrLn stderr $ "Seed for random splitting: " ++ show baseSeed
-    let bootstrapPlan :: [(Int, Maybe (VS.Vector Int))]
-        bootstrapPlan = case bootIters of
-            0 -> [(0, Nothing)] -- exactly one iteration, no subsetting
-            iters ->
-              let nRemove = round (bootFrac * fromIntegral nObs)
-              in [(iter, Just (bootstrapRemoveIdx (baseSeed + iter) nRemove nObs)) | iter <- [1 .. iters]]
     -- compute variograms
     -- loop over variable merging "across" settings
     empiricalVariograms <- forM acrossModes $ \(acrossIndepVars, acrossDepVars) -> do
@@ -91,7 +91,8 @@ runVario
             ++ (if acrossIndepVars then "[x]" else "[ ]") ++ " Independent, "
             ++ (if acrossDepVars   then "[x]" else "[ ]") ++ " Dependent"
         -- pairwise distances
-        hPutStrLn stderr "Reading or calculating pairwise distances for independent variables"
+        hPutStrLn stderr "Reading or calculating pairwise distances..."
+        -- distances independent variables
         let indepVars = case posFromObs $ V.head obs of
                 IndepSpatTempPos _     -> ["space", "time"]
                 IndepArbitraryDimPos x -> getKeys x
@@ -106,24 +107,23 @@ runVario
         !distsPerIndepVar <- if acrossIndepVars
                              then mergeDistsIndepVar (spaceScaling, timeScaling) rawIndepDists
                              else pure rawIndepDists
-        hPutStrLn stderr "Calculating pairwise distances for dependent variables"
+        -- distances dependent variables
         let depVars = getKeys $ depVarPosFromObs $ V.head obs
         !distsPerDepVar <- if acrossDepVars
                            then do
                                  allDists <- calcObsObsDistDepVar obs depVars
                                  mergeDistsDepVar allDists
                            else calcObsObsDistDepVar obs depVars
-        hPutStrLn stderr "Calculating empirical variograms"
+        hPutStrLn stderr "Calculating empirical variograms..."
         -- loop over bootstrapping iterations
         forM bootstrapPlan $ \(bootIter, maybeRemoveIdx) -> do
             let !distsPerIndepVar' = maybe rawIndepDists (\rm -> removeObservationsMulti nObs rm distsPerIndepVar) maybeRemoveIdx
                 !distsPerDepVar' = maybe distsPerDepVar (\rm -> removeObservationsMulti nObs rm distsPerDepVar) maybeRemoveIdx
-            hPutStrLn stderr $ "Bootstrapping iteration: " ++ show bootIter
+            OP.when (bootIter > 0) $ hPutStrLn stderr $ "Bootstrapping iteration: " ++ show bootIter
             -- loop over all permutations of indepVars and depVars to calculate empirical variograms
             fmap concat $
                 -- loop over indepVars
                 forM (toList distsPerIndepVar') $ \(indepVarName, SelfDistMatrix indepDists) -> do
-                    hPutStrLn stderr ("Working on " ++ indepVarName)
                     -- indexing (must be done before any filtering)
                     let indepDistsIndexed = VU.indexed $ VS.convert indepDists
                         indepDistsIndexedModified =
@@ -167,9 +167,10 @@ runVario
                         -- add infinite bin with total variance across all (!) distances
                         let totalVarianceForDepVar = calcHalfMeanSquared $ VU.convert depDists
                             withInfiniteBin = variancesPerBin ++ [((0, inf, inf), totalVarianceForDepVar, VS.length indepDists)]
-                        hPutStrLn stderr ("-> " ++ depVarName)
+                        hPutStrLn stderr (indepVarName ++ " -> " ++ depVarName)
                         return $ EmpiricalVariogramOneVarCombination bootIter indepVarName depVarName (EmpiricalVariogram withInfiniteBin)
     -- write variograms to the file system
+    hPutStrLn stderr "Writing result table..."
     writeVariograms (concat $ concat empiricalVariograms) outFile
     hPutStrLn stderr "Done"
 

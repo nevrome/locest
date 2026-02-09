@@ -56,16 +56,16 @@ system('time locest serialise selfdist -i data/spatiotemporal/obs.tsv --obsObsDi
 
 # full empirical variogram
 # --across AllCombinations
-system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --iterations 5')
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(depVar), cols = dplyr::vars(indepVar), scales = "free") +
-  geom_point(aes(bin_mid, variance, color = as.factor(iteration))) +
+  geom_point(aes(bin_mid, variance)) +
   scale_y_continuous(limits = c(0, NA))
 
 # distance-filtered empirical variogram
-system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 10 --omitFraction 0.2')
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 20 --omitFraction 0.2 --seed 123')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
@@ -110,17 +110,20 @@ vario_curves <- vario_emp %>%
 
 ggplot() +
   facet_grid(rows = vars(depVar), cols = vars(indepVar), scales = "free") +
+  # show only points from one iteration
   geom_point(
-    data = vario_emp,
-    aes(x = bin_mid, y = variance, colour = as.factor(iteration)),
+    data = vario_emp %>% dplyr::filter(iteration == 1),
+    aes(x = bin_mid, y = variance),
   ) +
   geom_line(
     data = vario_curves,
-    aes(x = h, y = gamma, colour = kernel, group = interaction(iteration, kernel))
+    aes(x = h, y = gamma, colour = kernel, group = interaction(iteration, kernel)),
+    alpha = 0.5
   ) +
   geom_vline(
     data = vario_fit,
-    aes(xintercept = range, colour = kernel)
+    aes(xintercept = range, colour = kernel),
+    alpha = 0.5
   ) +
   scale_y_continuous(limits = c(0, NA))
 
