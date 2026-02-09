@@ -65,7 +65,7 @@ vario_emp %>%
   scale_y_continuous(limits = c(0, NA))
 
 # distance-filtered empirical variogram
-system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 5 --omitFraction 0.2')
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 10 --omitFraction 0.2')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
@@ -75,8 +75,13 @@ vario_emp %>%
 
 # fit theoretical variogram
 system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv -k SqEx -k Ex')
-
 vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
+
+vario_fit %>%
+  ggplot() +
+  facet_grid(rows = vars(depVar), cols = vars(indepVar)) +
+  geom_density(aes(x = range, fill = kernel), alpha = 0.5) +
+  scale_x_continuous(limits = range(density(vario_fit$range)$x))
 
 variogram_fun <- function(kernel, h, nug, psill, range) {
   switch(
