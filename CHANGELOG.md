@@ -1,1 +1,5 @@
+- V 2.0.1.0:
+    - Added a resampling feature for the empirical variogram computation. `varioemp` now takes the options `--iterations` `--omitFraction` and `--seed` to run the variogram computation multiple times with a random subset of the distances.
+    - Added an option `-k/--kernel` to `variofit` to set the theoretical model shapes (kernels) that should be fitted.
+    - Changed the default fitting behaviour of `variofit` to assume the sill to be fixed to the total variance. The old behaviour that optimizes also for the sill can be recovered with `--freeSill`.
 - V 2.0.0.0: Begin of the changelog and thus documented progress for locest.

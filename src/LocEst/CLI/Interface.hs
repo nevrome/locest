@@ -237,7 +237,7 @@ optParseIndepVarsCrossThresholds = OP.option (OP.eitherReader readIndepVarsThres
     <> OP.value (makeValuesPerIndepVar [])
     <> OP.helpDoc ( Just (
                       s2d "Thresholds for filtering distances across independent variables. \
-                          \When computing a variogram for temporal distances it might \
+                          \When computing a variogram for temporal distances, for example, it might \
                           \be desirable to constrain the spatial distances, so that only observations \
                           \in spatial proximity are considered. So this threshold does not \
                           \filter on the focal independent variable, but on the other independent variables. \
@@ -281,11 +281,11 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                           \per independent and dependent variable with a given upper limit."
     <> OH.hardline <> s2d "The output of vario depends on the binning, but generally \
                           \it returns a table like this:"
-    <> OH.hardline <>     "┌────────┬──────┬───────┬───────┬───────┬────────┐"
-    <> OH.hardline <>     "│indepVar│depVar│bin_min|bin_mid|bin_max│variance│"
-    <> OH.hardline <>     "├────────┼──────┼───────┼───────┼───────┼────────┤"
-    <> OH.hardline <>     "│        │      │       │       │       │        │"
-    <> OH.hardline <>     "└────────┴──────┴───────┴───────┴───────┴────────┘"
+    <> OH.hardline <>     "┌─────────┬────────┬──────┬───────┬───────┬───────┬────────┬────────┐"
+    <> OH.hardline <>     "│iteration│indepVar│depVar│bin_min│bin_mid│bin_max│variance│nr_pairs│"
+    <> OH.hardline <>     "├─────────┼────────┼──────┼───────┼───────┼───────┼────────┼────────┤"
+    <> OH.hardline <>     "│         │        │      │       │       │       │        │        │"
+    <> OH.hardline <>     "└─────────┴────────┴──────┴───────┴───────┴───────┴────────┴────────┘"
     <> OH.hardline <>     "> [indepVar]: Independent variable"
     <> OH.hardline <>     "> [depVar]: Dependent variable"
     <> OH.hardline <> s2d "> [bin_min,bin_mid,bin_max]: Start, center and end point of each \

@@ -64,7 +64,7 @@ vario_emp %>%
   geom_point(aes(bin_mid, variance)) +
   scale_y_continuous(limits = c(0, NA))
 
-# distance-filtered empirical variogram
+# distance-filtered empirical variogram with resampling iterations
 system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 20 --omitFraction 0.2 --seed 123')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
