@@ -9,6 +9,7 @@ import           LocEst.CLI.Cross
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
+import           LocEst.CLI.Grid
 import           LocEst.Types
 import           LocEst.Utils
 
@@ -69,6 +70,32 @@ parseConfigFile toIgnore configFile = do
     trim = let f = reverse . dropWhile isSpace in f . f
 
 -- optparse-applicative interface
+
+gridOptParser :: OP.Parser GridOptions
+gridOptParser = GridOptions <$> optParseInPolygonFile
+                            <*> optParseInResolutionX
+                            <*> optParseInResolutionY
+                            <*> optParseOutFile
+
+optParseInPolygonFile :: OP.Parser FilePath
+optParseInPolygonFile = OP.strOption (
+    OP.long "polygonFile" <>
+    OP.metavar "FILE" <>
+    OP.help "...")
+    
+optParseInResolutionX :: OP.Parser Double
+optParseInResolutionX = OP.option OP.auto (
+    OP.long "x" <>
+    OP.help "..." <>
+    OP.metavar "DOUBLE"
+    )
+
+optParseInResolutionY :: OP.Parser Double
+optParseInResolutionY = OP.option OP.auto (
+    OP.long "y" <>
+    OP.help "..." <>
+    OP.metavar "DOUBLE"
+    )
 
 serialiseOptParser :: OP.Parser SerialiseOptions
 serialiseOptParser = SerialiseOptions <$> OP.subparser (

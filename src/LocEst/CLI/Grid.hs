@@ -2,6 +2,9 @@
 
 module LocEst.CLI.Grid where
 
+import LocEst.Types
+import LocEst.Parsers
+
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as V
@@ -9,6 +12,9 @@ import Data.List (sort)
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Aeson.Key as K
 import           System.IO                (hPutStrLn, stderr)
+import qualified Data.Conduit             as Con
+import qualified Data.Conduit.Combinators as ConC
+import           Data.Conduit             ((.|))
 
 data GridOptions = GridOptions
     { _gridInPolygonFile :: FilePath
@@ -23,7 +29,11 @@ runGrid (GridOptions inPolygonFile resolutionX resolutionY outFile) =  do
     let (xmin,ymin,_,ymax) = bbox polys
         ys = [ymin, ymin+resolutionY .. ymax]
         gripPoints = [ p | y <- ys, poly <- polys, interval <- fillPolygonScanline y poly, p <- emitPoints resolutionX xmin [interval] y ]
-    hPutStrLn stderr "test"
+        indepVarsPos = map (\(x,y) -> IndepSpatTempPos (SpatTempPos (SpatPosCartesian (CartesianPos 0 Nothing x y)) (TempPos 0))) gripPoints
+    Con.runConduitRes $
+           ConC.yieldMany indepVarsPos
+        .| sinkNamedCSV outFile
+    hPutStrLn stderr "Done"
     
 -- basic types
 type Point   = (Double, Double)
