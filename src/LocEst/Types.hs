@@ -159,55 +159,66 @@ crossSummaryHeader = Csv.header ["sum_dep_dist_euclidean","mean_squared_dep_dist
 newtype EmpiricalVariogram = EmpiricalVariogram [((Double,Double,Double), Double, Int)] -- (bin, variance, number of pairs)
     deriving Show
 
-data EmpiricalVariogramOneVarCombination = EmpiricalVariogramOneVarCombination IndepVarName DepVarName EmpiricalVariogram
-    deriving Show
+data EmpiricalVariogramOneVarCombination = EmpiricalVariogramOneVarCombination
+    { _evcIteration :: Int
+    , _evcIndepVar  :: IndepVarName
+    , _evcDepVar    :: DepVarName
+    , _evcVario     :: EmpiricalVariogram
+    }
+  deriving Show
 
-data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin {
-    _evIndepVar :: IndepVarName,
-    _evDepVar   :: DepVarName,
-    _evBin      :: (Double,Double,Double),
-    _evVariance :: Double,
-    _evNrPairs  :: Int
+data EmpiricalVariogramSingleBin = EmpiricalVariogramSingleBin
+    { _evIteration :: Int
+    , _evIndepVar  :: IndepVarName
+    , _evDepVar    :: DepVarName
+    , _evBin       :: (Double,Double,Double)
+    , _evVariance  :: Double
+    , _evNrPairs   :: Int
     }
     deriving Show
 
 instance Csv.FromNamedRecord EmpiricalVariogramSingleBin where
     parseNamedRecord m =
         EmpiricalVariogramSingleBin
-            <$> filterLookup m "indepVar"
+            <$> filterLookup m "iteration"
+            <*> filterLookup m "indepVar"
             <*> filterLookup m "depVar"
             <*> ( (,,)
-                    <$> filterLookup m "bin_min"
-                    <*> filterLookup m "bin_mid"
-                    <*> filterLookup m "bin_max"
+                    <$> (outDouble2Double <$> filterLookup m "bin_min")
+                    <*> (outDouble2Double <$> filterLookup m "bin_mid")
+                    <*> (outDouble2Double <$> filterLookup m "bin_max")
                 )
             <*> filterLookup m "variance"
             <*> filterLookup m "nr_pairs"
 instance Csv.DefaultOrdered EmpiricalVariogramSingleBin where
-    headerOrder _ = Csv.header ["indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance", "nr_pairs"]
+    headerOrder _ = Csv.header ["iteration", "indepVar", "depVar", "bin_min", "bin_mid", "bin_max", "variance", "nr_pairs"]
 instance Csv.ToRecord EmpiricalVariogramSingleBin where
-    toRecord (EmpiricalVariogramSingleBin i d (bmin, bmid, bmax) dv npairs) =
-        Csv.record [Csv.toField i, Csv.toField d, Csv.toField bmin, Csv.toField bmid, Csv.toField bmax,
-                    Csv.toField dv, Csv.toField npairs]
+    toRecord (EmpiricalVariogramSingleBin i iv dv (bmin, bmid, bmax) v npairs) =
+        Csv.record [Csv.toField i, Csv.toField iv, Csv.toField dv,
+                    Csv.toField $ OutDouble bmin, Csv.toField $ OutDouble bmid, Csv.toField $ OutDouble bmax,
+                    Csv.toField v, Csv.toField npairs]
 
 data VariogramFit = VariogramFit
-  { _vfIndepVar     :: IndepVarName
+  { _vfIteration    :: Int
+  , _vfIndepVar     :: IndepVarName
   , _vfDepVar       :: DepVarName
   , _vfKernel       :: KernelShape
-  , _vfNugget       :: Double   -- nugget
+  , _vfNugget       :: Double -- nugget
   , _vfPartialSill  :: Double -- partial sill
-  , _vfSill         :: Double   -- sill
+  , _vfSill         :: Double -- sill
   , _vfScaledNugget :: Double -- nugget/sill (relevant for kriging as implemented in locest)
-  , _vfRange        :: Double   -- lengthscale
-  , _vfLoss         :: Double   -- weighted SSE
+  , _vfRange        :: Double -- lengthscale
+  , _vfLoss         :: Double -- weighted SSE
   } deriving (Show, Generic)
 
 instance Csv.DefaultOrdered VariogramFit where
-    headerOrder _ = Csv.header [ "indepVar", "depVar", "kernel", "nugget", "partial_sill", "sill", "scaled_nugget", "range", "loss" ]
+    headerOrder _ = Csv.header ["iteration", "indepVar", "depVar", "kernel", "nugget",
+                                "partial_sill", "sill", "scaled_nugget", "range", "loss" ]
 instance Csv.ToRecord VariogramFit where
-    toRecord (VariogramFit iv dv kernel nug psill sill scalednug range loss) =
-        Csv.record [ Csv.toField iv, Csv.toField dv, Csv.toField kernel, Csv.toField nug
-                   , Csv.toField psill, Csv.toField sill, Csv.toField scalednug, Csv.toField range, Csv.toField loss ]
+    toRecord (VariogramFit i iv dv kernel nug psill sill scalednug range loss) =
+        Csv.record [ Csv.toField i, Csv.toField iv, Csv.toField dv, Csv.toField kernel,
+                     Csv.toField nug, Csv.toField psill, Csv.toField sill, Csv.toField scalednug,
+                     Csv.toField range, Csv.toField loss ]
 
 -- | A data type for a dependent variable space prediction grid
 newtype DepVarsPredGrid = DepVarsPredGrid [DepVarsPredPos]

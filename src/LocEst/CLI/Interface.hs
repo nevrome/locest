@@ -13,6 +13,7 @@ import           LocEst.Types
 import           LocEst.Utils
 
 import           Data.Char                (isSpace, toLower)
+import           Data.Functor.Identity    (Identity)
 import           Data.List                (groupBy, singleton)
 import qualified Data.List.NonEmpty       as N
 import           LocEst.CLI.VarioFit      (VarioFitOptions (..))
@@ -119,12 +120,17 @@ varioOptParser = VarioOptions
                         <*> optParseSpaceTimeScaling
                         <*> optParseIndepVarsThresholds
                         <*> optParseIndepVarsCrossThresholds
+                        <*> optParseSubsamplingIterations
+                        <*> optParseSubsamplingFraction
+                        <*> optParseSeed
                         <*> optParseOutFile
                         <*> optParseVarioOutMode
 
 varioFitOptParser :: OP.Parser VarioFitOptions
 varioFitOptParser = VarioFitOptions
                         <$> optParseEmpiricalVarioFile
+                        <*> optParseKernelShapes
+                        <*> optParseFreeSill
                         <*> optParseOutFile
 
 crossOptParser :: OP.Parser CrossOptions
@@ -133,7 +139,7 @@ crossOptParser = CrossOptions
                         <*> optParseKernDefStringPermutations
                         <*> optParseTestTrainingFraction
                         <*> optParseCrossvalIterations
-                        <*> optParseCrossvalConfSeed
+                        <*> optParseSeed
                         <*> OP.optional optParseInObsObsDistFile
                         <*> optParseOutFile
 
@@ -231,7 +237,7 @@ optParseIndepVarsCrossThresholds = OP.option (OP.eitherReader readIndepVarsThres
     <> OP.value (makeValuesPerIndepVar [])
     <> OP.helpDoc ( Just (
                       s2d "Thresholds for filtering distances across independent variables. \
-                          \When computing a variogram for temporal distances it might \
+                          \When computing a variogram for temporal distances, for example, it might \
                           \be desirable to constrain the spatial distances, so that only observations \
                           \in spatial proximity are considered. So this threshold does not \
                           \filter on the focal independent variable, but on the other independent variables. \
@@ -275,11 +281,11 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                           \per independent and dependent variable with a given upper limit."
     <> OH.hardline <> s2d "The output of vario depends on the binning, but generally \
                           \it returns a table like this:"
-    <> OH.hardline <>     "┌────────┬──────┬───────┬───────┬───────┬────────┐"
-    <> OH.hardline <>     "│indepVar│depVar│bin_min|bin_mid|bin_max│variance│"
-    <> OH.hardline <>     "├────────┼──────┼───────┼───────┼───────┼────────┤"
-    <> OH.hardline <>     "│        │      │       │       │       │        │"
-    <> OH.hardline <>     "└────────┴──────┴───────┴───────┴───────┴────────┘"
+    <> OH.hardline <>     "┌─────────┬────────┬──────┬───────┬───────┬───────┬────────┬────────┐"
+    <> OH.hardline <>     "│iteration│indepVar│depVar│bin_min│bin_mid│bin_max│variance│nr_pairs│"
+    <> OH.hardline <>     "├─────────┼────────┼──────┼───────┼───────┼───────┼────────┼────────┤"
+    <> OH.hardline <>     "│         │        │      │       │       │       │        │        │"
+    <> OH.hardline <>     "└─────────┴────────┴──────┴───────┴───────┴───────┴────────┴────────┘"
     <> OH.hardline <>     "> [indepVar]: Independent variable"
     <> OH.hardline <>     "> [depVar]: Dependent variable"
     <> OH.hardline <> s2d "> [bin_min,bin_mid,bin_max]: Start, center and end point of each \
@@ -306,14 +312,14 @@ optParseVarioOutMode = OP.option (OP.eitherReader readOutMode) (
                 return $ makeValuesPerIndepVar maxPerIndepVar
             return (BinForNugget res)
 
-optParseCrossvalConfSeed :: OP.Parser (Maybe Int)
-optParseCrossvalConfSeed = OP.option (Just <$> OP.auto) (
+optParseSeed :: OP.Parser (Maybe Int)
+optParseSeed = OP.option (Just <$> OP.auto) (
        OP.long  "seed"
     <> OP.metavar "INT"
     <> OP.value Nothing
     <> OP.helpDoc ( Just (
-                      s2d "Seed for the random number generator used to create test and training data \
-                          \subsets. Default: A random seed (not reproducible)."
+                      s2d "Seed for the random number generator used to create data subsets. \
+                          \Default: A random seed (not reproducible)."
     ))
     )
 
@@ -338,6 +344,35 @@ optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
             case P.runParser parseFraction () "" s of
                 Left err -> Left $ showParsecErr err
                 Right x  -> Right x
+
+optParseSubsamplingFraction :: OP.Parser Double
+optParseSubsamplingFraction = OP.option (OP.eitherReader readFraction) (
+       OP.long    "omitFraction"
+    <> OP.metavar "DOUBLE"
+    <> OP.value 0.2
+    <> OP.helpDoc ( Just (
+                          s2d "Fraction of the observations that should be randomly omitted in every \
+                              \subsampling run. Default: 0.2"
+    ))
+    )
+    where
+        readFraction :: String -> Either String Double
+        readFraction s =
+            case P.runParser parseFraction () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+
+optParseSubsamplingIterations :: OP.Parser Int
+optParseSubsamplingIterations = OP.option OP.auto (
+       OP.long    "iterations"
+    <> OP.metavar "INT"
+    <> OP.value 0
+    <> OP.helpDoc ( Just (
+                      s2d "Number subsampling iterations. How often should the input observations \
+                          \be subset to compute the variogram. No subsetting is done if this is set \
+                          \to 0. Default: 0"
+    ))
+    )
 
 optParseCrossvalIterations :: OP.Parser Int
 optParseCrossvalIterations = OP.option OP.auto (
@@ -410,6 +445,14 @@ optParseQuiet = OP.switch (
     OP.long "quiet" <>
     OP.short 'q' <>
     OP.help "Suppress the printing of progress messages to the stderr stream on the command line."
+    )
+
+optParseFreeSill :: OP.Parser Bool
+optParseFreeSill = OP.switch (
+    OP.long "freeSill" <>
+    OP.help "Should the sill be a free parameter that is optimized in the variogram fitting process? \
+            \By default it is fixed to the total variance (read from the \"infinite\" bin in the \
+            \varioemp output) and does not get fitted."
     )
 
 optParseSpatDistUnitScaling :: OP.Parser Double
@@ -663,11 +706,30 @@ optParseKernDefString = OP.option (OP.eitherReader readKernDefString) (
         parseAlgorithm = do
             algo <- parseAnyString
             makeAlgorithm algo
-        parseKernelShapes = do
-            shape <- parseAnyString
-            makeKernelShape shape
         parseKernelLengths = KernelLengths . makeValuesPerIndepVar <$> parseNamedVector parseIndepVarName parseDouble
         parseNugget = parsePositiveFloatNumber
+
+optParseKernelShapes :: OP.Parser [KernelShape]
+optParseKernelShapes = OP.many $ OP.option (OP.eitherReader readKernelShapeString) (
+       OP.long    "kernel"
+    <> OP.short   'k'
+    <> OP.metavar "SqEx|Ex|Linear"
+    <> OP.helpDoc ( Just (
+                      s2d "Kernel shapes that can be fitted. Can be given multiple times to fit \
+                          \multiple kernels."
+    ))
+    )
+    where
+        readKernelShapeString :: String -> Either String KernelShape
+        readKernelShapeString s =
+            case P.runParser parseKernelShapes () "" s of
+                Left err -> Left $ showParsecErr err
+                Right x  -> Right x
+
+parseKernelShapes :: P.ParsecT String () Identity KernelShape
+parseKernelShapes = do
+    shape <- parseAnyString
+    makeKernelShape shape
 
 optParseKernDefStringPermutations :: OP.Parser (N.NonEmpty KernelDefinition)
 optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString) (
@@ -751,9 +813,6 @@ optParseKernDefStringPermutations = OP.option (OP.eitherReader readKernDefString
         parseAlgorithm = do
             algo <- parseAnyString
             makeAlgorithm algo
-        parseKernelShapes = do
-            shape <- parseAnyString
-            makeKernelShape shape
         parseKernelLengths ::  P.Parser [KernelLengths]
         parseKernelLengths = do
             res <- parseNamedVector parseIndepVarName (P.try parseSequence P.<|> P.try parseList P.<|> parseSingle)

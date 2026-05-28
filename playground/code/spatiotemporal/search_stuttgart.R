@@ -64,18 +64,17 @@ vario_emp %>%
   geom_point(aes(bin_mid, variance)) +
   scale_y_continuous(limits = c(0, NA))
 
-# distance-filtered empirical variogram
-system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2500, time = 2500)"')
+# distance-filtered empirical variogram with resampling iterations
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 20 --omitFraction 0.2 --seed 123')
 vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
 vario_emp %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(depVar), cols = dplyr::vars(indepVar), scales = "free") +
-  geom_point(aes(bin_mid, variance)) +
+  geom_point(aes(bin_mid, variance, color = as.factor(iteration))) +
   scale_y_continuous(limits = c(0, NA))
 
 # fit theoretical variogram
-system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv')
-
+system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv -k SqEx -k Ex')
 vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
 
 variogram_fun <- function(kernel, h, nug, psill, range) {
@@ -89,9 +88,9 @@ variogram_fun <- function(kernel, h, nug, psill, range) {
 }
 
 vario_curves <- vario_emp %>%
-  dplyr::group_by(indepVar, depVar) %>%
-  dplyr::summarise(h_min = min(bin_mid), h_max = max(bin_mid), .groups = "drop") %>%
-  dplyr::left_join(vario_fit, by = c("indepVar", "depVar")) %>%
+  dplyr::group_by(iteration, indepVar, depVar) %>%
+  dplyr::summarise(h_min = min(bin_mid), h_max = max(bin_mid[!is.infinite(bin_mid)]), .groups = "drop") %>%
+  dplyr::left_join(vario_fit, by = c("iteration", "indepVar", "depVar")) %>%
   dplyr::mutate(
     h = purrr::map2(h_min, h_max, \(x, y) seq(x, y, length.out = 200)),
   ) %>%
@@ -105,13 +104,20 @@ vario_curves <- vario_emp %>%
 
 ggplot() +
   facet_grid(rows = vars(depVar), cols = vars(indepVar), scales = "free") +
+  # show only points from one iteration
   geom_point(
-    data = vario_emp,
+    data = vario_emp %>% dplyr::filter(iteration == 1),
     aes(x = bin_mid, y = variance),
   ) +
   geom_line(
     data = vario_curves,
-    aes(x = h, y = gamma, colour = kernel)
+    aes(x = h, y = gamma, colour = kernel, group = interaction(iteration, kernel)),
+    alpha = 0.5
+  ) +
+  geom_vline(
+    data = vario_fit,
+    aes(xintercept = range, colour = kernel),
+    alpha = 0.5
   ) +
   scale_y_continuous(limits = c(0, NA))
 

@@ -7,12 +7,15 @@
 module LocEst.TypesFlat where
 
 import           LocEst.Types
-import           LocEst.Utils         (throwL)
+import           LocEst.Utils                 (throwL)
 
-import qualified Codec.Serialise      as S
+import qualified Codec.Serialise              as S
 import           Control.DeepSeq
-import qualified Data.Vector.Storable as VS
-import           GHC.Generics         (Generic)
+import           Control.Monad                (forM_)
+import           Control.Monad.ST             (runST)
+import qualified Data.Vector.Storable         as VS
+import qualified Data.Vector.Storable.Mutable as VSM
+import           GHC.Generics                 (Generic)
 
 -- operations on the flat storage types
 
@@ -86,6 +89,40 @@ newtype SelfDistMatrix = SelfDistMatrix (VS.Vector Double)
 instance NFData SelfDistMatrix
 instance S.Serialise SelfDistMatrix
 
+-- remove multiple observations (0-based indices); no safety checks
+removeObservations
+  :: Int
+  -> VS.Vector Int
+  -> SelfDistMatrix
+  -> SelfDistMatrix
+removeObservations n removeIx (SelfDistMatrix v) =
+  SelfDistMatrix $ runST $ do
+    let markRemoved :: VS.Vector Bool
+        markRemoved = VS.create $ do
+          mv <- VSM.replicate n False
+          VS.forM_ removeIx $ \i -> VSM.unsafeWrite mv i True
+          pure mv
+        newIndex :: VS.Vector Int
+        newIndex = VS.create $ do
+          mv <- VSM.new n
+          let go !i !k
+                | i == n = pure ()
+                | markRemoved VS.! i = VSM.unsafeWrite mv i (-1) >> go (i+1) k
+                | otherwise = VSM.unsafeWrite mv i k >> go (i+1) (k+1)
+          go 0 0
+          pure mv
+        n'     = n - VS.length removeIx
+        newLen = n' * (n' + 1) `div` 2
+    mv <- VSM.new newLen
+    forM_ [0 .. n-1] $ \i ->
+      case newIndex VS.! i of
+        -1 -> pure ()
+        i' -> forM_ [i .. n-1] $ \j ->
+                case newIndex VS.! j of
+                  -1 -> pure ()
+                  j' -> VSM.unsafeWrite mv (idxHalf i' j') (VS.unsafeIndex v (idxHalf i j))
+    VS.unsafeFreeze mv
+
 -- | A data type for named lists of matrices
 newtype SelfDistMatrixPerIndepVar = SelfDistMatrixPerIndepVar [(IndepVarName, SelfDistMatrix)]
     deriving (Generic, Show, Eq)
@@ -102,6 +139,14 @@ instance PseudoMap SelfDistMatrixPerIndepVar SelfDistMatrix where
             Nothing -> throwL $ "Failed lookup. Missing key: " ++ k
     allSameVars xs = allEqual $ map getKeys xs
     filterByKey k (SelfDistMatrixPerIndepVar l) = SelfDistMatrixPerIndepVar (filterByKeyList k l)
+
+removeObservationsMulti
+  :: Int
+  -> VS.Vector Int
+  -> SelfDistMatrixPerIndepVar
+  -> SelfDistMatrixPerIndepVar
+removeObservationsMulti n rm (SelfDistMatrixPerIndepVar xs) =
+  SelfDistMatrixPerIndepVar [ (name, removeObservations n rm mat) | (name, mat) <- xs ]
 
 -- | A data type for a symmetric pairwise distance matrix between two sets;
 -- this matrix has m*n different entries and a rectangular shape
