@@ -570,7 +570,9 @@ instance S.Serialise IndepVarsPos
 instance NFData IndepVarsPos
 instance Csv.FromNamedRecord IndepVarsPos where
     parseNamedRecord m = do
-        (IndepSpatTempPos <$> Csv.parseNamedRecord m) <|> (IndepArbitraryDimPos <$> Csv.parseNamedRecord m)
+            IndepSpatTempPos <$> Csv.parseNamedRecord m
+        <|> (spatPos2IndepVarsPos . SpatPosCartesian <$> Csv.parseNamedRecord m)
+        <|> (IndepArbitraryDimPos <$> Csv.parseNamedRecord m)
 instance Csv.DefaultOrdered IndepVarsPos where
     headerOrder (IndepSpatTempPos x)     = Csv.headerOrder x
     headerOrder (IndepArbitraryDimPos x) = Csv.headerOrder x
@@ -581,6 +583,9 @@ instance Csv.ToRecord IndepVarsPos where
 spatPosFromIndepVarsPos :: IndepVarsPos -> SpatPos
 spatPosFromIndepVarsPos (IndepSpatTempPos (SpatTempPos s _)) = s
 spatPosFromIndepVarsPos pos = throwL $ "Expected spatio-temporal position, but got " ++ show pos
+
+spatPos2IndepVarsPos :: SpatPos -> IndepVarsPos
+spatPos2IndepVarsPos x = IndepSpatTempPos (SpatTempPos x (TempPos 0))
 
 tempPosFromIndepVarsPos :: IndepVarsPos -> TempPos
 tempPosFromIndepVarsPos (IndepSpatTempPos (SpatTempPos _ t)) = t

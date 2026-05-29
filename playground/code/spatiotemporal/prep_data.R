@@ -27,19 +27,25 @@ library(magrittr)
 test_area <- sf::st_read("data_tracked/test_area.gpkg")
 
 # prediction grid
-spatiotemporal_grid <- mobest::create_prediction_grid(
-  test_area,
-  spatial_cell_size = 30000
-) %>% mobest::geopos_to_spatpos(-7000)
+# spatiotemporal_grid <- mobest::create_prediction_grid(
+#   test_area,
+#   spatial_cell_size = 30000
+# ) %>% mobest::geopos_to_spatpos(-7000)
+# 
+# spatiotemporal_grid %>%
+#   dplyr::select(
+#     spatID = id, x, y
+#   ) %>%
+#   dplyr::mutate(
+#     yearBCAD = -5000
+#   ) %>%
+#   readr::write_tsv(file = "data/spatiotemporal/grid.tsv")
 
-spatiotemporal_grid %>%
-  dplyr::select(
-    spatID = id, x, y
-  ) %>%
-  dplyr::mutate(
-    yearBCAD = -5000
-  ) %>%
-  readr::write_tsv(file = "data/spatiotemporal/grid.tsv")
+sf::write_sf(test_area, "data/spatiotemporal/area.geojson")
+
+system("locest grid --polygonFile data/spatiotemporal/area.geojson -x 50000 -y 50000 -o data/spatiotemporal/grid.tsv")
+grid <- readr::read_tsv("data/spatiotemporal/grid.tsv")
+plot(grid$x, grid$y)
 
 # observations file
 test_observations <- readr::read_tsv("data_tracked/test_observations.janno")

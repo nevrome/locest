@@ -42,9 +42,9 @@ runGrid (GridOptions inPolygonFile resolutionX resolutionY outFile) =  do
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-gridPoint2Pos :: Integer -> Point -> (Integer,IndepVarsPos)
+gridPoint2Pos :: Integer -> Point -> (Integer,SpatPos)
 gridPoint2Pos acc (x,y) =
-    let pos = IndepSpatTempPos (SpatTempPos (SpatPosCartesian (CartesianPos 0 (Just $ show acc) x y)) (TempPos 0))
+    let pos = SpatPosCartesian (CartesianPos 0 (Just $ show acc) x y)
     in (acc + 1, pos)
 
 -- basic types
