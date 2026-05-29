@@ -92,21 +92,25 @@ runSearch (SearchOptions
     else do
         let tempSamples = tempSampleAxis obs maybeTempSamp
             timeSlices  = splitDataByTempGrid maybeTempGrid indepPredGrid depSearchGrid
-            nrOutputRowsMarginal =
-                length indepPredGrid
-              * factor maybeTempGrid length
-              * factor depSearchGrid length
+            workItems =
+                [ (timeSlice, tempSample)
+                | timeSlice  <- timeSlices
+                , tempSample <- tempSamples
+                ]
+            nTempSamples = length tempSamples
+            nrWorkItems  = length workItems
         Con.runConduitRes $
-               ConC.yieldMany timeSlices
-            .| ConL.concatMapM
-                  (liftIO . searchMarginalisedTemp
+               ConC.yieldMany workItems
+            .| ConL.mapM
+                  (liftIO . searchMarginalisedTempOne
                                   spatDistUnitScaling algorithm kernDef
                                   topNObs indepVars obsGridDistances
-                                  obsObsDistances depVars kernels
-                                  tempSamples)
-            .| progress 1000 (Just nrOutputRowsMarginal)
+                                  obsObsDistances depVars kernels)
+            .| progress 1 (Just nrWorkItems)
+            .| ConL.chunksOf nTempSamples
+            .| ConL.concatMap finishMarginalisedTimeSlice
             .| sinkNamedCSV outFile
-        hPutStrLn stderr "Done"
+    hPutStrLn stderr "Done"
 
 factor :: Maybe a -> (a -> Int) -> Int
 factor element extractor = maybe 1 extractor element
@@ -138,7 +142,7 @@ search spatDistUnitScaling algorithm kernDef topNObs indepVars
         perm
     pure $ searchResultsLongToWide kernDef tempIter grid searchDepVarPos perDepVar
 
-searchMarginalisedTemp
+searchMarginalisedTempOne
     :: Double
     -> Algorithm
     -> KernelDefinition
@@ -148,32 +152,39 @@ searchMarginalisedTemp
     -> Maybe SelfDistMatrixPerIndepVar
     -> [DepVarName]
     -> [KernelOneDepVar]
-    -> [(Int, V.Vector Observation)]
-    -> TimeSlice
-    -> IO [SearchResultWide]
-searchMarginalisedTemp spatDistUnitScaling algorithm kernDef topNObs indepVars
+    -> (TimeSlice, (Int, V.Vector Observation))
+    -> IO (TimeSlice, [SearchResultWide])
+searchMarginalisedTempOne spatDistUnitScaling algorithm kernDef topNObs indepVars
     maybeObsGridDists maybeObsObsDists depVars kernelsPerDepVar
-    tempSamples (grid, searchDepVarPos) = do
-    rowsPerTempSample <- forM tempSamples $ \(tempIter, obs') -> do
-        perDepVar <- searchPerDepVar
-            spatDistUnitScaling
-            algorithm
-            topNObs
-            indepVars
-            maybeObsGridDists
-            maybeObsObsDists
-            depVars
-            kernelsPerDepVar
-            (Permutation tempIter obs' grid Nothing searchDepVarPos)
-        pure $
-            searchResultsLongToWideRaw
-            kernDef
-            tempIter
-            grid
-            searchDepVarPos
-            perDepVar
-    let marginalRows = marginaliseTempRows rowsPerTempSample
-    pure $
+    (timeSlice@(grid, searchDepVarPos), (tempIter, obs')) = do
+    perDepVar <- searchPerDepVar
+        spatDistUnitScaling
+        algorithm
+        topNObs
+        indepVars
+        maybeObsGridDists
+        maybeObsObsDists
+        depVars
+        kernelsPerDepVar
+        (Permutation tempIter obs' grid Nothing searchDepVarPos)
+    pure
+        ( timeSlice
+        , searchResultsLongToWideRaw
+              kernDef
+              tempIter
+              grid
+              searchDepVarPos
+              perDepVar
+        )
+
+finishMarginalisedTimeSlice
+    :: [(TimeSlice, [SearchResultWide])]
+    -> [SearchResultWide]
+finishMarginalisedTimeSlice [] = []
+finishMarginalisedTimeSlice xs@(((grid, searchDepVarPos), _) : _) =
+    let rowsPerTempSample = map snd xs
+        marginalRows = marginaliseTempRows rowsPerTempSample
+    in
         if isJust searchDepVarPos && isSpatioTemporal grid
         then normaliseByTimeSlice marginalRows
         else marginalRows
