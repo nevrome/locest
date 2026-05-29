@@ -184,7 +184,7 @@ cowplot::plot_grid(p1, p2)
 # OMP_NUM_THREADS=20 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -RTS
 # hp2ps -c locest.hp
 
-system('time OMP_NUM_THREADS=16 locest search --configFile code/spatiotemporal/basic.conf')
+system('time OMP_NUM_THREADS=10 locest search --configFile code/spatiotemporal/basic.conf')
 
 # run with slurm
 # srun --cpus-per-task=20 --export=ALL,OMP_NUM_THREADS=20 time locest search --configFile code/spatiotemporal/basic.conf

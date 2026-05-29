@@ -41,9 +41,9 @@ test_area <- sf::st_read("data_tracked/test_area.gpkg")
 #   ) %>%
 #   readr::write_tsv(file = "data/spatiotemporal/grid.tsv")
 
-sf::write_sf(test_area, "data/spatiotemporal/area.geojson")
+sf::write_sf(test_area, "data/spatiotemporal/area.geojson", delete_dsn = TRUE)
 
-system("locest grid --polygonFile data/spatiotemporal/area.geojson -x 50000 -y 50000 -o data/spatiotemporal/grid.tsv")
+system("locest grid --polygonFile data/spatiotemporal/area.geojson -x 75000 -y 75000 -o data/spatiotemporal/grid.tsv")
 grid <- readr::read_tsv("data/spatiotemporal/grid.tsv")
 plot(grid$x, grid$y)
 
