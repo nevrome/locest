@@ -2,20 +2,20 @@
 
 module LocEst.CLI.Grid where
 
-import LocEst.Types
-import LocEst.Parsers
-import LocEst.Utils
+import           LocEst.Parsers
+import           LocEst.Types
+import           LocEst.Utils
 
-import Data.Aeson
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Vector as V
-import Data.List (sort,mapAccumL)
-import qualified Data.Aeson.KeyMap as KM
-import qualified Data.Aeson.Key as K
-import           System.IO                (hPutStrLn, stderr)
+import           Data.Aeson
+import qualified Data.Aeson.Key           as K
+import qualified Data.Aeson.KeyMap        as KM
+import qualified Data.ByteString.Lazy     as BL
+import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
-import           Data.Conduit             ((.|))
+import           Data.List                (mapAccumL, sort)
+import qualified Data.Vector              as V
+import           System.IO                (hPutStrLn, stderr)
 
 data GridOptions = GridOptions
     { _gridInPolygonFile :: FilePath
@@ -66,7 +66,7 @@ extractPolygons (Object o) =
     Just (String "FeatureCollection") ->
       case o .! "features" of
         Just (Array fs) -> concatMap extractPolygons (V.toList fs)
-        _ -> []
+        _               -> []
     Just (String "Feature") ->
       case o .! "geometry" of
         Just g  -> extractPolygons g
@@ -91,13 +91,13 @@ extractPolygons _ = []
 
 parseRing :: Value -> Ring
 parseRing (Array pts) = map parsePoint (V.toList pts)
-parseRing _ = []
+parseRing _           = []
 
 parsePoint :: Value -> Point
 parsePoint (Array v)
     | V.length v >= 2 = case (v V.! 0, v V.! 1) of
         (Number x, Number y) -> (realToFrac x, realToFrac y)
-        _ -> error "Invalid coordinate"
+        _                    -> error "Invalid coordinate"
 parsePoint _ = error "Invalid point"
 
 -- bounding box

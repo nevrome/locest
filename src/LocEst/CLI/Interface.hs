@@ -6,10 +6,10 @@ module LocEst.CLI.Interface where
 
 import           LocEst.CLI.ConfigLang
 import           LocEst.CLI.Cross
+import           LocEst.CLI.Grid
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
-import           LocEst.CLI.Grid
 import           LocEst.Types
 import           LocEst.Utils
 
@@ -84,7 +84,7 @@ optParseInPolygonFile = OP.strOption (
     OP.metavar "FILE" <>
     OP.help "GeoJSON file defining a spatial area in a projected coordinate reference system (CRS). \
             \ Spherical coordinate systems (Longitude/Latitude) are not supported.")
-    
+
 optParseInResolutionX :: OP.Parser Double
 optParseInResolutionX = OP.option OP.auto (
     OP.long "resolutionX" <>
