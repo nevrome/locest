@@ -134,6 +134,7 @@ searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions
                         <$> optParseInObservationFile
                         <*> OP.optional optParseInObsTempSamplesFile
+                        <*> pure False
                         <*> optParseInIndepVarGridFile
                         <*> OP.optional optParseTempGridString
                         <*> OP.optional optParseSearchPositions

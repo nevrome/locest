@@ -184,7 +184,7 @@ cowplot::plot_grid(p1, p2)
 # OMP_NUM_THREADS=20 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -RTS
 # hp2ps -c locest.hp
 
-system('time OMP_NUM_THREADS=3 locest search --configFile code/spatiotemporal/basic.conf')
+system('time OMP_NUM_THREADS=16 locest search --configFile code/spatiotemporal/basic.conf')
 
 # run with slurm
 # srun --cpus-per-task=20 --export=ALL,OMP_NUM_THREADS=20 time locest search --configFile code/spatiotemporal/basic.conf
@@ -203,7 +203,7 @@ search_res %>% dplyr::group_by(search_obsID, grid_yearBCAD) %>%
 
 search_res %>%
   dplyr::mutate(probability = search_probability) %>%
-  dplyr::filter(temp_sampling_iteration == 0) %>%
+  #dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(grid_yearBCAD), cols = dplyr::vars(search_obsID)) +
   geom_raster(aes(grid_x, grid_y, fill = probability)) +
