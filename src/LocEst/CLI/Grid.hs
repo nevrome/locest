@@ -27,6 +27,7 @@ data GridOptions = GridOptions
 runGrid :: GridOptions -> IO ()
 runGrid (GridOptions inPolygonFile resolutionX resolutionY outFile) =  do
     polys <- readPolygons inPolygonFile
+    hPutStrLn stderr "Preparing grid"
     let (xmin,ymin,_,ymax) = bbox polys
         ys = [ymin, ymin+resolutionY .. ymax]
         gripPoints = [ p
@@ -55,6 +56,7 @@ type Polygon = [Ring] -- exterior:holes
 -- GeoJSON parsing
 readPolygons :: FilePath -> IO [Polygon]
 readPolygons fp = do
+  hPutStrLn stderr "Reading polygons"
   bs <- BL.readFile fp
   case eitherDecode bs of
     Left err -> error err
