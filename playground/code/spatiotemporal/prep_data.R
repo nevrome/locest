@@ -81,9 +81,11 @@ test_observations %>%
           purrr::pmap_chr(
             list(Poseidon_ID, Date_C14_Uncal_BP, Date_C14_Uncal_BP_Err),
             \(id, bp, sigma) {
+              bp_split <- stringr::str_split_1(bp, ";")
+              sigma_split <- stringr::str_split_1(sigma, ";")
               paste0(
                 id, ": ",
-                paste0("(", bp, ",", sigma, ")", collapse = " + "))
+                paste0("(", bp_split, ",", sigma_split, ")", collapse = " + "))
             }
           ),
         TRUE ~ paste0(
