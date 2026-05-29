@@ -134,7 +134,6 @@ searchOptParser :: OP.Parser SearchOptions
 searchOptParser = SearchOptions
                         <$> optParseInObservationFile
                         <*> OP.optional optParseInObsTempSamplesFile
-                        <*> optParseMarginaliseTempSamp
                         <*> optParseInIndepVarGridFile
                         <*> OP.optional optParseTempGridString
                         <*> OP.optional optParseSearchPositions
@@ -543,15 +542,6 @@ optParseInObsTempSamplesFile = OP.strOption (
     <> OH.hardline <>     "│   b │        │"
     <> OH.hardline <>     "└─────┴────────┘"
     ))
-    )
-
-optParseMarginaliseTempSamp :: OP.Parser Bool
-optParseMarginaliseTempSamp = OP.switch (
-    OP.long "marginaliseOverTempSamp" <>
-    OP.short 'q' <>
-    OP.help "Marginalise over temporal resampling iterations instead of writing one result per iteration. \
-      \For each prediction/search position, likelihoods are averaged over the sampled observation ages \
-      \given in --tempSampFile. The search probabilities are normalised after this temporal marginalisation."
     )
 
 optParseSearchPositions :: OP.Parser DepVarsPredGridSettings

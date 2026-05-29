@@ -61,6 +61,8 @@ data SearchResultLong = SRL {
     , _srlTopObsIDs         :: Maybe String
 } deriving (Eq, Show, Generic)
 
+instance NFData SearchResultLong
+
 -- | A data type for interpolation output, aggregated per row (so per grid position and per search candidate)
 data SearchResultWide = SRW {
       _srwTempSampIter      :: Int

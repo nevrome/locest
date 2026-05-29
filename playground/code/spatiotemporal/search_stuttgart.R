@@ -216,3 +216,4 @@ search_res %>%
   # ) +
   scale_fill_viridis_c() +
   coord_fixed()
+
