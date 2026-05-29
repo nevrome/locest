@@ -16,13 +16,11 @@ import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import qualified Data.Conduit.List        as ConL
-import           Data.List                (intercalate)
+import           Data.List                (intercalate, transpose)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe               (isJust)
 import qualified Data.Vector              as V
 import           System.IO                (hPutStrLn, stderr)
-import Data.List (intercalate, transpose)
-import Data.Maybe (isJust, mapMaybe)
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -121,7 +119,6 @@ search
     -> [IndepVarName]
     -> Maybe CrossDistMatrixPerIndepVar
     -> Maybe SelfDistMatrixPerIndepVar
-    -- -> Maybe SelfDistMatrixPerIndepVar
     -> [DepVarName]
     -> [KernelOneDepVar]
     -> Permutation
@@ -182,62 +179,45 @@ searchMarginalisedTemp spatDistUnitScaling algorithm kernDef topNObs indepVars
         else marginalRows
 
 marginaliseTempRows :: [[SearchResultWide]] -> [SearchResultWide]
-marginaliseTempRows [] = []
+marginaliseTempRows []            = []
 marginaliseTempRows rowsPerSample = map combineRows (transpose rowsPerSample)
 
 combineRows :: [SearchResultWide] -> SearchResultWide
 combineRows [] = error "combineRows: impossible empty row group"
 combineRows rows@(r0:_) =
     let depCount = length (_srwDepVarName r0)
-        combineMaybeLogs :: [Maybe Double] -> Maybe Double
-        combineMaybeLogs xs =
-            case sequence xs of
-              Nothing -> Nothing
-              Just ys -> Just (logMeanExp ys)
-        -- Per-dependent-variable marginal log-likelihoods.
-        --
-        -- These are useful diagnostically, but note that the joint aggregate
-        -- should NOT be reconstructed by summing these afterwards.
-        marginalDepLLs =
-            map combineMaybeLogs $
-                transpose $
-                    map _srwLogLikelihood rows
-        marginalTruthLLs =
-            map combineMaybeLogs $
-                transpose $
-                    map _srwGridLogLikelihood rows
-        -- Correct joint temporal marginalisation.
-        marginalAggLL =
-            combineMaybeLogs $
-                map _srwAggLogLikelihood rows
-        marginalTruthAggLL =
-            combineMaybeLogs $
-                map _srwGridAggLogLik rows
+        -- per-dependent-variable marginal log-likelihoods
+        marginalDepLLs = map combineMaybeLogs $ transpose $ map _srwLogLikelihood rows
+        marginalTruthLLs = map combineMaybeLogs $ transpose $ map _srwGridLogLikelihood rows
+        -- joint temporal marginalisation
+        marginalAggLL = combineMaybeLogs $ map _srwAggLogLikelihood rows
+        marginalTruthAggLL = combineMaybeLogs $ map _srwGridAggLogLik rows
     in r0
         { _srwTempSampIter      = -1
         , _srwTopObsIDs         = replicate depCount Nothing
-
-        -- Do not pretend these are correctly marginalised mixture quantiles.
-        -- Better to output NaN than statistically misleading intervals.
+        -- better to output NaN than statistically misleading intervals
         , _srwLowerBound        = replicate depCount nan
         , _srwMedian            = replicate depCount nan
         , _srwUpperBound        = replicate depCount nan
-
         , _srwGridLogLikelihood = marginalTruthLLs
         , _srwGridAggLogLik     = marginalTruthAggLL
         , _srwLogLikelihood     = marginalDepLLs
         , _srwAggLogLikelihood  = marginalAggLL
         , _srwProbability       = Nothing
         }
-
-logMeanExp :: [Double] -> Double
-logMeanExp [] = nan
-logMeanExp xs =
-    let m = maximum xs
-    in if isInfinite m && m < 0
-       then -inf
-       else m + log (sum [exp (x - m) | x <- xs])
-              - log (fromIntegral (length xs))
+    where
+        combineMaybeLogs :: [Maybe Double] -> Maybe Double
+        combineMaybeLogs xs = case sequence xs of
+              Nothing -> Nothing
+              Just ys -> Just (logMeanExp ys)
+        logMeanExp :: [Double] -> Double
+        logMeanExp [] = nan
+        logMeanExp xs =
+            let m = maximum xs
+            in if isInfinite m && m < 0
+               then -inf
+               else m + log (sum [exp (x - m) | x <- xs])
+                      - log (fromIntegral (length xs))
 
 searchPerDepVar
     :: Double
@@ -254,7 +234,8 @@ searchPerDepVar
 searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
      maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
      depVars kernelsPerDepVar
-     (Permutation _ obs grid maybeGridTrueDep searchDepVarPos) =
+     (Permutation _ obs grid maybeGridTrueDep searchDepVarPos) = do
+    hPutStrLn stderr "Starting block..."
     case algorithm of
         GPR -> do
             distsObsGrid <- case maybeObsGridDists of
