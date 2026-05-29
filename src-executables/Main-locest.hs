@@ -166,4 +166,4 @@ subcommandParser = OP.subparser (
             (OP.progDesc "Transform input data to compact binary files in .cbor format \
                          \to load it faster in the other subcommands.")
         gridOptInfo = OP.info (OP.helper <*> (CmdGrid <$> gridOptParser))
-            (OP.progDesc "...")
+            (OP.progDesc "Create a regular spatial prediction grid in an area of interest.")

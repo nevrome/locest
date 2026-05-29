@@ -9,7 +9,7 @@ import LocEst.Utils
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as V
-import Data.List (sort)
+import Data.List (sort,mapAccumL)
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.Aeson.Key as K
 import           System.IO                (hPutStrLn, stderr)
@@ -35,11 +35,17 @@ runGrid (GridOptions inPolygonFile resolutionX resolutionY outFile) =  do
                      , interval <- fillPolygonScanline y poly
                      , p <- emitPoints resolutionX xmin [interval] y
                      ]
-        indepVarsPos = map (\(x,y) -> IndepSpatTempPos (SpatTempPos (SpatPosCartesian (CartesianPos 0 Nothing x y)) (TempPos 0))) gripPoints
+        -- accumulator to give meaningful spatIDs
+        (_,indepVarsPos) = mapAccumL gridPoint2Pos 1 gripPoints
     Con.runConduitRes $
            ConC.yieldMany indepVarsPos
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
+
+gridPoint2Pos :: Integer -> Point -> (Integer,IndepVarsPos)
+gridPoint2Pos acc (x,y) =
+    let pos = IndepSpatTempPos (SpatTempPos (SpatPosCartesian (CartesianPos 0 (Just $ show acc) x y)) (TempPos 0))
+    in (acc + 1, pos)
 
 -- basic types
 type Point   = (Double, Double)

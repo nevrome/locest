@@ -80,20 +80,25 @@ gridOptParser = GridOptions <$> optParseInPolygonFile
 optParseInPolygonFile :: OP.Parser FilePath
 optParseInPolygonFile = OP.strOption (
     OP.long "polygonFile" <>
+    OP.short 'p' <>
     OP.metavar "FILE" <>
-    OP.help "...")
+    OP.help "GeoJSON file defining a spatial area in a projected coordinate reference system (CRS). \
+            \ Spherical coordinate systems (Longitude/Latitude) are not supported.")
     
 optParseInResolutionX :: OP.Parser Double
 optParseInResolutionX = OP.option OP.auto (
-    OP.long "x" <>
-    OP.help "..." <>
+    OP.long "resolutionX" <>
+    OP.short 'x' <>
+    OP.help "Desired distance of the output positions in X direction in the units of the relevant CRS \
+            \(usually metres)." <>
     OP.metavar "DOUBLE"
     )
 
 optParseInResolutionY :: OP.Parser Double
 optParseInResolutionY = OP.option OP.auto (
-    OP.long "y" <>
-    OP.help "..." <>
+    OP.long "resolutionY" <>
+    OP.short 'y' <>
+    OP.help "As --resolutionX, but for the Y direction." <>
     OP.metavar "DOUBLE"
     )
 

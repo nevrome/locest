@@ -15,7 +15,8 @@ land_outline <- sf::st_intersection(land_outline_small, research_area)
 plot(land_outline)
 sf::write_sf(land_outline, "data/spatiotemporal/area.geojson")
 
-system("locest grid --polygonFile data/spatiotemporal/area.geojson --x 75000 --y 200000 -o data/spatiotemporal/grid2.tsv")
+system("locest grid --polygonFile data/spatiotemporal/area.geojson -x 75000 -y 200000 -o data/spatiotemporal/grid2.tsv")
+system("locest grid --polygonFile data/spatiotemporal/area.geojson -x 75000 -y 200000")
 grid2 <- readr::read_tsv("data/spatiotemporal/grid2.tsv")
 
 plot(grid2$x, grid2$y)
