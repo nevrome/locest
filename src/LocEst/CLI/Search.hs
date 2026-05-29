@@ -235,7 +235,6 @@ searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
      maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
      depVars kernelsPerDepVar
      (Permutation _ obs grid maybeGridTrueDep searchDepVarPos) = do
-    hPutStrLn stderr "Starting block..."
     case algorithm of
         GPR -> do
             distsObsGrid <- case maybeObsGridDists of
