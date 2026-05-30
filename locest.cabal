@@ -20,7 +20,8 @@ library
     exposed-modules:
       LocEst.CLI.Search, LocEst.Types, LocEst.TypesFlat, LocEst.TypesUtils, LocEst.Parsers, LocEst.Distance,
       LocEst.CLI.Interface, LocEst.CLI.ConfigLang, LocEst.CoreAlgorithms, LocEst.Utils,
-      LocEst.CLI.Serialise, LocEst.CLI.Vario, LocEst.CLI.VarioFit, LocEst.CLI.Cross, LocEst.CLI.Grid
+      LocEst.CLI.Serialise, LocEst.CLI.Vario, LocEst.CLI.VarioFit, LocEst.CLI.Cross, LocEst.CLI.Grid,
+      LocEst.Distributions
     hs-source-dirs:
       src
     build-depends:

@@ -6,6 +6,7 @@ module LocEst.CLI.Search where
 
 import           LocEst.CoreAlgorithms
 import           LocEst.Distance
+import           LocEst.Distributions
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.TypesFlat
@@ -147,9 +148,13 @@ marginaliseTempRows []            = []
 marginaliseTempRows rowsPerSample = map combineRows (transpose rowsPerSample)
 
 combineRows :: [SearchResultWide] -> SearchResultWide
-combineRows [] = error "combineRows: impossible empty row group"
+combineRows [] = throwL "combineRows: impossible empty row group"
 combineRows rows@(r0:_) =
     let depCount = length (_srwDepVarName r0)
+        marginalDists =
+            [ combineMaybeDists [ ds !! depIx | ds <- map _srwPredDist rows ]
+            | depIx <- [0 .. depCount - 1]
+            ]
         -- per-dependent-variable marginal log-likelihoods
         marginalDepLLs = map combineMaybeLogs $ transpose $ map _srwLogLikelihood rows
         marginalTruthLLs = map combineMaybeLogs $ transpose $ map _srwGridLogLikelihood rows
@@ -159,10 +164,7 @@ combineRows rows@(r0:_) =
     in r0
         { _srwTempSampIter      = -1
         , _srwTopObsIDs         = replicate depCount Nothing
-        -- better to output NaN than statistically misleading intervals
-        , _srwLowerBound        = replicate depCount nan
-        , _srwMedian            = replicate depCount nan
-        , _srwUpperBound        = replicate depCount nan
+        , _srwPredDist          = marginalDists
         , _srwGridLogLikelihood = marginalTruthLLs
         , _srwGridAggLogLik     = marginalTruthAggLL
         , _srwLogLikelihood     = marginalDepLLs
@@ -170,18 +172,14 @@ combineRows rows@(r0:_) =
         , _srwProbability       = Nothing
         }
     where
+        combineMaybeDists :: [Maybe PredDist] -> Maybe PredDist
+        combineMaybeDists xs = case sequence xs of
+              Nothing -> Nothing
+              Just ds -> Just (PredMixture ds)
         combineMaybeLogs :: [Maybe Double] -> Maybe Double
         combineMaybeLogs xs = case sequence xs of
               Nothing -> Nothing
               Just ys -> Just (logMeanExp ys)
-        logMeanExp :: [Double] -> Double
-        logMeanExp [] = nan
-        logMeanExp xs =
-            let m = maximum xs
-            in if isInfinite m && m < 0
-               then -inf
-               else m + log (sum [exp (x - m) | x <- xs])
-                      - log (fromIntegral (length xs))
 
 searchPerDepVar
     :: Double
@@ -260,9 +258,7 @@ searchResultsLongToWideRaw kernDef tempSamplingIteration grid searchDepVarPos pe
                  , _srwGridIndepVarsPos  = grid V.! i
                  , _srwTopObsIDs         = map _srlTopObsIDs resAtI
                  , _srwDepVarName        = map _srlDepVarName resAtI
-                 , _srwLowerBound        = map _srlLowerBound resAtI
-                 , _srwMedian            = map _srlMedian resAtI
-                 , _srwUpperBound        = map _srlUpperBound resAtI
+                 , _srwPredDist          = map _srlPredDist resAtI
                  , _srwGridLogLikelihood = truthLLs
                  , _srwGridAggLogLik     = sumIfAllJust truthLLs
                  , _srwSearchPos         = mSearchOne

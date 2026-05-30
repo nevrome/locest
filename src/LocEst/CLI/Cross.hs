@@ -3,6 +3,7 @@
 
 module LocEst.CLI.Cross where
 
+import           LocEst.Distributions
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.TypesFlat
@@ -132,7 +133,7 @@ cross spatDistUnitScaling algorithm indepVars maybeFullObsObsDists seed nTestObs
     let (sumSqErr, sumLL, n) =  V.ifoldl' step (0, 0, 0 :: Int) depRes
         step (!sse, !sll, !k) i srl =
             let trueVal  = lookupUnsafe (trueVals V.! i) oneDepVar
-                medianV  = _srlMedian srl
+                medianV  = maybe nan (\x -> predQuantile x 0.5) (_srlPredDist srl)
                 d        = medianV - trueVal
                 ll       = fromMaybe (-inf) (_srlGridLogLikelihood srl)
             in (sse + d * d, sll + ll, k + 1)
