@@ -205,7 +205,7 @@ search_res %>%
   #dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(grid_yearBCAD), cols = dplyr::vars(search_obsID)) +
-  geom_raster(aes(grid_x, grid_y, fill = interpol_median_depC1)) + #search_probability)) +
+  geom_raster(aes(grid_x, grid_y, fill = interpol_upper_quant_depC1)) + #search_probability)) +
   # geom_point(
   #   data = obs %>%
   #     dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%

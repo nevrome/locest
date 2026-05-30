@@ -121,15 +121,7 @@ search spatDistUnitScaling algorithm kernDef topNObs indepVars
         kernelsPerDepVar
         (Permutation tempIter obs' grid Nothing searchDepVarPos)
     perDepVar' <- evaluate (force perDepVar)
-    pure
-        ( timeSlice
-        , searchResultsLongToWideRaw
-              kernDef
-              tempIter
-              grid
-              searchDepVarPos
-              perDepVar'
-        )
+    pure ( timeSlice, searchResultsLongToWideRaw kernDef grid searchDepVarPos perDepVar')
 
 finishMarginalisedTimeSlice
     :: [(TimeSlice, [SearchResultWide])]
@@ -162,8 +154,7 @@ combineRows rows@(r0:_) =
         marginalAggLL = combineMaybeLogs $ map _srwAggLogLikelihood rows
         marginalTruthAggLL = combineMaybeLogs $ map _srwGridAggLogLik rows
     in r0
-        { _srwTempSampIter      = -1
-        , _srwTopObsIDs         = replicate depCount Nothing
+        { _srwTopObsIDs         = replicate depCount Nothing
         , _srwPredDist          = marginalDists
         , _srwGridLogLikelihood = marginalTruthLLs
         , _srwGridAggLogLik     = marginalTruthAggLL
@@ -237,12 +228,11 @@ searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
 
 searchResultsLongToWideRaw
     :: KernelDefinition
-    -> Int
     -> V.Vector IndepVarsPos
     -> Maybe (V.Vector DepVarsPredPos)
     -> [V.Vector SearchResultLong]
     -> [SearchResultWide]
-searchResultsLongToWideRaw kernDef tempSamplingIteration grid searchDepVarPos perDepVar =
+searchResultsLongToWideRaw kernDef grid searchDepVarPos perDepVar =
     concatMap rowsForGridIdx [0 .. V.length grid - 1]
   where
     rowsForGridIdx :: Int -> [SearchResultWide]
@@ -253,8 +243,7 @@ searchResultsLongToWideRaw kernDef tempSamplingIteration grid searchDepVarPos pe
           mkRow mSearchOne llsOne =
             let truthLLs = map _srlGridLogLikelihood resAtI
             in SRW
-                 { _srwTempSampIter      = tempSamplingIteration
-                 , _srwKernDef           = kernDef
+                 { _srwKernDef           = kernDef
                  , _srwGridIndepVarsPos  = grid V.! i
                  , _srwTopObsIDs         = map _srlTopObsIDs resAtI
                  , _srwDepVarName        = map _srlDepVarName resAtI

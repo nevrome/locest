@@ -64,8 +64,7 @@ instance NFData SearchResultLong
 
 -- | A data type for interpolation output, aggregated per row (so per grid position and per search candidate)
 data SearchResultWide = SRW {
-      _srwTempSampIter      :: Int
-    , _srwKernDef           :: KernelDefinition
+      _srwKernDef           :: KernelDefinition
     , _srwGridIndepVarsPos  :: IndepVarsPos
     , _srwTopObsIDs         :: [Maybe String]
     , _srwDepVarName        :: [DepVarName]
@@ -80,7 +79,7 @@ data SearchResultWide = SRW {
 
 instance Csv.DefaultOrdered SearchResultWide where
     headerOrder
-      (SRW _ kernDef gridIndep topObs names _predDists gridLLs gridAgg mSearch lls aggLLs probs) =
+      (SRW kernDef gridIndep topObs names _predDists gridLLs gridAgg mSearch lls aggLLs probs) =
         let perDepCols :: DepVarName -> [Bchs.ByteString]
             perDepCols dv =
               map Bchs.pack
@@ -92,8 +91,7 @@ instance Csv.DefaultOrdered SearchResultWide where
                   ++ ["grid_log_likelihood_" ++ dv | not (all isNothing gridLLs)]
                   ++ ["search_log_likelihood_" ++ dv | not (all isNothing lls)]
                 )
-        in    Csv.header ["temp_sampling_iteration"]
-           <> Csv.headerOrder kernDef
+        in    Csv.headerOrder kernDef
            <> V.map ("grid_" <>) (Csv.headerOrder gridIndep)
            <> maybe V.empty Csv.headerOrder mSearch
            <> V.fromList (concatMap perDepCols names)
@@ -102,7 +100,7 @@ instance Csv.DefaultOrdered SearchResultWide where
            <> maybe V.empty (const $ Csv.header ["search_probability"]) probs
 instance Csv.ToRecord SearchResultWide where
     toRecord
-      (SRW tsi kernDef gridIndep topObs names predDists gridLLs gridAgg mSearch lls aggLLs probs) =
+      (SRW kernDef gridIndep topObs names predDists gridLLs gridAgg mSearch lls aggLLs probs) =
         let n = length names
             seg i = Csv.record
                 ( [ predQuantileMaybe (predDists !! i) 0.025
@@ -113,8 +111,7 @@ instance Csv.ToRecord SearchResultWide where
                   ++ [ toFieldMaybeDouble (gridLLs !! i) | not (all isNothing gridLLs) ]
                   ++ [ toFieldMaybeDouble (lls !! i) | not (all isNothing lls) ]
                 )
-        in    Csv.record [Csv.toField tsi]
-           <> Csv.toRecord kernDef
+        in    Csv.toRecord kernDef
            <> Csv.toRecord gridIndep
            <> maybe V.empty Csv.toRecord mSearch
            <> V.concat [ seg i | i <- [0 .. n - 1] ]
