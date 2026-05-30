@@ -41,33 +41,6 @@ predQuantile (PredStudentT dof mu scale) p =
 predQuantile (PredMixture ds) p =
     mixtureQuantile ds p
 
-predCDF :: PredDist -> Double -> Double
-predCDF (PredNormal mu sd) x =
-    cumulative (normalDistr mu sd) x
-predCDF (PredStudentT dof mu scale) x =
-    cumulative (studentTUnstandardized dof mu scale) x
-predCDF (PredMixture ds) x =
-    case ds of
-      [] -> nan
-      _  -> sum [predCDF d x | d <- ds] / fromIntegral (length ds)
-
-predLogDensity :: PredDist -> Double -> Double
-predLogDensity (PredNormal mu sd) x =
-    logDensity (normalDistr mu sd) x
-predLogDensity (PredStudentT dof mu scale) x =
-    logDensity (studentTUnstandardized dof mu scale) x
-predLogDensity (PredMixture ds) x =
-    logMeanExp [predLogDensity d x | d <- ds]
-
-logMeanExp :: [Double] -> Double
-logMeanExp [] = nan
-logMeanExp xs =
-    let m = maximum xs
-    in if isInfinite m && m < 0
-       then -inf
-       else m + log (sum [exp (x - m) | x <- xs])
-              - log (fromIntegral (length xs))
-
 mixtureQuantile :: [PredDist] -> Double -> Double
 mixtureQuantile [] _ = nan
 mixtureQuantile ds p = bisect 100 lo0 hi0
@@ -76,6 +49,7 @@ mixtureQuantile ds p = bisect 100 lo0 hi0
     loStart = minimum [predQuantile d eps | d <- ds]
     hiStart = maximum [predQuantile d (1 - eps) | d <- ds]
     mixtureCDF x = sum [predCDF d x | d <- ds] / fromIntegral (length ds)
+    -- safety measure, in case p is too small/large
     expand lo hi
         | mixtureCDF lo <= p && mixtureCDF hi >= p = (lo, hi)
         | otherwise =
@@ -89,3 +63,33 @@ mixtureQuantile ds p = bisect 100 lo0 hi0
         in if mixtureCDF mid >= p
            then bisect (n - 1) lo mid
            else bisect (n - 1) mid hi
+
+predCDF :: PredDist -> Double -> Double
+predCDF (PredNormal mu sd) x =
+    cumulative (normalDistr mu sd) x
+predCDF (PredStudentT dof mu scale) x =
+    cumulative (studentTUnstandardized dof mu scale) x
+predCDF (PredMixture ds) x =
+    -- average of the components CDFs
+    case ds of
+      [] -> nan
+      _  -> sum [predCDF d x | d <- ds] / fromIntegral (length ds)
+
+predLogDensity :: PredDist -> Double -> Double
+predLogDensity (PredNormal mu sd) x =
+    logDensity (normalDistr mu sd) x
+predLogDensity (PredStudentT dof mu scale) x =
+    logDensity (studentTUnstandardized dof mu scale) x
+predLogDensity (PredMixture ds) x =
+    logMeanExp [predLogDensity d x | d <- ds]
+
+-- numerically safer version of
+-- log (sum (map exp xs) / fromIntegral (length xs))
+logMeanExp :: [Double] -> Double
+logMeanExp [] = nan
+logMeanExp xs =
+    let m = maximum xs
+    in if isInfinite m && m < 0
+       then -inf
+       else m + log (sum [exp (x - m) | x <- xs])
+              - log (fromIntegral (length xs))
