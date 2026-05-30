@@ -6,6 +6,7 @@ module LocEst.CLI.Interface where
 
 import           LocEst.CLI.ConfigLang
 import           LocEst.CLI.Cross
+import           LocEst.CLI.Grid
 import           LocEst.CLI.Search
 import           LocEst.CLI.Serialise
 import           LocEst.CLI.Vario
@@ -69,6 +70,37 @@ parseConfigFile toIgnore configFile = do
     trim = let f = reverse . dropWhile isSpace in f . f
 
 -- optparse-applicative interface
+
+gridOptParser :: OP.Parser GridOptions
+gridOptParser = GridOptions <$> optParseInPolygonFile
+                            <*> optParseInResolutionX
+                            <*> optParseInResolutionY
+                            <*> optParseOutFile
+
+optParseInPolygonFile :: OP.Parser FilePath
+optParseInPolygonFile = OP.strOption (
+    OP.long "polygonFile" <>
+    OP.short 'p' <>
+    OP.metavar "FILE" <>
+    OP.help "GeoJSON file defining a spatial area in a projected coordinate reference system (CRS). \
+            \ Spherical coordinate systems (Longitude/Latitude) are not supported.")
+
+optParseInResolutionX :: OP.Parser Double
+optParseInResolutionX = OP.option OP.auto (
+    OP.long "resolutionX" <>
+    OP.short 'x' <>
+    OP.help "Desired distance of the output positions in X direction in the units of the relevant CRS \
+            \(usually metres)." <>
+    OP.metavar "DOUBLE"
+    )
+
+optParseInResolutionY :: OP.Parser Double
+optParseInResolutionY = OP.option OP.auto (
+    OP.long "resolutionY" <>
+    OP.short 'y' <>
+    OP.help "As --resolutionX, but for the Y direction." <>
+    OP.metavar "DOUBLE"
+    )
 
 serialiseOptParser :: OP.Parser SerialiseOptions
 serialiseOptParser = SerialiseOptions <$> OP.subparser (

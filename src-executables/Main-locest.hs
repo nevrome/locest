@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           LocEst.CLI.Cross         (CrossOptions (..), runCross)
+import           LocEst.CLI.Grid          (GridOptions (..), runGrid)
 import           LocEst.CLI.Interface
 import           LocEst.CLI.Search        (SearchOptions (..), runSearch)
 import           LocEst.CLI.Serialise     (SerialiseOptions (..), runSerialise)
@@ -35,6 +36,7 @@ data Subcommand =
     | CmdVario VarioOptions
     | CmdVarioFit VarioFitOptions
     | CmdCross CrossOptions
+    | CmdGrid GridOptions
 
 -- CLI interface configuration
 main :: IO ()
@@ -105,6 +107,7 @@ runCmd o spatDistUnitScaling = case o of
     CmdVario opts     -> runVario opts spatDistUnitScaling
     CmdVarioFit opts  -> runVarioFit opts
     CmdCross opts     -> runCross opts spatDistUnitScaling
+    CmdGrid opts      -> runGrid opts
 
 optParserInfo :: OP.ParserInfo Options
 optParserInfo = OP.info (
@@ -145,6 +148,7 @@ subcommandParser = OP.subparser (
         <> OP.command "variofit" varioFitOptInfo
         <> OP.command "cross" crossOptInfo
         <> OP.command "serialise" serialiseOptInfo
+        <> OP.command "grid" gridOptInfo
     )
     where
         searchOptInfo = OP.info (OP.helper <*> (CmdSearch <$> searchOptParser))
@@ -161,3 +165,5 @@ subcommandParser = OP.subparser (
         serialiseOptInfo = OP.info (OP.helper <*> (CmdSerialise <$> serialiseOptParser))
             (OP.progDesc "Transform input data to compact binary files in .cbor format \
                          \to load it faster in the other subcommands.")
+        gridOptInfo = OP.info (OP.helper <*> (CmdGrid <$> gridOptParser))
+            (OP.progDesc "Create a regular spatial prediction grid in an area of interest.")

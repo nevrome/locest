@@ -1,6 +1,8 @@
 library(magrittr)
 library(ggplot2)
 
+#### prepare input data ####
+
 obs <- readr::read_tsv("data/spatiotemporal/obs.tsv")
 grid <- readr::read_tsv("data/spatiotemporal/grid.tsv")
 

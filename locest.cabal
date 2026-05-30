@@ -1,5 +1,5 @@
 name:                locest
-version:             2.0.1.0
+version:             2.0.2.0
 synopsis:            Spatiotemporal interpolation and search
 homepage:            https://github.com/nevrome/locest
 category:            Archaeoinformatics
@@ -20,7 +20,7 @@ library
     exposed-modules:
       LocEst.CLI.Search, LocEst.Types, LocEst.TypesFlat, LocEst.TypesUtils, LocEst.Parsers, LocEst.Distance,
       LocEst.CLI.Interface, LocEst.CLI.ConfigLang, LocEst.CoreAlgorithms, LocEst.Utils,
-      LocEst.CLI.Serialise, LocEst.CLI.Vario, LocEst.CLI.VarioFit, LocEst.CLI.Cross
+      LocEst.CLI.Serialise, LocEst.CLI.Vario, LocEst.CLI.VarioFit, LocEst.CLI.Cross, LocEst.CLI.Grid
     hs-source-dirs:
       src
     build-depends:
@@ -44,6 +44,7 @@ library
       , hmatrix-gsl
       , containers
       , bytestring-lexing
+      , aeson
     default-language:
       Haskell2010
     ghc-options:

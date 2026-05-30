@@ -1,3 +1,6 @@
+- V 2.0.2.0:
+    - Added a new subcommand `grid` to create a spatial prediction grid given a geojson file with the polygons of interest.
+    - Allowed `--gridFile` to only read a file with spatial coordinates.
 - V 2.0.1.0:
     - Added a resampling feature for the empirical variogram computation. `varioemp` now takes the options `--iterations` `--omitFraction` and `--seed` to run the variogram computation multiple times with a random subset of the distances.
     - Added an option `-k/--kernel` to `variofit` to set the theoretical model shapes (kernels) that should be fitted.

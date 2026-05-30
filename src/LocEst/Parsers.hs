@@ -239,6 +239,12 @@ readIndepVarsPos path = do
     res <- readToVector path
     return res
 
+readSpatPos :: FilePath -> IO (V.Vector SpatPos)
+readSpatPos path = do
+    hPutStrLn stderr "Reading spatial positions"
+    res <- readToVector path
+    return res
+
 readToVector :: (Csv.FromNamedRecord a, S.Serialise a) => FilePath -> IO (V.Vector a)
 readToVector path
     | takeExtension path == ".cbor" = do
