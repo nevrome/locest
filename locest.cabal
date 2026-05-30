@@ -33,6 +33,7 @@ library
       , unordered-containers
       , conduit
       , deepseq
+      , directory
       , vector
       , vector-algorithms
       , optparse-applicative
