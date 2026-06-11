@@ -13,6 +13,7 @@ import qualified Control.Monad                as OP
 import qualified Data.Conduit                 as Con
 import qualified Data.Conduit.Combinators     as ConC
 import qualified Data.Conduit.List            as ConL
+import           Data.Foldable                (foldl')
 import           Data.Function                (on)
 import           Data.List                    (singleton, sort)
 import qualified Data.Vector                  as V

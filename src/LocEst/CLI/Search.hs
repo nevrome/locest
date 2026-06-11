@@ -19,6 +19,7 @@ import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import qualified Data.Conduit.List        as ConL
+import           Data.Foldable            (foldl')
 import           Data.List                (intercalate, transpose)
 import qualified Data.Map.Strict          as Map
 import           Data.Maybe               (isJust)
@@ -144,7 +145,8 @@ combineRows [] = throwL "combineRows: impossible empty row group"
 combineRows rows@(r0:_) =
     let depCount = length (_srwDepVarName r0)
         marginalDists =
-            [ combineMaybeDists [ ds !! depIx | ds <- map _srwPredDist rows ]
+            [ combineMaybeDists
+              [ ds !! depIx | ds <- map _srwPredDist rows ]
             | depIx <- [0 .. depCount - 1]
             ]
         -- per-dependent-variable marginal log-likelihoods
