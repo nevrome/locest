@@ -2,8 +2,6 @@
 
 module LocEst.Distributions where
 
-import           LocEst.Utils
-
 import           Control.DeepSeq
 import           GHC.Generics                     (Generic)
 import           Statistics.Distribution          (cumulative, logDensity,
@@ -11,85 +9,57 @@ import           Statistics.Distribution          (cumulative, logDensity,
 import           Statistics.Distribution.Normal   (normalDistr)
 import           Statistics.Distribution.StudentT (studentTUnstandardized)
 
-normal :: Double -> Double -> Either String PredDist
-normal mu std
-    | isNaN std = Left "sigma is NaN"
-    | std <= 0  = Left "sigma must be > 0"
-    | otherwise = Right $ PredNormal mu std
-
-generalizedStudentT :: Double -> Double -> Double -> Either String PredDist
-generalizedStudentT mu scale dof
-    | isNaN scale = Left "sigma is NaN"
-    | scale <= 0  = Left "sigma must be > 0"
-    | dof   <= 0  = Left "degree of freedoms must be > 0"
-    | otherwise   = Right $ PredStudentT dof mu scale
-
 -- | A data type for the parameters of statistical distributions
 data PredDist
     = PredNormal !Double !Double -- mean, sd
     | PredStudentT !Double !Double !Double -- dof, location, scale
-    | PredMixture [PredDist] -- equally weighted mixture, used after temporal marginalisation
     deriving (Eq, Show, Generic)
 
 instance NFData PredDist
 
-predQuantile :: PredDist -> Double -> Double
-predQuantile (PredNormal mu sd) p =
-    quantile (normalDistr mu sd) p
-predQuantile (PredStudentT dof mu scale) p =
-    quantile (studentTUnstandardized dof mu scale) p
-predQuantile (PredMixture ds) p =
-    mixtureQuantile ds p
+-- smart constructors
+makePredNormal :: Double -> Double -> Either String PredDist
+makePredNormal mu sd
+    | isNaN mu || isNaN sd = Left "normal has NaN"
+    | sd <= 0              = Left "normal sd must be > 0"
+    | otherwise            = Right $ PredNormal mu sd
 
-mixtureQuantile :: [PredDist] -> Double -> Double
-mixtureQuantile [] _ = nan
-mixtureQuantile ds p = bisect 100 lo0 hi0
-  where
-    eps = 1e-12
-    loStart = minimum [predQuantile d eps | d <- ds]
-    hiStart = maximum [predQuantile d (1 - eps) | d <- ds]
-    mixtureCDF x = sum [predCDF d x | d <- ds] / fromIntegral (length ds)
-    -- safety measure, in case p is too small/large
-    expand lo hi
-        | mixtureCDF lo <= p && mixtureCDF hi >= p = (lo, hi)
-        | otherwise =
-            let w = hi - lo
-            in expand (lo - w) (hi + w)
-    (lo0, hi0) = expand loStart hiStart
-    bisect :: Int -> Double -> Double -> Double
-    bisect 0 lo hi = 0.5 * (lo + hi)
-    bisect n lo hi =
-        let mid = 0.5 * (lo + hi)
-        in if mixtureCDF mid >= p
-           then bisect (n - 1) lo mid
-           else bisect (n - 1) mid hi
+makePredStudentT :: Double -> Double -> Double -> Either String PredDist
+makePredStudentT mu scale dof
+    | isNaN dof || isNaN mu || isNaN scale = Left "student-t has NaN parameter"
+    | scale <= 0 = Left "student-t scale must be > 0"
+    | dof <= 1 = Left "student-t mean is undefined for dof <= 1"
+    | dof <= 2 = Left "student-t variance is infinite for dof <= 2"
+    | otherwise = Right $ PredStudentT dof mu scale
+
+-- query distributions
+predQuantile :: PredDist -> Double -> Double
+predQuantile (PredNormal mu sd) p = quantile (normalDistr mu sd) p
+predQuantile (PredStudentT dof mu scale) p = quantile (studentTUnstandardized dof mu scale) p
 
 predCDF :: PredDist -> Double -> Double
-predCDF (PredNormal mu sd) x =
-    cumulative (normalDistr mu sd) x
-predCDF (PredStudentT dof mu scale) x =
-    cumulative (studentTUnstandardized dof mu scale) x
-predCDF (PredMixture ds) x =
-    -- average of the components CDFs
-    case ds of
-      [] -> nan
-      _  -> sum [predCDF d x | d <- ds] / fromIntegral (length ds)
+predCDF (PredNormal mu sd) x = cumulative (normalDistr mu sd) x
+predCDF (PredStudentT dof mu scale) x = cumulative (studentTUnstandardized dof mu scale) x
 
 predLogDensity :: PredDist -> Double -> Double
-predLogDensity (PredNormal mu sd) x =
-    logDensity (normalDistr mu sd) x
-predLogDensity (PredStudentT dof mu scale) x =
-    logDensity (studentTUnstandardized dof mu scale) x
-predLogDensity (PredMixture ds) x =
-    logMeanExp [predLogDensity d x | d <- ds]
+predLogDensity (PredNormal mu sd) x = logDensity (normalDistr mu sd) x
+predLogDensity (PredStudentT dof mu scale) x = logDensity (studentTUnstandardized dof mu scale) x
 
--- numerically safer version of
--- log (sum (map exp xs) / fromIntegral (length xs))
-logMeanExp :: [Double] -> Double
-logMeanExp [] = nan
-logMeanExp xs =
-    let m = maximum xs
-    in if isInfinite m && m < 0
-       then -inf
-       else m + log (sum [exp (x - m) | x <- xs])
-              - log (fromIntegral (length xs))
+predMoments :: PredDist -> (Double, Double)
+predMoments (PredNormal mu sd) = (mu, sd * sd)
+predMoments (PredStudentT dof mu scale) = (mu, scale * scale * dof / (dof - 2))
+    
+-- moment-matched mixture approximation:
+-- given n predictive distributions, this returns a single
+-- normal distribution whose mean and variance match the equally weighted mixture
+mix :: [Maybe PredDist] -> Maybe PredDist
+mix [] = Nothing
+mix [Just x] = Just x
+mix xs = do
+    moments <- traverse (fmap predMoments) xs
+    let n = fromIntegral (length moments)
+        mean = sum [mu | (mu, _) <- moments] / n
+        -- law of total variance
+        var = sum [v + (mu - mean)**2 | (mu, v) <- moments] / n
+        sd = sqrt var
+    either (const Nothing) Just (makePredNormal mean sd)

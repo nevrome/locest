@@ -144,35 +144,15 @@ combineRows :: [SearchResultWide] -> SearchResultWide
 combineRows [] = throwL "combineRows: impossible empty row group"
 combineRows rows@(r0:_) =
     let depCount = length (_srwDepVarName r0)
-        marginalDists =
-            [ combineMaybeDists
-              [ ds !! depIx | ds <- map _srwPredDist rows ]
-            | depIx <- [0 .. depCount - 1]
-            ]
-        -- per-dependent-variable marginal log-likelihoods
-        marginalDepLLs = map combineMaybeLogs $ transpose $ map _srwLogLikelihood rows
-        marginalTruthLLs = map combineMaybeLogs $ transpose $ map _srwGridLogLikelihood rows
-        -- joint temporal marginalisation
-        marginalAggLL = combineMaybeLogs $ map _srwAggLogLikelihood rows
-        marginalTruthAggLL = combineMaybeLogs $ map _srwGridAggLogLik rows
+        predDistPerDepVar = [ mix [ ds !! depIx | ds <- map _srwPredDist rows ] | depIx <- [0 .. depCount - 1] ]
     in r0
         { _srwTopObsIDs         = replicate depCount Nothing
-        , _srwPredDist          = marginalDists
-        , _srwGridLogLikelihood = marginalTruthLLs
-        , _srwGridAggLogLik     = marginalTruthAggLL
-        , _srwLogLikelihood     = marginalDepLLs
-        , _srwAggLogLikelihood  = marginalAggLL
-        , _srwProbability       = Nothing
+        , _srwPredDist          = predDistPerDepVar
+        --, _srwGridLogLikelihood = marginalTruthLLs
+        --, _srwGridAggLogLik     = marginalTruthAggLL
+        --, _srwLogLikelihood     = marginalDepLLs
+        --, _srwAggLogLikelihood  = marginalAggLL
         }
-    where
-        combineMaybeDists :: [Maybe PredDist] -> Maybe PredDist
-        combineMaybeDists xs = case sequence xs of
-              Nothing -> Nothing
-              Just ds -> Just (PredMixture ds)
-        combineMaybeLogs :: [Maybe Double] -> Maybe Double
-        combineMaybeLogs xs = case sequence xs of
-              Nothing -> Nothing
-              Just ys -> Just (logMeanExp ys)
 
 searchPerDepVar
     :: Double

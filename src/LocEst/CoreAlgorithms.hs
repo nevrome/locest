@@ -180,7 +180,7 @@ marginalsFromDiag meanVec varVec =
         let mu  = M.atIndex meanVec i
             var = varVec VS.! i
             std = sqrt var
-        in normal mu std
+        in makePredNormal mu std
 
 -- make positive-definite with the sledgehammer
 -- nearestPD :: Double -> M.Matrix Double -> M.Matrix Double
@@ -206,7 +206,7 @@ kasCore
     -> M.Vector M.R
     -> V.Vector (Either String PredDist)
 kasCore weights y =
-    V.zipWith3 generalizedStudentT (V.convert mu) (V.convert scale) (V.convert dof)
+    V.zipWith3 makePredStudentT (V.convert mu) (V.convert scale) (V.convert dof)
     where
       totalWeight = sumRows weights
       weightedAvg = M.flatten (weights M.<> M.asColumn y) / totalWeight
