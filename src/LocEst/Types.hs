@@ -49,6 +49,22 @@ filterVarsInIndepVarsPos indepVarsWanted (IndepArbitraryDimPos x) =
 
 -- data types
 
+data InterpolResultLong = IRL {
+      _irlDepVarName        :: DepVarName -- name of the dependent variable
+    , _irlPredDist          :: Either String PredDist
+    , _irlGridDepPos        :: Maybe DepVarsPos
+    , _irlTopObsIDs         :: Maybe String
+} deriving (Eq, Show, Generic)
+
+data InterpolResultWide = IRW {
+      _irwKernDef           :: KernelDefinition
+    , _irwGridIndepVarsPos  :: IndepVarsPos
+    , _irwTopObsIDs         :: [Maybe String]
+    , _irwDepVarName        :: [DepVarName]
+    , _irwPredDist          :: [Either String PredDist]
+} deriving (Eq, Show, Generic)
+
+
 -- | A data type for interpolation output for one dependent variable
 data SearchResultLong = SRL {
       _srlDepVarName        :: DepVarName -- name of the dependent variable
@@ -68,7 +84,7 @@ data SearchResultWide = SRW {
     , _srwGridIndepVarsPos  :: IndepVarsPos
     , _srwTopObsIDs         :: [Maybe String]
     , _srwDepVarName        :: [DepVarName]
-    , _srwPredDist          :: [Maybe PredDist]
+    , _srwPredDist          :: [Either String PredDist]
     , _srwGridLogLikelihood :: [Maybe Double]
     , _srwGridAggLogLik     :: Maybe Double
     , _srwSearchPos         :: Maybe DepVarsPredPos
@@ -103,9 +119,9 @@ instance Csv.ToRecord SearchResultWide where
       (SRW kernDef gridIndep topObs names predDists gridLLs gridAgg mSearch lls aggLLs probs) =
         let n = length names
             seg i = Csv.record
-                ( [ predQuantileMaybe (predDists !! i) 0.025
-                  , predQuantileMaybe (predDists !! i) 0.5
-                  , predQuantileMaybe (predDists !! i) 0.975
+                ( [ predQuantileEither (predDists !! i) 0.025
+                  , predQuantileEither (predDists !! i) 0.5
+                  , predQuantileEither (predDists !! i) 0.975
                   ]
                   ++ [ toFieldMaybeString (topObs !! i) | not (all isNothing topObs) ]
                   ++ [ toFieldMaybeDouble (gridLLs !! i) | not (all isNothing gridLLs) ]
@@ -119,12 +135,12 @@ instance Csv.ToRecord SearchResultWide where
            <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble aggLLs]) aggLLs
            <> maybe V.empty (const $ Csv.record [toFieldMaybeDouble probs]) probs
 
-predQuantileMaybe :: Maybe PredDist -> Double -> Csv.Field
-predQuantileMaybe Nothing p
+predQuantileEither :: Either String PredDist -> Double -> Csv.Field
+predQuantileEither (Left _) p
     | p < 0.5   = Csv.toField (OutDouble (-inf))
     | p == 0.5  = Csv.toField (OutDouble nan)
     | otherwise = Csv.toField (OutDouble inf)
-predQuantileMaybe (Just d) p =
+predQuantileEither (Right d) p =
     Csv.toField (OutDouble (predQuantile d p))
 
 toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString

@@ -86,17 +86,21 @@ runSearch (SearchOptions
         nrWorkItems  = length workItems
     Con.runConduitRes $
            ConC.yieldMany workItems
-        .| ConL.mapM (liftIO . search
-                                 spatDistUnitScaling algorithm kernDef
-                                 topNObs indepVars obsGridDistances
-                                 obsObsDistances depVars kernels)
+        .| ConL.mapM (
+            liftIO . interpol
+                spatDistUnitScaling algorithm kernDef
+                topNObs indepVars obsGridDistances
+                obsObsDistances depVars kernels
+           )
         .| progress 1 (Just nrWorkItems)
         .| ConL.chunksOf nTempSamples
-        .| ConL.concatMap finishMarginalisedTimeSlice
+        .| ConL.map aggregateTempSamples
+        .| ConL.map (searchForAllGridPoints depSearchGrid)
+        .| ConL.map normaliseByTimeSlice
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-search
+interpol
     :: Double
     -> Algorithm
     -> KernelDefinition
@@ -107,11 +111,11 @@ search
     -> [DepVarName]
     -> [KernelOneDepVar]
     -> (TimeSlice, (Int, V.Vector Observation))
-    -> IO (TimeSlice, [SearchResultWide])
-search spatDistUnitScaling algorithm kernDef topNObs indepVars
+    -> IO (TimeSlice, [InterpolResultWide])
+interpol spatDistUnitScaling algorithm kernDef topNObs indepVars
     maybeObsGridDists maybeObsObsDists depVars kernelsPerDepVar
-    (timeSlice@(grid, searchDepVarPos), (tempIter, obs')) = do
-    perDepVar <- searchPerDepVar
+    (timeSlice@(grid, _), (tempIter, obs')) = do
+    perDepVar <- interpolPerDepVar
         spatDistUnitScaling
         algorithm
         topNObs
@@ -120,41 +124,11 @@ search spatDistUnitScaling algorithm kernDef topNObs indepVars
         maybeObsObsDists
         depVars
         kernelsPerDepVar
-        (Permutation tempIter obs' grid Nothing searchDepVarPos)
+        (Permutation tempIter obs' grid Nothing)
     perDepVar' <- evaluate (force perDepVar)
-    pure ( timeSlice, searchResultsLongToWideRaw kernDef grid searchDepVarPos perDepVar')
+    pure (timeSlice, interpolLongToWide kernDef grid perDepVar')
 
-finishMarginalisedTimeSlice
-    :: [(TimeSlice, [SearchResultWide])]
-    -> [SearchResultWide]
-finishMarginalisedTimeSlice [] = []
-finishMarginalisedTimeSlice xs@(((grid, searchDepVarPos), _) : _) =
-    let rowsPerTempSample = map snd xs
-        marginalRows = marginaliseTempRows rowsPerTempSample
-    in
-        if isJust searchDepVarPos && isSpatioTemporal grid
-        then normaliseByTimeSlice marginalRows
-        else marginalRows
-
-marginaliseTempRows :: [[SearchResultWide]] -> [SearchResultWide]
-marginaliseTempRows []            = []
-marginaliseTempRows rowsPerSample = map combineRows (transpose rowsPerSample)
-
-combineRows :: [SearchResultWide] -> SearchResultWide
-combineRows [] = throwL "combineRows: impossible empty row group"
-combineRows rows@(r0:_) =
-    let depCount = length (_srwDepVarName r0)
-        predDistPerDepVar = [ mix [ ds !! depIx | ds <- map _srwPredDist rows ] | depIx <- [0 .. depCount - 1] ]
-    in r0
-        { _srwTopObsIDs         = replicate depCount Nothing
-        , _srwPredDist          = predDistPerDepVar
-        --, _srwGridLogLikelihood = marginalTruthLLs
-        --, _srwGridAggLogLik     = marginalTruthAggLL
-        --, _srwLogLikelihood     = marginalDepLLs
-        --, _srwAggLogLikelihood  = marginalAggLL
-        }
-
-searchPerDepVar
+interpolPerDepVar
     :: Double
     -> Algorithm
     -> Int
@@ -165,11 +139,11 @@ searchPerDepVar
     -> [DepVarName]
     -> [KernelOneDepVar]
     -> Permutation
-    -> IO [V.Vector SearchResultLong]
-searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
+    -> IO [V.Vector InterpolResultLong]
+interpolPerDepVar spatDistUnitScaling algorithm topNObs indepVars
      maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
      depVars kernelsPerDepVar
-     (Permutation _ obs grid maybeGridTrueDep searchDepVarPos) = do
+     (Permutation _ obs grid maybeGridTrueDep) = do
     case algorithm of
         GPR -> do
             distsObsGrid <- case maybeObsGridDists of
@@ -196,7 +170,7 @@ searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
             --             forM indepVars (\name -> case lookup name ms of
             --                Just m  -> pure (name, m)
             --                Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
-            return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs searchDepVarPos topNObs) depVars kernelsPerDepVar
+            return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs topNObs) depVars kernelsPerDepVar
         KAS -> do
             distsObsGrid <- case maybeObsGridDists of
                 Nothing -> do
@@ -206,45 +180,61 @@ searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
                         forM indepVars (\name -> case lookup name ms of
                            Just m  -> pure (name, m)
                            Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
-            return $ zipWith (kas obs maybeGridTrueDep distsObsGrid searchDepVarPos topNObs) depVars kernelsPerDepVar
+            return $ zipWith (kas obs maybeGridTrueDep distsObsGrid topNObs) depVars kernelsPerDepVar
 
-searchResultsLongToWideRaw
+interpolLongToWide
     :: KernelDefinition
     -> V.Vector IndepVarsPos
-    -> Maybe (V.Vector DepVarsPredPos)
-    -> [V.Vector SearchResultLong]
-    -> [SearchResultWide]
-searchResultsLongToWideRaw kernDef grid searchDepVarPos perDepVar =
-    concatMap rowsForGridIdx [0 .. V.length grid - 1]
+    -> [V.Vector InterpolResultLong]
+    -> [InterpolResultWide]
+interpolLongToWide kernDef grid perDepVar = map wideGridIdx [0 .. V.length grid - 1]
   where
-    rowsForGridIdx :: Int -> [SearchResultWide]
-    rowsForGridIdx i =
+    wideGridIdx :: Int -> InterpolResultWide
+    wideGridIdx i =
       let resAtI = map (V.! i) perDepVar
-          depCount = length perDepVar
-          mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultWide
-          mkRow mSearchOne llsOne =
-            let truthLLs = map _srlGridLogLikelihood resAtI
-            in SRW
-                 { _srwKernDef           = kernDef
-                 , _srwGridIndepVarsPos  = grid V.! i
-                 , _srwTopObsIDs         = map _srlTopObsIDs resAtI
-                 , _srwDepVarName        = map _srlDepVarName resAtI
-                 , _srwPredDist          = map _srlPredDist resAtI
-                 , _srwGridLogLikelihood = truthLLs
-                 , _srwGridAggLogLik     = sumIfAllJust truthLLs
-                 , _srwSearchPos         = mSearchOne
-                 , _srwLogLikelihood     = llsOne
-                 , _srwAggLogLikelihood  = sumIfAllJust llsOne
-                 , _srwProbability       = Nothing
-                 }
-          llsAt :: Int -> [Maybe Double]
-          llsAt j = [ mv >>= (V.!? j) | mv <- map _srlLogLikelihood resAtI ]
-          rowsNoSearch = [ mkRow Nothing (replicate depCount Nothing) ]
-          rowsWithSearch svec = V.toList $ V.imap (\j sp -> mkRow (Just sp) (llsAt j)) svec
-      in maybe rowsNoSearch rowsWithSearch searchDepVarPos
-    sumIfAllJust xs = do
-      ys <- sequence xs
-      if null ys then Nothing else Just (sum ys)
+      in IRW { 
+               _irwKernDef           = kernDef
+             , _irwGridIndepVarsPos  = grid V.! i
+             , _irwTopObsIDs         = map _irlTopObsIDs resAtI
+             , _irwDepVarName        = map _irlDepVarName resAtI
+             , _irwPredDist          = map _irlPredDist resAtI
+             }
+
+aggregateTempSamples :: [(TimeSlice, [InterpolResultWide])] -> [InterpolResultWide]
+aggregateTempSamples [] = undefined
+aggregateTempSamples xs@(((grid, searchDepVarPos), _) : _) =
+    let rowsPerTempSample = map snd xs
+    in map combine (transpose rowsPerTempSample)
+
+
+combine :: [InterpolResultWide] -> InterpolResultWide
+combine [] = throwL "combineRows: impossible empty row group"
+combine rows@(r0:_) =
+    let depCount = length (_irwDepVarName r0)
+        predDistPerDepVar = [ mix [ ds !! depIx | ds <- map _srwPredDist rows ] | depIx <- [0 .. depCount - 1] ]
+    in r0
+        { _srwTopObsIDs         = replicate depCount Nothing
+        , _srwPredDist          = predDistPerDepVar
+        --, _srwGridLogLikelihood = marginalTruthLLs
+        --, _srwGridAggLogLik     = marginalTruthAggLL
+        --, _srwLogLikelihood     = marginalDepLLs
+        --, _srwAggLogLikelihood  = marginalAggLL
+        }
+
+searchForAllGridPoints :: Maybe (V.Vector DepVarsPredPos) -> [InterpolResultWide] -> [SearchResultWide]
+searchForAllGridPoints = undefined
+
+search :: Maybe (V.Vector DepVarsPredPos) -> InterpolResultWide -> SearchResultWide
+search = undefined
+
+
+
+lookUpLikelihood :: DepVarName -> Either String PredDist -> Maybe DepVarsPos -> Maybe Double
+lookUpLikelihood depVar eitherDistribution maybeDepVarPos = do
+    trueDep <- maybeDepVarPos
+    distribution <- either (const Nothing) Just eitherDistribution
+    let trueVal = lookupUnsafe trueDep depVar
+    pure (predLogDensity distribution trueVal)
 
 -- normalisation mechanism
 normaliseByTimeSlice :: [SearchResultWide] -> [SearchResultWide]
@@ -284,7 +274,6 @@ data Permutation = Permutation {
     , _permObs                   :: V.Vector Observation
     , _permIndepPredGrid         :: V.Vector IndepVarsPos
     , _permGridTrueDep           :: Maybe (V.Vector DepVarsPos)
-    , _permDepSearchGrid         :: Maybe (V.Vector DepVarsPredPos)
 } deriving (Show)
 
 -- axis 1: temporal resampling over observations

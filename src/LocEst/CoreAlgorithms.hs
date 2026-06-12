@@ -21,14 +21,13 @@ gpr :: V.Vector Observation
     -> IndepVarsDistFlat
     -> IndepVarsDistFlat
     -- -> IndepVarsDistFlat
-    -> Maybe (V.Vector DepVarsPredPos)
     -> Int
     -> DepVarName
     -> KernelOneDepVar
-    -> V.Vector SearchResultLong
+    -> V.Vector InterpolResultLong
 gpr obs _ -- grid
     maybeGridTrueDep distsObsGrid distsObsObs -- distsGridGrid
-    maybeSearchValues topNObs depVar kernel =
+    topNObs depVar kernel =
     let values = VS.generate (V.length obs) $ \i -> getDepVarsPos depVar (obs V.! i)
         !weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         !weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
@@ -38,12 +37,16 @@ gpr obs _ -- grid
             Just x  -> x
             Nothing -> throwL "nugget parameter missing in kernel definition"
         resDistribution = gprCore weightsObsObs weightsObsGrid Nothing values nugget
-    in V.imap (\i ed ->
+    in V.imap (\i eitherDistribution ->
         let topObs   = if topNObs > 0
                        then Just $ topNObsIDs topNObs obs weightsObsGrid i
                        else Nothing
-            mTrueDep = maybeGridTrueDep >>= (V.!? i)
-        in seek depVar maybeSearchValues mTrueDep ed topObs
+            maybeTrueDep = maybeGridTrueDep >>= (V.!? i)
+        in IRL { _irlDepVarName = depVar
+               , _irlPredDist   = eitherDistribution
+               , _irlGridDepPos = maybeTrueDep
+               , _irlTopObsIDs  = topObs
+               }
      ) resDistribution
 
 expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
@@ -62,21 +65,24 @@ expandHalfToMatrix n halfVec =
 kas :: V.Vector Observation
     -> Maybe (V.Vector DepVarsPos)
     -> IndepVarsDistFlat
-    -> Maybe (V.Vector DepVarsPredPos)
     -> Int
     -> DepVarName
     -> KernelOneDepVar
-    -> V.Vector SearchResultLong
-kas obs maybeGridTrueDep distsObsGrid maybeSearchValues topNObs depVar kernel =
+    -> V.Vector InterpolResultLong
+kas obs maybeGridTrueDep distsObsGrid topNObs depVar kernel =
     let values = VS.generate (V.length obs) $ \i -> getDepVarsPos depVar (obs V.! i)
         !weightsObsGrid = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         resDistribution = kasCore weightsObsGrid values
-    in V.imap (\i ed ->
+    in V.imap (\i eitherDistribution ->
         let topObs   = if topNObs > 0
                        then Just $ topNObsIDs topNObs obs weightsObsGrid i
                        else Nothing
-            mTrueDep = maybeGridTrueDep >>= (V.!? i)
-        in seek depVar maybeSearchValues mTrueDep ed topObs
+            maybeTrueDep = maybeGridTrueDep >>= (V.!? i)
+        in IRL { _irlDepVarName = depVar
+               , _irlPredDist   = eitherDistribution
+               , _irlGridDepPos = maybeTrueDep
+               , _irlTopObsIDs  = topObs
+               }
      ) resDistribution
 
 topNObsIDs
