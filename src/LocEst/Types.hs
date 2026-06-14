@@ -52,31 +52,20 @@ filterVarsInIndepVarsPos indepVarsWanted (IndepArbitraryDimPos x) =
 data InterpolResultLong = IRL {
       _irlDepVarName        :: DepVarName -- name of the dependent variable
     , _irlPredDist          :: Either String PredDist
-    , _irlGridDepPos        :: Maybe DepVarsPos
+    , _irlGridDepVarsPos    :: Maybe DepVarsPos
     , _irlTopObsIDs         :: Maybe String
 } deriving (Eq, Show, Generic)
+
+instance NFData InterpolResultLong
 
 data InterpolResultWide = IRW {
       _irwKernDef           :: KernelDefinition
     , _irwGridIndepVarsPos  :: IndepVarsPos
+    , _irwGridDepVarsPos    :: [Maybe DepVarsPos]
     , _irwTopObsIDs         :: [Maybe String]
     , _irwDepVarName        :: [DepVarName]
     , _irwPredDist          :: [Either String PredDist]
 } deriving (Eq, Show, Generic)
-
-
--- | A data type for interpolation output for one dependent variable
-data SearchResultLong = SRL {
-      _srlDepVarName        :: DepVarName -- name of the dependent variable
-    , _srlPredDist          :: Maybe PredDist
-    , _srlGridDepPos        :: Maybe DepVarsPos
-    , _srlGridLogLikelihood :: Maybe Double -- log-likelihood for true value
-    , _srlSearchPos         :: Maybe (V.Vector DepVarsPredPos) -- search values
-    , _srlLogLikelihood     :: Maybe (V.Vector Double) -- log-likelihood for search value
-    , _srlTopObsIDs         :: Maybe String
-} deriving (Eq, Show, Generic)
-
-instance NFData SearchResultLong
 
 -- | A data type for interpolation output, aggregated per row (so per grid position and per search candidate)
 data SearchResultWide = SRW {

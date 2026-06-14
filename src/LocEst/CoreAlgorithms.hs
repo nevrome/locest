@@ -38,16 +38,16 @@ gpr obs _ -- grid
             Nothing -> throwL "nugget parameter missing in kernel definition"
         resDistribution = gprCore weightsObsObs weightsObsGrid Nothing values nugget
     in V.imap (\i eitherDistribution ->
-        let topObs   = if topNObs > 0
-                       then Just $ topNObsIDs topNObs obs weightsObsGrid i
-                       else Nothing
-            maybeTrueDep = maybeGridTrueDep >>= (V.!? i)
-        in IRL { _irlDepVarName = depVar
-               , _irlPredDist   = eitherDistribution
-               , _irlGridDepPos = maybeTrueDep
-               , _irlTopObsIDs  = topObs
-               }
-     ) resDistribution
+            let topObs   = if topNObs > 0
+                           then Just $ topNObsIDs topNObs obs weightsObsGrid i
+                           else Nothing
+                maybeTrueDep = maybeGridTrueDep >>= (V.!? i)
+            in IRL { _irlDepVarName = depVar
+                   , _irlPredDist   = eitherDistribution
+                   , _irlGridDepVarsPos = maybeTrueDep
+                   , _irlTopObsIDs  = topObs
+                   }
+         ) resDistribution
 
 expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
 expandHalfToMatrix n halfVec =
@@ -74,16 +74,16 @@ kas obs maybeGridTrueDep distsObsGrid topNObs depVar kernel =
         !weightsObsGrid = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         resDistribution = kasCore weightsObsGrid values
     in V.imap (\i eitherDistribution ->
-        let topObs   = if topNObs > 0
-                       then Just $ topNObsIDs topNObs obs weightsObsGrid i
-                       else Nothing
-            maybeTrueDep = maybeGridTrueDep >>= (V.!? i)
-        in IRL { _irlDepVarName = depVar
-               , _irlPredDist   = eitherDistribution
-               , _irlGridDepPos = maybeTrueDep
-               , _irlTopObsIDs  = topObs
-               }
-     ) resDistribution
+            let topObs   = if topNObs > 0
+                           then Just $ topNObsIDs topNObs obs weightsObsGrid i
+                           else Nothing
+                maybeTrueDep = maybeGridTrueDep >>= (V.!? i)
+            in IRL { _irlDepVarName = depVar
+                   , _irlPredDist   = eitherDistribution
+                   , _irlGridDepVarsPos = maybeTrueDep
+                   , _irlTopObsIDs  = topObs
+                   }
+       ) resDistribution
 
 topNObsIDs
     :: Int
@@ -94,44 +94,6 @@ topNObsIDs
 topNObsIDs n obs weights gridIx =
     let row = [ (obs V.! j, weights `M.atIndex` (gridIx, j)) | j <- [0 .. V.length obs - 1] ]
     in intercalate ";" [ _obsID o | (o, _) <- take n (sortOn (Down . snd) row) ]
-
-seek
-    :: DepVarName
-    -> Maybe (V.Vector DepVarsPredPos)
-    -> Maybe DepVarsPos
-    -> Either String PredDist
-    -> Maybe String
-    -> SearchResultLong
-seek depVar maybeSearchValues maybeTrueDep (Right distribution) topObs =
-    let logLTruth = do
-            trueDep <- maybeTrueDep
-            let trueVal = lookupUnsafe trueDep depVar
-            pure (predLogDensity distribution trueVal)
-        searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
-        logL = fmap (V.map $ predLogDensity distribution) searchValues
-    in SRL
-         { _srlDepVarName        = depVar
-         , _srlPredDist          = Just distribution
-         , _srlGridDepPos        = maybeTrueDep
-         , _srlGridLogLikelihood = logLTruth
-         , _srlSearchPos         = maybeSearchValues
-         , _srlLogLikelihood     = logL
-         , _srlTopObsIDs         = topObs
-         }
-seek depVar maybeSearchValues maybeTrueDep (Left _) topObs =
-    let logLTruth = maybeTrueDep *> Just (-inf)
-        logLSearch = case maybeSearchValues of
-              Just x  -> Just (V.replicate (V.length x) (-inf))
-              Nothing -> Nothing
-    in SRL
-         { _srlDepVarName        = depVar
-         , _srlPredDist          = Nothing
-         , _srlGridDepPos        = maybeTrueDep
-         , _srlGridLogLikelihood = logLTruth
-         , _srlSearchPos         = maybeSearchValues
-         , _srlLogLikelihood     = logLSearch
-         , _srlTopObsIDs         = topObs
-         }
 
 gprCore
     :: M.Matrix Double -- obs–obs weights

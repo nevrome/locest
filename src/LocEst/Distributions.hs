@@ -52,9 +52,9 @@ predMoments (PredStudentT dof mu scale) = (mu, scale * scale * dof / (dof - 2))
 -- moment-matched mixture approximation:
 -- given n predictive distributions, this returns a single
 -- normal distribution whose mean and variance match the equally weighted mixture
-mix :: [Maybe PredDist] -> Maybe PredDist
-mix [] = Nothing
-mix [Just x] = Just x
+mix :: [Either String PredDist] -> Either String PredDist
+mix [] = Left "mix: empty"
+mix [Right x] = Right x
 mix xs = do
     moments <- traverse (fmap predMoments) xs
     let n = fromIntegral (length moments)
@@ -62,4 +62,4 @@ mix xs = do
         -- law of total variance
         var = sum [v + (mu - mean)**2 | (mu, v) <- moments] / n
         sd = sqrt var
-    either (const Nothing) Just (makePredNormal mean sd)
+    either (const (Left "mix: can't mix")) Right (makePredNormal mean sd)

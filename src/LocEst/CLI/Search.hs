@@ -95,8 +95,8 @@ runSearch (SearchOptions
         .| progress 1 (Just nrWorkItems)
         .| ConL.chunksOf nTempSamples
         .| ConL.map aggregateTempSamples
-        .| ConL.map (searchForAllGridPoints depSearchGrid)
-        .| ConL.map normaliseByTimeSlice
+        .| ConL.map searchForAllGridPoints
+        .| ConL.concatMap normaliseFinishedTimeSlice
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
@@ -195,46 +195,90 @@ interpolLongToWide kernDef grid perDepVar = map wideGridIdx [0 .. V.length grid 
       in IRW { 
                _irwKernDef           = kernDef
              , _irwGridIndepVarsPos  = grid V.! i
+             , _irwGridDepVarsPos    = map _irlGridDepVarsPos resAtI
              , _irwTopObsIDs         = map _irlTopObsIDs resAtI
              , _irwDepVarName        = map _irlDepVarName resAtI
              , _irwPredDist          = map _irlPredDist resAtI
              }
 
-aggregateTempSamples :: [(TimeSlice, [InterpolResultWide])] -> [InterpolResultWide]
-aggregateTempSamples [] = undefined
-aggregateTempSamples xs@(((grid, searchDepVarPos), _) : _) =
+aggregateTempSamples :: [(TimeSlice, [InterpolResultWide])] -> [(TimeSlice, InterpolResultWide)]
+aggregateTempSamples [] = throwL "aggregateTempSamples: empty"
+aggregateTempSamples xs@((timeslice, _) : _) =
     let rowsPerTempSample = map snd xs
-    in map combine (transpose rowsPerTempSample)
+        agg = map combineTempResamplingRuns (transpose rowsPerTempSample)
+    in zip (repeat timeslice) agg
 
-
-combine :: [InterpolResultWide] -> InterpolResultWide
-combine [] = throwL "combineRows: impossible empty row group"
-combine rows@(r0:_) =
+combineTempResamplingRuns :: [InterpolResultWide] -> InterpolResultWide
+combineTempResamplingRuns [] = throwL "combineTempResamplingRuns: empty"
+combineTempResamplingRuns rows@(r0:_) =
     let depCount = length (_irwDepVarName r0)
-        predDistPerDepVar = [ mix [ ds !! depIx | ds <- map _srwPredDist rows ] | depIx <- [0 .. depCount - 1] ]
+        predDistPerDepVar = [ mix [ ds !! depIx | ds <- map _irwPredDist rows ] | depIx <- [0 .. depCount - 1] ]
     in r0
-        { _srwTopObsIDs         = replicate depCount Nothing
-        , _srwPredDist          = predDistPerDepVar
-        --, _srwGridLogLikelihood = marginalTruthLLs
-        --, _srwGridAggLogLik     = marginalTruthAggLL
-        --, _srwLogLikelihood     = marginalDepLLs
-        --, _srwAggLogLikelihood  = marginalAggLL
+        { -- TODO: topObs also differ between resampling runs and must be aggregated somehow...
+          --_irwTopObsIDs         = replicate depCount Nothing
+          _irwPredDist          = predDistPerDepVar
         }
 
-searchForAllGridPoints :: Maybe (V.Vector DepVarsPredPos) -> [InterpolResultWide] -> [SearchResultWide]
-searchForAllGridPoints = undefined
+searchForAllGridPoints :: [(TimeSlice, InterpolResultWide)] -> [(TimeSlice, SearchResultWide)]
+searchForAllGridPoints [] = []
+searchForAllGridPoints xs =  concatMap go xs
+  where
+    go :: (TimeSlice, InterpolResultWide) -> [(TimeSlice, SearchResultWide)]
+    go (ts@(_, maybeSearchGrid), irw) = map (\row -> (ts, row)) (search maybeSearchGrid irw)
 
-search :: Maybe (V.Vector DepVarsPredPos) -> InterpolResultWide -> SearchResultWide
-search = undefined
+search :: Maybe (V.Vector DepVarsPredPos) -> InterpolResultWide -> [SearchResultWide]
+search Nothing irw = [searchOne Nothing irw]
+search (Just searchGrid) irw = V.toList $ V.map (\sp -> searchOne (Just sp) irw) searchGrid
 
+searchOne :: Maybe DepVarsPredPos -> InterpolResultWide -> SearchResultWide
+searchOne maybeSearchPos irw =
+    let depNames  = _irwDepVarName irw
+        predDists = _irwPredDist irw
+        gridDeps  = _irwGridDepVarsPos irw
+        gridLLs =
+            [ gridLL dist maybeGridDep depName
+            | (dist, maybeGridDep, depName) <- zip3 predDists gridDeps depNames
+            ]
+        searchLLs =
+            [ searchLL dist maybeSearchPos depName
+            | (dist, depName) <- zip predDists depNames
+            ]
+    in SRW
+         { _srwKernDef           = _irwKernDef irw
+         , _srwGridIndepVarsPos  = _irwGridIndepVarsPos irw
+         , _srwTopObsIDs         = _irwTopObsIDs irw
+         , _srwDepVarName        = depNames
+         , _srwPredDist          = predDists
+         , _srwGridLogLikelihood = gridLLs
+         , _srwGridAggLogLik     = sumIfAllJust gridLLs
+         , _srwSearchPos         = maybeSearchPos
+         , _srwLogLikelihood     = searchLLs
+         , _srwAggLogLikelihood  = sumIfAllJust searchLLs
+         , _srwProbability       = Nothing
+         }
 
+gridLL :: Either String PredDist -> Maybe DepVarsPos -> DepVarName -> Maybe Double
+gridLL _ Nothing _ = Nothing
+gridLL (Left _) (Just _) _ = Just (-inf)
+gridLL (Right dist) (Just depPos) depName = Just $ predLogDensity dist (lookupUnsafe depPos depName)
 
-lookUpLikelihood :: DepVarName -> Either String PredDist -> Maybe DepVarsPos -> Maybe Double
-lookUpLikelihood depVar eitherDistribution maybeDepVarPos = do
-    trueDep <- maybeDepVarPos
-    distribution <- either (const Nothing) Just eitherDistribution
-    let trueVal = lookupUnsafe trueDep depVar
-    pure (predLogDensity distribution trueVal)
+searchLL :: Either String PredDist -> Maybe DepVarsPredPos -> DepVarName -> Maybe Double
+searchLL _ Nothing _ =  Nothing
+searchLL (Left _) (Just _) _ = Just (-inf)
+searchLL (Right dist) (Just searchPos) depName = Just $ predLogDensity dist (getDepVarsPos2 depName searchPos)
+
+sumIfAllJust :: [Maybe Double] -> Maybe Double
+sumIfAllJust xs = do
+    ys <- sequence xs
+    if null ys then Nothing else Just (sum ys)
+
+normaliseFinishedTimeSlice :: [(TimeSlice, SearchResultWide)] -> [SearchResultWide]
+normaliseFinishedTimeSlice [] = []
+normaliseFinishedTimeSlice xs@(((grid, searchDepVarPos), _) : _) =
+    let hu = map snd xs
+    in if isJust searchDepVarPos && isSpatioTemporal grid
+       then normaliseByTimeSlice hu
+       else hu
 
 -- normalisation mechanism
 normaliseByTimeSlice :: [SearchResultWide] -> [SearchResultWide]
