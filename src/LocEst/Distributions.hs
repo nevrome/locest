@@ -46,9 +46,9 @@ predLogDensity (PredNormal mu sd) x = logDensity (normalDistr mu sd) x
 predLogDensity (PredStudentT dof mu scale) x = logDensity (studentTUnstandardized dof mu scale) x
 
 predMoments :: PredDist -> (Double, Double)
-predMoments (PredNormal mu sd) = (mu, sd * sd)
+predMoments (PredNormal mu sd)          = (mu, sd * sd)
 predMoments (PredStudentT dof mu scale) = (mu, scale * scale * dof / (dof - 2))
-    
+
 -- moment-matched mixture approximation:
 -- given n predictive distributions, this returns a single
 -- normal distribution whose mean and variance match the equally weighted mixture
