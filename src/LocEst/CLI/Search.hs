@@ -202,8 +202,8 @@ combineTempResamplingRuns :: [InterpolResultWide] -> InterpolResultWide
 combineTempResamplingRuns [] = throwL "combineTempResamplingRuns: empty"
 combineTempResamplingRuns rows@(r0:_) =
     r0 { -- TODO: topObs also differ between resampling runs and must be aggregated somehow...
-         -- _irwTopObsIDs         = replicate depCount Nothing
-         _irwPredDist          = map mix . transpose $ map _irwPredDist rows
+         _irwTopObsIDs         = replicate (length . _irwTopObsIDs $ r0) Nothing
+       , _irwPredDist          = map mix . transpose $ map _irwPredDist rows
        }
 
 searchForAllGridPoints :: [(TimeSlice, InterpolResultWide)] -> [(TimeSlice, SearchResultWide)]
@@ -319,9 +319,6 @@ splitDataByTempGrid (Just tempPos) indepPredGrid maybeDepSearchGrid =
     let spatGrid = V.map spatPosFromIndepVarsPos indepPredGrid
     in concatMap (expandOne spatGrid maybeDepSearchGrid) tempPos
 
-makeGridAtTime :: V.Vector SpatPos -> YearBCAD -> V.Vector IndepVarsPos
-makeGridAtTime spatGrid year = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos year))) spatGrid
-
 expandOne
     :: V.Vector SpatPos
     -> Maybe (V.Vector DepVarsPredPos)
@@ -337,3 +334,6 @@ expandOne spatGrid maybeDepSearchGrid = \case
                   grids   = [ makeGridAtTime spatGrid (r + yearDist) | r <- refAges ]
                   deps    = map Just (V.group depGrid) -- depends on pre-arranged ordering
               in zip grids deps
+
+makeGridAtTime :: V.Vector SpatPos -> YearBCAD -> V.Vector IndepVarsPos
+makeGridAtTime spatGrid year = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos year))) spatGrid
