@@ -169,7 +169,7 @@ crossOptParser :: OP.Parser CrossOptions
 crossOptParser = CrossOptions
                         <$> optParseInObservationFile
                         <*> optParseKernDefStringPermutations
-                        <*> optParseTestTrainingFraction
+                        <*> optParseFolds
                         <*> optParseCrossvalIterations
                         <*> optParseSeed
                         <*> OP.optional optParseInObsObsDistFile
@@ -355,27 +355,21 @@ optParseSeed = OP.option (Just <$> OP.auto) (
     ))
     )
 
-optParseTestTrainingFraction :: OP.Parser Double
-optParseTestTrainingFraction = OP.option (OP.eitherReader readFraction) (
-       OP.long    "testFraction"
-    <> OP.metavar "DOUBLE"
-    <> OP.value 0.2
+optParseFolds :: OP.Parser Word
+optParseFolds = OP.option OP.auto (
+       OP.long    "folds"
+    <> OP.metavar "INT"
+    <> OP.value 100
     <> OP.helpDoc ( Just (
-                          s2d "Fraction of the observations that should be used as test data for the \
-                              \crossvalidation. 1 - testFraction will be used as training data. \
-                              \The fraction must be between 0 and 1. \
-                              \When the fraction is so large that the number of test observations \
-                              \equals the total number of observations, then all observations are used \
-                              \for the training set. In this special case the seed has no effect and all \
-                              \iterations yield the same result. Default: 0.2"
+                      s2d "Number of crossvalidation folds. Into how many groups should the input data \
+                          \be split for the crossvalidation. The k-fold crossvalidation singles out one\
+                          \of the groups and tests the predictive ability of the other k-1 groups with \
+                          \a given parameter set for this group. The singled-out group is rotated in a \
+                          \crossvalidation run, so that all groups end up once in the test set, and k-1 \
+                          \times in the training set. \
+                          \Default: 10"
     ))
     )
-    where
-        readFraction :: String -> Either String Double
-        readFraction s =
-            case P.runParser parseFraction () "" s of
-                Left err -> Left $ showParsecErr err
-                Right x  -> Right x
 
 optParseSubsamplingFraction :: OP.Parser Double
 optParseSubsamplingFraction = OP.option (OP.eitherReader readFraction) (
@@ -406,15 +400,14 @@ optParseSubsamplingIterations = OP.option OP.auto (
     ))
     )
 
-optParseCrossvalIterations :: OP.Parser Int
+optParseCrossvalIterations :: OP.Parser Word
 optParseCrossvalIterations = OP.option OP.auto (
        OP.long    "iterations"
     <> OP.metavar "INT"
-    <> OP.value 100
+    <> OP.value 5
     <> OP.helpDoc ( Just (
-                      s2d "Number of crossvalidation iterations. How often should the input observations \
-                          \be reshuffled and split into test and training data for each kernel parameter \
-                          \setting. Default: 100"
+                      s2d "Number of crossvalidation iterations. How often should the folding procedure \
+                          \be repeated. Default: 5"
     ))
     )
 

@@ -129,7 +129,7 @@ ggplot() +
 # stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
 # profiteur locest.prof
 
-system('time OMP_NUM_THREADS=3 locest cross --configFile code/spatiotemporal/cross.conf')
+system('time OMP_NUM_THREADS=5 locest cross --configFile code/spatiotemporal/cross.conf')
 
 # run with slurm
 # srun --cpus-per-task=3 --export=ALL,OMP_NUM_THREADS=3,OPENBLAS_VERBOSE=2 time locest cross --configFile code/spatiotemporal/cross.conf

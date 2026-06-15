@@ -20,7 +20,6 @@ import qualified Data.Vector                  as V
 import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Storable         as VS
 import qualified Data.Vector.Unboxed          as VU
-import           LocEst.CLI.Cross             (splitIdx)
 import           System.IO                    (hPutStrLn, stderr)
 import qualified System.Random                as R
 
@@ -174,6 +173,13 @@ runVario
     hPutStrLn stderr "Writing result table..."
     writeVariograms (concat $ concat empiricalVariograms) outFile
     hPutStrLn stderr "Done"
+
+splitIdx :: Int -> Int -> Int -> (VS.Vector Int, VS.Vector Int)
+splitIdx seed nTest n =
+    let rng = R.mkStdGen seed
+        idxs = V.fromList [0..n-1]
+        (shuffled,_) = shuffle idxs rng
+    in VS.splitAt nTest (VS.convert shuffled)
 
 isBelowIndepVarsThreshold :: SelfDistMatrixPerIndepVar -> (IndepVarName, Double) -> VS.Vector Bool
 isBelowIndepVarsThreshold distsPerIndepVar (indepVarName, threshold) =
