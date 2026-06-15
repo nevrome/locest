@@ -185,13 +185,12 @@ interpolLongToWide kernDef grid perDepVar = map wideGridIdx [0 .. V.length grid 
     wideGridIdx :: Int -> InterpolResultWide
     wideGridIdx i =
       let resAtI = map (V.! i) perDepVar
-      in IRW {
-               _irwKernDef           = kernDef
-             , _irwGridIndepVarsPos  = grid V.! i
-             , _irwGridDepVarsPos    = map _irlGridDepVarsPos resAtI
-             , _irwTopObsIDs         = map _irlTopObsIDs resAtI
-             , _irwDepVarName        = map _irlDepVarName resAtI
-             , _irwPredDist          = map _irlPredDist resAtI
+      in IRW { _irwKernDef          = kernDef
+             , _irwGridIndepVarsPos = grid V.! i
+             , _irwGridDepVarsPos   = map _irlGridDepVarsPos resAtI
+             , _irwTopObsIDs        = map _irlTopObsIDs resAtI
+             , _irwDepVarName       = map _irlDepVarName resAtI
+             , _irwPredDist         = map _irlPredDist resAtI
              }
 
 aggregateTempSamples :: [(TimeSlice, [InterpolResultWide])] -> [(TimeSlice, InterpolResultWide)]
@@ -203,7 +202,7 @@ combineTempResamplingRuns :: [InterpolResultWide] -> InterpolResultWide
 combineTempResamplingRuns [] = throwL "combineTempResamplingRuns: empty"
 combineTempResamplingRuns rows@(r0:_) =
     r0 { -- TODO: topObs also differ between resampling runs and must be aggregated somehow...
-         --_irwTopObsIDs         = replicate depCount Nothing
+         -- _irwTopObsIDs         = replicate depCount Nothing
          _irwPredDist          = map mix . transpose $ map _irwPredDist rows
        }
 
@@ -220,36 +219,35 @@ searchOne maybeSearchPos irw =
         predDists = _irwPredDist irw
         gridDeps  = _irwGridDepVarsPos irw
         gridLLs =
-            [ gridLL dist maybeGridDep depName
-            | (dist, maybeGridDep, depName) <- zip3 predDists gridDeps depNames
+            [ gridLL dist depName maybeGridDep
+            | (dist, depName, maybeGridDep) <- zip3 predDists depNames gridDeps
             ]
         searchLLs =
-            [ searchLL dist maybeSearchPos depName
+            [ searchLL dist depName maybeSearchPos
             | (dist, depName) <- zip predDists depNames
             ]
-    in SRW
-         { _srwKernDef           = _irwKernDef irw
-         , _srwGridIndepVarsPos  = _irwGridIndepVarsPos irw
-         , _srwTopObsIDs         = _irwTopObsIDs irw
-         , _srwDepVarName        = depNames
-         , _srwPredDist          = predDists
-         , _srwGridLogLikelihood = gridLLs
-         , _srwGridAggLogLik     = sumIfAllJust gridLLs
-         , _srwSearchPos         = maybeSearchPos
-         , _srwLogLikelihood     = searchLLs
-         , _srwAggLogLikelihood  = sumIfAllJust searchLLs
-         , _srwProbability       = Nothing
-         }
+    in SRW { _srwKernDef           = _irwKernDef irw
+           , _srwGridIndepVarsPos  = _irwGridIndepVarsPos irw
+           , _srwTopObsIDs         = _irwTopObsIDs irw
+           , _srwDepVarName        = depNames
+           , _srwPredDist          = predDists
+           , _srwGridLogLikelihood = gridLLs
+           , _srwGridAggLogLik     = sumIfAllJust gridLLs
+           , _srwSearchPos         = maybeSearchPos
+           , _srwLogLikelihood     = searchLLs
+           , _srwAggLogLikelihood  = sumIfAllJust searchLLs
+           , _srwProbability       = Nothing
+           }
 
-gridLL :: Either String PredDist -> Maybe DepVarsPos -> DepVarName -> Maybe Double
-gridLL _ Nothing _ = Nothing
-gridLL (Left _) (Just _) _ = Just (-inf)
-gridLL (Right dist) (Just depPos) depName = Just $ predLogDensity dist (lookupUnsafe depPos depName)
+gridLL :: Either String PredDist -> DepVarName -> Maybe DepVarsPos -> Maybe Double
+gridLL _ _ Nothing = Nothing
+gridLL (Left _) _ (Just _) = Just (-inf)
+gridLL (Right dist) depName (Just depPos) = Just $ predLogDensity dist (lookupUnsafe depPos depName)
 
-searchLL :: Either String PredDist -> Maybe DepVarsPredPos -> DepVarName -> Maybe Double
-searchLL _ Nothing _ =  Nothing
-searchLL (Left _) (Just _) _ = Just (-inf)
-searchLL (Right dist) (Just searchPos) depName = Just $ predLogDensity dist (getDepVarsPos2 depName searchPos)
+searchLL :: Either String PredDist -> DepVarName -> Maybe DepVarsPredPos -> Maybe Double
+searchLL _ _ Nothing =  Nothing
+searchLL (Left _) _ (Just _) = Just (-inf)
+searchLL (Right dist) depName (Just searchPos) = Just $ predLogDensity dist (getDepVarsPos2 depName searchPos)
 
 sumIfAllJust :: [Maybe Double] -> Maybe Double
 sumIfAllJust xs = do
@@ -259,10 +257,9 @@ sumIfAllJust xs = do
 normaliseFinishedTimeSlice :: [(TimeSlice, SearchResultWide)] -> [SearchResultWide]
 normaliseFinishedTimeSlice [] = []
 normaliseFinishedTimeSlice xs@(((grid, searchDepVarPos), _) : _) =
-    let hu = map snd xs
-    in if isJust searchDepVarPos && isSpatioTemporal grid
-       then normaliseByTimeSlice hu
-       else hu
+    if isJust searchDepVarPos && isSpatioTemporal grid
+    then normaliseByTimeSlice $ map snd xs
+    else map snd xs
 
 -- normalisation mechanism
 normaliseByTimeSlice :: [SearchResultWide] -> [SearchResultWide]
