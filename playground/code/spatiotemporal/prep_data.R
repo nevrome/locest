@@ -1,6 +1,6 @@
 library(magrittr)
 
-#### derive test data files from the mobest data analysis project ####
+#### compile test data files from the mobest data analysis project ####
 
 # load("~/agora/mobest.analysis.2022/data/genotype_data/janno_final.RData")
 # janno_final %>%
@@ -24,32 +24,15 @@ library(magrittr)
 
 #### prepare derived data products for locest tests ####
 
-test_area <- sf::st_read("data_tracked/test_area.gpkg")
-
 # prediction grid
-# spatiotemporal_grid <- mobest::create_prediction_grid(
-#   test_area,
-#   spatial_cell_size = 30000
-# ) %>% mobest::geopos_to_spatpos(-7000)
-# 
-# spatiotemporal_grid %>%
-#   dplyr::select(
-#     spatID = id, x, y
-#   ) %>%
-#   dplyr::mutate(
-#     yearBCAD = -5000
-#   ) %>%
-#   readr::write_tsv(file = "data/spatiotemporal/grid.tsv")
-
-sf::write_sf(test_area, "data/spatiotemporal/area.geojson")
-
-system("locest grid --polygonFile data/spatiotemporal/area.geojson -x 50000 -y 50000 -o data/spatiotemporal/grid.tsv")
+test_area <- sf::st_read("data_tracked/test_area.gpkg")
+sf::write_sf(test_area, "data/spatiotemporal/area.geojson", delete_dsn = TRUE)
+system("locest grid --polygonFile data/spatiotemporal/area.geojson -x 75000 -y 75000 -o data/spatiotemporal/grid.tsv")
 grid <- readr::read_tsv("data/spatiotemporal/grid.tsv")
 plot(grid$x, grid$y)
 
-# observations file
+# observations
 test_observations <- readr::read_tsv("data_tracked/test_observations.janno")
-
 obs <- test_observations %>%
   dplyr::select(
     obsID = Poseidon_ID,
@@ -58,44 +41,15 @@ obs <- test_observations %>%
     depC1 = C1_mds_u,
     depC2 = C2_mds_u
   )
-
 obs %>% readr::write_tsv(file = "data/spatiotemporal/obs.tsv")
 
-# search observation file
+# temporal resampling
+system("currycarbon -t data_tracked/test_observations.janno -q --samplesFile data/spatiotemporal/age_samples.tsv -n 5 --seed 123")
+
+# search observations
 obs %>%
   dplyr::filter(obsID %in% c("UzOO77", "Stuttgart_published.DG", "R19.SG")) %>%
   readr::write_tsv(file = "data/spatiotemporal/search_obs.tsv")
-
-# temporal resampling
-test_observations %>%
-  dplyr::select(
-    Poseidon_ID,
-    Date_Type,
-    Date_C14_Uncal_BP, Date_C14_Uncal_BP_Err,
-    Date_BC_AD_Start, Date_BC_AD_Stop
-  ) %>%
-  dplyr::mutate(
-    currycarbon_expression =
-      dplyr::case_when(
-        Date_Type == "C14" ~
-          purrr::pmap_chr(
-            list(Poseidon_ID, Date_C14_Uncal_BP, Date_C14_Uncal_BP_Err),
-            \(id, bp, sigma) {
-              paste0(
-                id, ": ",
-                paste0("(", bp, ",", sigma, ")", collapse = " + "))
-            }
-          ),
-        TRUE ~ paste0(
-            Poseidon_ID, ": ",
-            "rangeBCAD(", Date_BC_AD_Start, ",", Date_BC_AD_Stop, ")"
-          )
-      )
-  ) %$%
-  currycarbon_expression %>%
-  writeLines(con = "data/spatiotemporal/currycarbon_input.txt")
-
-system("currycarbon -i data/spatiotemporal/currycarbon_input.txt -q --samplesFile data/spatiotemporal/currycarbon_result.tsv -n 5 --seed 123")
 
 # search position
 test_observations %>%

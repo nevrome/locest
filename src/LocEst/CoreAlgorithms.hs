@@ -2,24 +2,18 @@
 
 module LocEst.CoreAlgorithms where
 
+import           LocEst.Distributions
 import           LocEst.Types
 import           LocEst.TypesFlat
 import           LocEst.Utils
 
-import           Control.Monad                     (forM_)
-import           Data.List                         (intercalate, sortOn)
-import           Data.Ord                          (Down (..))
-import qualified Data.Vector                       as V
-import qualified Data.Vector.Storable              as VS
-import qualified Data.Vector.Storable.Mutable      as VSM
-import qualified Numeric.LinearAlgebra             as M
-import           Statistics.Distribution           (ContDistr, logDensity,
-                                                    quantile)
-import           Statistics.Distribution.Normal    (NormalDistribution,
-                                                    normalDistr)
-import           Statistics.Distribution.StudentT  (StudentT,
-                                                    studentTUnstandardized)
-import           Statistics.Distribution.Transform (LinearTransform)
+import           Control.Monad                (forM_)
+import           Data.List                    (intercalate, sortOn)
+import           Data.Ord                     (Down (..))
+import qualified Data.Vector                  as V
+import qualified Data.Vector.Storable         as VS
+import qualified Data.Vector.Storable.Mutable as VSM
+import qualified Numeric.LinearAlgebra        as M
 
 gpr :: V.Vector Observation
     -> V.Vector IndepVarsPos
@@ -27,14 +21,13 @@ gpr :: V.Vector Observation
     -> IndepVarsDistFlat
     -> IndepVarsDistFlat
     -- -> IndepVarsDistFlat
-    -> Maybe (V.Vector DepVarsPredPos)
     -> Int
     -> DepVarName
     -> KernelOneDepVar
-    -> V.Vector SearchResultLong
+    -> V.Vector InterpolResultLong
 gpr obs _ -- grid
     maybeGridTrueDep distsObsGrid distsObsObs -- distsGridGrid
-    maybeSearchValues topNObs depVar kernel =
+    topNObs depVar kernel =
     let values = VS.generate (V.length obs) $ \i -> getDepVarsPos depVar (obs V.! i)
         !weightsObsGrid  = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         !weightsObsObs   = expandHalfToMatrix (V.length obs) $ computeWeightsFlat kernel distsObsObs
@@ -44,13 +37,17 @@ gpr obs _ -- grid
             Just x  -> x
             Nothing -> throwL "nugget parameter missing in kernel definition"
         resDistribution = gprCore weightsObsObs weightsObsGrid Nothing values nugget
-    in V.imap (\i ed ->
-        let topObs   = if topNObs > 0
-                       then Just $ topNObsIDs topNObs obs weightsObsGrid i
-                       else Nothing
-            mTrueDep = maybeGridTrueDep >>= (V.!? i)
-        in seek depVar maybeSearchValues mTrueDep ed topObs
-     ) resDistribution
+    in V.imap (\i eitherDistribution ->
+            let topObs   = if topNObs > 0
+                           then Just $ topNObsIDs topNObs obs weightsObsGrid i
+                           else Nothing
+                maybeTrueDep = maybeGridTrueDep >>= (V.!? i)
+            in IRL { _irlDepVarName = depVar
+                   , _irlPredDist   = eitherDistribution
+                   , _irlGridDepVarsPos = maybeTrueDep
+                   , _irlTopObsIDs  = topObs
+                   }
+         ) resDistribution
 
 expandHalfToMatrix :: Int -> VS.Vector Double -> M.Matrix Double
 expandHalfToMatrix n halfVec =
@@ -68,22 +65,25 @@ expandHalfToMatrix n halfVec =
 kas :: V.Vector Observation
     -> Maybe (V.Vector DepVarsPos)
     -> IndepVarsDistFlat
-    -> Maybe (V.Vector DepVarsPredPos)
     -> Int
     -> DepVarName
     -> KernelOneDepVar
-    -> V.Vector SearchResultLong
-kas obs maybeGridTrueDep distsObsGrid maybeSearchValues topNObs depVar kernel =
+    -> V.Vector InterpolResultLong
+kas obs maybeGridTrueDep distsObsGrid topNObs depVar kernel =
     let values = VS.generate (V.length obs) $ \i -> getDepVarsPos depVar (obs V.! i)
         !weightsObsGrid = M.reshape (V.length obs) $ computeWeightsFlat kernel distsObsGrid
         resDistribution = kasCore weightsObsGrid values
-    in V.imap (\i ed ->
-        let topObs   = if topNObs > 0
-                       then Just $ topNObsIDs topNObs obs weightsObsGrid i
-                       else Nothing
-            mTrueDep = maybeGridTrueDep >>= (V.!? i)
-        in seek depVar maybeSearchValues mTrueDep ed topObs
-     ) resDistribution
+    in V.imap (\i eitherDistribution ->
+            let topObs   = if topNObs > 0
+                           then Just $ topNObsIDs topNObs obs weightsObsGrid i
+                           else Nothing
+                maybeTrueDep = maybeGridTrueDep >>= (V.!? i)
+            in IRL { _irlDepVarName = depVar
+                   , _irlPredDist   = eitherDistribution
+                   , _irlGridDepVarsPos = maybeTrueDep
+                   , _irlTopObsIDs  = topObs
+                   }
+       ) resDistribution
 
 topNObsIDs
     :: Int
@@ -95,38 +95,13 @@ topNObsIDs n obs weights gridIx =
     let row = [ (obs V.! j, weights `M.atIndex` (gridIx, j)) | j <- [0 .. V.length obs - 1] ]
     in intercalate ";" [ _obsID o | (o, _) <- take n (sortOn (Down . snd) row) ]
 
-seek :: ContDistr b
-    => DepVarName
-    -> Maybe (V.Vector DepVarsPredPos)
-    -> Maybe DepVarsPos
-    -> Either String b
-    -> Maybe String
-    -> SearchResultLong
-seek depVar maybeSearchValues maybeTrueDep (Right distribution) topObs =
-    let low = quantile distribution 0.025
-        med = quantile distribution 0.5
-        up  = quantile distribution 0.975
-        logLTruth = do
-            trueDep <- maybeTrueDep
-            let trueVal = lookupUnsafe trueDep depVar
-            pure (logDensity distribution trueVal)
-        searchValues = fmap (V.map (getDepVarsPos2 depVar)) maybeSearchValues
-        logL   = fmap (V.map $ logDensity distribution) searchValues -- log-likelihood
-    in SRL depVar low med up maybeTrueDep logLTruth maybeSearchValues logL topObs
-seek depVar maybeSearchValues maybeTrueDep (Left _) topObs =
-    let logLTruth = maybeTrueDep *> Just (-inf)   -- if truth exists but dist failed, mark as -inf; else Nothing
-        logLSearch = case maybeSearchValues of
-                       Just x  -> Just (V.replicate (V.length x) (-inf))
-                       Nothing -> Nothing
-    in SRL depVar (-inf) nan inf maybeTrueDep logLTruth maybeSearchValues logLSearch topObs
-
 gprCore
     :: M.Matrix Double -- obs–obs weights
     -> M.Matrix Double -- grid–obs weights
     -> Maybe (M.Matrix Double) -- grid–grid weights
     -> M.Vector Double -- y: measured values in dependent variable space
     -> Double          -- nugget noise term g
-    -> V.Vector (Either String NormalDistribution)
+    -> V.Vector (Either String PredDist)
   -- -> (M.Vector Double, M.Matrix Double, M.Matrix Double) -- mean, covFull, covInterp
 gprCore d dx dxx y g =
     -- number of observations and grid points
@@ -166,20 +141,14 @@ gprCore d dx dxx y g =
 sumRows :: M.Matrix M.R -> M.Vector M.R
 sumRows m = M.flatten $ m M.<> M.konst 1 (M.cols m, 1)
 
-marginalsFromDiag :: M.Vector Double -> VS.Vector Double -> V.Vector (Either String NormalDistribution)
+marginalsFromDiag :: M.Vector Double -> VS.Vector Double -> V.Vector (Either String PredDist)
 marginalsFromDiag meanVec varVec =
     let n = M.size meanVec
     in V.generate n $ \i ->
         let mu  = M.atIndex meanVec i
             var = varVec VS.! i
             std = sqrt var
-        in normal mu std
-
-normal :: Double -> Double -> Either String NormalDistribution
-normal mu std
-    | isNaN std = Left "sigma is NaN"
-    | std <= 0  = Left "sigma must be > 0"
-    | otherwise = Right $ normalDistr mu std
+        in makePredNormal mu std
 
 -- make positive-definite with the sledgehammer
 -- nearestPD :: Double -> M.Matrix Double -> M.Matrix Double
@@ -203,9 +172,9 @@ normal mu std
 kasCore
     :: M.Matrix M.R
     -> M.Vector M.R
-    -> V.Vector (Either String (LinearTransform StudentT))
+    -> V.Vector (Either String PredDist)
 kasCore weights y =
-    V.zipWith3 generalizedStudentT (V.convert mu) (V.convert scale) (V.convert dof)
+    V.zipWith3 makePredStudentT (V.convert mu) (V.convert scale) (V.convert dof)
     where
       totalWeight = sumRows weights
       weightedAvg = M.flatten (weights M.<> M.asColumn y) / totalWeight
@@ -218,15 +187,6 @@ kasCore weights y =
       mu = weightedAvg
       scale = M.cmap sqrt ((1 + 1/(totalWeight + 1)) * weightedVar)
       dof = totalWeight
-
--- mapping Mathematica's StudentTDistribution interface to the interface in the
--- Haskell statistics package
-generalizedStudentT :: Double -> Double -> Double -> Either String (LinearTransform StudentT)
-generalizedStudentT mu scale dof
-    | isNaN scale = Left "sigma is NaN"
-    | scale <= 0  = Left "sigma must be > 0"
-    | dof   <= 0  = Left "degree of freedoms must be > 0"
-    | otherwise   = Right $ studentTUnstandardized dof mu scale
 
 computeWeightsFlat :: KernelOneDepVar -> IndepVarsDistFlat -> VS.Vector Double
 computeWeightsFlat kernel (IndepVarsDistFlat tags payload stride) =

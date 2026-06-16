@@ -13,6 +13,7 @@ import qualified Data.ByteString.Lazy     as BL
 import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
+import           Data.Foldable            (foldl')
 import           Data.List                (mapAccumL, sort)
 import qualified Data.Vector              as V
 import           System.IO                (hPutStrLn, stderr)

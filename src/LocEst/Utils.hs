@@ -1,16 +1,21 @@
+{-# LANGUAGE BangPatterns  #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module LocEst.Utils where
 
-import           Conduit           (MonadIO, liftIO)
-import           Control.DeepSeq   (NFData)
-import           Control.Exception (Exception, throw, throwIO)
-import           Data.Conduit      (ConduitT)
-import qualified Data.Conduit.List as ConC
-import           Data.IORef        (modifyIORef, newIORef, readIORef)
-import           Data.List         (sort)
-import           GHC.Generics      (Generic)
-import           System.IO         (hPutStrLn, stderr)
+import           Conduit             (MonadIO, liftIO)
+import           Control.DeepSeq     (NFData)
+import           Control.Exception   (Exception, throw, throwIO)
+import           Control.Monad.ST    (runST)
+import           Data.Conduit        (ConduitT)
+import qualified Data.Conduit.List   as ConC
+import           Data.IORef          (modifyIORef, newIORef, readIORef)
+import           Data.List           (sort)
+import qualified Data.Vector         as V
+import qualified Data.Vector.Mutable as VM
+import           GHC.Generics        (Generic)
+import           System.IO           (hPutStrLn, stderr)
+import qualified System.Random       as R
 
 -- | Different exceptions for locest
 newtype LocEstException = LocEstException String
@@ -46,7 +51,7 @@ progress reportNum goal = do
         logProgress :: Int -> IO ()
         logProgress c
             | c `rem` reportNum == 0 = do
-                let stringDone = padLeft 10 (show c)
+                let stringDone = "Progress: " ++ padLeft 10 (show c)
                     stringGoal = case goal of
                         Nothing -> ""
                         Just g  -> do
@@ -73,3 +78,18 @@ median xs =
   let ys = sort xs
       n  = length ys
   in ys !! (n `div` 2)
+
+shuffle :: V.Vector a -> R.StdGen -> (V.Vector a, R.StdGen)
+shuffle vec0 gen0 =
+    let n = V.length vec0
+    in runST $ do
+       mv <- V.thaw vec0
+       let go !i !gen
+             | i <= 1 = do
+                 v <- V.freeze mv
+                 pure (v, gen)
+             | otherwise = do
+                 let (j, gen') = R.randomR (0, i-1) gen
+                 VM.swap mv (i-1) j
+                 go (i-1) gen'
+       go n gen0

@@ -28,6 +28,7 @@ import           Data.IORef                     (modifyIORef, newIORef,
 import qualified Data.Vector                    as V
 import qualified Data.Vector.Storable           as VS
 import qualified Data.Vector.Storable.Mutable   as VSM
+import           System.Directory               (doesFileExist)
 import           System.FilePath                (takeExtension)
 import           System.IO                      (Handle, IOMode (..), hClose,
                                                  hFlush, hPutStrLn, openFile,
@@ -271,10 +272,15 @@ unwrapCSVParsingErrors parseRes =
 sourceCSV :: (MonadResource m, MonadError IOError m, Csv.FromNamedRecord a) =>
                 FilePath
              -> ConduitT () (Either (Either ConCsv.CsvStreamHaltParseError ConCsv.CsvStreamRecordParseError) a) m ()
-sourceCSV path =
-       ConC.sourceFile path
-    .| ConCsv.fromNamedCsvStreamErrorNoThrow decodingOptions
-    .| progress 1000000 Nothing
+sourceCSV path = do
+    exists <- liftIO $ doesFileExist path
+    if exists
+    then do
+        ConC.sourceFile path
+        .| ConCsv.fromNamedCsvStreamErrorNoThrow decodingOptions
+        .| progress 1000000 Nothing
+    else do
+        liftIO $ throwLIO $ "File " ++ path ++ " does not exist"
 
 appendNamedCSV :: (MonadResource m, Csv.ToRecord a, Csv.DefaultOrdered a) => Maybe FilePath -> ConduitT a Void m ()
 appendNamedCSV Nothing =

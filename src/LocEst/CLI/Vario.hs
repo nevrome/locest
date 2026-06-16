@@ -13,13 +13,13 @@ import qualified Control.Monad                as OP
 import qualified Data.Conduit                 as Con
 import qualified Data.Conduit.Combinators     as ConC
 import qualified Data.Conduit.List            as ConL
+import           Data.Foldable                (foldl')
 import           Data.Function                (on)
 import           Data.List                    (singleton, sort)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Storable         as VS
 import qualified Data.Vector.Unboxed          as VU
-import           LocEst.CLI.Cross             (splitIdx)
 import           System.IO                    (hPutStrLn, stderr)
 import qualified System.Random                as R
 
@@ -47,7 +47,7 @@ data AcrossSettings =
 instance Show AcrossSettings where
     show AcrossNone = "No merging of distances"
     show AcrossIndepVars = "Merge independent variable distances"
-    show AcrossDepVars = "Merge independent variable distances"
+    show AcrossDepVars = "Merge dependent variable distances"
     show AcrossBoth = "Merge both independent and dependent variable distances"
     show AcrossComb = "Iterate through all modes"
 
@@ -117,7 +117,7 @@ runVario
         hPutStrLn stderr "Calculating empirical variograms..."
         -- loop over subsampling iterations
         forM subsamplingPlan $ \(subsamplingIter, maybeRemoveIdx) -> do
-            let !distsPerIndepVar' = maybe rawIndepDists (\rm -> removeObservationsMulti nObs rm distsPerIndepVar) maybeRemoveIdx
+            let !distsPerIndepVar' = maybe distsPerIndepVar (\rm -> removeObservationsMulti nObs rm distsPerIndepVar) maybeRemoveIdx
                 !distsPerDepVar' = maybe distsPerDepVar (\rm -> removeObservationsMulti nObs rm distsPerDepVar) maybeRemoveIdx
             OP.when (subsamplingIters > 0) $ hPutStrLn stderr $ "Subsampling iteration: " ++ show subsamplingIter
             -- loop over all permutations of indepVars and depVars to calculate empirical variograms
@@ -127,21 +127,18 @@ runVario
                     -- indexing (must be done before any filtering)
                     let indepDistsIndexed = VU.indexed $ VS.convert indepDists
                         indepDistsIndexedModified =
-                            if not acrossIndepVars
-                            then do
-                                -- indepVar filtering
-                                let indepDistsFiltered =
-                                        case filter (\(name,_) -> name == indepVarName) $ toList indepVarsThresholds of
-                                            [(_,relevantThreshold)] -> VU.filter ((<= relevantThreshold) . snd) indepDistsIndexed
-                                            _                       -> indepDistsIndexed
-                                -- indepVar cross-filtering
-                                    indepDistsCrossFiltered =
-                                        let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsCrossThresholds
-                                            belowThresholdPerIndepVar = map (VU.convert . isBelowIndepVarsThreshold distsPerIndepVar') relevantThresholds
-                                            belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VS.length indepDists) True) belowThresholdPerIndepVar
-                                        in VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsFiltered
-                                 in indepDistsCrossFiltered
-                            else indepDistsIndexed
+                            -- indepVar filtering
+                            let indepDistsFiltered =
+                                    case filter (\(name,_) -> name == indepVarName) $ toList indepVarsThresholds of
+                                        [(_,relevantThreshold)] -> VU.filter ((<= relevantThreshold) . snd) indepDistsIndexed
+                                        _                       -> indepDistsIndexed
+                            -- indepVar cross-filtering
+                                indepDistsCrossFiltered =
+                                    let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsCrossThresholds
+                                        belowThresholdPerIndepVar = map (VU.convert . isBelowIndepVarsThreshold distsPerIndepVar') relevantThresholds
+                                        belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VS.length indepDists) True) belowThresholdPerIndepVar
+                                    in VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsFiltered
+                             in indepDistsCrossFiltered
                     -- sort indep distance vector for easy binning
                     sortedIndepDists <- sortWithIndices indepDistsIndexedModified -- very time-consuming!
                     -- get start index and stop index for each bin in the sorted indep vector
@@ -173,6 +170,13 @@ runVario
     hPutStrLn stderr "Writing result table..."
     writeVariograms (concat $ concat empiricalVariograms) outFile
     hPutStrLn stderr "Done"
+
+splitIdx :: Int -> Int -> Int -> (VS.Vector Int, VS.Vector Int)
+splitIdx seed nTest n =
+    let rng = R.mkStdGen seed
+        idxs = V.fromList [0..n-1]
+        (shuffled,_) = shuffle idxs rng
+    in VS.splitAt nTest (VS.convert shuffled)
 
 isBelowIndepVarsThreshold :: SelfDistMatrixPerIndepVar -> (IndepVarName, Double) -> VS.Vector Bool
 isBelowIndepVarsThreshold distsPerIndepVar (indepVarName, threshold) =

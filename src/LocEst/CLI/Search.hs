@@ -1,24 +1,28 @@
-{-# LANGUAGE BangPatterns      #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns  #-}
+{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE TupleSections #-}
 
 module LocEst.CLI.Search where
 
 import           LocEst.CoreAlgorithms
 import           LocEst.Distance
+import           LocEst.Distributions
 import           LocEst.Parsers
 import           LocEst.Types
 import           LocEst.TypesFlat
 import           LocEst.Utils
 
 import           Conduit                  (liftIO)
+import           Control.DeepSeq          (force)
+import           Control.Exception        (evaluate)
 import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import qualified Data.Conduit.List        as ConL
-import           Data.List                (intercalate)
+import           Data.Foldable            (foldl')
+import           Data.List                (intercalate, transpose)
 import qualified Data.Map.Strict          as Map
-import           Data.Maybe               (isJust)
+import           Data.Maybe               (isJust, isNothing)
 import qualified Data.Vector              as V
 import           System.IO                (hPutStrLn, stderr)
 
@@ -69,28 +73,32 @@ runSearch (SearchOptions
     !obsGridDistances  <- traverse (readCrossDistMulti nObs nGrid) maybeObsGridDistFile
     !obsObsDistances   <- traverse (readSelfDistMulti nObs) maybeObsObsDistFile
     -- !gridGridDistances <- traverse (readSelfDistMulti nGrid) maybeGridGridDistFile
-    -- permutations
-    hPutStrLn stderr "Preparing permutations"
-    let permutations = createPermutations obs maybeTempSamp indepPredGrid depSearchGrid maybeTempGrid
-        nrOutputRows =
-            length indepPredGrid
-          * factor maybeTempGrid length
-          * factor maybeTempSamp _tSMNrSamples
-          * factor depSearchGrid length
     -- run interpolation and search
     hPutStrLn stderr "Running interpolation"
+    let tempSamples = tempSampleAxis obs maybeTempSamp
+        timeSlices = if canMergeTempGrid maybeTempGrid maybeObsGridDistFile
+                     then mergeDataByAbsTempGrid maybeTempGrid indepPredGrid depSearchGrid
+                     else splitDataByTempGrid maybeTempGrid indepPredGrid depSearchGrid
+        nTempSamples = length tempSamples
+        nrWorkItems  = length timeSlices * nTempSamples
     Con.runConduitRes $
-           ConC.yieldMany permutations
-        .| ConL.concatMapM (liftIO . search spatDistUnitScaling algorithm kernDef topNObs indepVars obsGridDistances obsObsDistances -- gridGridDistances
-                                             depVars kernels)
-        .| progress 1000 (Just nrOutputRows)
+           ConC.yieldMany timeSlices
+        .| ConL.concatMap (\ts -> map (ts,) tempSamples)
+        .| ConL.mapM (
+            liftIO . interpol
+                spatDistUnitScaling algorithm kernDef
+                topNObs indepVars obsGridDistances
+                obsObsDistances depVars kernels
+           )
+        .| progress 1 (Just nrWorkItems)
+        .| ConL.chunksOf nTempSamples
+        .| ConL.map aggregateTempSamples
+        .| ConL.map searchForAllGridPoints
+        .| ConL.concatMap normaliseFinishedTimeSlice
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-factor :: Maybe a -> (a -> Int) -> Int
-factor element extractor = maybe 1 extractor element
-
-search
+interpol
     :: Double
     -> Algorithm
     -> KernelDefinition
@@ -98,22 +106,29 @@ search
     -> [IndepVarName]
     -> Maybe CrossDistMatrixPerIndepVar
     -> Maybe SelfDistMatrixPerIndepVar
-    -- -> Maybe SelfDistMatrixPerIndepVar
     -> [DepVarName]
     -> [KernelOneDepVar]
-    -> Permutation
-    -> IO [SearchResultWide]
-search spatDistUnitScaling algorithm kernDef topNObs indepVars
-     maybeObsGridDists maybeObsObsDists
-     depVars kernelsPerDepVar
-     perm@(Permutation tempIter _ grid _ searchDepVarPos) = do
-    perDepVar <- searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
-        maybeObsGridDists maybeObsObsDists
-        depVars kernelsPerDepVar
-        perm
-    pure $ searchResultsLongToWide kernDef tempIter grid searchDepVarPos perDepVar
+    -> (TimeSlice, V.Vector Observation)
+    -> IO (TimeSlice, [InterpolResultWide])
+interpol spatDistUnitScaling algorithm kernDef topNObs indepVars
+    maybeObsGridDists maybeObsObsDists depVars kernelsPerDepVar
+    (timeSlice@(grid, _), obs') = do
+    hPutStrLn stderr "Started work package..."
+    perDepVar <- interpolPerDepVar
+        spatDistUnitScaling
+        algorithm
+        topNObs
+        indepVars
+        maybeObsGridDists
+        maybeObsObsDists
+        depVars
+        kernelsPerDepVar
+        obs'
+        grid
+        Nothing
+    pure (timeSlice, interpolLongToWide kernDef grid perDepVar)
 
-searchPerDepVar
+interpolPerDepVar
     :: Double
     -> Algorithm
     -> Int
@@ -123,22 +138,25 @@ searchPerDepVar
     -- -> Maybe SelfDistMatrixPerIndepVar
     -> [DepVarName]
     -> [KernelOneDepVar]
-    -> Permutation
-    -> IO [V.Vector SearchResultLong]
-searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
+    -> V.Vector Observation
+    -> V.Vector IndepVarsPos
+    -> Maybe (V.Vector DepVarsPos)
+    -> IO [V.Vector InterpolResultLong]
+interpolPerDepVar spatDistUnitScaling algorithm topNObs indepVars
      maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
      depVars kernelsPerDepVar
-     (Permutation _ obs grid maybeGridTrueDep searchDepVarPos) =
+     obs grid maybeGridTrueDep = do
+    -- obs-grid dists are always needed
+    distsObsGrid <- case maybeObsGridDists of
+        Nothing -> do
+             crossDistMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
+        Just (CrossDistMatrixPerIndepVar ms) ->
+            crossDistMatrixToFlat . CrossDistMatrixPerIndepVar <$>
+                forM indepVars (\name -> case lookup name ms of
+                   Just m  -> pure (name, m)
+                   Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
     case algorithm of
         GPR -> do
-            distsObsGrid <- case maybeObsGridDists of
-                Nothing -> do
-                    crossDistMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
-                Just (CrossDistMatrixPerIndepVar ms) ->
-                    crossDistMatrixToFlat . CrossDistMatrixPerIndepVar <$>
-                        forM indepVars (\name -> case lookup name ms of
-                           Just m  -> pure (name, m)
-                           Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
             distsObsObs <- case maybeObsObsDists of
                 Nothing -> do
                      selfDistMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
@@ -155,62 +173,103 @@ searchPerDepVar spatDistUnitScaling algorithm topNObs indepVars
             --             forM indepVars (\name -> case lookup name ms of
             --                Just m  -> pure (name, m)
             --                Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
-            return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs searchDepVarPos topNObs) depVars kernelsPerDepVar
+            forM (zip depVars kernelsPerDepVar) $ \(depVar, kernel) -> do
+                hPutStrLn stderr depVar
+                let res = gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs topNObs depVar kernel
+                res' <- evaluate (force res)
+                return res'
         KAS -> do
-            distsObsGrid <- case maybeObsGridDists of
-                Nothing -> do
-                     crossDistMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
-                Just (CrossDistMatrixPerIndepVar ms) ->
-                    crossDistMatrixToFlat . CrossDistMatrixPerIndepVar <$>
-                        forM indepVars (\name -> case lookup name ms of
-                           Just m  -> pure (name, m)
-                           Nothing -> calcObsGridOneDim spatDistUnitScaling obs grid name)
-            return $ zipWith (kas obs maybeGridTrueDep distsObsGrid searchDepVarPos topNObs) depVars kernelsPerDepVar
+            forM (zip depVars kernelsPerDepVar) $ \(depVar, kernel) -> do
+                hPutStrLn stderr depVar
+                let res = kas obs maybeGridTrueDep distsObsGrid topNObs depVar kernel
+                res' <- evaluate (force res)
+                return res'
 
-searchResultsLongToWide
+interpolLongToWide
     :: KernelDefinition
-    -> Int
     -> V.Vector IndepVarsPos
-    -> Maybe (V.Vector DepVarsPredPos)
-    -> [V.Vector SearchResultLong]
-    -> [SearchResultWide]
-searchResultsLongToWide kernDef tempSamplingIteration grid searchDepVarPos perDepVar =
-    let rawRows = concatMap rowsForGridIdx [0 .. V.length grid - 1]
-    in if isJust searchDepVarPos && isSpatioTemporal grid
-       then normaliseByTimeSlice rawRows
-       else rawRows
+    -> [V.Vector InterpolResultLong]
+    -> [InterpolResultWide]
+interpolLongToWide kernDef grid perDepVar = map wideGridIdx [0 .. V.length grid - 1]
   where
-    rowsForGridIdx :: Int -> [SearchResultWide]
-    rowsForGridIdx i =
+    wideGridIdx :: Int -> InterpolResultWide
+    wideGridIdx i =
       let resAtI = map (V.! i) perDepVar
-          depCount = length perDepVar
-          mkRow :: Maybe DepVarsPredPos -> [Maybe Double] -> SearchResultWide
-          mkRow mSearchOne llsOne =
-            let truthLLs = map _srlGridLogLikelihood resAtI
-            in SRW
-                 { _srwTempSampIter      = tempSamplingIteration
-                 , _srwKernDef           = kernDef
-                 , _srwGridIndepVarsPos  = grid V.! i
-                 , _srwTopObsIDs         = map _srlTopObsIDs resAtI
-                 , _srwDepVarName        = map _srlDepVarName resAtI
-                 , _srwLowerBound        = map _srlLowerBound resAtI
-                 , _srwMedian            = map _srlMedian resAtI
-                 , _srwUpperBound        = map _srlUpperBound resAtI
-                 , _srwGridLogLikelihood = truthLLs
-                 , _srwGridAggLogLik     = sumIfAllJust truthLLs
-                 , _srwSearchPos         = mSearchOne
-                 , _srwLogLikelihood     = llsOne
-                 , _srwAggLogLikelihood  = sumIfAllJust llsOne
-                 , _srwProbability       = Nothing
-                 }
-          llsAt :: Int -> [Maybe Double]
-          llsAt j = [ mv >>= (V.!? j) | mv <- map _srlLogLikelihood resAtI ]
-          rowsNoSearch = [ mkRow Nothing (replicate depCount Nothing) ]
-          rowsWithSearch svec = V.toList $ V.imap (\j sp -> mkRow (Just sp) (llsAt j)) svec
-      in maybe rowsNoSearch rowsWithSearch searchDepVarPos
-    sumIfAllJust xs = do
-      ys <- sequence xs
-      if null ys then Nothing else Just (sum ys)
+      in IRW { _irwKernDef          = kernDef
+             , _irwGridIndepVarsPos = grid V.! i
+             , _irwGridDepVarsPos   = map _irlGridDepVarsPos resAtI
+             , _irwTopObsIDs        = map _irlTopObsIDs resAtI
+             , _irwDepVarName       = map _irlDepVarName resAtI
+             , _irwPredDist         = map _irlPredDist resAtI
+             }
+
+aggregateTempSamples :: [(TimeSlice, [InterpolResultWide])] -> [(TimeSlice, InterpolResultWide)]
+aggregateTempSamples [] = throwL "aggregateTempSamples: empty"
+aggregateTempSamples xs@((timeSlice, _) : _) =
+    map ((timeSlice,) . combineTempResamplingRuns) (transpose $ map snd xs)
+
+combineTempResamplingRuns :: [InterpolResultWide] -> InterpolResultWide
+combineTempResamplingRuns [] = throwL "combineTempResamplingRuns: empty"
+combineTempResamplingRuns rows@(r0:_) =
+    r0 { -- TODO: topObs also differ between resampling runs and must be aggregated somehow...
+         _irwTopObsIDs         = replicate (length . _irwTopObsIDs $ r0) Nothing
+       , _irwPredDist          = map mix . transpose $ map _irwPredDist rows
+       }
+
+searchForAllGridPoints :: [(TimeSlice, InterpolResultWide)] -> [(TimeSlice, SearchResultWide)]
+searchForAllGridPoints =  concatMap (\(ts@(_, maybeSearchGrid), irw) -> map (ts,) (search maybeSearchGrid irw))
+
+search :: Maybe (V.Vector DepVarsPredPos) -> InterpolResultWide -> [SearchResultWide]
+search Nothing irw = [searchOne Nothing irw]
+search (Just searchGrid) irw = map (\x -> searchOne (Just x) irw) (V.toList searchGrid)
+
+searchOne :: Maybe DepVarsPredPos -> InterpolResultWide -> SearchResultWide
+searchOne maybeSearchPos irw =
+    let depNames  = _irwDepVarName irw
+        predDists = _irwPredDist irw
+        gridDeps  = _irwGridDepVarsPos irw
+        gridLLs =
+            [ gridLL dist depName maybeGridDep
+            | (dist, depName, maybeGridDep) <- zip3 predDists depNames gridDeps
+            ]
+        searchLLs =
+            [ searchLL dist depName maybeSearchPos
+            | (dist, depName) <- zip predDists depNames
+            ]
+    in SRW { _srwKernDef           = _irwKernDef irw
+           , _srwGridIndepVarsPos  = _irwGridIndepVarsPos irw
+           , _srwTopObsIDs         = _irwTopObsIDs irw
+           , _srwDepVarName        = depNames
+           , _srwPredDist          = predDists
+           , _srwGridLogLikelihood = gridLLs
+           , _srwGridAggLogLik     = sumIfAllJust gridLLs
+           , _srwSearchPos         = maybeSearchPos
+           , _srwLogLikelihood     = searchLLs
+           , _srwAggLogLikelihood  = sumIfAllJust searchLLs
+           , _srwProbability       = Nothing
+           }
+
+gridLL :: Either String PredDist -> DepVarName -> Maybe DepVarsPos -> Maybe Double
+gridLL _ _ Nothing = Nothing
+gridLL (Left _) _ (Just _) = Just (-inf)
+gridLL (Right dist) depName (Just depPos) = Just $ predLogDensity dist (lookupUnsafe depPos depName)
+
+searchLL :: Either String PredDist -> DepVarName -> Maybe DepVarsPredPos -> Maybe Double
+searchLL _ _ Nothing =  Nothing
+searchLL (Left _) _ (Just _) = Just (-inf)
+searchLL (Right dist) depName (Just searchPos) = Just $ predLogDensity dist (getDepVarsPos2 depName searchPos)
+
+sumIfAllJust :: [Maybe Double] -> Maybe Double
+sumIfAllJust xs = do
+    ys <- sequence xs
+    if null ys then Nothing else Just (sum ys)
+
+normaliseFinishedTimeSlice :: [(TimeSlice, SearchResultWide)] -> [SearchResultWide]
+normaliseFinishedTimeSlice [] = []
+normaliseFinishedTimeSlice xs@(((grid, searchDepVarPos), _) : _) =
+    if isJust searchDepVarPos && isSpatioTemporal grid
+    then normaliseByTimeSlice $ map snd xs
+    else map snd xs
 
 -- normalisation mechanism
 normaliseByTimeSlice :: [SearchResultWide] -> [SearchResultWide]
@@ -244,40 +303,9 @@ makeKey row =
             _ -> error "impossible state"
     in (searchPos, t)
 
--- permutation mechanism
-data Permutation = Permutation {
-      _permTempSamplingIteration :: Int
-    , _permObs                   :: V.Vector Observation
-    , _permIndepPredGrid         :: V.Vector IndepVarsPos
-    , _permGridTrueDep           :: Maybe (V.Vector DepVarsPos)
-    , _permDepSearchGrid         :: Maybe (V.Vector DepVarsPredPos)
-} deriving (Show)
-
-createPermutations
-    :: V.Vector Observation
-    -> Maybe TempSampleMatrix
-    -> V.Vector IndepVarsPos
-    -> Maybe (V.Vector DepVarsPredPos)
-    -> Maybe [AbsRelTempPos]
-    -> [Permutation]
-createPermutations obs m indepPredGrid maybeDepSearchGrid maybeTempGrid =
-    [ Permutation
-        { _permTempSamplingIteration = tempSampIndex
-        , _permObs                   = tempSampObs
-        , _permIndepPredGrid         = grid'
-        , _permGridTrueDep           = Nothing
-        , _permDepSearchGrid         = dep'
-        }
-    | (tempSampIndex, tempSampObs) <- tempSampleAxis obs m
-    , (grid', dep') <- splitDataByTempGrid maybeTempGrid indepPredGrid maybeDepSearchGrid
-    ]
-
--- axis 1: temporal resampling over observations
-tempSampleAxis
-    :: V.Vector Observation
-    -> Maybe TempSampleMatrix
-    -> [(Int, V.Vector Observation)]
-tempSampleAxis obs m = [ (ix, V.map (applyTempSamp m ix) obs) | ix <- [0 .. nrTempSamples m - 1] ]
+-- temporal resampling over observations
+tempSampleAxis :: V.Vector Observation -> Maybe TempSampleMatrix -> [V.Vector Observation]
+tempSampleAxis obs m = [ V.map (applyTempSamp m ix) obs | ix <- [0 .. nrTempSamples m - 1] ]
 
 applyTempSamp :: Maybe TempSampleMatrix -> Int -> Observation -> Observation
 applyTempSamp (Just m) i
@@ -287,7 +315,7 @@ applyTempSamp (Just m) i
     in Observation i1 i2 (HyperPos (IndepSpatTempPos (SpatTempPos i3 (TempPos newage))) i4) i5
 applyTempSamp _ _ obs = obs
 
--- axis 2: expand independent-variable grid by requested time points
+-- expand independent-variable grid by requested time points
 type TimeSlice = (V.Vector IndepVarsPos, Maybe (V.Vector DepVarsPredPos))
 
 splitDataByTempGrid
@@ -301,8 +329,26 @@ splitDataByTempGrid (Just tempPos) indepPredGrid maybeDepSearchGrid =
     let spatGrid = V.map spatPosFromIndepVarsPos indepPredGrid
     in concatMap (expandOne spatGrid maybeDepSearchGrid) tempPos
 
-makeGridAtTime :: V.Vector SpatPos -> YearBCAD -> V.Vector IndepVarsPos
-makeGridAtTime spatGrid year = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos year))) spatGrid
+canMergeTempGrid :: Maybe [AbsRelTempPos] -> Maybe FilePath -> Bool
+canMergeTempGrid maybeTempGrid maybeObsGridDistFile =
+    case maybeTempGrid of
+      Nothing -> True
+      Just xs -> all isAbsTempPos xs && isNothing maybeObsGridDistFile
+      -- important: merging changes the obs-grid distance shape
+
+mergeDataByAbsTempGrid
+    :: Maybe [AbsRelTempPos]
+    -> V.Vector IndepVarsPos
+    -> Maybe (V.Vector DepVarsPredPos)
+    -> [TimeSlice]
+mergeDataByAbsTempGrid Nothing indepPredGrid maybeDepSearchGrid =
+    [(indepPredGrid, maybeDepSearchGrid)]
+mergeDataByAbsTempGrid (Just tempPos) indepPredGrid maybeDepSearchGrid =
+    let spatGrid = V.map spatPosFromIndepVarsPos indepPredGrid
+        grids = [ makeGridAtTime spatGrid yearBCAD | AbsTempPos yearBCAD <- tempPos ]
+    in if null grids
+       then []
+       else [(V.concat grids, maybeDepSearchGrid)]
 
 expandOne
     :: V.Vector SpatPos
@@ -319,3 +365,6 @@ expandOne spatGrid maybeDepSearchGrid = \case
                   grids   = [ makeGridAtTime spatGrid (r + yearDist) | r <- refAges ]
                   deps    = map Just (V.group depGrid) -- depends on pre-arranged ordering
               in zip grids deps
+
+makeGridAtTime :: V.Vector SpatPos -> YearBCAD -> V.Vector IndepVarsPos
+makeGridAtTime spatGrid year = V.map (\s -> IndepSpatTempPos (SpatTempPos s (TempPos year))) spatGrid
