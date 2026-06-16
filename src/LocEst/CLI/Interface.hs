@@ -856,6 +856,7 @@ parseIndepVarName =
           P.string "space"
     P.<|> P.string "time"
     P.<|> P.string "indep" <> P.many1 P.alphaNum
+    P.<|> P.string "across" <> P.many1 P.alphaNum
 
 parseDepVarName :: P.Parser String
 parseDepVarName = P.string "dep" <> P.many1 P.alphaNum

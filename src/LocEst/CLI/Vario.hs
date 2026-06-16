@@ -47,7 +47,7 @@ data AcrossSettings =
 instance Show AcrossSettings where
     show AcrossNone = "No merging of distances"
     show AcrossIndepVars = "Merge independent variable distances"
-    show AcrossDepVars = "Merge independent variable distances"
+    show AcrossDepVars = "Merge dependent variable distances"
     show AcrossBoth = "Merge both independent and dependent variable distances"
     show AcrossComb = "Iterate through all modes"
 
@@ -117,7 +117,7 @@ runVario
         hPutStrLn stderr "Calculating empirical variograms..."
         -- loop over subsampling iterations
         forM subsamplingPlan $ \(subsamplingIter, maybeRemoveIdx) -> do
-            let !distsPerIndepVar' = maybe rawIndepDists (\rm -> removeObservationsMulti nObs rm distsPerIndepVar) maybeRemoveIdx
+            let !distsPerIndepVar' = maybe distsPerIndepVar (\rm -> removeObservationsMulti nObs rm distsPerIndepVar) maybeRemoveIdx
                 !distsPerDepVar' = maybe distsPerDepVar (\rm -> removeObservationsMulti nObs rm distsPerDepVar) maybeRemoveIdx
             OP.when (subsamplingIters > 0) $ hPutStrLn stderr $ "Subsampling iteration: " ++ show subsamplingIter
             -- loop over all permutations of indepVars and depVars to calculate empirical variograms
@@ -127,21 +127,18 @@ runVario
                     -- indexing (must be done before any filtering)
                     let indepDistsIndexed = VU.indexed $ VS.convert indepDists
                         indepDistsIndexedModified =
-                            if not acrossIndepVars
-                            then do
-                                -- indepVar filtering
-                                let indepDistsFiltered =
-                                        case filter (\(name,_) -> name == indepVarName) $ toList indepVarsThresholds of
-                                            [(_,relevantThreshold)] -> VU.filter ((<= relevantThreshold) . snd) indepDistsIndexed
-                                            _                       -> indepDistsIndexed
-                                -- indepVar cross-filtering
-                                    indepDistsCrossFiltered =
-                                        let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsCrossThresholds
-                                            belowThresholdPerIndepVar = map (VU.convert . isBelowIndepVarsThreshold distsPerIndepVar') relevantThresholds
-                                            belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VS.length indepDists) True) belowThresholdPerIndepVar
-                                        in VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsFiltered
-                                 in indepDistsCrossFiltered
-                            else indepDistsIndexed
+                            -- indepVar filtering
+                            let indepDistsFiltered =
+                                    case filter (\(name,_) -> name == indepVarName) $ toList indepVarsThresholds of
+                                        [(_,relevantThreshold)] -> VU.filter ((<= relevantThreshold) . snd) indepDistsIndexed
+                                        _                       -> indepDistsIndexed
+                            -- indepVar cross-filtering
+                                indepDistsCrossFiltered =
+                                    let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsCrossThresholds
+                                        belowThresholdPerIndepVar = map (VU.convert . isBelowIndepVarsThreshold distsPerIndepVar') relevantThresholds
+                                        belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VS.length indepDists) True) belowThresholdPerIndepVar
+                                    in VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsFiltered
+                             in indepDistsCrossFiltered
                     -- sort indep distance vector for easy binning
                     sortedIndepDists <- sortWithIndices indepDistsIndexedModified -- very time-consuming!
                     -- get start index and stop index for each bin in the sorted indep vector
