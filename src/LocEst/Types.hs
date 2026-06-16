@@ -679,6 +679,10 @@ instance Csv.ToField AbsRelTempPos where
     toField (AbsTempPos x) = Csv.toField x
     toField (RelTempPos x) = Csv.toField x
 
+isAbsTempPos :: AbsRelTempPos -> Bool
+isAbsTempPos AbsTempPos{} = True
+isAbsTempPos _            = False
+
 -- | A data type for temporal positions
 newtype TempPos = TempPos YearBCAD
     deriving (Eq, Show, Generic, Ord)

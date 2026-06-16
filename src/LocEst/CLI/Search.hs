@@ -22,7 +22,7 @@ import qualified Data.Conduit.List        as ConL
 import           Data.Foldable            (foldl')
 import           Data.List                (intercalate, transpose)
 import qualified Data.Map.Strict          as Map
-import           Data.Maybe               (isJust)
+import           Data.Maybe               (isJust, isNothing)
 import qualified Data.Vector              as V
 import           System.IO                (hPutStrLn, stderr)
 
@@ -76,7 +76,9 @@ runSearch (SearchOptions
     -- run interpolation and search
     hPutStrLn stderr "Running interpolation"
     let tempSamples = tempSampleAxis obs maybeTempSamp
-        timeSlices  = splitDataByTempGrid maybeTempGrid indepPredGrid depSearchGrid
+        timeSlices = if canMergeTempGrid maybeTempGrid maybeObsGridDistFile
+                     then mergeDataByAbsTempGrid maybeTempGrid indepPredGrid depSearchGrid
+                     else splitDataByTempGrid maybeTempGrid indepPredGrid depSearchGrid
         nTempSamples = length tempSamples
         nrWorkItems  = length timeSlices * nTempSamples
     Con.runConduitRes $
@@ -111,6 +113,7 @@ interpol
 interpol spatDistUnitScaling algorithm kernDef topNObs indepVars
     maybeObsGridDists maybeObsObsDists depVars kernelsPerDepVar
     (timeSlice@(grid, _), obs') = do
+    hPutStrLn stderr "Started work package..."
     perDepVar <- interpolPerDepVar
         spatDistUnitScaling
         algorithm
@@ -123,8 +126,7 @@ interpol spatDistUnitScaling algorithm kernDef topNObs indepVars
         obs'
         grid
         Nothing
-    perDepVar' <- evaluate (force perDepVar)
-    pure (timeSlice, interpolLongToWide kernDef grid perDepVar')
+    pure (timeSlice, interpolLongToWide kernDef grid perDepVar)
 
 interpolPerDepVar
     :: Double
@@ -171,9 +173,17 @@ interpolPerDepVar spatDistUnitScaling algorithm topNObs indepVars
             --             forM indepVars (\name -> case lookup name ms of
             --                Just m  -> pure (name, m)
             --                Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
-            return $ zipWith (gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs topNObs) depVars kernelsPerDepVar
+            forM (zip depVars kernelsPerDepVar) $ \(depVar, kernel) -> do
+                hPutStrLn stderr depVar
+                let res = gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs topNObs depVar kernel
+                res' <- evaluate (force res)
+                return res'
         KAS -> do
-            return $ zipWith (kas obs maybeGridTrueDep distsObsGrid topNObs) depVars kernelsPerDepVar
+            forM (zip depVars kernelsPerDepVar) $ \(depVar, kernel) -> do
+                hPutStrLn stderr depVar
+                let res = kas obs maybeGridTrueDep distsObsGrid topNObs depVar kernel
+                res' <- evaluate (force res)
+                return res'
 
 interpolLongToWide
     :: KernelDefinition
@@ -318,6 +328,27 @@ splitDataByTempGrid Nothing indepPredGrid maybeDepSearchGrid =
 splitDataByTempGrid (Just tempPos) indepPredGrid maybeDepSearchGrid =
     let spatGrid = V.map spatPosFromIndepVarsPos indepPredGrid
     in concatMap (expandOne spatGrid maybeDepSearchGrid) tempPos
+
+canMergeTempGrid :: Maybe [AbsRelTempPos] -> Maybe FilePath -> Bool
+canMergeTempGrid maybeTempGrid maybeObsGridDistFile =
+    case maybeTempGrid of
+      Nothing -> True
+      Just xs -> all isAbsTempPos xs && isNothing maybeObsGridDistFile
+      -- important: merging changes the obs-grid distance shape
+
+mergeDataByAbsTempGrid
+    :: Maybe [AbsRelTempPos]
+    -> V.Vector IndepVarsPos
+    -> Maybe (V.Vector DepVarsPredPos)
+    -> [TimeSlice]
+mergeDataByAbsTempGrid Nothing indepPredGrid maybeDepSearchGrid =
+    [(indepPredGrid, maybeDepSearchGrid)]
+mergeDataByAbsTempGrid (Just tempPos) indepPredGrid maybeDepSearchGrid =
+    let spatGrid = V.map spatPosFromIndepVarsPos indepPredGrid
+        grids = [ makeGridAtTime spatGrid yearBCAD | AbsTempPos yearBCAD <- tempPos ]
+    in if null grids
+       then []
+       else [(V.concat grids, maybeDepSearchGrid)]
 
 expandOne
     :: V.Vector SpatPos

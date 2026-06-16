@@ -51,7 +51,7 @@ progress reportNum goal = do
         logProgress :: Int -> IO ()
         logProgress c
             | c `rem` reportNum == 0 = do
-                let stringDone = padLeft 10 (show c)
+                let stringDone = "Progress: " ++ padLeft 10 (show c)
                     stringGoal = case goal of
                         Nothing -> ""
                         Just g  -> do
