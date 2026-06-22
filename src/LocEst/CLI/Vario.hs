@@ -13,15 +13,14 @@ import qualified Control.Monad                as OP
 import qualified Data.Conduit                 as Con
 import qualified Data.Conduit.Combinators     as ConC
 import qualified Data.Conduit.List            as ConL
-import           Data.Foldable                (foldl')
-import           Data.Function                (on)
 import           Data.List                    (singleton, sort)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Storable         as VS
-import qualified Data.Vector.Unboxed          as VU
 import           System.IO                    (hPutStrLn, stderr)
 import qualified System.Random                as R
+import qualified Data.Vector.Storable.Mutable as VSM
+import Data.Word (Word32)
 
 data VarioOptions = VarioOptions {
       _voInObservationFile        :: FilePath
@@ -124,46 +123,35 @@ runVario
             fmap concat $
                 -- loop over indepVars
                 forM (toList distsPerIndepVar') $ \(indepVarName, SelfDistMatrix indepDists) -> do
-                    -- indexing (must be done before any filtering)
-                    let indepDistsIndexed = VU.indexed $ VS.convert indepDists
-                        indepDistsIndexedModified =
-                            -- indepVar filtering
-                            let indepDistsFiltered =
-                                    case filter (\(name,_) -> name == indepVarName) $ toList indepVarsThresholds of
-                                        [(_,relevantThreshold)] -> VU.filter ((<= relevantThreshold) . snd) indepDistsIndexed
-                                        _                       -> indepDistsIndexed
-                            -- indepVar cross-filtering
-                                indepDistsCrossFiltered =
-                                    let relevantThresholds = filter (\(name,_) -> name /= indepVarName) $ toList indepVarsCrossThresholds
-                                        belowThresholdPerIndepVar = map (VU.convert . isBelowIndepVarsThreshold distsPerIndepVar') relevantThresholds
-                                        belowAllThresholds = foldl' (VU.zipWith (&&)) (VU.replicate (VS.length indepDists) True) belowThresholdPerIndepVar
-                                    in VU.map snd $ VU.filter fst $ VU.zip belowAllThresholds indepDistsFiltered
-                             in indepDistsCrossFiltered
-                    -- sort indep distance vector for easy binning
-                    sortedIndepDists <- sortWithIndices indepDistsIndexedModified -- very time-consuming!
+                    let mainThreshold =
+                            case [thr | (name, thr) <- toList indepVarsThresholds, name == indepVarName] of
+                                 [thr] -> Just thr
+                                 _     -> Nothing
+                        crossThresholds =
+                            [ let SelfDistMatrix v = lookupUnsafe distsPerIndepVar' name in (v, threshold)
+                            | (name, threshold) <- toList indepVarsCrossThresholds, name /= indepVarName ]
+                    sortedIdxs <- buildAndSortCandidateIndices indepDists mainThreshold crossThresholds
                     -- get start index and stop index for each bin in the sorted indep vector
-                    let startStopPerBin = case binModeSettings of
-                            BinByNrBins nrBins      -> binIndepVarByNrBins sortedIndepDists nrBins
-                            BinForNugget thresholds ->
-                                if acrossIndepVars && (sort (getKeys thresholds) == ["space", "time"])
-                                then
-                                    let spaceThreshold  = lookupUnsafe thresholds "space"
-                                        timeThreshold   = lookupUnsafe thresholds "time"
-                                        mergedThreshold = sqrt (((spaceThreshold / spaceScaling) ** 2) + (timeThreshold / timeScaling) ** 2)
-                                    in binIndepVarForNugget sortedIndepDists (makeValuesPerIndepVar [("acrossIndep", mergedThreshold)]) indepVarName
-                                else binIndepVarForNugget sortedIndepDists thresholds indepVarName
-                    -- add infinite bin to compute total variance in filtered (!) distances
-                    -- let allBins = startStopPerBin ++ [((0, inf, inf), 0, VU.length sortedIndepDists - 1)]
+                    let startStopPerBin =
+                            case binModeSettings of
+                                BinByNrBins nrBins -> binIndepVarByNrBinsIdx indepDists sortedIdxs nrBins
+                                BinForNugget thresholds ->
+                                    let threshold = if acrossIndepVars && sort (getKeys thresholds) == ["space", "time"]
+                                                    then let spaceThreshold  = lookupUnsafe thresholds "space"
+                                                             timeThreshold   = lookupUnsafe thresholds "time"
+                                                         in sqrt (((spaceThreshold / spaceScaling) ** 2) + ((timeThreshold / timeScaling) ** 2))
+                                            else lookupUnsafe thresholds indepVarName
+                                    in binIndepVarForNuggetIdx indepDists sortedIdxs threshold
                     -- loop over depVars
                     forM (toList distsPerDepVar') $ \(depVarName, SelfDistMatrix depDists) -> do
                         -- loop over bins
                         variancesPerBin <- Con.runConduitRes $
                                 ConC.yieldMany startStopPerBin
-                                .| ConL.map (perBin sortedIndepDists $ VU.convert depDists)
+                                .| ConL.map (perBinIdx sortedIdxs depDists)
                                 .| ConC.sinkList
                         -- add infinite bin with total variance across all (!) distances
-                        let totalVarianceForDepVar = calcHalfMeanSquared $ VU.convert depDists
-                            withInfiniteBin = variancesPerBin ++ [((0, inf, inf), totalVarianceForDepVar, VS.length indepDists)]
+                        let totalVarianceForDepVar = calcHalfMeanSquared depDists
+                            withInfiniteBin = variancesPerBin ++ [((0, inf, inf), totalVarianceForDepVar, VS.length depDists)]
                         hPutStrLn stderr (indepVarName ++ " -> " ++ depVarName)
                         return $ EmpiricalVariogramOneVarCombination subsamplingIter indepVarName depVarName (EmpiricalVariogram withInfiniteBin)
     -- write variograms to the file system
@@ -191,51 +179,82 @@ writeVariograms vars path = Con.runConduitRes $ ConC.yieldMany (concatMap varToL
         varToLong (EmpiricalVariogramOneVarCombination subsamplingIter i d (EmpiricalVariogram xs)) =
             map (\(iv, dv, nrPairs) -> EmpiricalVariogramSingleBin subsamplingIter i d iv dv nrPairs) xs
 
-perBin :: VU.Vector (Int, Double) -> VU.Vector Double -> ((Double,Double,Double), Int, Int) -> ((Double,Double,Double), Double, Int)
-perBin sortedIndepDists depDists (minMidMax, startSorted, stopSorted) =
-    let indicesForThisBin = getIndicesForBin sortedIndepDists startSorted stopSorted
-        depDistsPerBin = VU.map (depDists VU.!) indicesForThisBin
-        nrPairs = VU.length depDistsPerBin
-        -- calculate variance per bin
-        variance = calcHalfMeanSquared depDistsPerBin
-    in (minMidMax, variance, nrPairs)
+buildAndSortCandidateIndices :: VS.Vector Double -> Maybe Double -> [(VS.Vector Double, Double)] -> IO (VS.Vector Word32)
+buildAndSortCandidateIndices indepDists maybeMainThreshold crossThresholds = do
+    let !n = VS.length indepDists
+    let countLoop !k !acc
+            | k == n = acc
+            | passes k = countLoop (k + 1) (acc + 1)
+            | otherwise = countLoop (k + 1) acc
+        !outLen = countLoop 0 0
+    mv <- VSM.unsafeNew outLen
+    let fillLoop !k !out
+            | k == n = pure ()
+            | passes k = do
+                VSM.unsafeWrite mv out (fromIntegral k)
+                fillLoop (k + 1) (out + 1)
+            | otherwise = fillLoop (k + 1) out
+    fillLoop 0 0
+    VA.sortBy (\a b ->
+            compare
+                (VS.unsafeIndex indepDists (fromIntegral a))
+                (VS.unsafeIndex indepDists (fromIntegral b))) mv
+    VS.unsafeFreeze mv
+    where
+    passes !k = mainOk && crossOk
+        where
+            !d = VS.unsafeIndex indepDists k
+            !mainOk = case maybeMainThreshold of
+                            Nothing  -> True
+                            Just thr -> d <= thr
+            !crossOk = all (\(v, thr) -> VS.unsafeIndex v k <= thr) crossThresholds
 
--- perform binning of an indepVar
-binIndepVarForNugget :: VU.Vector (Int, Double) -> ArbitraryDimPos -> IndepVarName -> [((Double, Double, Double), Int, Int)]
-binIndepVarForNugget sortedVec thresholds indepVarName =
-    let threshold = lookupUnsafe thresholds indepVarName
-        stop = case VU.findIndexR (\(_,x) -> x <= threshold) sortedVec of
-            Nothing -> VU.length sortedVec - 1
-            Just i  -> i
-    in singleton (binMinMidMax sortedVec 0 stop, 0, stop)
+binIndepVarByNrBinsIdx :: VS.Vector Double -> VS.Vector Word32 -> Int -> [((Double, Double, Double), Int, Int)]
+binIndepVarByNrBinsIdx indepDists sortedIdxs nrBins =
+    let len = VS.length sortedIdxs
+        stepWidth = len `div` nrBins
+        starts = [0, stepWidth .. (len - stepWidth)]
+        stops = map (\x -> x - 1) [stepWidth, 2 * stepWidth .. len]
+    in zipWith (\start stop -> (binMinMidMaxIdx indepDists sortedIdxs start stop, start, stop)) starts stops
 
-binIndepVarByNrBins :: VU.Vector (Int, Double) -> Int -> [((Double, Double, Double), Int, Int)]
-binIndepVarByNrBins sortedVec nrBins =
-    let len = VU.length sortedVec
-        stepWidth = len `div` nrBins -- in nr of distances
-        starts = [0,stepWidth..(len - stepWidth)]
-        stops = map (\x -> x-1) [stepWidth,2*stepWidth..len]
-    in zipWith (\start stop -> (binMinMidMax sortedVec start stop, start, stop)) starts stops
+binIndepVarForNuggetIdx :: VS.Vector Double -> VS.Vector Word32 -> Double -> [((Double, Double, Double), Int, Int)]
+binIndepVarForNuggetIdx indepDists sortedIdxs threshold =
+    let stop = case VS.findIndexR (\ix -> VS.unsafeIndex indepDists (fromIntegral ix) <= threshold) sortedIdxs of
+                Nothing -> VS.length sortedIdxs - 1
+                Just i  -> i
+    in singleton (binMinMidMaxIdx indepDists sortedIdxs 0 stop, 0, stop)
 
-binMinMidMax :: VU.Vector (Int, Double) -> Int -> Int -> (Double, Double, Double)
-binMinMidMax sortedVec start stop =
-    let (_,lo) = sortedVec VU.! start
-        (_,hi) = sortedVec VU.! stop
-    in (lo,(lo+hi)/2,hi)
+binMinMidMaxIdx :: VS.Vector Double -> VS.Vector Word32 -> Int -> Int -> (Double, Double, Double)
+binMinMidMaxIdx indepDists sortedIdxs start stop =
+    let !loIx = fromIntegral $ VS.unsafeIndex sortedIdxs start
+        !hiIx = fromIntegral $ VS.unsafeIndex sortedIdxs stop
+        !lo   = VS.unsafeIndex indepDists loIx
+        !hi   = VS.unsafeIndex indepDists hiIx
+    in (lo, (lo + hi) / 2, hi)
+
+perBinIdx :: VS.Vector Word32 -> VS.Vector Double -> ((Double, Double, Double), Int, Int) -> ((Double, Double, Double), Double, Int)
+perBinIdx sortedIdxs depDists (minMidMax, startSorted, stopSorted) =
+    let go !k !acc !count
+            | k > stopSorted =
+                let !variance =
+                        if count == 0
+                        then 0 / 0
+                        else acc / (2 * fromIntegral count)
+                in (minMidMax, variance, count)
+            | otherwise =
+                let !pairIx = fromIntegral $ VS.unsafeIndex sortedIdxs k
+                    !d      = VS.unsafeIndex depDists pairIx
+                in go (k + 1) (acc + d * d) (count + 1)
+    in go startSorted 0 0
 
 -- mean squared distance within one bin
 -- matheron estimator
-calcHalfMeanSquared :: VU.Vector Double -> Double
+calcHalfMeanSquared :: VS.Vector Double -> Double
 calcHalfMeanSquared dists =
-    let n = fromIntegral $ VU.length dists
-    in (1 / (2*n)) * VU.foldl' (\acc d -> acc + (d ** 2)) 0 dists
-
-sortWithIndices :: VU.Vector (Int, Double) -> IO (VU.Vector (Int, Double))
-sortWithIndices v = do
-    mv <- VU.thaw v    -- Create a mutable copy
-    VA.sortBy (compare `on` snd) mv -- Sort it in-place
-    VU.unsafeFreeze mv -- Convert back to a pure vector
-getIndicesForBin :: VU.Vector (Int, Double) -> Int -> Int -> VU.Vector Int
-getIndicesForBin sortedVec i1 i2 =
-    --let !_ = unsafePerformIO $ putStrLn (show i1 ++ " " ++ show (i2 - i1))
-    VU.map fst $ VU.slice i1 (i2 - i1 + 1) sortedVec
+    let !n = fromIntegral $ VS.length dists
+        go !i !acc
+            | i == VS.length dists = acc
+            | otherwise =
+                let !d = VS.unsafeIndex dists i
+                in go (i + 1) (acc + d * d)
+    in (1 / (2 * n)) * go 0 0

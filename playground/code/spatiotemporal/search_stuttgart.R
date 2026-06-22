@@ -51,9 +51,9 @@ system('time locest serialise selfdist -i data/spatiotemporal/obs.tsv --obsObsDi
 #### vario ####
 
 # stack install --profile
-# stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -hc -l
+# stack exec --profile -- locest varioemp --obsFile data/spatiotemporal/obs.tsv --outFile data/spatiotemporal/vario.tsv +RTS -hc -l
 # eventlog2html locest.eventlog
-# stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -p
+# stack exec --profile -- locest varioemp --obsFile data/spatiotemporal/obs.tsv --outFile data/spatiotemporal/vario.tsv +RTS -p
 # profiteur locest.prof
 
 # full empirical variogram
@@ -67,8 +67,8 @@ vario_emp %>%
   scale_y_continuous(limits = c(0, NA))
 
 # distance-filtered empirical variogram with resampling iterations
-system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 20 --omitFraction 0.2 --seed 123')
-vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp2.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 20 --omitFraction 0.2 --seed 123')
+vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp2.tsv")
 vario_emp %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(depVar), cols = dplyr::vars(indepVar), scales = "free") +

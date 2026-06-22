@@ -12,6 +12,8 @@ import qualified Data.Vector                  as V
 import qualified Data.Vector.Storable         as VS
 import qualified Data.Vector.Storable.Mutable as VSM
 import           LocEst.Utils                 (throwL)
+import Data.Vector.Algorithms.Intro as VA
+import System.IO (hPutStrLn, stderr)
 
 calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> [IndepVarName] -> IO CrossDistMatrixPerIndepVar
 calcObsGridDistances spatScale obs grid varsToCompute = do
@@ -194,7 +196,8 @@ calcGridGridDistances scale grid varsToCompute = do
     pure (SelfDistMatrixPerIndepVar mats)
 
 calcSelfDistOneDim :: Double -> (a -> IndepVarsPos) -> V.Vector a -> IndepVarName -> IO (IndepVarName, SelfDistMatrix)
-calcSelfDistOneDim spatScale getPos vec varName =
+calcSelfDistOneDim spatScale getPos vec varName = do
+  hPutStrLn stderr varName
   case getPos (V.head vec) of
     IndepSpatTempPos _ ->
       case varName of
@@ -214,40 +217,70 @@ calcSelfDistOneDim spatScale getPos vec varName =
 
 computeSpaceSelfDistMatrix :: Double -> V.Vector SpatPos -> IO SelfDistMatrix
 computeSpaceSelfDistMatrix spatScale vec = do
-    let n     = V.length vec
-        nHalf = n*(n+1) `div` 2
-    mv <- VSM.new nHalf
-    forM_ [0..n-1] $ \i ->
-        let s1 = vec V.! i
-        in forM_ [0..i] $ \j ->
-             let s2 = vec V.! j
-             in VSM.write mv (idxHalf i j) (spatialDistSpatPos s1 s2 * spatScale)
+    let !n     = V.length vec
+        !nHalf = n * (n + 1) `div` 2
+    mv <- VSM.unsafeNew nHalf
+    let goI !i
+          | i >= n = pure ()
+          | otherwise = do
+              let !s1   = V.unsafeIndex vec i
+                  !base = i * (i + 1) `div` 2
+              let goJ !j
+                    | j > i = pure ()
+                    | otherwise = do
+                        let !s2 = V.unsafeIndex vec j
+                            !d  = spatialDistSpatPos s1 s2 * spatScale
+                        VSM.unsafeWrite mv (base + j) d
+                        goJ (j + 1)
+              goJ 0
+              goI (i + 1)
+    goI 0
     frozen <- VS.unsafeFreeze mv
     pure (SelfDistMatrix frozen)
 
 computeTimeSelfDistMatrix :: V.Vector TempPos -> IO SelfDistMatrix
 computeTimeSelfDistMatrix vec = do
-    let n     = V.length vec
-        nHalf = n*(n+1) `div` 2
-    mv <- VSM.new nHalf
-    forM_ [0..n-1] $ \i ->
-        let t1 = vec V.! i
-        in forM_ [0..i] $ \j ->
-             let t2 = vec V.! j
-             in VSM.write mv (idxHalf i j) (temporalDistTempPos t1 t2)
+    let !n     = V.length vec
+        !nHalf = n * (n + 1) `div` 2
+    mv <- VSM.unsafeNew nHalf
+    let goI !i
+          | i >= n = pure ()
+          | otherwise = do
+              let !t1   = V.unsafeIndex vec i
+                  !base = i * (i + 1) `div` 2
+              let goJ !j
+                    | j > i = pure ()
+                    | otherwise = do
+                        let !t2 = V.unsafeIndex vec j
+                            !d  = temporalDistTempPos t1 t2
+                        VSM.unsafeWrite mv (base + j) d
+                        goJ (j + 1)
+              goJ 0
+              goI (i + 1)
+    goI 0
     frozen <- VS.unsafeFreeze mv
     pure (SelfDistMatrix frozen)
 
 computeArbitrarySelfDistMatrix :: Int -> V.Vector (VS.Vector Double) -> IO SelfDistMatrix
 computeArbitrarySelfDistMatrix ix vec = do
-    let n     = V.length vec
-        nHalf = n*(n+1) `div` 2
-    mv <- VSM.new nHalf
-    forM_ [0..n-1] $ \i ->
-        let vs1 = vec V.! i
-        in forM_ [0..i] $ \j ->
-             let vs2 = vec V.! j
-             in VSM.write mv (idxHalf i j) (abs (vs1 VS.! ix - vs2 VS.! ix))
+    let !n     = V.length vec
+        !nHalf = n * (n + 1) `div` 2
+    mv <- VSM.unsafeNew nHalf
+    let goI !i
+          | i >= n = pure ()
+          | otherwise = do
+              let !vs1  = V.unsafeIndex vec i
+                  !base = i * (i + 1) `div` 2
+              let goJ !j
+                    | j > i = pure ()
+                    | otherwise = do
+                        let !vs2 = V.unsafeIndex vec j
+                            !d  = abs (vs1 VS.! ix - vs2 VS.! ix)
+                        VSM.unsafeWrite mv (base + j) d
+                        goJ (j + 1)
+              goJ 0
+              goI (i + 1)
+    goI 0
     frozen <- VS.unsafeFreeze mv
     pure (SelfDistMatrix frozen)
 
@@ -270,6 +303,21 @@ selfDistMatrixToFlatHalf sdmPerIndepVar =
             in vec VS.! idx
     in IndepVarsDistFlat tagsVec payloadVec stride
 
+sortIndicesByDistance :: VS.Vector Double -> IO (VS.Vector Int)
+sortIndicesByDistance dists = do
+    let !n = VS.length dists
+    mv <- VSM.unsafeNew n
+    let fill !i
+          | i == n    = pure ()
+          | otherwise = do
+              VSM.unsafeWrite mv i (fromIntegral i)
+              fill (i + 1)
+    fill 0
+    VA.sortBy (\a b -> compare
+        (VS.unsafeIndex dists (fromIntegral a))
+        (VS.unsafeIndex dists (fromIntegral b))) mv
+    VS.unsafeFreeze mv
+
 -- distance helper functions
 
 {-# INLINE temporalDistTempPos #-}
@@ -289,7 +337,9 @@ spatialDistSpatPos _ _ = error "Can not be calculated"
 {-# INLINE spatialDistCartesianPos #-}
 spatialDistCartesianPos :: CartesianPos -> CartesianPos -> Double
 spatialDistCartesianPos (CartesianPos _ _ x1 y1) (CartesianPos _ _ x2 y2) =
-    sqrt (((x1 - x2) ** 2) + ((y1 - y2) ** 2))
+    let !dx = x1 - x2
+        !dy = y1 - y2
+    in sqrt (dx * dx + dy * dy)
 
 -- Haversine distance in metres
 {-# INLINE spatialDistLongLatPos #-}
