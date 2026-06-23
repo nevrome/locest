@@ -17,10 +17,10 @@ import           Data.List                    (singleton, sort)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Storable         as VS
+import qualified Data.Vector.Storable.Mutable as VSM
+import           Data.Word                    (Word32)
 import           System.IO                    (hPutStrLn, stderr)
 import qualified System.Random                as R
-import qualified Data.Vector.Storable.Mutable as VSM
-import Data.Word (Word32)
 
 data VarioOptions = VarioOptions {
       _voInObservationFile        :: FilePath

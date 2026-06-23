@@ -9,11 +9,11 @@ import           LocEst.TypesFlat
 import           Data.Foldable                (foldl', forM_)
 import           Data.Maybe                   (listToMaybe)
 import qualified Data.Vector                  as V
+import           Data.Vector.Algorithms.Intro as VA
 import qualified Data.Vector.Storable         as VS
 import qualified Data.Vector.Storable.Mutable as VSM
 import           LocEst.Utils                 (throwL)
-import Data.Vector.Algorithms.Intro as VA
-import System.IO (hPutStrLn, stderr)
+import           System.IO                    (hPutStrLn, stderr)
 
 calcObsGridDistances :: Double -> V.Vector Observation -> V.Vector IndepVarsPos -> [IndepVarName] -> IO CrossDistMatrixPerIndepVar
 calcObsGridDistances spatScale obs grid varsToCompute = do
