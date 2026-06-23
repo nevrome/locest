@@ -11,6 +11,8 @@ import           LocEst.TypesFlat
 import           LocEst.Utils
 
 import           Conduit                  (MonadIO (liftIO))
+import           Control.DeepSeq          (force)
+import           Control.Exception        (evaluate)
 import qualified Control.Monad            as OP
 import           Data.Conduit             ((.|))
 import qualified Data.Conduit             as Con
@@ -20,6 +22,7 @@ import qualified Data.List.NonEmpty       as N
 import qualified Data.Vector              as V
 import qualified Data.Vector.Storable     as VS
 import           System.IO                (hPutStrLn, stderr)
+import           System.Mem               (performMajorGC)
 import           System.Random            as R
 
 data CrossOptions = CrossOptions
@@ -76,8 +79,8 @@ runCross (
     Con.runConduitRes $
            ConC.yieldMany [1 .. iterations]
         .| ConC.concatMap (\iter -> [ (iter, fold, kernDef) | fold <- [1 .. folds], kernDef <- kdefs])
-        .| ConC.mapM (\(iter, fold, kernDef) ->
-             liftIO $ cross
+        .| ConC.mapM (\(iter, fold, kernDef) -> liftIO $ do
+             res <- cross
                  spatDistUnitScaling
                  obsObsDistances
                  baseSeed
@@ -86,7 +89,14 @@ runCross (
                  fold
                  obs
                  kernDef
-             )
+             res' <- evaluate (force res)
+             -- manually trigger garbage collector:
+             -- not elegant, but probably necessary,
+             -- as the runtime system may not be properly aware
+             -- of the large distance matrices in storable vector
+             _ <- performMajorGC
+             pure res'
+           )
         .| progress 1 (Just nrWorkItems)
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
@@ -107,6 +117,8 @@ cross
     -> KernelDefinition
     -> IO CrossvalOutput
 cross spatDistUnitScaling maybeFullObsObsDists seed iter folds fold obs kernDef = do
+    hPutStrLn stderr $ "Iteration: " ++ show iter
+    hPutStrLn stderr $ "Fold: " ++ show fold
     let algorithm = _kdefAlgorithm kernDef
         indepVars = kernelIndepVars kernDef
         depVars   = getKeys kernDef
