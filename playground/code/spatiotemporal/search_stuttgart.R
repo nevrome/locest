@@ -51,9 +51,9 @@ system('time locest serialise selfdist -i data/spatiotemporal/obs.tsv --obsObsDi
 #### vario ####
 
 # stack install --profile
-# stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -hc -l
+# stack exec --profile -- locest varioemp --obsFile data/spatiotemporal/obs.tsv --outFile data/spatiotemporal/vario.tsv +RTS -hc -l
 # eventlog2html locest.eventlog
-# stack exec --profile -- locest vario --obsFile data/spatiotemporal/obs.tsv --variogramOutFile data/spatiotemporal/vario.tsv +RTS -p
+# stack exec --profile -- locest varioemp --obsFile data/spatiotemporal/obs.tsv --outFile data/spatiotemporal/vario.tsv +RTS -p
 # profiteur locest.prof
 
 # full empirical variogram
@@ -67,8 +67,8 @@ vario_emp %>%
   scale_y_continuous(limits = c(0, NA))
 
 # distance-filtered empirical variogram with resampling iterations
-system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 20 --omitFraction 0.2 --seed 123')
-vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp.tsv")
+system('time locest varioemp --obsFile data/spatiotemporal/obs.tsv --outMode "equalSize(100)" --outFile data/spatiotemporal/vario_emp2.tsv --indepVarsThresholds "c(space = 2000, time = 2000)" --iterations 20 --omitFraction 0.2 --seed 123')
+vario_emp <- readr::read_tsv("data/spatiotemporal/vario_emp2.tsv")
 vario_emp %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(depVar), cols = dplyr::vars(indepVar), scales = "free") +
@@ -76,7 +76,7 @@ vario_emp %>%
   scale_y_continuous(limits = c(0, NA))
 
 # fit theoretical variogram
-system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv -k SqEx -k Ex')
+system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp2.tsv --outFile data/spatiotemporal/vario_fit.tsv -k SqEx -k Ex')
 vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
 
 variogram_fun <- function(kernel, h, nug, psill, range) {
@@ -129,7 +129,7 @@ ggplot() +
 # stack exec --profile -- locest cross --configFile code/spatiotemporal/cross.conf +RTS -p
 # profiteur locest.prof
 
-system('time OMP_NUM_THREADS=3 locest cross --configFile code/spatiotemporal/cross.conf')
+system('time OMP_NUM_THREADS=5 locest cross --configFile code/spatiotemporal/cross.conf')
 
 # run with slurm
 # srun --cpus-per-task=3 --export=ALL,OMP_NUM_THREADS=3,OPENBLAS_VERBOSE=2 time locest cross --configFile code/spatiotemporal/cross.conf
@@ -184,7 +184,7 @@ cowplot::plot_grid(p1, p2)
 # OMP_NUM_THREADS=20 stack exec --profile -- locest search --configFile code/spatiotemporal/basic.conf +RTS -hy -RTS
 # hp2ps -c locest.hp
 
-system('time OMP_NUM_THREADS=3 locest search --configFile code/spatiotemporal/basic.conf')
+system('time OMP_NUM_THREADS=10 locest search --configFile code/spatiotemporal/basic.conf')
 
 # run with slurm
 # srun --cpus-per-task=20 --export=ALL,OMP_NUM_THREADS=20 time locest search --configFile code/spatiotemporal/basic.conf
@@ -202,11 +202,10 @@ search_res %>% dplyr::group_by(search_obsID, grid_yearBCAD) %>%
   dplyr::summarize(hu = sum(search_probability))
 
 search_res %>%
-  dplyr::mutate(probability = search_probability) %>%
-  dplyr::filter(temp_sampling_iteration == 0) %>%
+  #dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(grid_yearBCAD), cols = dplyr::vars(search_obsID)) +
-  geom_raster(aes(grid_x, grid_y, fill = probability)) +
+  geom_raster(aes(grid_x, grid_y, fill = search_probability)) +
   # geom_point(
   #   data = obs %>%
   #     dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%
@@ -216,3 +215,4 @@ search_res %>%
   # ) +
   scale_fill_viridis_c() +
   coord_fixed()
+

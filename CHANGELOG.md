@@ -1,3 +1,8 @@
+- V 2.1.0.0:
+    - Massive refactoring caused by moving the search out of the core algorithm, which only handles interpolation now.
+    - Implemented a statistical mechanism to aggregate multiple temporal resampling runs in locest, so that the respective uncertainty is automatically passed on to the search procedure.
+    - Switched from Monte Carlo cross-validation to k-fold cross-validation. `--testFraction` was thus replaced by a new argument `--folds` to give the desired number of folds.
+    - Changes in the implementation of the pairwise distance calculation, to make `varioemp` faster and more memory-efficient.
 - V 2.0.2.0:
     - Added a new subcommand `grid` to create a spatial prediction grid given a geojson file with the polygons of interest.
     - Allowed `--gridFile` to only read a file with spatial coordinates.
