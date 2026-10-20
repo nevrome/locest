@@ -22,10 +22,11 @@ import qualified Data.Conduit.List        as ConL
 import           Data.Foldable            (foldl')
 import           Data.List                (intercalate, transpose, sortOn)
 import qualified Data.Map.Strict          as Map
-import           Data.Maybe               (isJust, isNothing, catMaybes)
+import           Data.Maybe               (isJust, isNothing, catMaybes, mapMaybe)
 import qualified Data.Vector              as V
 import           System.IO                (hPutStrLn, stderr)
 import Data.Ord (Down(..))
+import qualified Data.List.NonEmpty     as NE
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -105,6 +106,7 @@ runSearch (SearchOptions
         .| ConL.mapM (liftIO . interpol interpolationEnv)
         .| progress 1 (Just nrWorkItems)
         .| ConL.chunksOf nTempSamples
+        .| ConL.mapMaybe NE.nonEmpty -- chunksOf returns a nonEmpty list
         .| ConL.map aggregateTempSamples
         .| ConL.map searchForAllGridPoints
         .| ConL.concatMap normaliseFinishedTimeSlice
@@ -189,17 +191,18 @@ interpolLongToWide kernDef grid perDepVar = map wideGridIdx [0 .. V.length grid 
              , _irwPredDist         = map _irlPredDist resAtI
              }
 
-aggregateTempSamples :: [(TimeSlice, [InterpolResultWide])] -> [(TimeSlice, InterpolResultWide)]
-aggregateTempSamples [] = throwL "aggregateTempSamples: empty"
-aggregateTempSamples xs@((timeSlice, _) : _) =
-    map ((timeSlice,) . combineTempResamplingRuns) (transpose $ map snd xs)
+aggregateTempSamples :: NE.NonEmpty (TimeSlice, [InterpolResultWide]) -> [(TimeSlice, InterpolResultWide)]
+aggregateTempSamples xs = mapMaybe combineColumn $ transpose $ map snd $ NE.toList xs
+    where
+        timeSlice = fst (NE.head xs)
+        combineColumn rows = (timeSlice,) . combineTempResamplingRuns <$> NE.nonEmpty rows
 
-combineTempResamplingRuns :: [InterpolResultWide] -> InterpolResultWide
-combineTempResamplingRuns [] = throwL "combineTempResamplingRuns: empty"
-combineTempResamplingRuns rows@(r0:_) =
-    r0 { _irwTopObsIDs         = map consensusTopObs $ transpose $ map _irwTopObsIDs rows
-       , _irwPredDist          = map mix . transpose $ map _irwPredDist rows
-       }
+combineTempResamplingRuns :: NE.NonEmpty InterpolResultWide -> InterpolResultWide
+combineTempResamplingRuns rows =
+    let r0 = NE.head rows
+    in r0 { _irwTopObsIDs = map consensusTopObs $ transpose $ map _irwTopObsIDs $ NE.toList rows
+          , _irwPredDist  = map mix . transpose $ map _irwPredDist $ NE.toList rows
+          }
 
 -- combine top observations across temporal resampling runs
 consensusTopObs :: [Maybe String] -> Maybe String
