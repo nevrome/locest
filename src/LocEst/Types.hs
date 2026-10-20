@@ -16,7 +16,7 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (find, sortBy)
+import           Data.List             (find, sortBy, intercalate)
 import           Data.Maybe            (isNothing)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Storable  as VS
@@ -53,7 +53,7 @@ data InterpolResultLong = IRL {
       _irlDepVarName     :: DepVarName -- name of the dependent variable
     , _irlPredDist       :: Either String PredDist
     , _irlGridDepVarsPos :: Maybe DepVarsPos
-    , _irlTopObsIDs      :: Maybe String
+    , _irlTopObsIDs      :: Maybe [String]
 } deriving (Eq, Show, Generic)
 
 instance NFData InterpolResultLong
@@ -62,7 +62,7 @@ data InterpolResultWide = IRW {
       _irwKernDef          :: KernelDefinition
     , _irwGridIndepVarsPos :: IndepVarsPos
     , _irwGridDepVarsPos   :: [Maybe DepVarsPos]
-    , _irwTopObsIDs        :: [Maybe String]
+    , _irwTopObsIDs        :: [Maybe [String]]
     , _irwDepVarName       :: [DepVarName]
     , _irwPredDist         :: [Either String PredDist]
 } deriving (Eq, Show, Generic)
@@ -71,7 +71,7 @@ data InterpolResultWide = IRW {
 data SearchResultWide = SRW {
       _srwKernDef           :: KernelDefinition
     , _srwGridIndepVarsPos  :: IndepVarsPos
-    , _srwTopObsIDs         :: [Maybe String]
+    , _srwTopObsIDs         :: [Maybe [String]]
     , _srwDepVarName        :: [DepVarName]
     , _srwPredDist          :: [Either String PredDist]
     , _srwGridLogLikelihood :: [Maybe Double]
@@ -112,7 +112,7 @@ instance Csv.ToRecord SearchResultWide where
                   , predQuantileEither (predDists !! i) 0.5
                   , predQuantileEither (predDists !! i) 0.975
                   ]
-                  ++ [ toFieldMaybeString (topObs !! i) | not (all isNothing topObs) ]
+                  ++ [ toFieldMaybeStringList (topObs !! i) | not (all isNothing topObs) ]
                   ++ [ toFieldMaybeDouble (gridLLs !! i) | not (all isNothing gridLLs) ]
                   ++ [ toFieldMaybeDouble (lls !! i) | not (all isNothing lls) ]
                 )
@@ -136,9 +136,9 @@ toFieldMaybeDouble :: Maybe Double -> Bchs.ByteString
 toFieldMaybeDouble Nothing  = Bchs.empty
 toFieldMaybeDouble (Just x) = Csv.toField (OutDouble x)
 
-toFieldMaybeString :: Maybe String -> Bchs.ByteString
-toFieldMaybeString Nothing  = Bchs.empty
-toFieldMaybeString (Just x) = Csv.toField x
+toFieldMaybeStringList :: Maybe [String] -> Bchs.ByteString
+toFieldMaybeStringList Nothing  = Bchs.empty
+toFieldMaybeStringList (Just x) = Csv.toField (intercalate ";" x)
 
 -- | A data type for crossvalidation output
 data CrossvalOutput = CrossvalOutput {

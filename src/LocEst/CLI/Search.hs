@@ -205,12 +205,12 @@ combineTempResamplingRuns rows =
           }
 
 -- combine top observations across temporal resampling runs
-consensusTopObs :: [Maybe String] -> Maybe String
+consensusTopObs :: [Maybe [String]] -> Maybe [String]
 consensusTopObs xs
     | null rankings = Nothing
-    | otherwise = Just . intercalate ";" . take nOut . map fst . sortOn rankingKey $ Map.toList stats
+    | otherwise = Just . take nOut . map fst . sortOn rankingKey $ Map.toList stats
   where
-    rankings = filter (not . null) $ map splitTopObs $ catMaybes xs
+    rankings = filter (not . null) $ catMaybes xs
     -- normally every ranking has the same length.
     nOut = maximum (map length rankings)
     -- for each obs, retain occurrence count and total rank
@@ -230,11 +230,6 @@ consensusTopObs xs
         , fromIntegral totalRank / fromIntegral count :: Double
         , obsID
         )
-    splitTopObs :: String -> [String]
-    splitTopObs "" = []
-    splitTopObs s = case break (== ';') s of
-                      (x, [])       -> [x]
-                      (x, _ : rest) -> x : splitTopObs rest
 
 searchForAllGridPoints :: [(TimeSlice, InterpolResultWide)] -> [(TimeSlice, SearchResultWide)]
 searchForAllGridPoints =  concatMap (\(ts@(_, maybeSearchGrid), irw) -> map (ts,) (search maybeSearchGrid irw))

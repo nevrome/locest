@@ -8,7 +8,7 @@ import           LocEst.TypesFlat
 import           LocEst.Utils
 
 import           Control.Monad                (forM_)
-import           Data.List                    (intercalate, sortOn)
+import           Data.List                    (sortOn)
 import           Data.Ord                     (Down (..))
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Storable         as VS
@@ -90,10 +90,10 @@ topNObsIDs
     -> V.Vector Observation
     -> M.Matrix Double   -- grid * obs
     -> Int               -- grid index
-    -> String
+    -> [String]
 topNObsIDs n obs weights gridIx =
     let row = [ (obs V.! j, weights `M.atIndex` (gridIx, j)) | j <- [0 .. V.length obs - 1] ]
-    in intercalate ";" [ _obsID o | (o, _) <- take n (sortOn (Down . snd) row) ]
+    in [ _obsID o | (o, _) <- take n (sortOn (Down . snd) row) ]
 
 gprCore
     :: M.Matrix Double -- obs–obs weights
