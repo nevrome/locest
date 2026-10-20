@@ -146,6 +146,7 @@ interpolPerDepVar spatDistUnitScaling algorithm topNObs indepVars
      maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
      depVars kernelsPerDepVar
      obs grid maybeGridTrueDep = do
+    hPutStrLn stderr "Computing pairwise distances..."
     -- obs-grid dists are always needed
     distsObsGrid <- case maybeObsGridDists of
         Nothing -> do
@@ -173,12 +174,14 @@ interpolPerDepVar spatDistUnitScaling algorithm topNObs indepVars
             --             forM indepVars (\name -> case lookup name ms of
             --                Just m  -> pure (name, m)
             --                Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
+            hPutStrLn stderr "Interpolating..."
             forM (zip depVars kernelsPerDepVar) $ \(depVar, kernel) -> do
                 hPutStrLn stderr depVar
                 let res = gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs topNObs depVar kernel
                 res' <- evaluate (force res)
                 return res'
         KAS -> do
+            hPutStrLn stderr "Interpolating..."
             forM (zip depVars kernelsPerDepVar) $ \(depVar, kernel) -> do
                 hPutStrLn stderr depVar
                 let res = kas obs maybeGridTrueDep distsObsGrid topNObs depVar kernel
