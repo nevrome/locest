@@ -1,3 +1,5 @@
+- V 2.1.0.0:
+    - Massive refactoring caused by moving the search out of the core algorithm, which only handles interpolation now.
 - V 2.0.2.0:
     - Added a new subcommand `grid` to create a spatial prediction grid given a geojson file with the polygons of interest.
     - Allowed `--gridFile` to only read a file with spatial coordinates.

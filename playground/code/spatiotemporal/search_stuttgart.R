@@ -76,7 +76,7 @@ vario_emp %>%
   scale_y_continuous(limits = c(0, NA))
 
 # fit theoretical variogram
-system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp.tsv --outFile data/spatiotemporal/vario_fit.tsv -k SqEx -k Ex')
+system('time locest variofit --empVarioFile data/spatiotemporal/vario_emp2.tsv --outFile data/spatiotemporal/vario_fit.tsv -k SqEx -k Ex')
 vario_fit <- readr::read_tsv("data/spatiotemporal/vario_fit.tsv")
 
 variogram_fun <- function(kernel, h, nug, psill, range) {
@@ -205,7 +205,7 @@ search_res %>%
   #dplyr::filter(temp_sampling_iteration == 0) %>%
   ggplot() +
   facet_grid(rows = dplyr::vars(grid_yearBCAD), cols = dplyr::vars(search_obsID)) +
-  geom_raster(aes(grid_x, grid_y, fill = interpol_upper_quant_depC1)) + #search_probability)) +
+  geom_raster(aes(grid_x, grid_y, fill = search_probability)) +
   # geom_point(
   #   data = obs %>%
   #     dplyr::filter(yearBCAD > -7500 & yearBCAD < -3500) %>%

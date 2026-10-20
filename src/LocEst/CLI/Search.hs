@@ -20,11 +20,12 @@ import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import qualified Data.Conduit.List        as ConL
 import           Data.Foldable            (foldl')
-import           Data.List                (intercalate, transpose)
+import           Data.List                (intercalate, transpose, sortOn)
 import qualified Data.Map.Strict          as Map
-import           Data.Maybe               (isJust, isNothing)
+import           Data.Maybe               (isJust, isNothing, catMaybes)
 import qualified Data.Vector              as V
 import           System.IO                (hPutStrLn, stderr)
+import Data.Ord (Down(..))
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath
@@ -214,10 +215,41 @@ aggregateTempSamples xs@((timeSlice, _) : _) =
 combineTempResamplingRuns :: [InterpolResultWide] -> InterpolResultWide
 combineTempResamplingRuns [] = throwL "combineTempResamplingRuns: empty"
 combineTempResamplingRuns rows@(r0:_) =
-    r0 { -- TODO: topObs also differ between resampling runs and must be aggregated somehow...
-         _irwTopObsIDs         = replicate (length . _irwTopObsIDs $ r0) Nothing
+    r0 { _irwTopObsIDs         = map consensusTopObs $ transpose $ map _irwTopObsIDs rows
        , _irwPredDist          = map mix . transpose $ map _irwPredDist rows
        }
+
+-- combine top observations across temporal resampling runs
+consensusTopObs :: [Maybe String] -> Maybe String
+consensusTopObs xs
+    | null rankings = Nothing
+    | otherwise = Just . intercalate ";" . take nOut . map fst . sortOn rankingKey $ Map.toList stats
+  where
+    rankings = filter (not . null) $ map splitTopObs $ catMaybes xs
+    -- normally every ranking has the same length.
+    nOut = maximum (map length rankings)
+    -- for each obs, retain occurrence count and total rank
+    stats :: Map.Map String (Int, Int)
+    stats = foldl' addRanking Map.empty rankings
+    addRanking m ids = foldl' addOne m (zip [1..] ids)
+    addOne m (rank, obsID) =
+        Map.insertWith
+            (\(newCount, newRank) (oldCount, oldRank) ->
+                (newCount + oldCount, newRank + oldRank))
+            obsID
+            (1, rank)
+            m
+    -- higher occurrence count first, then lower mean rank
+    rankingKey (obsID, (count, totalRank)) =
+        ( Down count
+        , fromIntegral totalRank / fromIntegral count :: Double
+        , obsID
+        )
+    splitTopObs :: String -> [String]
+    splitTopObs "" = []
+    splitTopObs s = case break (== ';') s of
+                      (x, [])       -> [x]
+                      (x, _ : rest) -> x : splitTopObs rest
 
 searchForAllGridPoints :: [(TimeSlice, InterpolResultWide)] -> [(TimeSlice, SearchResultWide)]
 searchForAllGridPoints =  concatMap (\(ts@(_, maybeSearchGrid), irw) -> map (ts,) (search maybeSearchGrid irw))
