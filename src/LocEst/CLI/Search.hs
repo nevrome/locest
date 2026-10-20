@@ -20,13 +20,14 @@ import qualified Data.Conduit             as Con
 import qualified Data.Conduit.Combinators as ConC
 import qualified Data.Conduit.List        as ConL
 import           Data.Foldable            (foldl')
-import           Data.List                (intercalate, transpose, sortOn)
+import           Data.List                (intercalate, sortOn, transpose)
+import qualified Data.List.NonEmpty       as NE
 import qualified Data.Map.Strict          as Map
-import           Data.Maybe               (isJust, isNothing, catMaybes, mapMaybe)
+import           Data.Maybe               (catMaybes, isJust, isNothing,
+                                           mapMaybe)
+import           Data.Ord                 (Down (..))
 import qualified Data.Vector              as V
 import           System.IO                (hPutStrLn, stderr)
-import Data.Ord (Down(..))
-import qualified Data.List.NonEmpty     as NE
 
 data SearchOptions = SearchOptions
     { _searchInObservationFile   :: FilePath

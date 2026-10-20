@@ -16,7 +16,7 @@ import           Control.DeepSeq
 import qualified Data.ByteString.Char8 as Bchs
 import qualified Data.Csv              as Csv
 import qualified Data.HashMap.Strict   as HM
-import           Data.List             (find, sortBy, intercalate)
+import           Data.List             (find, intercalate, sortBy)
 import           Data.Maybe            (isNothing)
 import qualified Data.Vector           as V
 import qualified Data.Vector.Storable  as VS
