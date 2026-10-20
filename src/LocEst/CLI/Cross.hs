@@ -119,13 +119,11 @@ cross
 cross spatDistUnitScaling maybeFullObsObsDists seed iter folds fold obs kernDef = do
     hPutStrLn stderr $ "Iteration: " ++ show iter
     hPutStrLn stderr $ "Fold: " ++ show fold
-    let algorithm = _kdefAlgorithm kernDef
-        indepVars = kernelIndepVars kernDef
+    let indepVars = kernelIndepVars kernDef
         depVars   = getKeys kernDef
         oneDepVar = case depVars of
             [x] -> x
             _   -> throwL "cross: expected exactly one dependent variable"
-        kernels   = getValues kernDef
         nObs      = V.length obs
         seedIter  = seed + iter
         (testIdx, trainIdx) = kFoldIdx seedIter folds fold nObs
@@ -138,19 +136,17 @@ cross spatDistUnitScaling maybeFullObsObsDists seed iter folds fold obs kernDef 
         -- slice distance matrices if provided
         !maybeObsObsDists  = sliceSelfDistPerIndep trainIdx <$> maybeFullObsObsDists
         !maybeObsGridDists = sliceCrossDistPerIndep testIdx trainIdx <$> maybeFullObsObsDists
+    -- compile interpolation setup
+        interpolationEnv = InterpolationEnv
+            { _ieSpatDistUnitScaling = spatDistUnitScaling
+            , _ieKernelDefinition    = kernDef
+            , _ieTopNObs             = 0
+            , _ieIndepVars           = indepVars
+            , _ieObsGridDists        = maybeObsGridDists
+            , _ieObsObsDists         = maybeObsObsDists
+            }
     -- run interpolation (no dep-search grid, but true grid values provided)
-    perDepVar <- interpolPerDepVar
-        spatDistUnitScaling
-        algorithm
-        0
-        indepVars
-        maybeObsGridDists
-        maybeObsObsDists
-        [oneDepVar]
-        kernels
-        trainingObs
-        predGrid
-        (Just trueVals)
+    perDepVar <- interpolPerDepVar interpolationEnv trainingObs predGrid (Just trueVals)
     depRes <- case perDepVar of
         [v] -> pure v
         _   -> throwL "cross: expected exactly one InterpolResultLong vector"

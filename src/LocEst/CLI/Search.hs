@@ -41,6 +41,15 @@ data SearchOptions = SearchOptions
     , _searchOutFile             :: Maybe FilePath
     }
 
+data InterpolationEnv = InterpolationEnv
+    { _ieSpatDistUnitScaling :: Double
+    , _ieKernelDefinition    :: KernelDefinition
+    , _ieTopNObs             :: Int
+    , _ieIndepVars           :: [IndepVarName]
+    , _ieObsGridDists        :: Maybe CrossDistMatrixPerIndepVar
+    , _ieObsObsDists         :: Maybe SelfDistMatrixPerIndepVar
+    }
+
 runSearch :: SearchOptions -> Double -> IO ()
 runSearch (SearchOptions
     inObsFile maybeTempSampFile inIndepVarsPredGridFile maybeTempGrid
@@ -54,7 +63,6 @@ runSearch (SearchOptions
         indepVars = case _kdefPerDepVar kernDef of
             (k:_) -> getKeys (_kodvLengths k)
             []    -> throwL "runSearch: empty KernelDefinition (this should be impossible)"
-        kernels   = getValues kernDef
     hPutStrLn stderr $ "Algorithm: " ++ show algorithm
     hPutStrLn stderr $ "Dependent variables: " ++ intercalate ", " depVars
     hPutStrLn stderr $ "Independent variables: " ++ intercalate ", " indepVars
@@ -74,6 +82,15 @@ runSearch (SearchOptions
     !obsGridDistances  <- traverse (readCrossDistMulti nObs nGrid) maybeObsGridDistFile
     !obsObsDistances   <- traverse (readSelfDistMulti nObs) maybeObsObsDistFile
     -- !gridGridDistances <- traverse (readSelfDistMulti nGrid) maybeGridGridDistFile
+    -- compile interpolation setup
+    let interpolationEnv = InterpolationEnv {
+          _ieSpatDistUnitScaling = spatDistUnitScaling
+        , _ieKernelDefinition    = kernDef
+        , _ieTopNObs             = topNObs
+        , _ieIndepVars           = indepVars
+        , _ieObsGridDists        = obsGridDistances
+        , _ieObsObsDists         = obsObsDistances
+        }
     -- run interpolation and search
     hPutStrLn stderr "Running interpolation"
     let tempSamples = tempSampleAxis obs maybeTempSamp
@@ -85,12 +102,7 @@ runSearch (SearchOptions
     Con.runConduitRes $
            ConC.yieldMany timeSlices
         .| ConL.concatMap (\ts -> map (ts,) tempSamples)
-        .| ConL.mapM (
-            liftIO . interpol
-                spatDistUnitScaling algorithm kernDef
-                topNObs indepVars obsGridDistances
-                obsObsDistances depVars kernels
-           )
+        .| ConL.mapM (liftIO . interpol interpolationEnv)
         .| progress 1 (Just nrWorkItems)
         .| ConL.chunksOf nTempSamples
         .| ConL.map aggregateTempSamples
@@ -99,59 +111,31 @@ runSearch (SearchOptions
         .| sinkNamedCSV outFile
     hPutStrLn stderr "Done"
 
-interpol
-    :: Double
-    -> Algorithm
-    -> KernelDefinition
-    -> Int
-    -> [IndepVarName]
-    -> Maybe CrossDistMatrixPerIndepVar
-    -> Maybe SelfDistMatrixPerIndepVar
-    -> [DepVarName]
-    -> [KernelOneDepVar]
-    -> (TimeSlice, V.Vector Observation)
-    -> IO (TimeSlice, [InterpolResultWide])
-interpol spatDistUnitScaling algorithm kernDef topNObs indepVars
-    maybeObsGridDists maybeObsObsDists depVars kernelsPerDepVar
-    (timeSlice@(grid, _), obs') = do
+interpol :: InterpolationEnv -> (TimeSlice, V.Vector Observation) -> IO (TimeSlice, [InterpolResultWide])
+interpol env (timeSlice@(grid, _), obs') = do
     hPutStrLn stderr "Started work package..."
-    perDepVar <- interpolPerDepVar
-        spatDistUnitScaling
-        algorithm
-        topNObs
-        indepVars
-        maybeObsGridDists
-        maybeObsObsDists
-        depVars
-        kernelsPerDepVar
-        obs'
-        grid
-        Nothing
-    pure (timeSlice, interpolLongToWide kernDef grid perDepVar)
+    perDepVar <- interpolPerDepVar env obs' grid Nothing
+    pure (timeSlice, interpolLongToWide (_ieKernelDefinition env) grid perDepVar)
 
 interpolPerDepVar
-    :: Double
-    -> Algorithm
-    -> Int
-    -> [IndepVarName]
-    -> Maybe CrossDistMatrixPerIndepVar
-    -> Maybe SelfDistMatrixPerIndepVar
-    -- -> Maybe SelfDistMatrixPerIndepVar
-    -> [DepVarName]
-    -> [KernelOneDepVar]
+    :: InterpolationEnv
     -> V.Vector Observation
     -> V.Vector IndepVarsPos
     -> Maybe (V.Vector DepVarsPos)
     -> IO [V.Vector InterpolResultLong]
-interpolPerDepVar spatDistUnitScaling algorithm topNObs indepVars
-     maybeObsGridDists maybeObsObsDists -- maybeGridGridDists
-     depVars kernelsPerDepVar
-     obs grid maybeGridTrueDep = do
+interpolPerDepVar env obs grid maybeGridTrueDep = do
+    let spatDistUnitScaling = _ieSpatDistUnitScaling env
+        kernDef             = _ieKernelDefinition env
+        algorithm           = _kdefAlgorithm kernDef
+        topNObs             = _ieTopNObs env
+        indepVars           = _ieIndepVars env
+        maybeObsGridDists   = _ieObsGridDists env
+        maybeObsObsDists    = _ieObsObsDists env
+        kernelsPerDepVar    = _kdefPerDepVar kernDef
     hPutStrLn stderr "Computing pairwise distances..."
     -- obs-grid dists are always needed
     distsObsGrid <- case maybeObsGridDists of
-        Nothing -> do
-             crossDistMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
+        Nothing -> crossDistMatrixToFlat <$> calcObsGridDistances spatDistUnitScaling obs grid indepVars
         Just (CrossDistMatrixPerIndepVar ms) ->
             crossDistMatrixToFlat . CrossDistMatrixPerIndepVar <$>
                 forM indepVars (\name -> case lookup name ms of
@@ -160,34 +144,32 @@ interpolPerDepVar spatDistUnitScaling algorithm topNObs indepVars
     case algorithm of
         GPR -> do
             distsObsObs <- case maybeObsObsDists of
-                Nothing -> do
-                     selfDistMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
+                Nothing -> selfDistMatrixToFlatHalf <$> calcObsObsDistances spatDistUnitScaling obs indepVars
                 Just (SelfDistMatrixPerIndepVar ms) ->
                     selfDistMatrixToFlatHalf . SelfDistMatrixPerIndepVar <$>
                         forM indepVars (\name -> case lookup name ms of
                            Just m  -> pure (name, m)
                            Nothing -> calcSelfDistOneDim spatDistUnitScaling (\(Observation _ _ (HyperPos pos _) _) -> pos) obs name)
             -- distsGridGrid <- case maybeGridGridDists of
-            --     Nothing -> do
-            --          selfDistMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
+            --     Nothing -> selfDistMatrixToFlatHalf <$> calcGridGridDistances spatDistUnitScaling grid indepVars
             --     Just (SelfDistMatrixPerIndepVar ms) ->
             --         selfDistMatrixToFlatHalf . SelfDistMatrixPerIndepVar <$>
             --             forM indepVars (\name -> case lookup name ms of
             --                Just m  -> pure (name, m)
             --                Nothing -> calcSelfDistOneDim spatDistUnitScaling id grid name)
             hPutStrLn stderr "Interpolating..."
-            forM (zip depVars kernelsPerDepVar) $ \(depVar, kernel) -> do
+            forM kernelsPerDepVar $ \kernel -> do
+                let depVar = _kodvDepVarName kernel
                 hPutStrLn stderr depVar
                 let res = gpr obs grid maybeGridTrueDep distsObsGrid distsObsObs topNObs depVar kernel
-                res' <- evaluate (force res)
-                return res'
+                evaluate (force res)
         KAS -> do
             hPutStrLn stderr "Interpolating..."
-            forM (zip depVars kernelsPerDepVar) $ \(depVar, kernel) -> do
+            forM kernelsPerDepVar $ \kernel -> do
+                let depVar = _kodvDepVarName kernel
                 hPutStrLn stderr depVar
                 let res = kas obs maybeGridTrueDep distsObsGrid topNObs depVar kernel
-                res' <- evaluate (force res)
-                return res'
+                evaluate (force res)
 
 interpolLongToWide
     :: KernelDefinition
