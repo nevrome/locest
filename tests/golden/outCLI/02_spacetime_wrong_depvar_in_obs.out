@@ -13,6 +13,13 @@ Done
 Number of grid positions: 1
 Running interpolation
 Streaming...
+Started work package...
+Computing pairwise distances...
+space
+time
+Interpolating...
+depV1
+depV2
 
 Error:
 Missing key: depV2
